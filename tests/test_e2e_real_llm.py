@@ -624,6 +624,8 @@ async def _run_e2e_chain(
     tmp_path: Path,
     intermediate: Literal["xliff", "md"] = "xliff",
     target: Literal["docx", "epub", "html"] = "docx",
+    src_lang: str = "zh",
+    tgt_lang: str = "en",
 ) -> tuple[Path, OppOutputs]:
     """Run the full OPP -> OL -> ORF chain. Returns (output_path, opp_outputs)."""
     opp_out = tmp_path / "opp"
@@ -631,13 +633,47 @@ async def _run_e2e_chain(
     orf_out = tmp_path / "orf"
     orf_out.mkdir(parents=True, exist_ok=True)
 
-    opp = await _run_opp(transport, haier_docx, opp_out, "zh", "en")
+    opp = await _run_opp(transport, haier_docx, opp_out, src_lang, tgt_lang)
     intermediate_path = opp.xliff_path if intermediate == "xliff" else opp.md_path
-    translated = await _run_ol(transport, intermediate_path, ol_out, "zh", "en")
+    translated = await _run_ol(transport, intermediate_path, ol_out, src_lang, tgt_lang)
     output = orf_out / f"haier_final.{target}"
     images_json = opp.images_json_path if intermediate == "xliff" else None
     _run_orf(
         transport, opp.skeleton_path, translated, output,
+        intermediate, target, images_json,
+    )
+    return output, opp
+
+
+async def _run_e2e_chain_mixed(
+    opp_transport: Literal["cli", "mcp"],
+    ol_transport: Literal["cli", "mcp"],
+    orf_transport: Literal["cli", "mcp"],
+    haier_docx: Path,
+    tmp_path: Path,
+    intermediate: Literal["xliff", "md"] = "xliff",
+    target: Literal["docx", "epub", "html"] = "docx",
+    src_lang: str = "zh",
+    tgt_lang: str = "en",
+) -> tuple[Path, OppOutputs]:
+    """Run the full OPP -> OL -> ORF chain with per-component transport selection.
+
+    Closes the gap where the entire pipeline was forced onto a single transport.
+    A mixed chain (e.g. OPP CLI + OL MCP + ORF CLI) catches transport-specific
+    bugs that only appear when the same data crosses transport boundaries.
+    """
+    opp_out = tmp_path / "opp"
+    ol_out = tmp_path / "ol"
+    orf_out = tmp_path / "orf"
+    orf_out.mkdir(parents=True, exist_ok=True)
+
+    opp = await _run_opp(opp_transport, haier_docx, opp_out, src_lang, tgt_lang)
+    intermediate_path = opp.xliff_path if intermediate == "xliff" else opp.md_path
+    translated = await _run_ol(ol_transport, intermediate_path, ol_out, src_lang, tgt_lang)
+    output = orf_out / f"haier_final.{target}"
+    images_json = opp.images_json_path if intermediate == "xliff" else None
+    _run_orf(
+        orf_transport, opp.skeleton_path, translated, output,
         intermediate, target, images_json,
     )
     return output, opp
@@ -860,6 +896,36 @@ class TestE2ERealLLMSmoke:
             assert out_md_docx.stat().st_size > 0
         else:
             pytest.fail(f"Unknown component: {component}")
+
+    @pytest.mark.requires_api_key
+    @pytest.mark.nightly
+    def test_orf_xliff_pptx_cli(
+        self, haier_real_docx_path, use_real_llm, artifact_dir,
+    ):
+        """Tier-1 ORF xliff→pptx smoke (CLI). Closes the gap from the prior 6-param matrix
+        which only covered xliff→docx, not xliff→pptx."""
+        _require_pandoc()
+        opp = asyncio.run(
+            _run_opp("cli", haier_real_docx_path, artifact_dir, "zh", "en")
+        )
+        ol_out = artifact_dir / "ol"
+        orf_out = artifact_dir / "orf"
+        orf_out.mkdir(parents=True, exist_ok=True)
+        translated_xliff = asyncio.run(
+            _run_ol("cli", opp.xliff_path, ol_out, "zh", "en")
+        )
+        out_pptx = orf_out / "out_xliff.pptx"
+        _run_orf("cli", opp.skeleton_path, translated_xliff, out_pptx,
+                 "xliff", "pptx", opp.images_json_path)
+        _assert_non_empty_file(out_pptx)
+        with zipfile.ZipFile(out_pptx) as zf:
+            names = zf.namelist()
+            assert "ppt/presentation.xml" in names, (
+                f"PPTX missing presentation.xml. Contents: {names[:10]}"
+            )
+            assert "ppt/slides/slide1.xml" in names, (
+                f"PPTX missing slide1.xml. Contents: {names[:10]}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1088,6 +1154,140 @@ class TestE2ERealLLMLQA:
         assert "<h1" in translated_text.lower() or "<h2" in translated_text.lower(), (
             "HTML output missing heading structure"
         )
+
+    @pytest.mark.requires_api_key
+    @pytest.mark.nightly
+    def test_lqa_en_zh_xliff_final_docx(
+        self, meridian_english_docx_path, use_real_llm, artifact_dir,
+    ):
+        """Tier-3 en→zh direction: OPP→OL→ORF CLI with xliff intermediate, docx target."""
+        output, _opp = asyncio.run(
+            _run_e2e_chain(
+                "cli", meridian_english_docx_path, artifact_dir,
+                "xliff", "docx", src_lang="en", tgt_lang="zh",
+            )
+        )
+        _assert_non_empty_file(output)
+        judgment = asyncio.run(
+            _judge_docx_text(output, meridian_english_docx_path, "en", "zh")
+        )
+        translated_text = " ".join(
+            text for _idx, text in _extract_docx_text(output) if text.strip()
+        )
+        _assert_translated_to_target_lang(translated_text, "zh")
+        threshold = 5.0
+        for dim in ("avg_adequacy", "avg_fluency", "avg_terminology", "avg_format"):
+            assert judgment[dim] >= threshold, (
+                f"en→zh xliff→docx: {dim}={judgment[dim]:.2f} below {threshold}"
+            )
+
+    @pytest.mark.requires_api_key
+    @pytest.mark.nightly
+    def test_lqa_en_zh_md_final_docx(
+        self, meridian_english_docx_path, use_real_llm, artifact_dir,
+    ):
+        """Tier-3 en→zh direction: OPP→OL→ORF CLI with md intermediate, docx target."""
+        output, _opp = asyncio.run(
+            _run_e2e_chain(
+                "cli", meridian_english_docx_path, artifact_dir,
+                "md", "docx", src_lang="en", tgt_lang="zh",
+            )
+        )
+        _assert_non_empty_file(output)
+        judgment = asyncio.run(
+            _judge_docx_text(output, meridian_english_docx_path, "en", "zh")
+        )
+        translated_text = " ".join(
+            text for _idx, text in _extract_docx_text(output) if text.strip()
+        )
+        _assert_translated_to_target_lang(translated_text, "zh")
+        threshold = 5.0
+        for dim in ("avg_adequacy", "avg_fluency", "avg_terminology", "avg_format"):
+            assert judgment[dim] >= threshold, (
+                f"en→zh md→docx: {dim}={judgment[dim]:.2f} below {threshold}"
+            )
+
+    @pytest.mark.requires_api_key
+    @pytest.mark.nightly
+    def test_lqa_mixed_transport_cli_mcp_cli(
+        self, haier_real_docx_path, use_real_llm, artifact_dir,
+    ):
+        """Tier-3 mixed transport: OPP CLI → OL MCP → ORF CLI with xliff, docx."""
+        output, _opp = asyncio.run(
+            _run_e2e_chain_mixed(
+                "cli", "mcp", "cli",
+                haier_real_docx_path, artifact_dir,
+                "xliff", "docx", src_lang="zh", tgt_lang="en",
+            )
+        )
+        _assert_non_empty_file(output)
+        judgment = asyncio.run(
+            _judge_docx_text(output, haier_real_docx_path, "zh", "en")
+        )
+        translated_text = " ".join(
+            text for _idx, text in _extract_docx_text(output) if text.strip()
+        )
+        _assert_translated_to_target_lang(translated_text, "en")
+        threshold = 5.0
+        for dim in ("avg_adequacy", "avg_fluency", "avg_terminology", "avg_format"):
+            assert judgment[dim] >= threshold, (
+                f"mixed cli/mcp/cli: {dim}={judgment[dim]:.2f} below {threshold}"
+            )
+
+    @pytest.mark.requires_api_key
+    @pytest.mark.nightly
+    def test_lqa_mixed_transport_mcp_cli_mcp(
+        self, haier_real_docx_path, use_real_llm, artifact_dir,
+    ):
+        """Tier-3 mixed transport: OPP MCP → OL CLI → ORF MCP with md, docx."""
+        output, _opp = asyncio.run(
+            _run_e2e_chain_mixed(
+                "mcp", "cli", "mcp",
+                haier_real_docx_path, artifact_dir,
+                "md", "docx", src_lang="zh", tgt_lang="en",
+            )
+        )
+        _assert_non_empty_file(output)
+        judgment = asyncio.run(
+            _judge_docx_text(output, haier_real_docx_path, "zh", "en")
+        )
+        translated_text = " ".join(
+            text for _idx, text in _extract_docx_text(output) if text.strip()
+        )
+        _assert_translated_to_target_lang(translated_text, "en")
+        threshold = 5.0
+        for dim in ("avg_adequacy", "avg_fluency", "avg_terminology", "avg_format"):
+            assert judgment[dim] >= threshold, (
+                f"mixed mcp/cli/mcp: {dim}={judgment[dim]:.2f} below {threshold}"
+            )
+
+    @pytest.mark.requires_api_key
+    @pytest.mark.nightly
+    def test_lqa_en_zh_xliff_final_epub(
+        self, meridian_english_docx_path, use_real_llm, artifact_dir,
+    ):
+        """Tier-3 en→zh direction: OPP→OL→ORF CLI with xliff intermediate, epub target."""
+        _require_pandoc()
+        output, _opp = asyncio.run(
+            _run_e2e_chain(
+                "cli", meridian_english_docx_path, artifact_dir,
+                "xliff", "epub", src_lang="en", tgt_lang="zh",
+            )
+        )
+        _assert_non_empty_file(output)
+        translated_text = _extract_epub_text(output)
+        _assert_translated_to_target_lang(translated_text, "zh")
+        threshold_chars = 200
+        assert len(translated_text) >= threshold_chars, (
+            f"EPUB body too short ({len(translated_text)} chars) — "
+            f"en→zh translation likely failed silently. Sample: {translated_text[:200]!r}"
+        )
+        with zipfile.ZipFile(output) as zf:
+            names = zf.namelist()
+            assert "mimetype" in names, f"EPUB missing mimetype. Contents: {names[:10]}"
+            assert any(n.endswith("content.opf") for n in names), (
+                f"EPUB missing content.opf. Contents: {names[:10]}"
+            )
 
 
 # ---------------------------------------------------------------------------
