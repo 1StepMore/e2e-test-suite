@@ -759,6 +759,25 @@ def haier_real_docx_path() -> Path:
     return path
 
 
+@pytest.fixture(scope="session")
+def meridian_english_docx_path() -> Path:
+    """Path to the synthetic English source DOCX for en→zh Tier-3 LQA tests.
+
+    Companion to haier_real_docx_path (which is zh→en). Meridian_Robotics_
+    Product_Overview_E2E.docx is a synthetic 38 KB English document with
+    headings, paragraphs, and a 3-row product table. Designed to be the
+    canonical en→zh test fixture so the tier-3 matrix covers both translation
+    directions.
+    """
+    path = (
+        Path(__file__).parent.parent
+        / "Meridian_Robotics_Product_Overview_E2E.docx"
+    )
+    if not path.exists():
+        pytest.skip(f"Meridian en→zh E2E test DOCX not found at {path}")
+    return path
+
+
 # =============================================================================
 # Test Configuration
 # =============================================================================
