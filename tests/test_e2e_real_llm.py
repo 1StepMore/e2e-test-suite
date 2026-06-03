@@ -128,7 +128,12 @@ def use_real_llm(monkeypatch):
         monkeypatch.setenv("OL_CONFIG_PATH", str(local_yaml))
 
     if not any(os.environ.get(k) for k in ["MINIMAX_API_KEY", "BAIDU_API_KEY"]):
-        pytest.skip("Real LLM test skipped: no MINIMAX/BAIDU key in Omni_Localizer/.env")
+        pytest.fail(
+            "Tier 3 LQA test requires a real LLM API key. "
+            "Set MINIMAX_API_KEY or BAIDU_API_KEY in Omni_Localizer/.env, "
+            "or in the test environment. Silent skip is removed — a missing key "
+            "now ERRORs so pipeline regressions are visible instead of hidden."
+        )
 
 
 @pytest.fixture
@@ -516,19 +521,42 @@ def _extract_docx_text(docx_path: Path) -> list[tuple[int, str]]:
 
 
 def _extract_epub_text(epub_path: Path) -> str:
-    """Extract text from EPUB body, chapter order. (Deferred — not used in current 14 tests.)"""
-    raise NotImplementedError(
-        "Phase 8 (deferred): _extract_epub_text not implemented. "
-        "The current 14-test suite does not include LQA on EPUB output."
-    )
+    """Extract concatenated text from all XHTML/HTML files inside the EPUB.
+
+    EPUBs are ZIP archives whose body content lives in `OEBPS/*.xhtml` (or
+    `EPUB/*.xhtml` depending on producer). We concatenate text from every
+    `.xhtml` / `.html` / `.htm` entry and strip XML/HTML tags. Order is
+    determined by ZIP entry order, which is sufficient for LQA — judges
+    compare against the source DOCX text, not a specific chapter mapping.
+    """
+    import re as _re
+
+    parts: list[str] = []
+    with zipfile.ZipFile(epub_path) as zf:
+        for name in zf.namelist():
+            if not name.lower().endswith((".xhtml", ".html", ".htm")):
+                continue
+            try:
+                content = zf.read(name).decode("utf-8", errors="replace")
+            except Exception:
+                continue
+            text = _re.sub(r"<[^>]+>", " ", content)
+            text = _re.sub(r"\s+", " ", text).strip()
+            if text:
+                parts.append(text)
+    return " ".join(parts)
 
 
 def _extract_html_text(html_path: Path) -> str:
-    """Extract text from HTML body. (Deferred — not used in current 14 tests.)"""
-    raise NotImplementedError(
-        "Phase 8 (deferred): _extract_html_text not implemented. "
-        "The current 14-test suite does not include LQA on HTML output."
-    )
+    """Extract text from an HTML file (pandoc MD→HTML output)."""
+    import re as _re
+
+    content = html_path.read_text(encoding="utf-8", errors="replace")
+    text = _re.sub(r"<script\b.*?</script>", " ", content, flags=_re.DOTALL | _re.IGNORECASE)
+    text = _re.sub(r"<style\b.*?</style>", " ", text, flags=_re.DOTALL | _re.IGNORECASE)
+    text = _re.sub(r"<[^>]+>", " ", text)
+    text = _re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -970,6 +998,95 @@ class TestE2ERealLLMLQA:
         )
         assert judgment["avg_format"] >= threshold, (
             f"format={judgment['avg_format']:.2f}"
+        )
+
+    @pytest.mark.requires_api_key
+    @pytest.mark.nightly
+    def test_lqa_xliff_final_docx_mcp(
+        self, haier_real_docx_path, use_real_llm, artifact_dir,
+    ):
+        output, _opp = asyncio.run(
+            _run_e2e_chain("mcp", haier_real_docx_path, artifact_dir, "xliff", "docx")
+        )
+        _assert_non_empty_file(output)
+        judgment = asyncio.run(
+            _judge_docx_text(output, haier_real_docx_path, "zh", "en")
+        )
+        translated_text = " ".join(
+            text for _idx, text in _extract_docx_text(output) if text.strip()
+        )
+        _assert_translated_to_target_lang(translated_text, "en")
+        threshold = 5.0
+        for dim in ("avg_adequacy", "avg_fluency", "avg_terminology", "avg_format"):
+            assert judgment[dim] >= threshold, (
+                f"MCP xliff→docx: {dim}={judgment[dim]:.2f} below {threshold}"
+            )
+
+    @pytest.mark.requires_api_key
+    @pytest.mark.nightly
+    def test_lqa_md_final_docx_mcp(
+        self, haier_real_docx_path, use_real_llm, artifact_dir,
+    ):
+        output, _opp = asyncio.run(
+            _run_e2e_chain("mcp", haier_real_docx_path, artifact_dir, "md", "docx")
+        )
+        _assert_non_empty_file(output)
+        judgment = asyncio.run(
+            _judge_docx_text(output, haier_real_docx_path, "zh", "en")
+        )
+        translated_text = " ".join(
+            text for _idx, text in _extract_docx_text(output) if text.strip()
+        )
+        _assert_translated_to_target_lang(translated_text, "en")
+        threshold = 5.0
+        for dim in ("avg_adequacy", "avg_fluency", "avg_terminology", "avg_format"):
+            assert judgment[dim] >= threshold, (
+                f"MCP md→docx: {dim}={judgment[dim]:.2f} below {threshold}"
+            )
+
+    @pytest.mark.requires_api_key
+    @pytest.mark.nightly
+    def test_lqa_xliff_final_epub(
+        self, haier_real_docx_path, use_real_llm, artifact_dir,
+    ):
+        _require_pandoc()
+        output, _opp = asyncio.run(
+            _run_e2e_chain("cli", haier_real_docx_path, artifact_dir, "xliff", "epub")
+        )
+        _assert_non_empty_file(output)
+        translated_text = _extract_epub_text(output)
+        _assert_translated_to_target_lang(translated_text, "en")
+        threshold_chars = 200
+        assert len(translated_text) >= threshold_chars, (
+            f"EPUB body too short ({len(translated_text)} chars) — "
+            f"translation likely failed silently. Sample: {translated_text[:200]!r}"
+        )
+        with zipfile.ZipFile(output) as zf:
+            names = zf.namelist()
+            assert "mimetype" in names, f"EPUB missing mimetype. Contents: {names[:10]}"
+            assert any(n.endswith("content.opf") for n in names), (
+                f"EPUB missing content.opf. Contents: {names[:10]}"
+            )
+
+    @pytest.mark.requires_api_key
+    @pytest.mark.nightly
+    def test_lqa_md_final_html(
+        self, haier_real_docx_path, use_real_llm, artifact_dir,
+    ):
+        _require_pandoc()
+        output, _opp = asyncio.run(
+            _run_e2e_chain("cli", haier_real_docx_path, artifact_dir, "md", "html")
+        )
+        _assert_non_empty_file(output)
+        translated_text = _extract_html_text(output)
+        _assert_translated_to_target_lang(translated_text, "en")
+        threshold_chars = 200
+        assert len(translated_text) >= threshold_chars, (
+            f"HTML body too short ({len(translated_text)} chars) — "
+            f"translation likely failed silently. Sample: {translated_text[:200]!r}"
+        )
+        assert "<h1" in translated_text.lower() or "<h2" in translated_text.lower(), (
+            "HTML output missing heading structure"
         )
 
 
