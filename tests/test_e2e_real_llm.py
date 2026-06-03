@@ -1075,7 +1075,7 @@ class TestE2ERealLLMLQA:
     @pytest.mark.requires_api_key
     @pytest.mark.nightly
     def test_lqa_xliff_final_docx_mcp(
-        self, haier_real_docx_path, use_real_llm, artifact_dir,
+        self, haier_real_docx_path, use_real_llm, use_opp_mcp, artifact_dir,
     ):
         output, _opp = asyncio.run(
             _run_e2e_chain("mcp", haier_real_docx_path, artifact_dir, "xliff", "docx")
@@ -1097,7 +1097,7 @@ class TestE2ERealLLMLQA:
     @pytest.mark.requires_api_key
     @pytest.mark.nightly
     def test_lqa_md_final_docx_mcp(
-        self, haier_real_docx_path, use_real_llm, artifact_dir,
+        self, haier_real_docx_path, use_real_llm, use_opp_mcp, artifact_dir,
     ):
         output, _opp = asyncio.run(
             _run_e2e_chain("mcp", haier_real_docx_path, artifact_dir, "md", "docx")
@@ -1217,7 +1217,7 @@ class TestE2ERealLLMLQA:
     @pytest.mark.requires_api_key
     @pytest.mark.nightly
     def test_lqa_mixed_transport_cli_mcp_cli(
-        self, haier_real_docx_path, use_real_llm, artifact_dir,
+        self, haier_real_docx_path, use_real_llm, use_opp_mcp, artifact_dir,
     ):
         """Tier-3 mixed transport: OPP CLI → OL MCP → ORF CLI with xliff, docx."""
         output, _opp = asyncio.run(
@@ -1244,7 +1244,7 @@ class TestE2ERealLLMLQA:
     @pytest.mark.requires_api_key
     @pytest.mark.nightly
     def test_lqa_mixed_transport_mcp_cli_mcp(
-        self, haier_real_docx_path, use_real_llm, artifact_dir,
+        self, haier_real_docx_path, use_real_llm, use_opp_mcp, artifact_dir,
     ):
         """Tier-3 mixed transport: OPP MCP → OL CLI → ORF MCP with md, docx."""
         output, _opp = asyncio.run(
