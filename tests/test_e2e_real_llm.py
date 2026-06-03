@@ -899,31 +899,30 @@ class TestE2ERealLLMSmoke:
 
     @pytest.mark.requires_api_key
     @pytest.mark.nightly
-    def test_orf_md_pptx_cli(
-        self, haier_real_docx_path, use_real_llm, artifact_dir,
+    def test_orf_xliff_pptx_cli(
+        self, meridian_english_pptx_path, use_real_llm, artifact_dir,
     ):
-        """Tier-1 ORF md→pptx smoke (CLI).
+        """Tier-1 ORF xliff→pptx smoke (CLI).
 
-        Originally written as xliff→pptx, but the Haier test fixture is a
-        DOCX, not a PPTX — XLIFF2PPTXConverter requires a PPTX skeleton
-        to populate the slide structure, so the xliff→pptx path produces
-        a malformed (DOCX-shaped) PPTX. The md→pptx path works because
-        MD2PPTXConverter uses pandoc to build a fresh PPTX from the MD
-        intermediate without needing a PPTX source.
+        Uses a real PPTX source fixture (Meridian_Q1_Update_E2E.pptx, 3 slides)
+        because XLIFF2PPTXConverter needs a PPTX skeleton to populate the
+        slide structure. The Haier DOCX fixture is unsuitable here — a
+        DOCX passed to XLIFF2PPTXConverter produces a malformed PPTX
+        with word/document.xml (DOCX structure) instead of
+        ppt/presentation.xml.
         """
-        _require_pandoc()
         opp = asyncio.run(
-            _run_opp("cli", haier_real_docx_path, artifact_dir, "zh", "en")
+            _run_opp("cli", meridian_english_pptx_path, artifact_dir, "en", "zh")
         )
         ol_out = artifact_dir / "ol"
         orf_out = artifact_dir / "orf"
         orf_out.mkdir(parents=True, exist_ok=True)
-        translated_md = asyncio.run(
-            _run_ol("cli", opp.md_path, ol_out, "zh", "en")
+        translated_xliff = asyncio.run(
+            _run_ol("cli", opp.xliff_path, ol_out, "en", "zh")
         )
-        out_pptx = orf_out / "out_md.pptx"
-        _run_orf("cli", opp.skeleton_path, translated_md, out_pptx,
-                 "md", "pptx")
+        out_pptx = orf_out / "out_pptx.pptx"
+        _run_orf("cli", opp.skeleton_path, translated_xliff, out_pptx,
+                 "xliff", "pptx")
         _assert_non_empty_file(out_pptx)
         with zipfile.ZipFile(out_pptx) as zf:
             names = zf.namelist()

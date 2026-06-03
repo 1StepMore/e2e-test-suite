@@ -778,6 +778,24 @@ def meridian_english_docx_path() -> Path:
     return path
 
 
+@pytest.fixture(scope="session")
+def meridian_english_pptx_path() -> Path:
+    """Path to the synthetic English source PPTX for ORF xliff→pptx Tier-1 test.
+
+    Companion to meridian_english_docx_path. Meridian_Q1_Update_E2E.pptx
+    is a 30 KB synthetic English deck with 3 slides. Required because
+    XLIFF2PPTXConverter needs a real PPTX skeleton to populate the slide
+    structure (a DOCX skeleton produces a malformed PPTX).
+    """
+    path = (
+        Path(__file__).parent.parent
+        / "Meridian_Q1_Update_E2E.pptx"
+    )
+    if not path.exists():
+        pytest.skip(f"Meridian en→zh E2E test PPTX not found at {path}")
+    return path
+
+
 # =============================================================================
 # Test Configuration
 # =============================================================================
