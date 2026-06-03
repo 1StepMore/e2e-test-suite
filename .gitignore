@@ -1,34 +1,74 @@
-# Python
+# Root-level defense-in-depth gitignore.
+# Each sub-repo (Omni_Localizer/, Omni_Re_Formatter/, Omni_Pre_Processor/)
+# is its own git repo with its own .gitignore — see those for per-repo rules.
+
+# ---- Sub-repos: each is its own git repo, never track them from here ----
+Omni_Pre_Processor/
+Omni_Localizer/
+Omni_Re_Formatter/
+
+# ---- Secrets / env files (also ignored per-sub-repo) ----
+.env
+.env.local
+.env.*.local
+*.env
+
+# Common secret file extensions
+*.key
+*.pem
+*.p12
+*.pfx
+api_key*
+api_key.*
+*_api_key*
+*_api_key.*
+
+# ---- Agent / editor runtime state (mirrors sub-repo rules) ----
+.opencode/
+.sisyphus/
+
+# .omo is mostly runtime state, but plans are source — whitelist plans/
+.omo/
+!.omo/plans/
+!.omo/plans/*.md
+
+# ---- Real config overrides (templates are tracked, real values are not) ----
+config/local.yaml
+config/production.yaml
+config/secret.yaml
+
+# ---- Python bytecode / caches ----
 __pycache__/
 *.py[cod]
 *.pyc
-__pycache__/
+*.pyo
+*.pyd
 *.egg-info/
 dist/
 build/
 *.egg
+.pytest_cache/
 
-# Virtual envs
+# ---- Virtualenvs ----
 .venv/
+.venv_ol/
 .venv312/
+.env/
 
-# Logs
-logs/
-*.log
-
-# Test output (keep structure, ignore contents)
+# ---- Test outputs / logs ----
 test-artifacts/
 test-output/
 tmp*/
+test_output/
+logs/
+*.log
 
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Reports (keep templates, ignore auto-generated)
+# ---- Reports (keep templates, ignore auto-generated) ----
 reports/*.md
 !reports/TEMPLATE*.md
+
+# ---- IDE / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
