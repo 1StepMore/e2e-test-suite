@@ -4,16 +4,136 @@ This module provides fixtures that enable end-to-end testing of the complete
 OPP → OL → ORF localization pipeline.
 """
 
+import os
 import sys
+import shutil
 import tempfile
 import zipfile
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
 from docx import Document
+
+
+_VENV_BIN = Path(__file__).resolve().parents[1] / ".venv_ol" / "bin"
+if _VENV_BIN.exists() and _VENV_BIN.is_dir():
+    _venv_bin_str = str(_VENV_BIN)
+    if _venv_bin_str not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = _venv_bin_str + os.pathsep + os.environ.get("PATH", "")
+
+
+# =============================================================================
+# Test artifact directory — persistent across runs, NOT in pytest's tmp
+# =============================================================================
+
+_ARTIFACTS_ROOT = Path(__file__).resolve().parents[1] / "test_artifacts"
+
+
+@pytest.fixture
+def artifact_dir(request) -> Path:
+    """Per-test persistent artifact directory under test_artifacts/runs/.
+
+    Returns a path like:
+        test_artifacts/runs/2026-06-03T18-00-00/test_lqa_xliff_final_docx/
+
+    The session-level subdir is timestamped (one per pytest invocation).
+    The test-level subdir is sanitized from request.node.nodeid.
+    Persists across runs (not auto-cleaned like pytest's tmp_path).
+    """
+    session_id = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    safe_id = (
+        request.node.nodeid
+        .replace("::", "__")
+        .replace("/", "_")
+        .replace(".py", "")
+        .replace("[", "_")
+        .replace("]", "")
+        .replace(" ", "")
+    )
+    test_dir = _ARTIFACTS_ROOT / "runs" / session_id / safe_id
+    test_dir.mkdir(parents=True, exist_ok=True)
+    return test_dir
+
+
+@pytest.fixture(autouse=True)
+def _copy_component_logs_to_artifact_dir(request, artifact_dir):
+    """After each test, copy the most recent component log file to the test's logs/.
+
+    Component logs are still written to their original locations
+    (Omni_Pre_Processor/logs/, Omni_Localizer/logs/, Omni_Re_Formatter/logs/)
+    for legacy/source-code reasons. This fixture copies the latest log
+    file for each component into the test's artifact dir under logs/,
+    so each test has a self-contained log snapshot.
+    """
+    yield
+    if not isinstance(artifact_dir, Path):
+        return
+    logs_dest = artifact_dir / "logs"
+    logs_dest.mkdir(parents=True, exist_ok=True)
+    suite_root = Path(__file__).resolve().parents[1]
+
+    component_log_specs = [
+        (suite_root / "Omni_Pre_Processor" / "logs", "opp_*.log", "opp.log"),
+        (suite_root / "Omni_Localizer" / "logs", "ol-*.log", "ol.log"),
+        (suite_root / "Omni_Re_Formatter" / "logs", "orf_*.log", "orf.log"),
+    ]
+    for log_dir, glob_pattern, dest_name in component_log_specs:
+        if not log_dir.exists():
+            continue
+        candidates = sorted(log_dir.glob(glob_pattern), key=lambda p: p.stat().st_mtime)
+        if candidates:
+            shutil.copy2(candidates[-1], logs_dest / dest_name)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _copy_latest_final_outputs():
+    """After the session, copy the most recent LQA / E2E outputs to test_artifacts/final/.
+
+    Provides quick-access 'latest_*' symlinks/copies in the final/ dir
+    so users don't have to dig through timestamped runs/ subdirs.
+    """
+    yield
+    final_dir = _ARTIFACTS_ROOT / "final"
+    final_dir.mkdir(parents=True, exist_ok=True)
+    runs_dir = _ARTIFACTS_ROOT / "runs"
+    if not runs_dir.exists():
+        return
+
+    def find_latest(test_name_substr, *sub_path_parts):
+        """Find the most recent file at runs/<run>/<test>/<sub_path>.
+
+        Walks the tree manually because rglob's pattern matching is
+        unreliable when the pattern contains `*` in a directory name.
+        """
+        candidates = []
+        for run_dir in runs_dir.iterdir():
+            if not run_dir.is_dir():
+                continue
+            for test_dir in run_dir.iterdir():
+                if not test_dir.is_dir():
+                    continue
+                if test_name_substr not in test_dir.name:
+                    continue
+                candidate = test_dir.joinpath(*sub_path_parts)
+                if candidate.is_file():
+                    candidates.append(candidate)
+        if not candidates:
+            return None
+        return max(candidates, key=lambda p: p.stat().st_mtime)
+
+    output_specs = [
+        ("test_lqa_xliff_final_docx", "orf", "haier_final.docx", "latest_haier_en_xliff.docx"),
+        ("test_lqa_md_final_docx", "orf", "haier_final.docx", "latest_haier_en_md.docx"),
+        ("test_e2e_md_html_cli", "orf", "haier_final.html", "latest_haier_en_md.html"),
+    ]
+    for test_name_substr, *sub_parts, dest_name in output_specs:
+        latest = find_latest(test_name_substr, *sub_parts)
+        if latest is not None:
+            shutil.copy2(latest, final_dir / dest_name)
 
 
 # =============================================================================
@@ -397,7 +517,17 @@ translated_at: 2026-05-27T00:00:00Z
 
 @pytest.fixture
 def mock_ol_translator():
-    """Provide a MockOLTranslator instance."""
+    """Provide a MockOLTranslator instance.
+
+    Direction: en -> zh. This is intentional and matches the
+    `sample_docx_path` fixture, which creates a synthetic English DOCX
+    (User Manual, Specifications, ...). Do NOT flip to zh -> en here
+    without also changing sample_docx_path to a Chinese source.
+
+    The real-LLM nightly tests in test_e2e_real_llm.py translate the
+    Chinese Haier DOCX (zh -> en) — see that file for the per-test
+    direction and the haier_real_docx_path fixture.
+    """
     return MockOLTranslator(source_lang="en", target_lang="zh")
 
 
