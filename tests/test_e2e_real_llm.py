@@ -304,8 +304,8 @@ async def _run_opp(
     else:
         raise ValueError(f"Unknown transport: {transport!r}")
 
-    assert xliff_path.exists(), f"XLIFF not written: {xliff_path}"
-    assert md_path.exists(), f"MD not written: {md_path}"
+    _assert_non_empty_file(xliff_path)
+    _assert_non_empty_file(md_path)
 
     from opp.pipeline import OPPPipeline
 
@@ -318,13 +318,14 @@ async def _run_opp(
     skeleton_path = pipeline.save_skeleton(
         proc_result.extraction_result, base_name, out_dir,
     )
-    assert skeleton_path is not None and skeleton_path.exists(), (
-        f"OPPPipeline.save_skeleton failed for {docx_path}"
+    assert skeleton_path is not None, (
+        f"OPPPipeline.save_skeleton returned None for {docx_path}"
     )
+    _assert_non_empty_file(skeleton_path)
 
     images_json_path = out_dir / "images.json"
     pipeline.generate_images_json(proc_result.extraction_result, images_json_path)
-    assert images_json_path.exists(), f"images.json not written: {images_json_path}"
+    _assert_non_empty_file(images_json_path)
 
     return OppOutputs(
         skeleton_path=skeleton_path,
@@ -379,9 +380,7 @@ async def _run_ol(
         assert result.returncode == 0, (
             f"ol_cli translate failed (rc={result.returncode}): {result.stderr}"
         )
-        assert output_path.exists(), (
-            f"OL CLI did not write expected output: {output_path}"
-        )
+        _assert_non_empty_file(output_path)
         return output_path
 
     if transport == "mcp":
@@ -470,7 +469,7 @@ def _run_orf(
         assert result.returncode == 0, (
             f"orf.cli apply failed (rc={result.returncode}): {result.stderr}"
         )
-        assert output_path.exists(), f"ORF CLI did not write output: {output_path}"
+        _assert_non_empty_file(output_path)
         return output_path
 
     if transport == "mcp":
@@ -663,6 +662,68 @@ def _assert_image_positioning(
             f"Image paragraph_index mismatch: "
             f"expected {opp_img.paragraph_index}, got {matched.paragraph_index}, "
             f"tolerance {tolerance}"
+        )
+
+
+def _assert_non_empty_file(path: Path, min_size: int = 1) -> None:
+    """Assert a file exists and has content (Audit 7.1)."""
+    if not path.exists():
+        raise AssertionError(f"File not found: {path}")
+    size = path.stat().st_size
+    if size < min_size:
+        raise AssertionError(
+            f"File exists but is empty or too small ({size} bytes): {path}"
+        )
+
+
+_CJK_RANGES = (
+    (0x4E00, 0x9FFF),   # CJK Unified Ideographs
+    (0x3400, 0x4DBF),   # CJK Extension A
+    (0x3040, 0x309F),   # Hiragana
+    (0x30A0, 0x30FF),   # Katakana
+    (0xAC00, 0xD7AF),   # Hangul Syllables
+)
+
+
+def _cjk_ratio(text: str) -> float:
+    """Return fraction of alphabetic characters that are CJK / Hangul / Kana."""
+    if not text:
+        return 0.0
+    cjk = 0
+    alpha = 0
+    for ch in text:
+        if not ch.isalpha():
+            continue
+        alpha += 1
+        cp = ord(ch)
+        if any(lo <= cp <= hi for lo, hi in _CJK_RANGES):
+            cjk += 1
+    return cjk / alpha if alpha else 0.0
+
+
+def _assert_translated_to_target_lang(text: str, target_lang: str) -> None:
+    """Assert the text is in the target language (Audit 7.2).
+
+    For target_lang='en', the CJK ratio must be below 0.5 (allowing
+    some proper nouns / names). For target_lang='zh', the CJK ratio
+    must be at or above 0.5. Other target languages are not checked.
+    """
+    if not text or not text.strip():
+        raise AssertionError(
+            f"Translated text is empty — LLM produced no output. Sample: {text[:100]!r}"
+        )
+    if target_lang not in ("en", "zh"):
+        return
+    ratio = _cjk_ratio(text)
+    if target_lang == "en" and ratio >= 0.5:
+        raise AssertionError(
+            f"Translated text is {ratio:.0%} CJK — LLM likely returned the "
+            f"source language instead of English. Sample: {text[:200]!r}"
+        )
+    if target_lang == "zh" and ratio < 0.5:
+        raise AssertionError(
+            f"Translated text is only {ratio:.0%} CJK — LLM likely returned "
+            f"the wrong language for target=zh. Sample: {text[:200]!r}"
         )
 
 
@@ -859,10 +920,14 @@ class TestE2ERealLLMLQA:
         output, _opp = asyncio.run(
             _run_e2e_chain("cli", haier_real_docx_path, artifact_dir, "xliff", "docx")
         )
-        assert output.exists()
+        _assert_non_empty_file(output)
         judgment = asyncio.run(
             _judge_docx_text(output, haier_real_docx_path, "zh", "en")
         )
+        translated_text = " ".join(
+            text for _idx, text in _extract_docx_text(output) if text.strip()
+        )
+        _assert_translated_to_target_lang(translated_text, "en")
         threshold = 5.0
         assert judgment["avg_adequacy"] >= threshold, (
             f"adequacy={judgment['avg_adequacy']:.2f}"
@@ -885,10 +950,14 @@ class TestE2ERealLLMLQA:
         output, _opp = asyncio.run(
             _run_e2e_chain("cli", haier_real_docx_path, artifact_dir, "md", "docx")
         )
-        assert output.exists()
+        _assert_non_empty_file(output)
         judgment = asyncio.run(
             _judge_docx_text(output, haier_real_docx_path, "zh", "en")
         )
+        translated_text = " ".join(
+            text for _idx, text in _extract_docx_text(output) if text.strip()
+        )
+        _assert_translated_to_target_lang(translated_text, "en")
         threshold = 5.0
         assert judgment["avg_adequacy"] >= threshold, (
             f"adequacy={judgment['avg_adequacy']:.2f}"
