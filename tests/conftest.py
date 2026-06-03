@@ -13,7 +13,6 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Generator
-from unittest.mock import MagicMock, patch
 
 import pytest
 from docx import Document
@@ -760,34 +759,6 @@ def haier_real_docx_path() -> Path:
     return path
 
 
-_COMPREHENSIVE_TRANSLATE_MAP = {
-    "Hello": "你好",
-    "World": "世界",
-    "User Manual": "用户手册",
-    "Test": "测试",
-    "Chapter": "章节",
-    "Section": "节",
-    "Introduction": "介绍",
-    "Feature": "功能",
-    "Function": "功能",
-    "Welcome": "欢迎",
-}
-
-
-def comprehensive_translate(text: str, src_lang: str, tgt_lang: str, context=None) -> str:
-    """Replacement for ModelPool.translate that returns demonstrably different text.
-
-    Used as `side_effect` in the 4 E2E tests. Returns known
-    translations when the source matches a key in
-    `_COMPREHENSIVE_TRANSLATE_MAP`; otherwise prefixes the source
-    with `[ZH]`. This guarantees `<target>` != `<source>` so tests
-    can assert translation actually happened.
-    """
-    if text in _COMPREHENSIVE_TRANSLATE_MAP:
-        return _COMPREHENSIVE_TRANSLATE_MAP[text]
-    return f"[ZH]{text}"
-
-
 # =============================================================================
 # Test Configuration
 # =============================================================================
@@ -819,7 +790,7 @@ def pytest_configure(config):
         "markers", "multiformat: Multi-format input coverage (PPTX, PDF, EPUB, etc.)"
     )
     config.addinivalue_line(
-        "markers", "requires_api_key: Real LLM tests; auto-skip if MINIMAX/BAIDU key missing in .env"
+        "markers", "requires_api_key: Real LLM tests; ERROR (not skip) if MINIMAX/BAIDU key missing in .env"
     )
     config.addinivalue_line(
         "markers", "nightly: Real LLM tests; CI default skip, run via -m nightly"
