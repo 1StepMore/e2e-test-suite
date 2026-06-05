@@ -12,15 +12,14 @@
 >
 > If you don't have these, get them first. Tests will be skipped (not failed) without them.
 >
-> **Venv prereq (one-time):** The suite ships with two incomplete venvs:
-> - `.venv` has OPP, ORF, `python-docx` — but **not** Omni_Localizer.
-> - `.venv_ol` has Omni_Localizer — but **not** OPP/ORF/docx.
+> **Venv prereq (one-time):** The suite ships with a single consolidated venv at `.venv_ol/` that contains all three components (OPP, OL, ORF) installed in editable mode. An older `.venv/` is still present on disk but **DEPRECATED** — see `.venv/DEPRECATED.md` for the deprecation notice. All commands below use `.venv_ol/bin/python`.
 >
-> The nightly tests need ALL of them in ONE venv. Run this one-liner first:
+> If you ever need to rebuild the venv from scratch, run:
 > ```bash
-> cd /mnt/d/贯维/Omni_Suite && .venv/bin/pip install -e Omni_Localizer/
+> cd /mnt/d/贯维/Omni_Suite
+> /mnt/d/贯维/Omni_Suite/.venv_ol/bin/pip install -e Omni_Pre_Processor/ -e Omni_Localizer/ -e Omni_Re_Formatter/
 > ```
-> After this, `.venv` has everything. All commands below use `.venv/bin/python`.
+> Do **not** add new dependencies to `.venv/` — they will not be visible to the test suite.
 
 ---
 
@@ -159,7 +158,7 @@ Run these commands from the repo root. The CLI auto-loads `.env` via `_load_env_
 
 ```bash
 cd /mnt/d/贯维/Omni_Suite
-.venv/bin/python -m ol_cli translate-md \
+.venv_ol/bin/python -m ol_cli translate-md \
     Omni_Localizer/tests/fixtures/sample.md \
     -c Omni_Localizer/config/local.yaml \
     -o /tmp/ol-smoke \
@@ -178,7 +177,7 @@ Should finish in **< 30 seconds** (real network round-trip to MiniMax/Baidu). Yo
 
 ```bash
 cd /mnt/d/贯维/Omni_Suite
-.venv/bin/python -m ol_cli translate-xliff \
+.venv_ol/bin/python -m ol_cli translate-xliff \
     Omni_Localizer/tests/fixtures/sample-xliff12.xlf \
     -c Omni_Localizer/config/local.yaml \
     -o /tmp/ol-smoke \
@@ -200,14 +199,14 @@ The full Haier DOCX (24 images, 9 paragraphs) lives at the repo root as `爱上�
 ```bash
 # (Optional) Convert DOCX → XLIFF via OPP
 cd /mnt/d/贯维/Omni_Suite
-.venv/bin/python -m opp_cli extract "爱上海尔_第二章_全球创牌 - E2E测试专用.docx" \
+.venv_ol/bin/python -m opp_cli extract "爱上海尔_第二章_全球创牌 - E2E测试专用.docx" \
     -o /tmp/ol-haier-xliff
 ```
 
 Then translate the XLIFF:
 
 ```bash
-.venv/bin/python -m ol_cli translate-xliff \
+.venv_ol/bin/python -m ol_cli translate-xliff \
     /tmp/ol-haier-xliff/*.xlf \
     -c Omni_Localizer/config/local.yaml \
     -o /tmp/ol-smoke-haier \

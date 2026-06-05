@@ -297,3 +297,30 @@ cd /mnt/d/贯维/Omni_Suite && .venv_ol/bin/python -m pytest tests/test_e2e_real
 # Quick verify everything is set up
 cd /mnt/d/贯维/Omni_Suite && .venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py --collect-only -q
 ```
+
+---
+
+## Current Test Coverage Summary (post-T16)
+
+Verified on 2026-06-05 after all T1–T15 work was complete. Each sub-repo was run with the shared `.venv_ol` venv (see `SETUP.md` for the single-venv layout).
+
+| Component | Command | Passed | Skipped | Duration |
+|---|---|---:|---:|---:|
+| Omni-Localizer (OL) | `.venv_ol/bin/python -m pytest tests/ -m "not nightly" --ignore=tests/test_e2e_real_llm.py` | **622** | 1 | ~7m31s |
+| Omni-Pre-Processor (OPP) | `.venv_ol/bin/python -m pytest tests/ -m "not nightly"` | **670** | 10 | ~7m26s |
+| Omni-Re-Formatter (ORF) | `.venv_ol/bin/python -m pytest tests/ -m "not nightly" --ignore=tests/test_e2e_real_llm.py` | **612** | 2 | ~3m12s |
+| **Total (non-nightly)** | | **1904** | 13 | |
+
+> The previous venv `.venv` is deprecated. Do **not** add new deps to it — everything goes into `.venv_ol`.
+
+## Phase 5 (Pipeline E2E) — Partial
+
+The flagship 18-chain pipeline test (`tests/test_e2e_pipeline_full.py`, 3 inputs × 3 outputs × 2 transports) was created but **does not currently pass all 18 chains** due to a real seam bug in the OL CLI:
+
+- The CLI's `OMNI_TEST_FAKE_LLM=1` seam is incomplete
+- Even with `HF_HUB_OFFLINE=1`, the CLI's repair pipeline tries to load a real HuggingFace model `bert-base-multilingual-cased`
+- This requires either: (a) a production code fix in the OL CLI's FAKE_LLM seam, or (b) running with real API keys
+
+The 18 chains work with **real API keys** (the `nightly` test path). For hermetic CI, the seam needs to be fixed. See `docs/T14_LIMITATION.md` for the full root cause analysis and recommended fix.
+
+The single test in `tests/test_e2e_ol_mcp.py::TestOLMCP::test_translate_md_text_preserves_markdown_structure` is skipped with a marker pointing at `docs/T14_LIMITATION.md` for the same reason.
