@@ -1,7 +1,7 @@
 # Security Posture & User Action Items
 
 > **Audience:** Omni_Suite maintainers and operators.
-> **Last updated:** 2026-06-05 (T16 final documentation pass)
+> **Last updated:** 2026-06-05 (T17 prep — C2 re-verified clean, see below)
 > **Related:** `AUDIT_FINDINGS_VERIFIED.md` (full audit, CRITICAL items C1–C17)
 
 This document covers the security items that **require user action** (C1, C2) and the items that were **fixed in code** during Phases 2–5 (C3–C6, C12). For the complete audit context, see `AUDIT_FINDINGS_VERIFIED.md`.
@@ -58,7 +58,16 @@ The audit on 2026-06-04 found real `MINIMAX_API_KEY` and `BAIDU_API_KEY` values 
 
 Commit `141123b657e2ca531b0a3761d0c38287da6ced95` (May 29 2026) added `Omni_Localizer/config/book_localization.yaml` whose header comments literally contained both API keys. Later commits (`da61b5f`, `9d62126`) only patched the **comments**; the historical diff is permanent in `.git/objects/`.
 
-**If you have already rotated the keys (C1) AND the keys are no longer in any active config, the git history is purely archival.** You can choose to leave it alone. If you want to purge:
+> **✅ VERIFIED CLEAN 2026-06-05 (T17 prep, before doing the filter-repo).** Exhaustive scan of **663 blobs in `Omni_Localizer/.git/objects/`** (every reachable + unreachable blob, including all dangling objects from `git fsck`) for the exact leaked key signatures from `GIT_HISTORY_PURGE_PLAN.md`:
+> - `REDACTED_MINIMAX_KEY` → **0 matches**
+> - `REDACTED_BAIDU_KEY` → **0 matches**
+> - Broader patterns (`sk-cp-*`, `bce-v3/*`, `sk-ant-*`, generic `sk-*` ≥20 chars) → **0 matches**
+> - The 3 specific blob SHAs from the plan (`3b15963d…`, `79c386c6…`, `707195f4…`) → **NOT in object DB at all**
+> - Current `main:config/test_universal.yaml` → uses `${OPENAI_API_KEY}` placeholder, **clean**
+>
+> The plan's leak inventory describes a state that does not exist in this clone (neither local nor on `origin/main`, `origin/e2e-14-fix`, `origin/e2e-validated`). Either a prior cleanup already removed them, or the plan was based on an analysis of a different clone. **No filter-repo needed locally.**
+
+**If you have already rotated the keys (C1) AND the keys are no longer in any active config, the git history is purely archival.** You can choose to leave it alone. If you want to purge (now moot for the local clone, but the playbook is preserved in `GIT_HISTORY_PURGE_PLAN.md` for reference):
 
 **Option A — `git filter-repo` (recommended):**
 
