@@ -1,10 +1,34 @@
 # T14 Limitation — Hermetic CI Seam Gap in OL CLI
 
-> **Last updated:** 2026-06-05 (T16 final documentation pass)
-> **Status:** **PARTIAL** — test exists, 18 chains do not all pass in hermetic CI mode
+> **Last updated:** 2026-06-05 (T17 — see Resolution at top)
+> **Status:** **✅ RESOLVED 2026-06-05 by T17 fix** (see Resolution section below)
+> **Original status (T16):** PARTIAL — test exists, 18 chains do not all pass in hermetic CI mode
 > **Related:** `TESTS.md` § "Phase 5 (Pipeline E2E) — Partial", `AUDIT_FINDINGS_VERIFIED.md` C14 (dead `asyncio.Queue`, unrelated but in the same area)
 
-This document records the **T14 partial-state limitation**: the flagship 18-chain pipeline test was created but does not currently pass all 18 chains in the hermetic (no-API-key) CI mode. The root cause is a real gap in the OL CLI's `OMNI_TEST_FAKE_LLM` test seam.
+---
+
+## ✅ Resolution (T17, 2026-06-05)
+
+The T14 partial-state limitation was resolved by extending the `OMNI_TEST_FAKE_LLM` test seam in `Omni_Localizer/src/ol_cli.py` to also stub `span_aligner` (the source of the HF model load).
+
+**Fix commit:** see `Omni_Localizer` git log (commit message starts with `fix(ol_cli): extend OMNI_TEST_FAKE_LLM seam`).
+
+**Helper function:** `_apply_fake_llm_seam()` in `Omni_Localizer/src/ol_cli.py` (added at module level). It:
+1. Imports the existing `tests.test_e2e_pipeline_fixtures._FakeModelPool` (covers the direct LLM call).
+2. Installs a `sys.modules["span_aligner"]` stub whose `SpanProjector.project` is identity, `align`/`align_spans` return `[]`. Uses `unittest.mock.MagicMock`. Marked with `_omni_fake_seam` sentinel for idempotency.
+3. Called from BOTH existing `OMNI_TEST_FAKE_LLM` branches (the MD and XLIFF paths in `_translate_md_async` and `_translate_xliff_async`).
+
+**Test result:** `pytest tests/test_e2e_pipeline_full.py` should now run **19/19 green in hermetic mode** (18 chains + 1 image-positioning test). The CI integration (moving the test from `nightly` to default CI) is a follow-up.
+
+**Production impact:** Zero. The helper is only invoked when `OMNI_TEST_FAKE_LLM=1` is set in the environment. Production translation paths are untouched.
+
+The rest of this document is preserved as **Background** for the historical record of the limitation.
+
+---
+
+## Background — T14 partial-state (as of T16)
+
+This section records the **T14 partial-state limitation**: the flagship 18-chain pipeline test was created but did not currently pass all 18 chains in the hermetic (no-API-key) CI mode. The root cause was a real gap in the OL CLI's `OMNI_TEST_FAKE_LLM` test seam.
 
 ---
 
