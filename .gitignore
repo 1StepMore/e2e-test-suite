@@ -72,3 +72,8 @@ reports/*.md
 .idea/
 .DS_Store
 Thumbs.db
+
+# ---- Test artifacts from T13/T14 pipeline runs (generated at test time) ----
+mcp_resources/
+resources/
+test_artifacts/
