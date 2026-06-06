@@ -394,7 +394,7 @@ def level2_span_align(text: str, shield_map: dict, original: str) -> str:
 
 ---
 
-### OL-7. `_translate_md_async` has NO outer try/except (user's prompt said XLIFF was the broken one — swap)
+### OL-7. ~~`_translate_md_async` has NO outer try/except~~ RESOLVED 2026-06-06 (A0/A9: ol_cli.py:321-344 wraps both branches; see .omo/plans/slim-pipeline-hardening.md A9) (user's prompt said XLIFF was the broken one — swap)
 
 **Severity**: **critical** (the user's prompt was wrong about which function; the real bug is in MD)
 
