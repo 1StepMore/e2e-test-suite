@@ -199,3 +199,38 @@ Calibration decision: PASS
 2. **Optional**: Run a 100-unit Chinese-content calibration for stronger evidence (~6h walltime). Not required for ship-ready.
 3. **Operational**: Add the timeout fix to the `calibrate_m2.7.py` script — replace the `/usr/bin/timeout 60` default with `/usr/bin/timeout 300` (5 min/unit) or use a progress-aware timeout.
 
+---
+
+## Calibration script migration (post-A5 follow-up)
+
+**Date**: 2026-06-07
+**Status**: ✅ RESOLVED (Omni_Localizer sub-repo commit `c6d549e`)
+**Scope**: `Omni_Localizer/scripts/calibrate_m2.7.py`
+
+The calibration script had drifted to a **direct-LiteLLM workaround** (with `minimax/MiniMax-M3` provider prefix) because the OL config had `api_key: null` and `base_url: null` everywhere. After `4a027b2` fixed the config to use `${ENV_VAR}` references, the proper ModelPool path became viable.
+
+### Bug discovered during follow-up
+
+Even with the config fix, the script's `judge_unit()` function constructed a `JudgeService` **without** a `model_pool` argument. Per `src/ol_lqa/judge.py:34`, this falls through to `self._judge_sync` — the **built-in mock** that returns `7.0` for every call regardless of source/target. The 5-unit re-run after the config fix scored **M3=7.0, M2.7=7.0, delta=+0.0** for every unit, which is a tell-tale "all scores are 7.0" pattern that indicates the mock, not real judging.
+
+The script also read `result.final_score` — an attribute that does not exist on `EvaluationResult` (the real property is `judge_overall_score`).
+
+### Fix
+
+- `_build_pool_for_model`: was a stub returning `None`. Now writes a temp YAML with the target model at priority 1 (others bumped to priority 2+ to satisfy the `LLMPoolConfig` "at least 2 models" constraint) and instantiates a `ModelPool` from it.
+- `judge_unit`: now accepts `model_pool` and passes it to `JudgeService`. Real judging via the judging role in the config. Reads `result.judge_overall_score` (the real property).
+- `run_calibration`: builds pools for both M3 and M2.7, passes them to `translate_unit` and `judge_unit`.
+- Removed `_direct_litellm_translate` and `_direct_litellm_judge` — no longer needed once the config is fixed and the pool is built correctly.
+- `.gitignore`: added `config/.calibration_*.yaml` (temp configs written on each run).
+
+### Verification (5 units, real LLM, M2.7 active in prod)
+
+```
+M3  mean: 9.744 (stdev 0.307)
+M2.7 mean: 9.779 (stdev 0.188)
+delta (M2.7 - M3): +0.035  (threshold: 0.5)
+Decision: PASS
+```
+
+Both translations are real Chinese text, scores vary by unit (no constant 7.0 fallback), latency is comparable to the direct-LiteLLM path (~22s/unit vs ~24s/unit). The script now uses the same ModelPool + JudgeService architecture as the rest of the codebase.
+
