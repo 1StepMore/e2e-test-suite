@@ -125,7 +125,7 @@ is sufficient or if Path B (cross-module orchestrator) is worth scoping.
 | Glossary wiring | Documented only | **Tested end-to-end** | ⏸ DEFERRED (A12) |
 | Restoration LLM invoked | Unknown | **Verified** | ⏸ DEFERRED (A12) |
 
-**Overall**: 8/12 success metrics met by the end of A5. The remaining 4 (A5 calibration, A11 real-LLM CI, A12 glossary, A12 restoration) are deferred to follow-up plans.
+**Overall**: 10/14 success metrics met by the end of A5 (counted from the table above: 10 ✅ MET, 4 ⏸ deferred). The 4 deferred items (A5 calibration run, A11 real-LLM CI, A12 glossary wiring, A12 restoration LLM) are deferred to follow-up plans.
 
 ## Recommendation
 
@@ -143,3 +143,44 @@ is sufficient or if Path B (cross-module orchestrator) is worth scoping.
 This decision doc is the A7 deliverable. The plan's A7 sub-task is complete (decision made: Path A sufficient). Real-measurement re-benchmark requires E.2 (real-LLM authorization) and is deferred to a follow-up.
 
 Refs: `.omo/plans/slim-pipeline-hardening.md` A7 section.
+
+---
+
+## M2.7 Swap Gate — Pre-Swap Diagnostic (T-PRE-1)
+
+**Date**: 2026-06-07
+**Status**: ⚠️ INCONCLUSIVE — CLI hangs on real-LLM call (60s timeout, exit 124)
+**Outcome**: T17 hard-gate cannot be cleared without further investigation
+
+### Reproduction
+
+```bash
+cd /mnt/d/贯维/Omni_Suite/Omni_Localizer
+set -a && source .env && set +a
+OMNI_TEST_FAKE_LLM=0 /usr/bin/timeout 60 \
+  /mnt/d/贯维/Omni_Suite/.venv_ol/bin/python -m ol_cli translate-md \
+  README.md -o /tmp/ol_401_probe/ 2>/tmp/ol_401.log
+echo "exit=$?"  # 124 (timeout)
+```
+
+### Findings
+
+1. **Config loader bug (real, new)**: When invoked with `--config config/default.yaml`, the loader emits:
+   ```
+   Config(llm_pool): not found in /tmp/ol_401_probe/../../config/default.yaml
+                     — falling back to repo-tracked config (placeholder keys)
+   ```
+   The explicit `--config` flag is being ignored. The loader is using CWD-relative lookup and finding the wrong path. This is a separate bug from the v1 audit (which correctly identified placeholder keys, but the v1 audit didn't catch that the explicit flag is being ignored).
+
+2. **Real LLM call hangs**: With `OMNI_TEST_FAKE_LLM=0` and keys exported, the CLI runs for 60s without producing output and without returning an error. No 401, no exception, no log. This is a network/reachability issue or a hung subprocess.
+
+### Impact on M2.7 swap
+
+**A5 status**: DORMANT — cannot claim the M2.7 swap is verified without T17 100-unit calibration, which depends on the LLM call working in this environment.
+
+### Next steps
+
+1. Investigate the config loader bug at `Omni_Localizer/src/ol_config/loader.py:23-78` (the `_load_env_file` and `load_config` functions). The path resolution at line 33-34 is CWD-relative, ignoring the explicit `--config` argument.
+2. Verify network reachability to `https://api.minimaxi.com/v1` from this environment.
+3. Re-run T-PRE-1 after fixes.
+
