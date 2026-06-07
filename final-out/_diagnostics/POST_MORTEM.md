@@ -789,10 +789,10 @@ Not everything was broken. Things that went RIGHT:
 | OL-1 | LQA absent from batch path | OL | major | No |
 | OL-2 | ModelPool.judge() has no try/except | OL | **critical** | No |
 | OL-3 | JudgeService.judge() has no try/except | OL | major | No |
-| OL-4 | RetryManager doesn't wrap translate_fn | OL | **critical** | No |
+| OL-4 | RetryManager doesn't wrap translate_fn | OL | **critical** | Yes |
 | OL-5 | RetryResult has no exception field | OL | minor | No |
 | OL-6 | L2 span_aligner silent in MD path | OL | major | No |
-| OL-7 | _translate_md_async has no outer try/except | OL | **critical** | No |
+| OL-7 | _translate_md_async has no outer try/except | OL | **critical** | Yes |
 | OL-8 | Fallback is per-role, not cross-role | OL | major | No |
 | ORF-1 | `python -m orf` doesn't work (no __main__) | ORF | **critical** | No |
 | ORF-2 | Exact-string-match fails for many paragraphs (ROOT CAUSE OF SLIM UNUSABLE) | ORF | **critical** | No |
