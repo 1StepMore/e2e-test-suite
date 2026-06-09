@@ -43,7 +43,7 @@ The audit on 2026-06-04 found real `MINIMAX_API_KEY` and `BAIDU_API_KEY` values 
 
 5. **Verify nothing broke**:
    ```bash
-   cd /mnt/d/贯维/Omni_Suite
+    cd <project-root>
    .venv_ol/bin/python -m ol_cli translate-md Omni_Localizer/tests/fixtures/sample.md \
        -c Omni_Localizer/config/local.yaml \
        -o /tmp/ol-rotate-smoke -s en -t zh
@@ -76,7 +76,7 @@ Commit `141123b657e2ca531b0a3761d0c38287da6ced95` (May 29 2026) added `Omni_Loca
 pip install git-filter-repo
 
 # Remove the leaked file from ALL commits, across all branches
-cd /mnt/d/贯维/Omni_Localizer
+cd Omni_Localizer
 git filter-repo --invert-paths --path config/book_localization.yaml
 
 # Force-push (COORDINATE WITH ALL COLLABORATORS — they must re-clone)
@@ -88,7 +88,7 @@ git push origin --force --tags
 **Option B — `git filter-branch` (legacy, slower, kept for reference):**
 
 ```bash
-cd /mnt/d/贯维/Omni_Localizer
+cd Omni_Localizer
 git filter-branch --force --index-filter \
     "git rm --cached --ignore-unmatch config/book_localization.yaml" \
     --prune-empty --tag-name-filter cat -- --all
@@ -200,7 +200,7 @@ repos:
 pip install detect-secrets
 
 # Initialize a baseline (one-time)
-cd /mnt/d/贯维/Omni_Suite
+cd <project-root>
 detect-secrets scan > .secrets.baseline
 
 # .pre-commit-config.yaml

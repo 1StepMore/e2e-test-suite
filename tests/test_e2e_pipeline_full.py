@@ -153,6 +153,7 @@ def _build_subprocess_env(
     )
     env["TRANSFORMERS_OFFLINE"] = "1"
     env["HF_HUB_OFFLINE"] = "1"
+    env["OPP_CONFIG_PATH"] = str(SUITE_ROOT / "Omni_Pre_Processor" / "config" / "default.yaml")
     if not keep_fake_seams:
         env.pop("OMNI_TEST_FAKE_LLM", None)
         env.pop("OMNI_TEST_FAKE_PANDOC", None)

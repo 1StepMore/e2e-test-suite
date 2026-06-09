@@ -36,7 +36,7 @@ tests/
 
 ### Run All Tests
 ```bash
-cd /mnt/d/贯维/Omni_Suite
+cd <project-root>
 pytest tests/ -v
 ```
 

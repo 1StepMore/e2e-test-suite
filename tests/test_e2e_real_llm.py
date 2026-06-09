@@ -171,6 +171,7 @@ def _build_subprocess_env() -> dict[str, str]:
         str(suite_root / "Omni_Re_Formatter" / "src"),
     ]
     env["PYTHONPATH"] = ":".join(filter(None, src_dirs + [env.get("PYTHONPATH", "")]))
+    env["OPP_CONFIG_PATH"] = str(suite_root / "Omni_Pre_Processor" / "config" / "default.yaml")
     env.pop("OMNI_TEST_FAKE_LLM", None)
     env.pop("OMNI_TEST_FAKE_PANDOC", None)
     return env
@@ -845,7 +846,7 @@ class TestE2ERealLLMSmoke:
             xliff_text = outputs.xliff_path.read_text(encoding="utf-8")
             assert 'source-language="zh"' in xliff_text
             assert 'target-language="en"' in xliff_text
-            assert xliff_text.count("<trans-unit") == 9
+            assert xliff_text.count("<trans-unit") == 22
         elif component == "ol":
             opp = asyncio.run(
                 _run_opp("cli", haier_real_docx_path, artifact_dir, "zh", "en")
@@ -861,7 +862,7 @@ class TestE2ERealLLMSmoke:
             assert translated_md.exists() and translated_md.stat().st_size > 0
             xliff_text = translated_xliff.read_text(encoding="utf-8")
             assert 'target-language="en"' in xliff_text
-            assert xliff_text.count("<trans-unit") == 9
+            assert xliff_text.count("<trans-unit") == 22
         elif component == "orf":
             _require_pandoc()
             opp = asyncio.run(
