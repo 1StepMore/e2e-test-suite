@@ -77,3 +77,11 @@ Thumbs.db
 mcp_resources/
 resources/
 test_artifacts/
+
+# ---- Heavy DOCX fixtures (Q-8 TQA-PREP) ----
+# The （slim）* DOCX at suite root is a 14MB validation target for the
+# slim-output-fixes post-mortem. Tracked test (tests/test_slim_e2e_regression.py)
+# uses a synthesized tmp_path fixture and is @pytest.mark.slow, so the heavy
+# source must NOT be in the repo. Output copies in final-out/ are also excluded.
+（slim）*.docx
+final-out/（slim）*.docx

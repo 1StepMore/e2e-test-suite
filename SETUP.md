@@ -16,8 +16,8 @@
 >
 > If you ever need to rebuild the venv from scratch, run:
 > ```bash
-> cd /mnt/d/贯维/Omni_Suite
-> /mnt/d/贯维/Omni_Suite/.venv_ol/bin/pip install -e Omni_Pre_Processor/ -e Omni_Localizer/ -e Omni_Re_Formatter/
+> cd "${OMNI_ROOT:-/mnt/d/贯维/Omni_Suite}"
+> "${OMNI_ROOT:-/mnt/d/贯维/Omni_Suite}"/.venv_ol/bin/pip install -e Omni_Pre_Processor/ -e Omni_Localizer/ -e Omni_Re_Formatter/
 > ```
 > Do **not** add new dependencies to `.venv/` — they will not be visible to the test suite.
 

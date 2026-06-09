@@ -101,7 +101,7 @@ When `span_aligner` is installed (it is in `.venv_ol`), `SpanProjector()` instan
 ### Workaround A — run nightly with real API keys (the 18 chains work)
 
 ```bash
-cd /mnt/d/贯维/Omni_Suite
+cd <project-root>
 # Ensure Omni_Localizer/.env has real keys (see SETUP.md)
 .venv_ol/bin/python -m pytest tests/test_e2e_pipeline_full.py -m "nightly" -v
 ```
@@ -183,7 +183,7 @@ A cleaner version would extract a helper in `ol_cli.py` (e.g. `_apply_fake_llm_s
 The test file compiles and most of the chains *do* run. The failures cluster around chains that exercise the **MD repair pipeline** (which loads the real HF model) and the **image-positioning assertion** (which needs the real LLM to preserve image paragraph indices).
 
 ```bash
-cd /mnt/d/贯维/Omni_Suite
+cd <project-root>
 .venv_ol/bin/python -m pytest tests/test_e2e_pipeline_full.py --collect-only -q
 # Expected: 18 tests collected
 ```
