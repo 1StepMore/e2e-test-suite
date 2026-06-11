@@ -81,8 +81,40 @@ src/Omni_Re_Formatter   → 1StepMore/Omni_Re_Formatter (main)
 |-----|------|------|----------|
 | E2E-03 | ORF MCP | ✅ 已修复 | `15834db` |
 | E2E-04 | OL CLI | ❌ 待修复 | — |
+| E2E-05 | MD Path 结构优化 | ✅ 已完成 | 本批次 |
 
-详见 `reports/` 目录。
+### E2E-05: MD Path 结构优化
+
+**目标**：让 MD 管道（OPP → OL → ORF）输出的 DOCX 具有正确的标题层级、段落分隔、文字样式。
+
+**改动清单**：
+
+| 组件 | 文件 | 改动 |
+|------|------|------|
+| OPP | `markdown/generator.py` | `style_mapping` 参数、表格交叉排列、文本框→`>`引用、行内格式转换（粗体/斜体/删除线）、段落间空行分隔 |
+| OPP | `extractors/docx.py` | 文档体子元素共享位置计数器、文本框标记 `style="[TextBox]"` |
+| OPP | `cli.py` | `--style-map`（样式名→标题等级映射）、`--no-embed-images`（base64 内嵌图片） |
+| OPP | `pipeline.py` | `style_mapping`、`embed_images` 参数透传 |
+| ORF | `cli.py` | `--reference-doc`（pandoc 样式模板） |
+| ORF | `mcp/server.py` | `apply_md` 工具新增 `separate_images` 参数 |
+| Suite | `tests/e2e_runner.py` | 全 4 路径综合测试器 |
+| Suite | `tests/test_e2e_real_llm.py` | `ensure_md_block_separation()` 段落分隔恢复、`_run_opp`/`_run_orf` 参数增强 |
+
+**使用方式**：
+```bash
+# OPP 提取结构化MD
+opp --target-format=md --output-dir ./md_out --style-map '{"a5":1}' document.docx
+
+# OL 翻译（保持MD结构）
+ol translate-md ./md_out/document.md -s zh -t en -o ./ol_out/
+
+# ORF 还原DOCX
+orf apply-md ./ol_out/document.md --target-format docx -o result.docx
+```
+
+**MD Path 设计定位**：
+- MD path 专注文字呈现，图片以 `images.json` + `{stem}_images/` 目录形式独立交付供手动使用
+- 精确图片注入请使用 XLIFF 管道（基于 skeleton.zip 回填，保留原始 OOXML 布局）
 
 ---
 
