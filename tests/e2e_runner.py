@@ -220,7 +220,10 @@ def _print_issues(issues: list[Issue], header: str):
 # Main Runner
 # ═══════════════════════════════════════════════════════════════════════
 
-HAIER_DOCX = _SUITE_ROOT / "爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
+# Source file: prefer slim (large, ~14MB) if available, fall back to small test doc.
+_SLIM_PATH = _SUITE_ROOT / "（slim）爱上海尔.docx"
+_SMALL_PATH = _SUITE_ROOT / "爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
+HAIER_DOCX = _SLIM_PATH if _SLIM_PATH.exists() else _SMALL_PATH
 RUN_DIR = _SUITE_ROOT / "test_artifacts" / "e2e_runs"
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -342,36 +345,44 @@ async def run_single_path(
                 print(f"    ✅ Normalized OL output: stripped frontmatter + OLIMG, added <!-- p --> separators")
 
         # ── OL analysis ──
-        _print_stage("OL Outputs", [
-            ("Translated file", str(translated)),
-            ("Trans-units", str(result.ol_translated_unit_count)),
-        ])
+        ol_items = [("Translated file", str(translated))]
+        if intermediate == "xliff":
+            try:
+                result.ol_translated_unit_count = _extract_xliff_unit_count(translated)
+            except Exception:
+                result.ol_translated_unit_count = -1
+            ol_items.append(("Trans-units", str(result.ol_translated_unit_count)))
+        else:
+            ol_items.append(("Format", "markdown (text)"))
+        _print_stage("OL Outputs", ol_items)
 
-        # Check target language in XLIFF
-        xliff_text = translated.read_text(encoding="utf-8")
-        if 'target-language="en"' not in xliff_text:
-            record(name, "OL", Severity.CRITICAL,
-                   "Missing target-language='en' in translated XLIFF",
-                   f"File: {translated}",
-                   fixed=True, fix_note="OL CLI sets target-language from args")
+        # Check target language (XLIFF paths only — MD has no target-language attr)
+        if intermediate == "xliff":
+            xliff_text = translated.read_text(encoding="utf-8")
+            if 'target-language="en"' not in xliff_text:
+                record(name, "OL", Severity.CRITICAL,
+                       "Missing target-language='en' in translated XLIFF",
+                       f"File: {translated}",
+                       fixed=True, fix_note="OL CLI sets target-language from args")
 
-        # ── Check that translation was actually performed ──────
-        has_empty_targets = False
-        try:
-            tree = ET.parse(translated)
-            root = tree.getroot()
-            ns = _detect_xliff_ns(root)
-            for unit in root.findall(f".//{{{ns}}}trans-unit"):
-                target = unit.find(f"{{{ns}}}target")
-                if target is None or not (target.text or "").strip():
-                    has_empty_targets = True
-                    break
-            if has_empty_targets:
-                record(name, "OL", Severity.MINOR,
-                       "One or more trans-units have empty <target>",
-                       f"Translation may be incomplete for some segments")
-        except Exception:
-            pass
+        # ── Check that translation was actually performed (XLIFF only) ──
+        if intermediate == "xliff":
+            has_empty_targets = False
+            try:
+                tree = ET.parse(translated)
+                root = tree.getroot()
+                ns = _detect_xliff_ns(root)
+                for unit in root.findall(f".//{{{ns}}}trans-unit"):
+                    target = unit.find(f"{{{ns}}}target")
+                    if target is None or not (target.text or "").strip():
+                        has_empty_targets = True
+                        break
+                if has_empty_targets:
+                    record(name, "OL", Severity.MINOR,
+                           "One or more trans-units have empty <target>",
+                           f"Translation may be incomplete for some segments")
+            except Exception:
+                pass
 
         # ── ORF stage ──────────────────────────────────────────
         print(f"\n  ── Stage: ORF ({transport}) ──")
@@ -392,7 +403,7 @@ async def run_single_path(
 
         _run_orf(transport, opp.skeleton_path, translated, output,
                  intermediate, "docx", opp.images_json_path,
-                 separate_images=(intermediate == "xliff"))
+                 separate_images=(intermediate == "md"))
         _assert_non_empty_file(output)
         result.output_path = output
 
@@ -416,19 +427,26 @@ async def run_single_path(
 
         # ── Comparison: Source vs OPP images.json vs Output ──
         print(f"\n  ── Stage: IMAGE POSITIONING ──")
-        try:
-            _assert_image_positioning(
-                output, opp.images_json_path, tolerance=2,
-                source_docx=haier_docx,
-            )
-            result.image_positioning_ok = True
-            print("    ✅ Image positioning: PASS")
-        except AssertionError as e:
-            record(name, "IMAGE", Severity.CRITICAL,
-                   "Image positioning assertion failed",
-                   str(e)[:300],
-                   fixed=False)
-            # Continue even if image check fails (non-blocking for overall test)
+        if intermediate == "md":
+            # MD path is text-only by architecture — images are delivered as
+            # separate {stem}_images/ + images.json for manual use. Pandoc
+            # produces a flat DOCX without embedded images, so the positioning
+            # check would always fail. Skip it intentionally.
+            print("    ⏭ MD path — images delivered separately, skipping positioning check")
+        else:
+            try:
+                _assert_image_positioning(
+                    output, opp.images_json_path, tolerance=2,
+                    source_docx=haier_docx,
+                )
+                result.image_positioning_ok = True
+                print("    ✅ Image positioning: PASS")
+            except AssertionError as e:
+                record(name, "IMAGE", Severity.CRITICAL,
+                       "Image positioning assertion failed",
+                       str(e)[:300],
+                       fixed=False)
+                # Continue even if image check fails (non-blocking for overall test)
 
         # ── Comparison: Source images vs images.json ──────────
         source_images = [n for n in zipfile.ZipFile(haier_docx).namelist()
@@ -552,26 +570,43 @@ async def main():
 
     # ── Run all paths sequentially ───────────────────────────────
     results: list[PathResult] = []
-    for name, transport, intermediate in paths:
+    total_paths = len(paths)
+    for path_idx, (name, transport, intermediate) in enumerate(paths, 1):
+        print(f"\n{'='*70}")
+        print(f"  [{path_idx}/{total_paths}] Starting path: {name} ({transport}, {intermediate})")
+        print(f"  Time: {datetime.now().isoformat()}")
+        print(f"{'='*70}")
+
         path_dir = run_dir / name
         path_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy source to path dir for reference
         shutil.copy2(HAIER_DOCX, path_dir / "source.docx")
 
+        path_start = time.time()
         result = await run_single_path(name, transport, intermediate, path_dir, HAIER_DOCX)
+        elapsed = time.time() - path_start
         results.append(result)
 
-        # On critical pipeline failure, offer to fix
+        status = "✅" if result.passed else "❌"
+        print(f"\n  [{path_idx}/{total_paths}] {status} {name} completed in {elapsed:.0f}s")
+
+        # On critical pipeline failure, log and decide whether to abort
         critical_issues = [
             i for i in result.issues
             if i.severity == Severity.CRITICAL and not i.fixed
         ]
         if critical_issues:
-            print(f"\n  ⚠️  {len(critical_issues)} critical issue(s) in {name}:")
+            print(f"\n  ⚠️  {len(critical_issues)} CRITICAL issue(s) in {name}:")
             for iss in critical_issues:
                 print(f"     {iss}")
-            print(f"  Attempting to continue to next path...")
+            print(f"  ❌ Aborting E2E run — {name} has unresolved critical issues.")
+            print(f"  Fix blockers before retrying remaining paths.")
+            break
+        else:
+            print(f"  ✅ No critical issues — proceeding to next path.")
+
+    total_elapsed = time.time() - start
 
     # ── Summary ──────────────────────────────────────────────────
     print(f"\n{'='*70}")

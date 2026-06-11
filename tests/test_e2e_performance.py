@@ -14,6 +14,9 @@ import pytest
 from conftest import setup_component_paths
 setup_component_paths()
 
+# Path to the real large DOCX file (~14MB, 7,681 paragraphs) in the repo root
+SLIM_DOCX_PATH = Path(__file__).parent.parent / "（slim）爱上海尔.docx"
+
 
 # =============================================================================
 # Markers
@@ -233,6 +236,48 @@ class TestDOCXPerformance:
         assert all(t < 10.0 for t in timings), (
             f"Some timings exceeded 10s threshold: {timings}"
         )
+
+    @pytest.mark.skipif(
+        not SLIM_DOCX_PATH.exists(),
+        reason="（slim）爱上海尔.docx not available — place it in the repo root"
+    )
+    @pytest.mark.skipif(
+        not hasattr(tracemalloc, 'start'),
+        reason="tracemalloc not available on this Python version"
+    )
+    def test_real_large_docx_extraction(self, opp_pipeline, tmp_path: Path):
+        """Extract the real 14MB （slim）爱上海尔.docx, measure time & peak memory.
+
+        This benchmark validates extraction performance against a production-scale
+        document with 7,681 paragraphs, 10 tables, and 390 embedded images.
+        """
+        output_dir = tmp_path / "real_large_output"
+        output_dir.mkdir(exist_ok=True)
+
+        tracemalloc.start()
+        try:
+            start_time = time.perf_counter()
+            result = opp_pipeline.process_file(SLIM_DOCX_PATH)
+            extraction_time = time.perf_counter() - start_time
+
+            current, peak = tracemalloc.get_traced_memory()
+
+            print(f"\n✓ Real large DOCX extraction completed in {extraction_time:.2f}s")
+            print(f"  Memory: current={current / 1024 / 1024:.1f}MB, peak={peak / 1024 / 1024:.1f}MB")
+
+            # Core assertions
+            assert extraction_time < 120.0, (
+                f"Extraction of real large DOCX took {extraction_time:.2f}s, "
+                f"exceeding 120s threshold"
+            )
+            assert peak < 500 * 1024 * 1024, (
+                f"Peak memory {peak / 1024 / 1024:.1f}MB exceeds 500MB limit"
+            )
+            assert result is not None
+            assert result.extraction_result is not None
+
+        finally:
+            tracemalloc.stop()
 
 
 class TestPDFPerformance:

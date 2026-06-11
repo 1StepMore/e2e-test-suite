@@ -300,11 +300,12 @@ async def _run_opp(
             cmd.extend(["--style-map", json.dumps(style_mapping)])
         if not embed_images:
             cmd.append("--no-embed-images")
-        result = subprocess.run(
+        subprocess_result = subprocess.run(
             cmd, capture_output=True, text=True, env=_build_subprocess_env(),
+            timeout=3600,
         )
-        assert result.returncode == 0, (
-            f"opp.cli failed (rc={result.returncode}): {result.stderr}"
+        assert subprocess_result.returncode == 0, (
+            f"opp.cli failed (rc={subprocess_result.returncode}): {subprocess_result.stderr}"
         )
     elif transport == "mcp":
         from opp.mcp.server import generate_xliff, generate_markdown
@@ -399,6 +400,7 @@ async def _run_ol(
             ]
         result = subprocess.run(
             cmd, capture_output=True, text=True, env=_build_subprocess_env(),
+            timeout=7200,
         )
         assert result.returncode == 0, (
             f"ol_cli translate failed (rc={result.returncode}): {result.stderr}"
@@ -484,6 +486,7 @@ def _run_orf(
                 cmd.extend(["--images-json", str(images_json)])
         result = subprocess.run(
             cmd, capture_output=True, text=True, env=_build_subprocess_env(),
+            timeout=3600,
         )
         assert result.returncode == 0, (
             f"orf.cli apply failed (rc={result.returncode}): {result.stderr}"
