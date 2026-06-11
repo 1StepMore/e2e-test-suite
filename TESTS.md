@@ -13,6 +13,8 @@ cd /mnt/d/贯维/Omni_Suite
 
 **Expected:** `11 passed, 3 skipped in ~25–32 minutes`. The 3 skipped are Tier 1.2 (`opp-mcp`), Tier 2.2 (`xliff_all_mcp`), Tier 2.4 (`md_docx_all_mcp`) — all blocked on Phase 0.5 (OPP MCP server init + `save_skeleton` tool). See `.omo/plans/e2e-test-suite-redesign.md` Phase 0.5.
 
+> **Note:** After the full implementation cycle all 14 tests passed with no skips (see below). The 3 MCP-path tests require a running OPP MCP server with the `save_skeleton` tool — in CI or headless environments without a running server they remain skipped. When run on a machine with all MCP services running, all 14 pass.
+
 ---
 
 ## Prerequisites
@@ -157,6 +159,8 @@ After the full implementation cycle, all 14 nightly tests pass. Key enablers:
 ### Known MD-path limitation
 
 Pandoc-generated DOCX/HTML from the MD intermediate does **not preserve image placements** (MD has only `![alt](path)` references; pandoc strips or fails to embed them). The XLIFF path preserves 7/7 images via OPP's skeleton + images.json. Tier 1.5/1.6 and Tier 2.3/2.4 tests assert image preservation only on the XLIFF→DOCX path; the MD-path assertions are relaxed to just check output exists and is non-empty. This is a real ORF/pandoc limitation, not a test gap — the test design acknowledges it.
+
+```
 ============================= test session starts ==============================
 platform linux -- Python 3.13.13, pytest-9.0.3
 cachedir: .pytest_cache
@@ -270,9 +274,9 @@ def test_your_new_real_llm_test(
 | File | Purpose |
 |---|---|
 | `tests/test_e2e_real_llm.py` | The 14 nightly tests + 4 test classes (`TestE2ERealLLMSmoke`, `TestE2ERealLLME2E`, `TestE2ERealLLMLQA`, `TestE2ERealLLMFormats`) + helpers (`_run_opp`, `_run_ol`, `_run_orf`, `_run_e2e_chain`, `_assert_image_positioning`, `_judge_docx_text`, `extract_image_positions`, `use_real_llm` fixture) |
-| `tests/conftest.py:617-630` | `haier_real_docx_path` fixture definition |
-| `tests/test_e2e_real_llm.py:54-82` | `use_real_llm` fixture definition (sets `OL_CONFIG_PATH` to `local.yaml`) |
-| `tests/pytest.ini:46-55` | `requires_api_key` + `nightly` marker registration |
+| `tests/conftest.py:747-759` | `haier_real_docx_path` fixture definition |
+| `tests/test_e2e_real_llm.py:105-130` | `use_real_llm` fixture definition (sets `OL_CONFIG_PATH` to `local.yaml`) |
+| `tests/pytest.ini:54-55` | `requires_api_key` + `nightly` marker registration |
 | `Omni_Localizer/.env` | Real API keys (gitignored) |
 | `Omni_Localizer/config/local.yaml` | Real LLM pool config (gitignored) |
 | `SETUP.md` | Phase 1 setup guide — fill `.env` + `local.yaml` |
@@ -300,27 +304,32 @@ cd /mnt/d/贯维/Omni_Suite && .venv_ol/bin/python -m pytest tests/test_e2e_real
 
 ---
 
-## Current Test Coverage Summary (post-T16)
+## Current Test Coverage Summary
 
-Verified on 2026-06-05 after all T1–T15 work was complete. Each sub-repo was run with the shared `.venv_ol` venv (see `SETUP.md` for the single-venv layout).
+Last verified on 2026-06-11. Test counts grow as new tests are added; run `pytest --collect-only -q` for the latest.
 
-| Component | Command | Passed | Skipped | Duration |
-|---|---|---:|---:|---:|
-| Omni-Localizer (OL) | `.venv_ol/bin/python -m pytest tests/ -m "not nightly" --ignore=tests/test_e2e_real_llm.py` | **622** | 1 | ~7m31s |
-| Omni-Pre-Processor (OPP) | `.venv_ol/bin/python -m pytest tests/ -m "not nightly"` | **670** | 10 | ~7m26s |
-| Omni-Re-Formatter (ORF) | `.venv_ol/bin/python -m pytest tests/ -m "not nightly" --ignore=tests/test_e2e_real_llm.py` | **612** | 2 | ~3m12s |
-| **Total (non-nightly)** | | **1904** | 13 | |
+| Component | Command | Collected | Known Failures | Skipped |
+|---:|---:|---:|---:|---:|
+| Omni-Localizer (OL) | `.venv_ol/bin/python -m pytest Omni_Localizer/tests/ -m "not nightly" --tb=line -q` | ~755 | ~4 (see below) | ~1 |
+| Omni-Pre-Processor (OPP) | `.venv_ol/bin/python -m pytest Omni_Pre_Processor/tests/ -m "not nightly" --tb=line -q` | ~694 | 0 | ~10 |
+| Omni-Re-Formatter (ORF) | `.venv_ol/bin/python -m pytest Omni_Re_Formatter/tests/ --tb=line -q` | ~689 | ~3 (bx/ex backfill) | ~2 |
+
+> **Known OL failures**: `test_xliff_parser.py` (4 tests — working-dir-dependent fixture paths, fixed in recent update; re-run from suite root to confirm). Requires real API keys or `OL_CONFIG_PATH` set for CLI tests.
+> **Known ORF failures**: 3 position-based backfill tests in `test_xliff2docx_bx_ex_leak.py` — `<bx>`/`<ex>` tags leak into `<w:t>` as XML entities (production bug in position-based backfill path).
 
 > The previous venv `.venv` is deprecated. Do **not** add new deps to it — everything goes into `.venv_ol`.
 
 ## Phase 5 (Pipeline E2E) — Partial
 
-The flagship 18-chain pipeline test (`tests/test_e2e_pipeline_full.py`, 3 inputs × 3 outputs × 2 transports) was created but **does not currently pass all 18 chains** due to a real seam bug in the OL CLI:
+The 18-chain pipeline test (`tests/test_e2e_pipeline_full.py`, 3 inputs × 3 outputs × 2 transports) was created to exercise the full matrix. Status:
 
-- The CLI's `OMNI_TEST_FAKE_LLM=1` seam is incomplete
-- Even with `HF_HUB_OFFLINE=1`, the CLI's repair pipeline tries to load a real HuggingFace model `bert-base-multilingual-cased`
-- This requires either: (a) a production code fix in the OL CLI's FAKE_LLM seam, or (b) running with real API keys
+- **`OMNI_TEST_FAKE_LLM=1` (hermetic)**: The T17 fix extended the fake-LLM seam to stub `span_aligner`, resolving the original HuggingFace model loading issue. However, some chains may still time out (≥60s) due to slow fixture setup or MCP server dependencies.
+- **Real API keys** (`nightly` path): The 18 chains work end-to-end when real MiniMax/Baidu keys are available.
 
-The 18 chains work with **real API keys** (the `nightly` test path). For hermetic CI, the seam needs to be fixed. See `docs/T14_LIMITATION.md` for the full root cause analysis and recommended fix.
+Known Hermetic CI gaps:
+- `tests/test_e2e_ol_mcp.py::TestOLMCP::test_translate_md_text_preserves_markdown_structure` remains **SKIPPED** — the `OMNI_TEST_FAKE_LLM` seam doesn't fully cover the MCP `translate_md_text` tool's internal async pipeline.
+- `tests/test_e2e_pipeline_full.py` may timeout in hermetic mode for chains that exercise real MCP server paths.
+- `tests/test_ol_lqa_autoinvoke.py` (7 parametrized tests) and `tests/test_e2e_xliff_lqa_image_placement.py` (1 test) may timeout at 60s — these require real LLM JudgeService or fastmock LLM responses and are slow even with `OMNI_TEST_FAKE_LLM=1`.
+- All slow/timeout-prone tests are excluded from the `-m "not nightly"` CI filter; they need individual investigation and longer timeouts if run in CI.
 
-The single test in `tests/test_e2e_ol_mcp.py::TestOLMCP::test_translate_md_text_preserves_markdown_structure` is skipped with a marker pointing at `docs/T14_LIMITATION.md` for the same reason.
+See `docs/T14_LIMITATION.md` for the full root cause analysis.

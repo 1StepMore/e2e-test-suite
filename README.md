@@ -7,34 +7,36 @@ OPP → OL → ORF 全链路集成测试环境，含全自动 bug 发现 → Ope
 ## 目录结构
 
 ```
-e2e-test-suite/
-├── src/
-│   ├── Omni_Pre_Processor/   # OPP submodule
-│   ├── Omni_Localizer/       # OL submodule
-│   └── Omni_Re_Formatter/    # ORF submodule
+Omni_Suite/
+├── Omni_Pre_Processor/   # OPP — 文档提取（源码直接位于根目录）
+├── Omni_Localizer/       # OL — 文档翻译（源码直接位于根目录）
+├── Omni_Re_Formatter/    # ORF — 文档回写（源码直接位于根目录）
+├── src/                  # Git submodules（空/未检出）
+│   ├── Omni_Pre_Processor/
+│   ├── Omni_Localizer/
+│   └── Omni_Re_Formatter/
+│
+├── tests/                # E2E 测试套件（30+ 测试文件）
+│   ├── conftest.py       # 共享 fixtures
+│   ├── pytest.ini        # pytest 配置
+│   ├── test_e2e_real_llm.py  # 14 个 nightly 测试
+│   └── ...
 │
 ├── scripts/
-│   └── sync_shallow.sh       # 同步 submodule SHA 到 origin/main
+│   └── sync_shallow.sh   # 同步 submodule SHA
 │
-├── test-artifacts/           # 源文档（gitkeep）
-├── test-output/              # 测试输出（gitkeep）
-│   └── {test-name}/
-│       ├── runner.log        # 测试运行日志
-│       ├── source.docx       # 源文档
-│       ├── opp_out/          # OPP 提取产物
-│       ├── ol_out/           # OL 翻译产物
-│       └── orf_out/          # ORF 还原产物
+├── test_artifacts/       # 测试产物（每次运行）
+├── test_output/          # 旧版测试输出
 │
 ├── reports/
 │   ├── TEMPLATE-Bug-Report.md
 │   ├── TEMPLATE-Comparison-Report.md
-│   └── E2E-*.md              # 具体 bug 报告
+│   └── E2E-*.md          # 具体 bug 报告
 │
-├── .venv/                    # Python 3.13 venv（系统级）
-├── .venv312/                 # Python 3.12 venv
+├── .venv_ol/             # ✅ 当前统一 venv（Python 3.13，所有组件共用）
+├── .venv/                # ⚠️ 已弃用（Python 3.12，勿使用）
 │
-├── run_test.sh               # 全链路测试驱动脚本
-├── run_e2e.py                # Python 版 E2E（备用）
+├── run_test.sh           # 全链路测试驱动脚本
 ├── .gitignore
 ├── .gitmodules
 └── README.md
@@ -80,8 +82,8 @@ src/Omni_Re_Formatter   → 1StepMore/Omni_Re_Formatter (main)
 | Bug | 工具 | 状态 | 修复 SHA |
 |-----|------|------|----------|
 | E2E-03 | ORF MCP | ✅ 已修复 | `15834db` |
-| E2E-04 | OL CLI | ❌ 待修复 | — |
-| E2E-05 | MD Path 结构优化 | ✅ 已完成 | 本批次 |
+| E2E-04 | OL CLI translate-xliff 不调用 LLM，target 为空 | ❌ 待修复 | — |
+| E2E-05 | MD Path 结构优化（标题层级、段落分隔、文字样式） | ✅ 已完成 | 本批次 |
 
 ### E2E-05: MD Path 结构优化
 
@@ -122,12 +124,12 @@ orf apply-md ./ol_out/document.md --target-format docx -o result.docx
 
 | 组件 | 路径 | 版本 |
 |------|------|------|
-| OPP | `src/Omni_Pre_Processor` | `3684e87` |
-| OL | `src/Omni_Localizer` | `4685a47` |
-| ORF | `src/Omni_Re_Formatter` | `c7d6853`（含 `15834db`）|
-| Python 3.13 | `.venv/` | 系统 venv（OL MCP 用）|
-| Python 3.12 | `.venv312/` | 套件 venv（OPP/ORF CLI 用）|
-| OL venv | `~/.hermes/venvs/omni-localizer` | Python 3.13（OL MCP 服务）|
+| OPP | `Omni_Pre_Processor` | `3684e87` |
+| OL | `Omni_Localizer` | `4685a47` |
+| ORF | `Omni_Re_Formatter` | `c7d6853`（含 `15834db`）|
+| Python 3.13（统一 venv） | `.venv_ol/` | ✅ 当前唯一活跃 venv，所有组件共用 |
+| Python 3.12（已弃用） | `.venv/` | ⚠️ 旧 venv，OPP/ORF CLI 曾用，勿再使用 |
+| OL MCP 专用 venv | `~/.hermes/venvs/omni-localizer` | Python 3.13（OL MCP 服务）|
 
 ---
 

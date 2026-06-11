@@ -1,6 +1,10 @@
 """Cloud storage E2E tests for Omni_Suite.
 
 Tests S3 and Azure Blob upload/download operations with mocking support.
+
+NOTE: This file tests ``opp.cloud_utils`` which has been removed/refactored
+to ORF's ``orf.cloud`` module. The import will fail at module load.
+ORF cloud client tests live in ``Omni_Re_Formatter/tests/test_cloud_clients.py``.
 """
 
 import os
@@ -12,6 +16,10 @@ import pytest
 
 from conftest import setup_component_paths
 setup_component_paths()
+
+pytest.skip("opp.cloud_utils module was removed; cloud tests migrated to "
+            "Omni_Re_Formatter/tests/test_cloud_clients.py",
+            allow_module_level=True)
 
 
 # =============================================================================
