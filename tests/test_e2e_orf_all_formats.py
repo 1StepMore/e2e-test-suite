@@ -10,6 +10,7 @@ Each test:
 """
 
 import json
+import shutil
 import sys
 import tempfile
 import zipfile
@@ -304,10 +305,9 @@ class TestMD2PPTX:
     @pytest.mark.requires_orf
     def test_md2pptx_convert(self, sample_md: Path, tmp_path: Path):
         """MD2PPTXConverter should convert MD to PPTX."""
-        try:
-            from orf.channels.md2pptx import MD2PPTXConverter
-        except ImportError:
-            pytest.skip("md2pptx not installed")
+        if shutil.which("md2pptx") is None:
+            pytest.skip("md2pptx CLI not installed")
+        from orf.channels.md2pptx import MD2PPTXConverter
 
         output = tmp_path / "output.pptx"
         converter = MD2PPTXConverter()
@@ -320,10 +320,9 @@ class TestMD2PPTX:
     @pytest.mark.requires_orf
     def test_md2pptx_output_valid(self, sample_md: Path, tmp_path: Path):
         """MD2PPTX output should be a valid PPTX file."""
-        try:
-            from orf.channels.md2pptx import MD2PPTXConverter
-        except ImportError:
-            pytest.skip("md2pptx not installed")
+        if shutil.which("md2pptx") is None:
+            pytest.skip("md2pptx CLI not installed")
+        from orf.channels.md2pptx import MD2PPTXConverter
 
         output = tmp_path / "output.pptx"
         converter = MD2PPTXConverter()
@@ -513,7 +512,7 @@ class TestMD2ICML:
 
         assert output.exists()
         content = output.read_text(encoding="utf-8")
-        assert "<xml" in content or "<idPkg" in content
+        assert "ParagraphStyleRange" in content or "<idPkg" in content
 
 
 class TestMD2SRT:

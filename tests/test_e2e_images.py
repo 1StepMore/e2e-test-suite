@@ -571,7 +571,7 @@ def _create_pptx_with_images(path: Path) -> None:
     prs.slide_width = Inches(10)
     prs.slide_height = Inches(7.5)
 
-    blank_layout = prs.slide_layouts[6]
+    blank_layout = prs.slide_layouts[0]
 
     slide1 = prs.slides.add_slide(blank_layout)
     shapes = slide1.shapes
