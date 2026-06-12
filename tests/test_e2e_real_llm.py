@@ -365,16 +365,22 @@ async def _run_ol(
     out_dir: Path,
     source_lang: str = "zh",
     target_lang: str = "en",
+    glossary_path: str | None = None,
 ) -> Path:
     """Translate the intermediate file (.xlf or .md) via the chosen transport.
 
+    Args:
+        glossary_path: Optional path to a JSON glossary file. Passed as
+            ``--glossary`` in CLI mode or ``glossary_path`` in MCP mode.
+            See ``ol_terminology/glossary_class.py`` for the expected format.
+
     Returns the path to the translated file. OL writes its output to
-    `out_dir / intermediate.name` in all paths, so callers can rely on
+    ``out_dir / intermediate.name`` in all paths, so callers can rely on
     that location for downstream ORF consumption.
 
-    The MCP path has an asymmetry: `translate_xliff` is file-based (takes
-    `input_path` and `output_path`), but `translate_md_text` is text-in/text-out
-    (takes `content: str` and returns `translated: str`). The MD MCP path
+    The MCP path has an asymmetry: ``translate_xliff`` is file-based (takes
+    ``input_path`` and ``output_path``), but ``translate_md_text`` is text-in/text-out
+    (takes ``content: str`` and returns ``translated: str``). The MD MCP path
     therefore needs a read-file → call → write-file dance.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -398,6 +404,8 @@ async def _run_ol(
                 str(intermediate), "-o", str(out_dir), "-c", str(config_path),
                 "-s", source_lang, "-t", target_lang,
             ]
+        if glossary_path:
+            cmd.extend(["--glossary", str(glossary_path)])
         result = subprocess.run(
             cmd, capture_output=True, text=True, env=_build_subprocess_env(),
             timeout=7200,
@@ -421,6 +429,7 @@ async def _run_ol(
                 source_lang=source_lang,
                 target_lang=target_lang,
                 config_path=str(config_path),
+                glossary_path=str(glossary_path) if glossary_path else None,
             ))
             result = json.loads(result_str)
             assert result.get("success"), (
@@ -434,6 +443,7 @@ async def _run_ol(
             source_lang=source_lang,
             target_lang=target_lang,
             config_path=str(config_path),
+            glossary_path=str(glossary_path) if glossary_path else None,
         ))
         result = json.loads(result_str)
         assert result.get("success"), (
@@ -543,8 +553,10 @@ def ensure_md_block_separation(md_text: str) -> str:
     md_text = re.sub(r'(?<=\S)\n(?=#{1,6}\s)', r'\n\n', md_text)
     md_text = re.sub(r'(?<=\S)\n(?>=\s)', r'\n\n', md_text)
     md_text = re.sub(r'(?<=\S)\n(?=[*\-] |\d+\. )', r'\n\n', md_text)
-    # Inject <!-- p --> between consecutive body paragraphs (no heading/blockquote/list marker)
-    md_text = re.sub(r'(?<=\S)\n(?=\S)', r'\n\n<!-- p -->\n\n', md_text)
+    # Inject <!-- p --> between consecutive body paragraphs (no heading/blockquote/list marker).
+    # Only inject when there's a blank-line boundary (\n\n) followed by a non-whitespace char,
+    # NOT within soft-wrapped paragraphs where a single line break exists.
+    md_text = re.sub(r'\n\n(?=\S)', r'\n\n<!-- p -->\n\n', md_text)
     return md_text
 
 
