@@ -187,6 +187,45 @@ def sample_skeleton_epub(tmp_path: Path) -> Path:
     return epub_file
 
 
+def _create_minimal_odt(odt_file: Path) -> None:
+    """Create a minimal valid ODT with all required entries for xliff2odf."""
+    with zipfile.ZipFile(odt_file, "w", zipfile.ZIP_DEFLATED) as zf:
+        # mimetype must be first entry, uncompressed
+        zf.writestr("mimetype", "application/vnd.oasis.opendocument.text", compress_type=zipfile.ZIP_STORED)
+        zf.writestr("content.xml", """<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="1">Hello World</text:h>
+      <text:p>Second Paragraph</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>""")
+        zf.writestr("meta.xml", """<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+  <office:meta>
+    <meta:generator>Omni_Suite Test</meta:generator>
+  </office:meta>
+</office:document-meta>""")
+        zf.writestr("styles.xml", """<?xml version="1.0" encoding="UTF-8"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
+  <office:styles/>
+</office:document-styles>""")
+        zf.writestr("META-INF/manifest.xml", """<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest
+  xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0">
+  <manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="styles.xml"/>
+</manifest:manifest>""")
+
+
 @pytest.fixture
 def sample_skeleton_html(tmp_path: Path) -> Path:
     """Create a minimal HTML template for XLIFF testing."""
@@ -219,17 +258,8 @@ def sample_skeleton_odf(tmp_path: Path) -> Path:
         doc.text.addElement(P(text="Second Paragraph"))
         doc.save(str(odt_file))
     except ImportError:
-        # Fallback: create minimal ZIP-based ODT
-        with zipfile.ZipFile(odt_file, "w") as zf:
-            content_xml = """<?xml version="1.0" encoding="UTF-8"?>
-<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:document">
-  <office:body>
-    <office:text>
-      <text:p>Hello World</text:p>
-    </office:text>
-  </office:body>
-</office:document>"""
-            zf.writestr("content.xml", content_xml)
+        # Fallback: create minimal ZIP-based ODT with all required ODF entries
+        _create_minimal_odt(odt_file)
     return odt_file
 
 
