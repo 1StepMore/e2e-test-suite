@@ -156,7 +156,8 @@ def _extract_xliff_unit_count(xliff_path: Path) -> int:
         root = tree.getroot()
         ns = _detect_xliff_ns(root)
         return len(root.findall(f".//{{{ns}}}trans-unit"))
-    except Exception:
+    except Exception as e:
+        print(f"  [WARN] Failed to count XLIFF units: {e}")
         return -1
 
 
@@ -165,7 +166,8 @@ def _extract_md_para_count(md_path: Path) -> int:
     try:
         text = md_path.read_text(encoding="utf-8")
         return len([l for l in text.split("\n") if l.strip()])
-    except Exception:
+    except Exception as e:
+        print(f"  [WARN] Failed to count MD paragraphs: {e}")
         return -1
 
 
@@ -309,7 +311,8 @@ async def run_single_path(
         try:
             img_payload = json.loads(opp.images_json_path.read_text(encoding="utf-8"))
             result.opp_image_count = len(img_payload.get("images", []))
-        except Exception:
+        except Exception as e:
+            print(f"  [WARN] Failed to parse images.json: {e}")
             result.opp_image_count = -1
 
         _print_stage("OPP Outputs", [
@@ -351,7 +354,8 @@ async def run_single_path(
         if intermediate == "xliff":
             try:
                 result.ol_translated_unit_count = _extract_xliff_unit_count(translated)
-            except Exception:
+            except Exception as e:
+                print(f"  [WARN] Failed to extract OL trans-unit count: {e}")
                 result.ol_translated_unit_count = -1
             ol_items.append(("Trans-units", str(result.ol_translated_unit_count)))
         else:
@@ -383,8 +387,8 @@ async def run_single_path(
                     record(name, "OL", Severity.MINOR,
                            "One or more trans-units have empty <target>",
                            f"Translation may be incomplete for some segments")
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"  [WARN] Failed to check XLIFF empty targets: {e}")
 
         # ── ORF stage ──────────────────────────────────────────
         print(f"\n  ── Stage: ORF ({transport}) ──")
@@ -418,7 +422,8 @@ async def run_single_path(
         try:
             out_images = extract_image_positions(output)
             result.orf_output_image_count = len(out_images)
-        except Exception:
+        except Exception as e:
+            print(f"  [WARN] Failed to extract ORF output images: {e}")
             result.orf_output_image_count = -1
 
         _print_stage("ORF Outputs", [
