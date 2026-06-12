@@ -614,8 +614,14 @@ def _create_minimal_epub(epub_path: Path) -> None:
 </container>"""
 
     content_opf = """<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
-    <metadata/>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <metadata>
+        <dc:identifier id="book-id">urn:uuid:test-epub-0000-0000-000000000000</dc:identifier>
+        <dc:title>Test Document</dc:title>
+        <dc:language>en</dc:language>
+        <dc:creator>Test Author</dc:creator>
+    </metadata>
     <manifest>
         <item id="chapter1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
     </manifest>
