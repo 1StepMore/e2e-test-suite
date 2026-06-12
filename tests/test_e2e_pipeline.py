@@ -441,14 +441,11 @@ class TestErrorHandling:
         invalid_md = tmp_path / "invalid.md"
         invalid_md.write_text("not really markdown", encoding="utf-8")
 
-        try:
-            from orf.channels.md2docx import MD2DOCXConverter
-            converter = MD2DOCXConverter()
-            result = converter.convert(invalid_md, tmp_path / "result.docx")
+        from orf.channels.md2docx import MD2DOCXConverter
+        converter = MD2DOCXConverter()
+        result = converter.convert(invalid_md, tmp_path / "result.docx")
 
-            assert result is not None
-        except Exception:
-            pass
+        assert result is not None, "ORF should handle invalid MD without crashing"
 
 
 class TestPipelinePerformance:
