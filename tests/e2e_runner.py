@@ -16,6 +16,7 @@ Usage:
     python tests/e2e_runner.py
 """
 
+import argparse
 import asyncio
 import json
 import os
@@ -252,6 +253,7 @@ async def run_single_path(
     intermediate: str,
     artifact_dir: Path,
     haier_docx: Path,
+    glossary_path: str | None = None,
 ) -> PathResult:
     """Run one E2E path and return structured result with issues."""
     result = PathResult(
@@ -321,7 +323,7 @@ async def run_single_path(
         print(f"\n  ── Stage: OL ({transport}) ──")
         ol_out = artifact_dir / "ol"
         intermediate_path = opp.xliff_path if intermediate == "xliff" else opp.md_path
-        translated = await _run_ol(transport, intermediate_path, ol_out, "zh", "en")
+        translated = await _run_ol(transport, intermediate_path, ol_out, "zh", "en", glossary_path=glossary_path)
         _assert_non_empty_file(translated)
 
         # MD path: normalize OL output for pandoc. Strip YAML frontmatter
@@ -527,7 +529,19 @@ async def run_single_path(
 # Entry point
 # ═══════════════════════════════════════════════════════════════════════
 
-async def main():
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Omni Suite E2E Comprehensive Runner (老规矩)",
+    )
+    parser.add_argument(
+        "--glossary", type=str, default=None,
+        help="Path to a JSON glossary file passed to OL translation. "
+             "See ol_terminology/glossary_class.py for the expected format.",
+    )
+    return parser.parse_args()
+
+
+async def main(glossary_path: str | None = None):
     print("=" * 70)
     print("  Omni Suite E2E Comprehensive Runner (老规矩)")
     print(f"  Started: {datetime.now().isoformat()}")
@@ -584,7 +598,7 @@ async def main():
         shutil.copy2(HAIER_DOCX, path_dir / "source.docx")
 
         path_start = time.time()
-        result = await run_single_path(name, transport, intermediate, path_dir, HAIER_DOCX)
+        result = await run_single_path(name, transport, intermediate, path_dir, HAIER_DOCX, glossary_path=glossary_path)
         elapsed = time.time() - path_start
         results.append(result)
 
@@ -778,4 +792,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+    _args = _parse_args()
+    sys.exit(asyncio.run(main(glossary_path=_args.glossary)))
