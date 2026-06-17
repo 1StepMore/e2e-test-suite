@@ -720,12 +720,21 @@ def _run_tier_4(args) -> int:
 
 
 def _run_tier_5(args) -> int:
-    """Tier 5: invoke run_test.sh for each module (opp, ol, orf)."""
+    """Tier 5: invoke run_test.sh for each module (opp, ol, orf).
+
+    Round 11: override PY312 to active venv (run_test.sh defaults
+    to .venv312 which doesn't exist in this checkout).
+    """
     import subprocess
 
     suite_root = Path(__file__).resolve().parent.parent
     run_test = suite_root / "run_test.sh"
     rc_total = 0
+    active_python = suite_root / ".venv_ol" / "bin" / "python"
+    if not active_python.exists():
+        active_python = suite_root / ".venv" / "bin" / "python"
+    tier5_env = os.environ.copy()
+    tier5_env["PY312"] = str(active_python)
     for module in ("opp", "ol", "orf"):
         cmd = [
             "bash", str(run_test),
@@ -734,7 +743,8 @@ def _run_tier_5(args) -> int:
         ]
         print(f"Tier 5 → module={module}")
         print(f"  cmd: {' '.join(cmd)}")
-        rc = subprocess.run(cmd, env=os.environ.copy()).returncode
+        print(f"  PY312={active_python}")
+        rc = subprocess.run(cmd, env=tier5_env).returncode
         if rc != 0:
             rc_total = rc
             print(f"  ❌ module={module} failed rc={rc}")

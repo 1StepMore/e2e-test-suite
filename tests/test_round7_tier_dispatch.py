@@ -148,12 +148,16 @@ class TestOmoLoopTierDispatch:
         assert "P2" in cmd, f"--tier P2 missing: {cmd}"
 
     def test_tier_5_runs_three_modules(self, monkeypatch):
-        """Tier 5 should invoke run_test.sh --module {opp,ol,orf}."""
+        """Tier 5 should invoke run_test.sh --module {opp,ol,orf}.
+
+        Round 11: also asserts PY312 env var is set to the active venv
+        (run_test.sh defaults to .venv312 which doesn't exist).
+        """
         from scripts.omo_loop import _run_tier_5
 
         calls = []
         def mock_run(cmd, env=None, **kwargs):
-            calls.append(cmd)
+            calls.append((cmd, env))
             class R: returncode = 0
             return R()
         monkeypatch.setattr("subprocess.run", mock_run)
@@ -162,5 +166,10 @@ class TestOmoLoopTierDispatch:
         args = Namespace(input=Path("/tmp/fake.docx"), source_lang="zh", target_lang="en")
         _run_tier_5(args)
         assert len(calls) == 3, f"Expected 3 module runs; got {len(calls)}"
-        modules = [c[c.index("--module") + 1] for c in calls if "--module" in c]
+        modules = [c[c.index("--module") + 1] for c, _ in calls if "--module" in c]
         assert modules == ["opp", "ol", "orf"], f"Wrong modules: {modules}"
+        for cmd, env in calls:
+            assert "PY312" in env, f"PY312 not in env for {cmd}"
+            assert ".venv_ol/bin/python" in env["PY312"], (
+                f"PY312 should point at .venv_ol: got {env['PY312']}"
+            )
