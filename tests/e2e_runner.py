@@ -610,6 +610,7 @@ async def main(glossary_path: str | None = None,
     # ── Run all paths sequentially ───────────────────────────────
     results: list[PathResult] = []
     total_paths = len(paths)
+    start = time.time()  # 2026-06-17 round 9: total run start (used at line 652)
     for path_idx, (name, transport, intermediate) in enumerate(paths, 1):
         print(f"\n{'='*70}")
         print(f"  [{path_idx}/{total_paths}] Starting path: {name} ({transport}, {intermediate})")
