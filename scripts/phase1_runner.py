@@ -108,7 +108,8 @@ def build_matrix() -> list[TestCase]:
                          src, tgt, path_type, ["docx"],
                          f"P0 DOCX core {path_type} {src}→{tgt}"))
 
-    # P1: Per-input primary format via MD path
+    # P1: Per-input primary format via MD path. Round 10: pptx is
+    # back in scope (ORF's apply-md now exposes pptx via MD2PPTXConverter).
     for inp_fmt in [f for f in INPUT_FORMATS if f != "docx"]:
         for src, tgt in [("zh", "en"), ("en", "zh")]:
             cases.append(TestCase("P1", inp_fmt, resolve_fixture(inp_fmt, src),
