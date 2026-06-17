@@ -1,0 +1,23 @@
+# 2026-06-17 round 8 (FIX-#24): custom gitleaks rules for free-tier provider
+# patterns NOT covered by gitleaks default rules. Specifically:
+#   - Zhipu MiniMax style (hex.hex)
+#   - NVIDIA NIM nvapi- (added as defensive backup; default rule may exist)
+#   - Agnes AI sk- (covered by default OpenAI rule, but listed for clarity)
+#
+# The companion runtime check in src/ol_config/loader.py is the authoritative
+# guard (rejects bad configs at load time). gitleaks is the secondary guard
+# at pre-commit / CI scan time.
+
+title = "Omni_Suite custom secret patterns"
+
+# Custom rules — each rule needs a unique id and a regex.
+[[rules]]
+id = "zhipu-minimax-hex"
+description = "Zhipu MiniMax / BigModel API key (32+ hex . 16+ alnum)"
+# No keywords filter: pattern is unique enough (commit SHAs are 7-12 hex).
+regex = '''\b[a-f0-9]{32,}\.[A-Za-z0-9_\-]{16,}\b'''
+
+[[rules]]
+id = "ol-nvapi-key"
+description = "NVIDIA NIM nvapi- API key"
+regex = '''\bnvapi-[A-Za-z0-9_\-]{20,}\b'''
