@@ -66,6 +66,12 @@ ALL_OUTPUT_FORMATS = [
 
 XLIFF_PATH_OUTPUTS = ["docx", "pptx", "epub", "html"]  # 2026-06-17 OPT-09: removed odt (XLIFF backfill is format-preserving)
 
+# 2026-06-17 round 6 (FIX-#16): promoted to module-level for testability.
+XLIFF_OUTPUTS_BY_INPUT: dict[str, list[str]] = {
+    "docx": ["docx"],
+    "pptx": ["pptx"],
+}
+
 MD_PATH_OUTPUTS = list(ALL_OUTPUT_FORMATS)
 
 
@@ -111,11 +117,9 @@ def build_matrix() -> list[TestCase]:
 
     # P2: XLIFF backfill is format-preserving — skeleton must match the
     # output format, so docx→odt is invalid. Removed 2026-06-17 (OPT-09).
-    xliff_outputs_by_input = {
-        "docx": ["docx"],
-        "pptx": ["pptx"],
-    }
-    for inp_fmt, outputs in xliff_outputs_by_input.items():
+    # The matrix now references the module-level XLIFF_OUTPUTS_BY_INPUT
+    # constant (FIX-#16) so tests can import it directly.
+    for inp_fmt, outputs in XLIFF_OUTPUTS_BY_INPUT.items():
         for src, tgt in [("zh", "en"), ("en", "zh")]:
             for path_type in ["cli-xliff"]:
                 cases.append(TestCase("P2", inp_fmt, resolve_fixture(inp_fmt, src),
