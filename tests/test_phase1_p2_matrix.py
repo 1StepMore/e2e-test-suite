@@ -71,3 +71,13 @@ class TestP2XLIFFMatrix:
             assert case.output_formats == ["docx"], (
                 f"Expected only ['docx'] for P2 docx; got {case.output_formats}"
             )
+
+    def test_xliff_outputs_by_input_constant_exists(self):
+        """FIX-#16 (round 6): xliff_outputs_by_input was promoted from a
+        local var in build_matrix() to the module-level
+        XLIFF_OUTPUTS_BY_INPUT constant so tests can import and assert
+        on it directly. Locks in the matrix shape (docx→docx, pptx→pptx).
+        """
+        from scripts.phase1_runner import XLIFF_OUTPUTS_BY_INPUT  # type: ignore
+        assert XLIFF_OUTPUTS_BY_INPUT == {"docx": ["docx"], "pptx": ["pptx"]}
+        assert "odt" not in XLIFF_OUTPUTS_BY_INPUT.get("docx", [])
