@@ -84,10 +84,77 @@ Make `omo_loop.py`'s `--tier` flag dispatch to the existing assets:
 ## Verification Targets
 
 - All 39 existing tests still pass.
-- New round 7 tests pass (3-4 new).
+- New round 7 tests pass (7 new — exceeded 3-4 target).
 - Tier 1 still converges in ≤ 2 cycles (regression check).
 - Tier 2 invokes e2e_runner.py with all 4 paths and produces a comparison report.
 - Existing e2e_runner.py behavior unchanged when no new flags passed.
+
+## Round 7 Results (this turn)
+
+### Commits
+
+| Repo | SHA | Summary |
+|---|---|---|
+| main | `02634f1` | docs(plan): round 7 v1 (abandoned 350-line rewrite plan) |
+| main | `2da7457` | docs(plan): round 7 v2 (reuse-based, current plan) |
+| main | `ff3f9fe` | feat(scripts): tier dispatch (e2e_runner.py + omo_loop.py + 7 tests) |
+
+### What shipped
+
+| Change | Lines | Status |
+|---|---|---|
+| `tests/e2e_runner.py`: `--input/--source-lang/--target-lang` CLI flags + thread through `main()` + `run_single_path()` | ~30 | ✅ |
+| `scripts/omo_loop.py`: `--tier {1,2,3,4,5}` flag + 4 dispatch functions (`_run_tier_2..5`) | ~80 | ✅ |
+| `tests/test_round7_tier_dispatch.py`: 7 new tests | ~140 | ✅ all pass |
+
+### Test results
+
+```
+tests/test_round7_tier_dispatch.py  : 7 ✅ (new file)
+Omni_Localizer/tests/* (round 6)    : 39 ✅ (regression — unchanged)
+                                    TOTAL: 46 ✅
+```
+
+### OMO Tier 1 (regression check)
+
+```
+Cycle 1: 240.9s, 8/8 GREEN, LQA 4.20/5
+→ Tier 1 unchanged after expansion wiring.
+```
+
+### Tier 2 dispatch (verified by mock + dry-run)
+
+Command constructed correctly:
+```
+python tests/e2e_runner.py --input <docx> --source-lang zh --target-lang en
+```
+Tier 2 would invoke `e2e_runner.py` which runs **all 4 paths** (xliff_cli,
+xliff_mcp, md_cli, md_mcp) with real LLM. Not run in full this turn
+due to ~20-40 min runtime + API cost; recommended for round 8 as the
+"real Tier 2 smoke" once the dispatch is approved.
+
+### Architecture summary
+
+```
+$ omo_loop.py --tier 1 (default)
+└── runs full OPP→OL→ORF pipeline with 8-gate convergence (~5 min/cycle)
+
+$ omo_loop.py --tier 2
+└── subprocess → tests/e2e_runner.py (all 4 paths, ~30 min)
+
+$ omo_loop.py --tier 3
+└── subprocess → scripts/phase1_runner.py --tier P1 (10 formats × 2 langs, ~60 min)
+
+$ omo_loop.py --tier 4
+└── subprocess → scripts/phase1_runner.py --tier P2 (XLIFF backfill, ~30 min)
+
+$ omo_loop.py --tier 5
+└── subprocess → run_test.sh --module {opp,ol,orf} sequentially
+```
+
+Net new LOC: ~250 (80 omo_loop + 30 e2e_runner + 140 tests).
+Logic invented: 0 (all logic comes from existing assets).
+Risk: low — Tier 1 unchanged, Tier 2-5 are subprocess wrappers.
 
 ## What This Round is NOT
 
