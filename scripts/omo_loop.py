@@ -680,7 +680,13 @@ def _run_tier_2(args) -> int:
 
 
 def _run_tier_3(args) -> int:
-    """Tier 3: invoke scripts/phase1_runner.py P1 (10 formats × 2 langs MD)."""
+    """Tier 3: invoke scripts/phase1_runner.py P1 (10 formats × 2 langs MD).
+
+    phase1_runner's build_matrix() already iterates both directions,
+    so a single invocation runs all 20 cases. Passing
+    --source-lang/--target-lang would be silently ignored (round 10
+    caught the round 7 dispatch over-specifying these args).
+    """
     import subprocess
     import sys
 
@@ -689,10 +695,9 @@ def _run_tier_3(args) -> int:
     cmd = [
         sys.executable, str(phase1),
         "--tier", "P1",
-        "--source-lang", args.source_lang,
-        "--target-lang", args.target_lang,
+        "--run-id", f"tier3_{args.source_lang}_{args.target_lang}",
     ]
-    print(f"Tier 3 → delegating to {phase1.name} P1 (format matrix via MD)")
+    print(f"Tier 3 → delegating to {phase1.name} P1 (10 formats × 2 langs MD)")
     print(f"  cmd: {' '.join(cmd)}")
     return subprocess.run(cmd, env=os.environ.copy()).returncode
 
@@ -707,8 +712,7 @@ def _run_tier_4(args) -> int:
     cmd = [
         sys.executable, str(phase1),
         "--tier", "P2",
-        "--source-lang", args.source_lang,
-        "--target-lang", args.target_lang,
+        "--run-id", f"tier4_{args.source_lang}_{args.target_lang}",
     ]
     print(f"Tier 4 → delegating to {phase1.name} P2 (XLIFF backfill matrix)")
     print(f"  cmd: {' '.join(cmd)}")
