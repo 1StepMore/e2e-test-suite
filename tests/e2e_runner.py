@@ -256,6 +256,8 @@ async def run_single_path(
     artifact_dir: Path,
     haier_docx: Path,
     glossary_path: str | None = None,
+    source_lang: str = "zh",
+    target_lang: str = "en",
 ) -> PathResult:
     """Run one E2E path and return structured result with issues."""
     result = PathResult(
@@ -295,7 +297,7 @@ async def run_single_path(
         style_map = {"a5": 1} if intermediate == "md" else None
         # embed_images=True → file refs (small MD for LLM token budget)
         opp = await _run_opp(
-            transport, haier_docx, artifact_dir, "zh", "en",
+            transport, haier_docx, artifact_dir, source_lang, target_lang,
             style_mapping=style_map, embed_images=True,
         )
         result.opp_outputs = opp
@@ -326,7 +328,7 @@ async def run_single_path(
         print(f"\n  ── Stage: OL ({transport}) ──")
         ol_out = artifact_dir / "ol"
         intermediate_path = opp.xliff_path if intermediate == "xliff" else opp.md_path
-        translated = await _run_ol(transport, intermediate_path, ol_out, "zh", "en", glossary_path=glossary_path)
+        translated = await _run_ol(transport, intermediate_path, ol_out, source_lang, target_lang, glossary_path=glossary_path)
         _assert_non_empty_file(translated)
 
         # MD path: normalize OL output for pandoc. Strip YAML frontmatter
@@ -365,9 +367,9 @@ async def run_single_path(
         # Check target language (XLIFF paths only — MD has no target-language attr)
         if intermediate == "xliff":
             xliff_text = translated.read_text(encoding="utf-8")
-            if 'target-language="en"' not in xliff_text:
+            if f'target-language="{target_lang}"' not in xliff_text:
                 record(name, "OL", Severity.CRITICAL,
-                       "Missing target-language='en' in translated XLIFF",
+                       f"Missing target-language='{target_lang}' in translated XLIFF",
                        f"File: {translated}",
                        fixed=True, fix_note="OL CLI sets target-language from args")
 
@@ -473,7 +475,7 @@ async def run_single_path(
             text for _idx, text in out_paras if text.strip()
         )
         try:
-            _assert_translated_to_target_lang(translated_text, "en")
+            _assert_translated_to_target_lang(translated_text, target_lang)
             result.target_lang_ok = True
             print(f"    ✅ Target language (en): PASS")
         except AssertionError as e:
@@ -486,7 +488,7 @@ async def run_single_path(
         if intermediate == "xliff":
             print(f"\n  ── Stage: LQA ──")
             try:
-                judgment = await _judge_docx_text(output, haier_docx, "zh", "en")
+                judgment = await _judge_docx_text(output, haier_docx, source_lang, target_lang)
                 result.lqa_scores = judgment
                 _print_stage("LQA Scores", [
                     ("Adequacy", f"{judgment['avg_adequacy']:.2f}"),
@@ -539,6 +541,18 @@ def _parse_args() -> argparse.Namespace:
         description="Omni Suite E2E Comprehensive Runner (老规矩)",
     )
     parser.add_argument(
+        "--input", type=Path, default=None,
+        help="Source DOCX path (default: HAIER_DOCX — 爱上海尔 fixture).",
+    )
+    parser.add_argument(
+        "--source-lang", type=str, default="zh",
+        help="Source language code (default: zh).",
+    )
+    parser.add_argument(
+        "--target-lang", type=str, default="en",
+        help="Target language code (default: en).",
+    )
+    parser.add_argument(
         "--glossary", type=str, default=None,
         help="Path to a JSON glossary file passed to OL translation. "
              "See ol_terminology/glossary_class.py for the expected format.",
@@ -546,21 +560,27 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def main(glossary_path: str | None = None):
+async def main(glossary_path: str | None = None,
+               input_path: Path | None = None,
+               source_lang: str = "zh",
+               target_lang: str = "en"):
+    # 2026-06-17 round 7: omo_loop.py tier=2 drives this with any DOCX.
+    src = input_path or HAIER_DOCX
     print("=" * 70)
     print("  Omni Suite E2E Comprehensive Runner (老规矩)")
     print(f"  Started: {datetime.now().isoformat()}")
-    print(f"  Source: {HAIER_DOCX.name}")
+    print(f"  Source: {src.name}")
+    print(f"  Direction: {source_lang}→{target_lang}")
     print(f"  Logging: OPP_LOG_LEVEL={os.environ.get('OPP_LOG_LEVEL')}, "
           f"OL_LOG_LEVEL={os.environ.get('OL_LOG_LEVEL')}, "
           f"ORF_LOG_LEVEL={os.environ.get('ORF_LOG_LEVEL')}")
     print("=" * 70)
 
     # Verify source DOCX
-    if not HAIER_DOCX.exists():
-        print(f"\n❌ Source DOCX not found at {HAIER_DOCX}")
+    if not src.exists():
+        print(f"\n❌ Source DOCX not found at {src}")
         sys.exit(1)
-    print(f"\n✅ Source: {HAIER_DOCX} ({HAIER_DOCX.stat().st_size:,} bytes)")
+    print(f"\n✅ Source: {src} ({src.stat().st_size:,} bytes)")
 
     # Verify pandoc for MD paths
     has_pandoc = shutil.which("pandoc") is not None
@@ -600,10 +620,14 @@ async def main(glossary_path: str | None = None):
         path_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy source to path dir for reference
-        shutil.copy2(HAIER_DOCX, path_dir / "source.docx")
+        shutil.copy2(src, path_dir / "source.docx")
 
         path_start = time.time()
-        result = await run_single_path(name, transport, intermediate, path_dir, HAIER_DOCX, glossary_path=glossary_path)
+        result = await run_single_path(
+            name, transport, intermediate, path_dir, src,
+            glossary_path=glossary_path,
+            source_lang=source_lang, target_lang=target_lang,
+        )
         elapsed = time.time() - path_start
         results.append(result)
 
@@ -798,4 +822,9 @@ async def main(glossary_path: str | None = None):
 
 if __name__ == "__main__":
     _args = _parse_args()
-    sys.exit(asyncio.run(main(glossary_path=_args.glossary)))
+    sys.exit(asyncio.run(main(
+        glossary_path=_args.glossary,
+        input_path=_args.input,
+        source_lang=_args.source_lang,
+        target_lang=_args.target_lang,
+    )))
