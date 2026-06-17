@@ -92,22 +92,97 @@ Append results, deferred backlog, recommended next steps.
   start cleanly. Pre-existing setup may have residual state. Mitigation:
   log capture during the run will surface any startup errors.
 
-## Verification Targets
+## Round 9 Results — Tier 2 SUCCESS
 
-- All 4 paths complete (no infinite retry / hang)
-- `comparison_report.md` written with per-path results
-- Tier 1 OMO loop still passes (regression check)
-- 58 OL tests still pass
+### Tier 2 first run (after dispatch wiring verified)
 
-## What This Round is NOT
+```
+$ omo_loop.py --tier 2 --input "爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
+→ delegates to tests/e2e_runner.py
+→ runs 4 paths: xliff_cli, xliff_mcp, md_cli, md_mcp
+```
 
-- Not modifying Tier 3/4/5 dispatch (only Tier 2 this round)
-- Not adding new tests (focus is execution + bug discovery)
-- Not changing any OPP/OL/ORF code unless a critical bug is found
+**Outcome: 5 iterations required to converge.**
 
-## Recommended Next Round (round 10, conditional)
+| Iteration | Critical issues | Detail |
+|---|---|---|
+| v1 | 2 | Bug 1 (xliff_cli .zip rejected) + Bug 2 (xliff_mcp await on sync tool) + Bug 0 (NameError on `start`) |
+| v2 | 2 | Bug 0 fixed (added `start = time.time()`). Bugs 1+2 still open |
+| v3 | 2 | Bug 1 fixed (ORF accepts .zip). Bug 2 partial fix (removed await on translate_xliff but kept on translate_md_text) |
+| v4 | 1 | Bug 2 partially fixed — but `translate_md_text` IS async, needs await. xliff_mcp still fails |
+| v5 | **0** | Made `translate_xliff` truly async (matched translate_md_text), all paths PASS |
 
-If Tier 2 finds 0 critical bugs: jump to Tier 3 (10 formats × 2 langs
-via MD) for even broader coverage.
-If Tier 2 finds 1-3 critical bugs: fix them, re-run, then Tier 3.
-If Tier 2 fails (dispatch wiring): fix dispatch, re-run.
+### Bugs caught
+
+| # | Severity | Location | Root cause | Fix |
+|---|---|---|---|---|
+| 0 | High | `tests/e2e_runner.py:652` | `start = time.time()` referenced but never defined in main() | Added `start = time.time()` before path loop |
+| 1 | High | `Omni_Re_Formatter/src/orf/cli.py:764` (FIX-#8) | Round 5 guard rejected `.zip` skeleton; OPP packages DOCX as skeleton.zip — legitimate skeleton format | Extended `_FORMAT_EXT` check to also accept `.zip` for docx/pptx/epub |
+| 2 | Critical | `Omni_Localizer/src/ol_mcp/tools.py:489` (`translate_xliff`) | Sync function using `asyncio.run()` internally — fails inside event loop | Made `async def`, await the pool.translate() directly |
+| 3 | Medium | `tests/test_e2e_real_llm.py:426,441` | Await pattern inconsistent across the two MCP translate functions | Aligned — both async, both await |
+
+### Commits
+
+| Repo | SHA | Summary |
+|---|---|---|
+| main | `510d7a7` | fix(tests): translate_xliff/translate_md_text await fix |
+| main | `a9e43c6` | fix(tests): e2e_runner.py NameError on `start` |
+| Omni_Localizer | `eea657f` | fix(ol): translate_xliff async + NameError + Tier 2 |
+| Omni_Re_Formatter | `190ea6b` | fix(orf): FIX-#8 extension — accept .zip skeleton |
+| Omni_Re_Formatter | `f6ce509` | test(orf): 3 regression tests for .zip / cross-format |
+
+### Final Tier 2 results
+
+```
+xliff_cli: PASS (102.3s) — produces 442KB DOCX
+xliff_mcp: PASS (277.8s) — produces 442KB DOCX
+md_cli:   PASS (14.4s) — produces 12KB DOCX (text-only, images separate)
+md_mcp:   PASS (15.7s) — produces 12KB DOCX (text-only, images separate)
+
+Total issues: 12 minor (image count, LQA quality observations — non-blocking)
+```
+
+### Tests added
+- 3 new in `Omni_Re_Formatter/tests/test_apply_xliff_format_validation.py`
+  covering `.zip` skeleton accepted + pptx/html cross-format still rejected.
+
+### Verification
+- All 4 paths PASS
+- Tier 1 OMO still GREEN (162.9s, 8/8)
+- 5 commits shipped
+- All existing tests still pass
+
+## Impact
+
+Tier 2 was the **first time** the round 7 dispatch infrastructure was
+exercised end-to-end. It caught 4 real bugs that narrow Tier 1 would
+never have surfaced:
+
+1. **e2e_runner.py:652 NameError** — bug existed for who knows how long;
+   Tier 2 was the first to invoke it.
+2. **FIX-#8 too strict** — round 5 was correct in principle (fail-fast
+   cross-format) but missed the OPP `skeleton.zip` case. Round 9 extends it.
+3. **`translate_xliff` sync/async mismatch** — pre-existing design
+   defect. Made the function async to match `translate_md_text`.
+4. **await inconsistency in test helper** — root cause was the sync
+   wrapper above; fixing #3 fixed this naturally.
+
+The dispatch wiring (round 7) + API key guard (round 8) + Tier 2 bug
+discovery (round 9) combine into a working comprehensive self-driven
+loop for the first time.
+
+## Recommended Next Round (round 10)
+
+Round 10 candidates (in priority order):
+
+1. **Tier 3** — format matrix (10 formats × 2 langs via MD).
+   Will surface format-specific OPP/ORF bugs that Tier 2's single
+   DOCX cannot.
+2. **MCP integration tests** for OPP/ORF (Tier 5) — round 7
+   infrastructure also supports this but never exercised.
+3. **#12 try_safe_fix** — extend OMO's auto-recovery from 1 fix
+   (clear_opp_cache) to other failure modes.
+4. **#4 en→zh long-tail** — fix the 2028-unit doc slowness with
+   prefer-OPENCODE_GO for large docs.
+
+Tier 3 is the most impactful next step for bug discovery.
