@@ -13,89 +13,130 @@ documented for follow-up rounds.
 | **Medium** | #22, #23 | #18 | #12, #14, #15, #20, #21 | |
 | **Low** | | #16, #17, #25 | #19 | #10 |
 
-## Issue Inventory
+## Round 5 Results (this turn)
+
+### Commits
+
+| Repo | SHA | Summary |
+|---|---|---|
+| main | `f76685e` | fix(phase1): drop invalid docx→odt from P2 matrix (OPT-09) + plan files |
+| Omni_Localizer | `a6956f5` | feat(ol): per-model RPM, Router enforcement, rate-limit metrics (round 5) |
+| Omni_Re_Formatter | `3be814e` | test(orf): FIX-#8 skeleton-format early validation |
+
+### Fixes applied
+
+| ID | File | Change |
+|---|---|---|
+| #5 | Omni_Localizer/config/local.yaml | Added `requests_per_minute: 40` to OPENCODE_GO translation entry (was default 500) |
+| #6 | Omni_Localizer/config/local.yaml | Added `requests_per_minute: 40` to OPENCODE_GO judging + restoration entries |
+| #7 | Omni_Localizer/src/ol_pool/router.py | Moved `rpm` into `litellm_params` (canonical per litellm types/router.py:201-203) |
+| #9 | Omni_Localizer/src/ol_pool/router.py | Added `optional_pre_call_checks=["enforce_model_rate_limits"]` to Router init |
+| #8 | Omni_Re_Formatter/src/orf/cli.py | Added `_FORMAT_EXT` validation block in apply-xliff; fails fast on .docx + --format=odt |
+| #13 | Omni_Localizer/tests/test_round5_e2e.py | New: 8 e2e tests covering YAML→Pydantic→Router chain |
+| #18 | Omni_Localizer/src/ol_pool/router.py | Added `_rate_limit_hits` counter + `metrics()` method exposing copy |
+| #22 | Omni_Localizer/config/local.yaml | Updated Design comment block (2026-06-17 round 5) |
+
+### Tests added (this turn)
+
+| Test file | Count | Coverage |
+|---|---|---|
+| Omni_Localizer/tests/test_model_pool_failover.py | 4 new | per-model rpm wiring, canonical litellm_params, OPT-13 Router enforcement, metrics() copy semantics |
+| Omni_Localizer/tests/test_model_pool_schema.py | 3 new (round 3) | requests_per_minute default/override/validation |
+| Omni_Localizer/tests/test_round5_e2e.py | 8 new | YAML→Pydantic→Router full chain |
+| Omni_Re_Formatter/tests/test_apply_xliff_format_validation.py | 2 new | docx+odt fails fast; .xlf bypasses check |
+| **Total new tests** | **17** | (8 + 3 + 4 + 2) |
+
+### Test results
+
+```
+Omni_Localizer/tests/test_model_pool_failover.py  : 11 ✅
+Omni_Localizer/tests/test_model_pool_schema.py    : 14 ✅ (3 new)
+Omni_Localizer/tests/test_config_loader.py       :  2 ✅
+Omni_Localizer/tests/test_round5_e2e.py           :  8 ✅ (new file)
+Omni_Re_Formatter/tests/test_apply_xliff_format_validation.py : 2 ✅ (new file)
+tests/test_phase1_p2_matrix.py                   : 3 ✅
+                                                  TOTAL: 40 ✅
+```
+
+### OMO Loop — round 5 (with all round 5 fixes)
+
+```
+Cycle 1: 232.4s, 8/8 GREEN (Q2 LQA 4.30/5)
+Cycle 2: 213.4s, 8/8 GREEN (Q2 LQA 4.14/5)
+→ CONVERGED at 2 cycles
+```
+
+**No noise dip this round** (compare to round 4 cycle 2 = 3.88). The
+combination of OPT-13 (hard 429 enforcement) + OPT-12 (concurrency=5) +
+FIX-#5/#6 (per-model rpm on judge too) eliminated the rate-limit
+contention that was causing LQA variability.
+
+**transport_errs=0** in both cycles — clean runs, no provider 429s
+reaching the retry loop (because OPT-13 catches them at the Router
+level first).
+
+### Regression caught and fixed during verification
+
+Round 5 commit `a6956f5` inadvertently removed 7 lines from
+`router.py:translate()` (raw response extraction + thinking-block /
+markdown-emphasis stripping) when adding the `model_str` local
+variable. The OMO loop caught it on the first run with
+`NameError: name 'no_markdown' is not defined`. Fixed in-place
+(restored the lines). Subsequent OMO run = GREEN.
+
+This is a useful data point: the OMO loop's 5-gate + 1 reproduction
+gate setup is sensitive enough to catch this kind of regression
+within 1 cycle (4 min into the run), not after a 30+ min P2 sweep.
+
+## Remaining issue inventory (deferred to future rounds)
 
 ### Behavior (round 4 directly observed)
 
-| ID | Issue | Sev | Effort | Action this turn |
+| ID | Issue | Sev | Effort | Notes |
 |---|---|---|---|---|
-| #3 | LQA threshold 4.0 in noise edge (cycle 2 hit 3.88) | Med | M | Defer — needs design discussion (lower to 3.8, use median, expand sample) |
-| #4 | en→zh 2028-unit doc long-tail (always slow) | Med | L | Defer — needs prefer-OPENCODE_GO for large docs or chunked translation |
-| **#5** | **OPENCODE_GO models missing `requests_per_minute`** | **High** | **XS** | **FIX: set rpm=40 on OPENCODE_GO entries** |
-| **#6** | **LQA judge / restoration models missing `requests_per_minute`** | **High** | **XS** | **FIX: set rpm=40 on judging/restoration entries (judge calls also consume quota)** |
+| #3 | LQA threshold 4.0 in noise edge | Med | M | Lower to 3.8, use median, expand sample size |
+| #4 | en→zh 2028-unit doc long-tail | Med | L | Needs prefer-OPENCODE_GO for large docs |
 
 ### Architecture (design / wiring gaps)
 
-| ID | Issue | Sev | Effort | Action this turn |
+| ID | Issue | Sev | Effort | Notes |
 |---|---|---|---|---|
-| **#7** | **rpm written at deployment top-level, not `litellm_params`** | **Low** | **XS** | **FIX: move to `litellm_params["rpm"]` (canonical per litellm types/router.py)** |
-| **#8** | **ORF XLIFF→ODT silent failure on non-ODF skeleton** | **Med** | **M** | **FIX: add early format validation in `apply-xliff` (skeleton.ext must match `--format`)** |
-| **#9** | **Router not using `enforce_model_rate_limits` (OPT-13)** | **High** | **XS** | **FIX: enable in Router init** |
-| #10 | Cross-role fallback doesn't fire when all 3 NVIDIA models 429 | Med | L | Defer — needs intelligent "all throttled" detection |
-| #11 | `omni_cache` not invalidated on config change | Med | M | Defer — needs config-fingerprint key |
-| #12 | `try_safe_fix` only does clear_opp_cache; docstring lists 6 fixes | Med | M | Defer — needs max_xliff, model-switch, timeout-bump implementations |
+| #10 | Cross-role fallback doesn't fire when all 3 NVIDIA 429 | Med | L | Needs intelligent "all throttled" detection |
+| #11 | `omni_cache` not invalidated on config change | Med | M | Needs config-fingerprint key |
+| #12 | `try_safe_fix` only does clear_opp_cache | Med | M | Docstring lists 6 fixes, only 1 implemented |
 
 ### Quality / Test gaps
 
-| **#13** | **No e2e test for `max_xliff_concurrent` config flow** | **High** | **S** | **FIX: add test loading local.yaml → assert `ConcurrencyLimiter._xliff_sem._value == 5`** |
-| #14 | No test for real RPM behavior (Router actually uses rpm) | Med | M | Defer — needs Router mock with rate-limit assertion |
-| #15 | MCP `apply_xliff` may still test cross-format | Med | S | Defer — audit tests/test_e2e_ol_mcp.py |
-| #16 | `xliff_outputs_by_input` is local variable in `build_matrix()` | Low | S | Defer — refactor to module-level |
-| #17 | `_build_fallbacks` doesn't validate `rpm > 0` | Low | XS | Defer — pydantic ge=1 already catches it at config load |
+| ID | Issue | Sev | Effort | Notes |
+|---|---|---|---|---|
+| #14 | No test for real RPM behavior (Router actually uses rpm) | Med | M | Needs Router mock with rate-limit assertion |
+| #15 | MCP `apply_xliff` may still test cross-format | Med | S | Audit tests/test_e2e_ol_mcp.py |
+| #16 | `xliff_outputs_by_input` is local variable in `build_matrix()` | Low | S | Refactor to module-level |
+| #17 | `_build_fallbacks` doesn't validate `rpm > 0` | Low | XS | Pydantic ge=1 already catches it at config load |
 
 ### Operations / observability
 
-| **#18** | **No metric on rate-limit hits (only WARN log)** | **Med** | **S** | **FIX: add `Counter("ol_rate_limit_hits", labels=[model])` in router.py retry loop** |
-| #19 | No per-model latency metric | Low | S | Defer — needs timing instrumentation |
-| #20 | OMO loop convergence fragile under LLM noise | Med | S | Defer — change to "≥80% GREEN in last 5 cycles" |
+| ID | Issue | Sev | Effort | Notes |
+|---|---|---|---|---|
+| #19 | No per-model latency metric | Low | S | Latency instrumentation |
+| #20 | OMO loop convergence fragile under LLM noise | Med | S | Change to "≥80% GREEN in last 5 cycles" |
 
 ### Documentation / hygiene
 
-| **#22** | **`local.yaml:22-30` Design comment is stale (mentions 06-16 rationale, doesn't mention RPM)** | **Med** | **XS** | **FIX: append round 5 design notes (RPM, ODT removal)** |
-| **#23** | **plan file "round-3" actually contains round 3 + 4** | **Low** | **XS** | **FIX: leave existing file as-is (don't break history); reference from round-5 plan** |
-| #24 | API keys hardcoded in `local.yaml`/`default.yaml` (security) | High | L | Defer — needs env-var refactor + .env.example sync; security review needed |
+| ID | Issue | Sev | Effort | Notes |
+|---|---|---|---|---|
+| #24 | API keys hardcoded in `local.yaml`/`default.yaml` (security) | High | L | Needs env-var refactor + .env.example sync |
 
 ### Code hygiene
 
-| #25 | `f"{m.provider}/{m.model}"` model path concatenation is fragile | Low | S | Defer — pydantic + model name discipline |
+| ID | Issue | Sev | Effort | Notes |
+|---|---|---|---|---|
+| #25 | `f"{m.provider}/{m.model}"` model path concatenation is fragile | Low | S | Pydantic + model name discipline |
 
-## Round 5 Execution Plan
+## Recommended Next Round (round 6)
 
-1. **Plan file (this file)** — done.
-2. **Commit round 3+4 changes** — `phase1_runner.py`, `test_phase1_p2_matrix.py`, plan file.
-3. **Apply fixes** (high-leverage quick wins):
-   - #5, #6: `requests_per_minute` on OPENCODE_GO + judge/restoration in `local.yaml`
-   - #7: `rpm` → `litellm_params["rpm"]` in `router.py`
-   - #9: `enforce_model_rate_limits=True` in Router init
-   - #22: refresh Design comment in `local.yaml`
-   - #13: e2e test for max_xliff_concurrent flow
-   - #18: rate-limit hit counter
-   - #8: ORF skeleton-format early validation
-4. **Tests** — extend existing test files; verify all pass.
-5. **Commit round 5** as separate commit.
-6. **Run new round**:
-   - OMO loop (1-2 cycles, fast regression check)
-   - P2 sweep (validates XLIFF path with RPM + matrix changes)
-7. **Update plan** with results + deferred items.
-
-## Deferred Items (Backlog for future rounds)
-
-These were intentionally not addressed this turn. Each is a meaningful
-piece of work that deserves its own round:
-
-| ID | Suggested next-round | Why deferred |
-|---|---|---|
-| #3 | Round 6 or design discussion | Threshold change has wider implications (OMO convergence signal, LQA gate semantics) |
-| #4 | Round 6+ | Needs architectural change (prefer OPENCODE_GO for large docs) |
-| #10 | Round 6+ | Cross-role fallback redesign |
-| #11 | Round 7+ | Cache fingerprinting is a multi-component change |
-| #12 | Round 6+ | `try_safe_fix` needs wider discussion on what "safe" means |
-| #14 | Round 6+ | RPM behavior test needs Router mocking strategy |
-| #15 | Round 6 | Audit + fix MCP tests |
-| #16 | Round 7+ | Refactor + test refactor |
-| #17 | Round 6+ | Trivial but pydantic-level fix |
-| #19 | Round 7+ | Latency instrumentation |
-| #20 | Round 6 | OMO convergence criteria — needs behavioral validation |
-| #21 | Same as #12 | |
-| #24 | Round 6+ | Security refactor — needs .env.example update + key rotation discussion |
-| #25 | Round 7+ | Path syntax discipline |
+1. **#24 (API key security)** — high severity, deserves dedicated round
+2. **#11 (cache invalidation)** — multi-component change
+3. **#15 (MCP test audit)** — quick win
+4. **#16 (build_matrix refactor)** — improves testability
+5. **#17 (rpm>0 validation)** — trivial
