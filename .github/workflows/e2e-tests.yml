@@ -1,0 +1,156 @@
+name: Omni Suite E2E Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same branch when a new commit is pushed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Job 1: CI-mode test suite (fast, no LLM API keys required).
+  # Runs on every push/PR. Uses OMNI_TEST_FAKE_LLM=1 and
+  # OMNI_TEST_FAKE_PANDOC=1 to short-circuit external network calls.
+  # -------------------------------------------------------------------------
+  ci-suite:
+    name: CI Suite (no LLM)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install system deps (pandoc for ORF MD conversions)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+
+      - name: Install md2pptx (Phase C2)
+        run: bash scripts/install_md2pptx.sh
+
+      - name: uv sync (root workspace + all 3 submodules)
+        run: uv sync --frozen
+
+      - name: Scan tracked configs for hardcoded secrets (Phase A2 regression)
+        run: |
+          if grep -rn --include="*.yaml" --include="*.yml" --include="*.json" \
+              -E "(api_key|apikey|api-key)\s*[:=]\s*['\"]?[a-zA-Z0-9]{20,}" \
+              Omni_Pre_Processor Omni_Localizer Omni_Re_Formatter 2>/dev/null; then
+            echo "::error::Hardcoded secret detected in tracked config (Phase A2 violation)"
+            exit 1
+          fi
+          echo "No hardcoded secrets found."
+
+      - name: Run OPP module tests
+        run: |
+          .venv_ol/bin/python -m pytest Omni_Pre_Processor/tests/ -m "not nightly" \
+            --tb=short -q --no-header 2>&1 | tail -40
+        env:
+          OMNI_TEST_FAKE_LLM: "1"
+          OMNI_TEST_FAKE_PANDOC: "1"
+
+      - name: Run OL module tests
+        run: |
+          .venv_ol/bin/python -m pytest Omni_Localizer/tests/ -m "not nightly" \
+            --tb=short -q --no-header 2>&1 | tail -40
+        env:
+          OMNI_TEST_FAKE_LLM: "1"
+          OMNI_TEST_FAKE_PANDOC: "1"
+
+      - name: Run ORF module tests
+        run: |
+          .venv_ol/bin/python -m pytest Omni_Re_Formatter/tests/ \
+            --tb=short -q --no-header 2>&1 | tail -40
+        env:
+          OMNI_TEST_FAKE_LLM: "1"
+          OMNI_TEST_FAKE_PANDOC: "1"
+
+      - name: Run suite-level e2e tests
+        run: |
+          .venv_ol/bin/python -m pytest tests/ -m "not nightly" \
+            --tb=short -q --no-header 2>&1 | tail -60
+        env:
+          OMNI_TEST_FAKE_LLM: "1"
+          OMNI_TEST_FAKE_PANDOC: "1"
+
+  # -------------------------------------------------------------------------
+  # Job 2: Nightly LLM tests (slow, requires real API keys).
+  # Runs on a schedule + manual dispatch. Matrix: {m2.7, deepseek}.
+  # Uses MINIMAX_API_KEY / BAIDU_API_KEY secrets.
+  # -------------------------------------------------------------------------
+  nightly-llm:
+    name: Nightly LLM (${{ matrix.provider }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    needs: ci-suite
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [minimax, baidu]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+
+      - name: Install md2pptx
+        run: bash scripts/install_md2pptx.sh
+
+      - name: uv sync
+        run: uv sync --frozen
+
+      - name: Configure LLM credentials
+        run: |
+          mkdir -p Omni_Localizer/config
+          cat > Omni_Localizer/.env <<EOF
+          MINIMAX_API_KEY=${{ secrets.MINIMAX_API_KEY }}
+          BAIDU_API_KEY=${{ secrets.BAUDU_API_KEY }}
+          MINIMAX_BASE_URL=https://api.minimaxi.com/v1
+          BAIDU_BASE_URL=https://qianfan.baidubce.com/v2
+          EOF
+          cp Omni_Localizer/config/default.yaml Omni_Localizer/config/local.yaml
+
+      - name: Run nightly real-LLM tests
+        run: |
+          .venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py -m "nightly" \
+            --tb=short -v --no-header 2>&1 | tail -80
+        env:
+          OMNI_TEST_FAKE_LLM: ""
+          OMNI_TEST_FAKE_PANDOC: ""
+          OMNI_RUN_REAL_LLM: "1"
+          OL_CONFIG_PATH: Omni_Localizer/config/local.yaml
