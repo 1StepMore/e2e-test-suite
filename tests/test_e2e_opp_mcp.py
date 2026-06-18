@@ -263,8 +263,9 @@ class TestOPPMCP:
         resource_dir = tmp_path / "resources"
         resource_dir.mkdir()
 
-        with patch("opp.mcp.server._validator") as mock_validator, \
-             patch("opp.mcp.server._config", MagicMock(output_dir=None, allowed_directories=[])), \
+        with patch("opp.mcp.server._init_server") as mock_init, \
+             patch("opp.mcp.server._validator") as mock_validator, \
+             patch("opp.mcp.server._config", MagicMock(output_dir=None, allowed_directories=[str(tmp_path)])), \
              patch("opp.mcp.server._pipeline") as mock_pipeline, \
              patch("opp.mcp.server._serializer") as mock_serializer:
 

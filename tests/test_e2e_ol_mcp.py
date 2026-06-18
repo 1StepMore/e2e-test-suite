@@ -213,19 +213,11 @@ class TestOLMCP:
             assert parsed["score"] == 0
 
     @pytest.mark.requires_ol
-    @pytest.mark.xfail(
-        reason=(
-            "2026-06-17 round 12: test mocks ModelPool.get_instance + "
-            "ConcurrencyLimiter but the inner _resolve_async() in "
-            "batch_translate_texts hangs the test (likely asyncio.run() "
-            "in a running event loop). Deferred to a future round."
-        ),
-        strict=False,
-    )
     def test_batch_translate_texts_basic(self, tmp_path):
         """Test batch_translate_texts tool translates multiple texts."""
         with patch("ol_mcp.tools.ModelPool") as mock_pool, \
-             patch("ol_mcp.tools.ConcurrencyLimiter") as mock_limiter:
+             patch("ol_mcp.tools.MDRepairPipeline") as mock_repair, \
+             patch("ol_mcp.tools.ConcurrencyLimiter", create=True) as mock_limiter:
 
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(side_effect=[
@@ -234,6 +226,13 @@ class TestOLMCP:
             ])
             mock_pool.return_value = mock_instance
             mock_pool.get_instance.return_value = mock_instance
+
+            # 2026-06-18 round 14: repair pipeline must also be mocked.
+            # It expects a 2-tuple (repaired_text, warnings_list); without
+            # this the inner call raises "too many values to unpack".
+            mock_repair_instance = MagicMock()
+            mock_repair_instance.repair = MagicMock(return_value=("# repaired", []))
+            mock_repair.return_value = mock_repair_instance
 
             mock_limiter_instance = MagicMock()
             mock_limiter_instance.translation = MagicMock()
@@ -254,19 +253,20 @@ class TestOLMCP:
             assert parsed["total"] == 2
 
     @pytest.mark.requires_ol
-    @pytest.mark.xfail(
-        reason="Round 12: see test_batch_translate_texts_basic",
-        strict=False,
-    )
     def test_batch_translate_texts_with_concurrency(self, tmp_path):
         """Test batch_translate_texts respects concurrency limit."""
         with patch("ol_mcp.tools.ModelPool") as mock_pool, \
-             patch("ol_mcp.tools.ConcurrencyLimiter") as mock_limiter:
+             patch("ol_mcp.tools.MDRepairPipeline") as mock_repair, \
+             patch("ol_mcp.tools.ConcurrencyLimiter", create=True) as mock_limiter:
 
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(return_value="# Translated")
             mock_pool.return_value = mock_instance
             mock_pool.get_instance.return_value = mock_instance
+
+            mock_repair_instance = MagicMock()
+            mock_repair_instance.repair = MagicMock(return_value=("# repaired", []))
+            mock_repair.return_value = mock_repair_instance
 
             mock_limiter_instance = MagicMock()
             mock_limiter_instance.translation = MagicMock()
@@ -287,14 +287,11 @@ class TestOLMCP:
             assert "results" in parsed
 
     @pytest.mark.requires_ol
-    @pytest.mark.xfail(
-        reason="Round 12: see test_batch_translate_texts_basic",
-        strict=False,
-    )
     def test_batch_translate_texts_partial_failure(self, tmp_path):
         """Test batch_translate_texts handles partial failures."""
         with patch("ol_mcp.tools.ModelPool") as mock_pool, \
-             patch("ol_mcp.tools.ConcurrencyLimiter") as mock_limiter:
+             patch("ol_mcp.tools.MDRepairPipeline") as mock_repair, \
+             patch("ol_mcp.tools.ConcurrencyLimiter", create=True) as mock_limiter:
 
             mock_instance = MagicMock()
             # First succeeds, second fails
@@ -304,6 +301,10 @@ class TestOLMCP:
             ])
             mock_pool.return_value = mock_instance
             mock_pool.get_instance.return_value = mock_instance
+
+            mock_repair_instance = MagicMock()
+            mock_repair_instance.repair = MagicMock(return_value=("# repaired", []))
+            mock_repair.return_value = mock_repair_instance
 
             mock_limiter_instance = MagicMock()
             mock_limiter_instance.translation = MagicMock()
