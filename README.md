@@ -19,7 +19,7 @@ Omni_Suite/
 ├── tests/                # E2E 测试套件（30+ 测试文件）
 │   ├── conftest.py       # 共享 fixtures
 │   ├── pytest.ini        # pytest 配置
-│   ├── test_e2e_real_llm.py  # 14 个 nightly 测试
+│   ├── test_e2e_real_llm.py  # 24 个 nightly 测试（2026-06-13 统计）
 │   └── ...
 │
 ├── scripts/
@@ -34,11 +34,13 @@ Omni_Suite/
 │   └── E2E-*.md          # 具体 bug 报告
 │
 ├── .venv_ol/             # ✅ 当前统一 venv（Python 3.13，所有组件共用）
-├── .venv/                # ⚠️ 已弃用（Python 3.12，勿使用）
 │
-├── run_test.sh           # 全链路测试驱动脚本
 ├── .gitignore
 ├── .gitmodules
+├── pyproject.toml        # ✅ 根 workspace (Phase C1)
+├── VERSION               # Suite 版本 (Phase C5)
+├── COMPATIBILITY.md      # 版本兼容矩阵 (Phase C5)
+├── uv.lock               # 根 lock 文件
 └── README.md
 ```
 
@@ -50,16 +52,18 @@ Omni_Suite/
 # 1. 同步 submodules
 bash scripts/sync_shallow.sh
 
-# 2. 跑一次全量测试（CLI 路径）
-bash run_test.sh --test-name first-run
+# 2. 安装（root workspace，Phase C1）
+bash scripts/setup_dev.sh
 
-# 3. 跑 MCP + CLI 路径
-bash run_test.sh --test-name mcp-run --mcp
+# 3. 跑测试（pytest）
+source .venv_ol/bin/activate
+pytest tests/observability/ -q   # 38 observability tests
+pytest tests/security/ -q        # 63 security tests
+pytest tests/ -q                 # all suite-level tests
 
-# 4. 只测单个模块
-bash run_test.sh --test-name opp-only --module opp
-bash run_test.sh --test-name ol-only  --module ol
-bash run_test.sh --test-name orf-only --module orf
+# 4. 查看版本
+omni-suite --version             # 0.1.0
+omni-suite --compatibility       # version matrix
 ```
 
 ---
@@ -82,7 +86,7 @@ src/Omni_Re_Formatter   → 1StepMore/Omni_Re_Formatter (main)
 | Bug | 工具 | 状态 | 修复 SHA |
 |-----|------|------|----------|
 | E2E-03 | ORF MCP | ✅ 已修复 | `15834db` |
-| E2E-04 | OL CLI translate-xliff 不调用 LLM，target 为空 | ❌ 待修复 | — |
+| E2E-04 | OL CLI translate-xliff 挂死（module-level KeyBERT 导入，模块预加载 hang），无输出文件 | ❌ 待修复（fix 已写，待 commit） | — |
 | E2E-05 | MD Path 结构优化（标题层级、段落分隔、文字样式） | ✅ 已完成 | 本批次 |
 | E2E-06 | MD Path 段落膨胀修复（OL token_stream + <!-- p -->正则收紧） | ✅ 已完成 | 本批次 |
 | E2E-07 | 边界条件测试修复（OPP/ORF/images 共 9 项） | ✅ 已完成 | 本批次 |
