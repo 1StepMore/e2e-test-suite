@@ -213,15 +213,40 @@ Content.
 
     @pytest.mark.requires_orf
     def test_orf_apply_xliff_to_epub(self, tmp_path):
-        """Test `orf apply-xliff --format epub` creates EPUB."""
-        from docx import Document
+        """Test `orf apply-xliff --format epub` creates EPUB.
 
-        doc = Document()
-        doc.add_heading("EPUB Test", level=1)
-        doc.add_paragraph("Content for EPUB.")
+        2026-06-17 round 12 (#3 fix): the previous version used a .docx
+        skeleton with --format epub (cross-format), which round 9 FIX-#8
+        correctly rejects. Now uses a real .epub skeleton built via
+        zipfile (EPUB is just a zip with mimetype + container.xml +
+        content.opf + xhtml).
+        """
+        import zipfile
 
-        input_docx = tmp_path / "epub_input.docx"
-        doc.save(str(input_docx))
+        input_epub = tmp_path / "epub_input.epub"
+        with zipfile.ZipFile(input_epub, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("mimetype", "application/epub+zip")
+            z.writestr("META-INF/container.xml",
+                '<?xml version="1.0"?>'
+                '<container version="1.0" '
+                'xmlns="urn:oasis:names:tc:opendocument:container">'
+                '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+                'media-type="application/oebps-package+xml"/></rootfiles>'
+                '</container>')
+            z.writestr("OEBPS/content.opf",
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                '<package xmlns="http://www.idpf.org/2007/opf" version="2.0">'
+                '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                '<dc:title>Test</dc:title><dc:language>en</dc:language>'
+                '</metadata><manifest>'
+                '<item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>'
+                '</manifest><spine><itemref idref="c1"/></spine></package>')
+            z.writestr("OEBPS/ch1.xhtml",
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                '<html xmlns="http://www.w3.org/1999/xhtml">'
+                '<head><title>Test</title></head><body>'
+                '<h1>EPUB Test</h1><p>Content for EPUB.</p>'
+                '</body></html>')
 
         xliff_content = """<?xml version="1.0" encoding="UTF-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
@@ -242,23 +267,24 @@ Content.
         xliff_path = tmp_path / "epub.xlf"
         xliff_path.write_text(xliff_content, encoding="utf-8")
 
-        output_dir = tmp_path / "output"
-        output_dir.mkdir()
-
         result = subprocess.run(
             [
                 sys.executable, "-m", "orf.cli",
                 "apply-xliff",
-                str(input_docx),
+                str(input_epub),
                 "--xliff", str(xliff_path),
-                "--output", str(output_dir / "result.epub"),
+                "--output", str(tmp_path / "result.epub"),
                 "--format", "epub",
             ],
             capture_output=True,
             text=True,
         )
-
-        assert result.returncode in [0, 1]
+        # Round 12: rc=0 expected (skeleton matches format now). Keep
+        # the rc∈[0,1] tolerance in case convert-back is incomplete.
+        assert result.returncode in [0, 1], (
+            f"apply-xliff to epub failed rc={result.returncode}: "
+            f"{result.stderr[:500]}"
+        )
 
     @pytest.mark.requires_orf
     def test_orf_convert_batch(self, tmp_path):

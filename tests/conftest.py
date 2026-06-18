@@ -18,6 +18,13 @@ import pytest
 from docx import Document
 
 
+# 2026-06-17 round 12: skip litellm's import-time network fetch.
+# ol_pool.router also setdefaults these, but conftest runs first.
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+os.environ.setdefault("DISABLE_LITELLM_TELEMETRY", "True")
+os.environ.setdefault("LITELLM_TELEMETRY", "False")
+
+
 _VENV_BIN = Path(__file__).resolve().parents[1] / ".venv_ol" / "bin"
 if _VENV_BIN.exists() and _VENV_BIN.is_dir():
     _venv_bin_str = str(_VENV_BIN)
