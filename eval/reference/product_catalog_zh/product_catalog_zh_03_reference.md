@@ -1,0 +1,1 @@
+Front-loading washing machine: 10 kg washing capacity, 7 kg drying capacity, 14 washing programs.

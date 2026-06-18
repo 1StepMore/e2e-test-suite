@@ -1,0 +1,17 @@
+{
+  "num_docs": 20,
+  "spearman_per_dimension": {
+    "adequacy": 1.0,
+    "fluency": 1.0,
+    "terminology": 0.0,
+    "format": 1.0
+  },
+  "average_spearman": 0.75,
+  "average_inter_judge_agreement": 1.0,
+  "thresholds": {
+    "spearman": 0.7,
+    "agreement": 0.6
+  },
+  "passed": true,
+  "failures": []
+}
