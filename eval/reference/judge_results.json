@@ -1,0 +1,462 @@
+[
+  {
+    "doc_id": "csv_zh_01",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "csv_zh_02",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 4,
+        "fluency": 1,
+        "terminology": 5,
+        "format": 4
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 4,
+        "fluency": 1,
+        "terminology": 5,
+        "format": 4
+      },
+      "kimi-k2.6": {
+        "adequacy": 4,
+        "fluency": 1,
+        "terminology": 5,
+        "format": 4
+      }
+    }
+  },
+  {
+    "doc_id": "email_mixed_01",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "email_mixed_02",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 4,
+        "fluency": 1,
+        "terminology": 5,
+        "format": 4
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 4,
+        "fluency": 1,
+        "terminology": 5,
+        "format": 4
+      },
+      "kimi-k2.6": {
+        "adequacy": 4,
+        "fluency": 1,
+        "terminology": 5,
+        "format": 4
+      }
+    }
+  },
+  {
+    "doc_id": "legal_en_zh_01",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "legal_en_zh_02",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "legal_zh_en_01",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "legal_zh_en_02",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "legal_zh_en_03",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "literature_en_01",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 4,
+        "fluency": 1,
+        "terminology": 5,
+        "format": 4
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 4,
+        "fluency": 1,
+        "terminology": 5,
+        "format": 4
+      },
+      "kimi-k2.6": {
+        "adequacy": 4,
+        "fluency": 1,
+        "terminology": 5,
+        "format": 4
+      }
+    }
+  },
+  {
+    "doc_id": "literature_en_02",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "notebook_en_01",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "notebook_en_02",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "product_catalog_zh_01",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 4
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 4
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 4
+      }
+    }
+  },
+  {
+    "doc_id": "product_catalog_zh_02",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "product_catalog_zh_03",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "technical_doc_en_01",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "technical_doc_en_02",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "xml_en_01",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  },
+  {
+    "doc_id": "xml_en_02",
+    "judges": {
+      "glm-4-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "agnes-2.0-flash": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      },
+      "kimi-k2.6": {
+        "adequacy": 5,
+        "fluency": 5,
+        "terminology": 5,
+        "format": 5
+      }
+    }
+  }
+]
