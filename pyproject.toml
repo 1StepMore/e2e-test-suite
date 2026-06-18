@@ -1,0 +1,30 @@
+[project]
+name = "omni-suite"
+version = "0.1.0"
+description = "Omni Localization Suite — OPP + OL + ORF meta-package"
+requires-python = ">=3.13"
+dependencies = [
+    "prometheus_client>=0.20.0",
+]
+
+[project.scripts]
+omni-suite = "omni_suite.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["omni_metrics", "omni_suite"]
+
+[tool.uv.workspace]
+members = [
+    "Omni_Pre_Processor",
+    "Omni_Localizer",
+    "Omni_Re_Formatter",
+]
+
+[tool.uv.sources]
+omni-pre-processor = { path = "Omni_Pre_Processor" }
+omni-localizer = { path = "Omni_Localizer" }
+omni-re-formatter = { path = "Omni_Re_Formatter" }
