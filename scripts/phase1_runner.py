@@ -552,6 +552,10 @@ def main():
     parser = argparse.ArgumentParser(description="Phase 1 format matrix test runner")
     parser.add_argument("--tier", choices=["P0", "P1", "P2", "P3"], help="Run specific tier")
     parser.add_argument("--fixture", choices=list(INPUT_FORMATS.keys()), help="Run specific input format")
+    parser.add_argument("--source-lang", choices=["zh", "en"], default=None,
+        help="Filter by source language (default: both directions).")
+    parser.add_argument("--target-lang", choices=["zh", "en"], default=None,
+        help="Filter by target language (default: both directions).")
     parser.add_argument("--dry-run", action="store_true", help="Print matrix only")
     parser.add_argument("--run-id", default=None, help="Custom run identifier")
     args = parser.parse_args()
@@ -561,6 +565,10 @@ def main():
         cases = [c for c in cases if c.tier == args.tier]
     if args.fixture:
         cases = [c for c in cases if c.input_format == args.fixture]
+    if args.source_lang:
+        cases = [c for c in cases if c.source_lang == args.source_lang]
+    if args.target_lang:
+        cases = [c for c in cases if c.target_lang == args.target_lang]
 
     if not cases:
         print("No test cases match filters.")
