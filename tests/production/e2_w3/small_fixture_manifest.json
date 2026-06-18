@@ -1,0 +1,47 @@
+{
+  "manifest_version": "1.0",
+  "request_id": "22668c5f-d565-48d5-9942-9229796086ce",
+  "generated_at": "2026-06-19T01:03:21.970049Z",
+  "tool": "OPP",
+  "tool_version": "0.5.7",
+  "source": {
+    "file_path": "/mnt/d/贯维/Omni_Suite/tests/production/small_fixture.docx",
+    "original_filename": "small_fixture.docx",
+    "format": "DOCX",
+    "file_size_bytes": 36814,
+    "file_hash_md5": "8be18a5761af5a79244586e8070a432e"
+  },
+  "extraction": {
+    "source_lang": "en",
+    "target_lang": "en",
+    "outputs": {
+      "markdown": {
+        "path": "small_fixture.md",
+        "paragraph_count": 21,
+        "table_count": 0
+      },
+      "xliff": {
+        "path": null,
+        "trans_unit_count": 0
+      },
+      "images_json": null
+    },
+    "images": [],
+    "warnings": []
+  },
+  "resources": {
+    "storage_dir": "/mnt/d/贯维/Omni_Suite/resources",
+    "image_count": 0
+  },
+  "skeleton": {
+    "path": "small_fixture.skeleton.zip",
+    "format": "ZIP",
+    "key_files": [
+      "word/document.xml",
+      "word/styles.xml",
+      "word/numbering.xml",
+      "word/settings.xml",
+      "[Content_Types].xml"
+    ]
+  }
+}
