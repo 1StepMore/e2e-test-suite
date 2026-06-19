@@ -1,0 +1,33 @@
+# ── Pre-commit hooks ──────────────────────────────────────────────────
+# Install with:   pip install pre-commit && pre-commit install
+# Run on all files:  pre-commit run --all-files
+#
+# See https://pre-commit.com for more information
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.0
+    hooks:
+      - id: gitleaks
+        args: ["--verbose"]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Smoke contract test — runs the OPP/OL/ORF pipeline-contract smoke test
+  # (uses OMNI_TEST_FAKE_LLM=1, no network). This catches API-shape
+  # regressions before they reach CI. Skipped if venv isn't built yet.
+  - repo: local
+    hooks:
+      - id: omni-contract-smoke
+        name: Omni Suite pipeline contract smoke
+        entry: bash -c '.venv_ol/bin/python -m pytest tests/test_pipeline_contract_smoke.py --tb=short -q --no-header 2>&1 | tail -10'
+        language: system
+        pass_filenames: false
+        stages: [manual]
