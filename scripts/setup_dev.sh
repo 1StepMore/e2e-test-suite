@@ -112,6 +112,17 @@ if [ "$CHECK_ONLY" = false ]; then
         pip install --upgrade pip setuptools wheel -q
         pip install -e "$PROJECT_ROOT/Omni_Pre_Processor" -e "$PROJECT_ROOT/Omni_Localizer" -e "$PROJECT_ROOT/Omni_Re_Formatter"
     fi
+
+    # Ensure pandoc is on PATH for ORF MD→{docx,odt,epub,rtf,icml,pdf}
+    if [ -x "$PROJECT_ROOT/.venv_ol/bin/pandoc" ]; then
+        mkdir -p "$HOME/.local/bin"
+        if [ ! -e "$HOME/.local/bin/pandoc" ]; then
+            ln -sf "$PROJECT_ROOT/.venv_ol/bin/pandoc" "$HOME/.local/bin/pandoc"
+            ok "Created pandoc symlink at $HOME/.local/bin/pandoc"
+        fi
+    else
+        warn "pandoc not found at $PROJECT_ROOT/.venv_ol/bin/pandoc — install pypandoc-binary to enable ORF MD→{docx,odt,epub,rtf,icml,pdf}"
+    fi
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
