@@ -3,7 +3,7 @@
 > **Last updated:** 2026-06-05 (T17 — see Resolution at top)
 > **Status:** **✅ RESOLVED 2026-06-05 by T17 fix** (see Resolution section below)
 > **Original status (T16):** PARTIAL — test exists, 18 chains do not all pass in hermetic CI mode
-> **Related:** `TESTS.md` § "Phase 5 (Pipeline E2E) — Partial", `AUDIT_FINDINGS_VERIFIED.md` C14 (dead `asyncio.Queue`, unrelated but in the same area)
+> **Related:** `TESTS.md` § "Phase 5 (Pipeline E2E) — Partial", `../reports/_archive/2026-Q2/AUDIT_FINDINGS_VERIFIED.md` C14 (dead `asyncio.Queue`, unrelated but in the same area)
 
 ---
 

@@ -15,6 +15,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+# All LQA tests in this module require either real LLM judge calls (which
+# take >60s in hermetic mode and time out) or a JudgeService seam that
+# doesn't yet exist. Mark them as nightly so they're excluded from CI
+# (pytest -m "not nightly") and run as part of the nightly job where
+# real API keys + longer timeouts are available.
+pytestmark = [pytest.mark.requires_api_key, pytest.mark.nightly]
+
 
 def _write_config(tmp_path: Path, *, enable_lqa: bool, threshold: float = 7.0, max_retries: int = 2) -> Path:
     """Write a minimal ProjectConfig YAML file for testing."""
