@@ -78,10 +78,27 @@ mcp_resources/
 resources/
 test_artifacts/
 
-# ---- Heavy DOCX fixtures (Q-8 TQA-PREP) ----
+# ---- Heavy DOCX fixtures / binary outputs ----
 # The （slim）* DOCX at suite root is a 14MB validation target for the
 # slim-output-fixes post-mortem. Tracked test (tests/test_slim_e2e_regression.py)
 # uses a synthesized tmp_path fixture and is @pytest.mark.slow, so the heavy
 # source must NOT be in the repo. Output copies in final-out/ are also excluded.
 （slim）*.docx
-final-out/（slim）*.docx
+final-out/*.docx
+*.pptx
+!tests/fixtures/*.docx
+test_fixtures/
+tests/fixtures/
+
+# ---- One-shot E2E run dumps (date-stamped) — auto-archived 2026-06-14 ----
+/e2e_*/
+production_pipeline_run_*/
+final-out/_diagnostics/
+opp_mcp_*_images/
+omo_q7_repro_*/
+
+# ---- Archive reports (auto-generated, not source) ----
+reports/_archive/
+
+# ---- Script pycache ----
+scripts/**/__pycache__/

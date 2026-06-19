@@ -504,7 +504,6 @@ translated_at: 2026-05-27T00:00:00Z
         except Exception as e:
             print(f"Error translating XLIFF: {e}")
             return False
-            return False
 
     def _detect_ns(self, root) -> str:
         """Detect XLIFF namespace from root element."""

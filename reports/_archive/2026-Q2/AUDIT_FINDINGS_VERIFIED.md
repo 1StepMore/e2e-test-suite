@@ -124,14 +124,14 @@
 
 ### Test gaps (verified by grep)
 
-#### C15. ORF flagship features have ZERO tests
+#### C15. ORF agent/specialist features have ZERO tests; HITL tests were failing but now pass
 - **Files:**
   - `Omni_Re_Formatter/src/orf/agents/foreman.py` (~250 LOC)
   - `Omni_Re_Formatter/src/orf/agents/specialists/{format,data,markup,email}_specialist.py` (~700 LOC)
-  - `Omni_Re_Formatter/src/orf/workflow/hitl_approval.py` (191 LOC)
-- **Evidence:** `grep -r "foreman\|specialist\|hitl_approval" tests/` returns no test imports.
-- **Impact:** The **advertised v0.3.0 architecture** is untested. Any change to these files has no safety net.
-- **Fix:** P0 test additions: `test_foreman.py`, `test_hitl_approval.py`, per-specialist test files (~135 tests).
+  - `Omni_Re_Formatter/tests/test_hitl_approval.py` (475 LOC, note: file exists)
+- **Evidence:** `grep -r "foreman\|specialist" tests/` returns no test imports. However, `test_hitl_approval.py` exists and imports `HITLApproval`. Previously, 3/3 `request_approval` tests failed because the code auto-approved instead of raising `NotImplementedError`. This has been fixed (2026-06-13).
+- **Impact:** ForemanAgent and 4 Specialists (950+ LOC) are completely untested. HITL was partially tested but the tests were failing.
+- **Fix:** Add `test_foreman.py`, per-specialist test files (~135 tests). HITL test fix is complete.
 
 #### C16. 5 ORF channels have 0 tests despite README claiming them
 - **Files:** `Omni_Re_Formatter/src/orf/channels/md2{eml,msg,ipynb,xlsx,xml}.py`

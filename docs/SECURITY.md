@@ -2,9 +2,9 @@
 
 > **Audience:** Omni_Suite maintainers and operators.
 > **Last updated:** 2026-06-05 (T17 prep — C2 re-verified clean, see below)
-> **Related:** `AUDIT_FINDINGS_VERIFIED.md` (full audit, CRITICAL items C1–C17)
+> **Related:** `../reports/_archive/2026-Q2/AUDIT_FINDINGS_VERIFIED.md` (full audit, CRITICAL items C1–C17)
 
-This document covers the security items that **require user action** (C1, C2) and the items that were **fixed in code** during Phases 2–5 (C3–C6, C12). For the complete audit context, see `AUDIT_FINDINGS_VERIFIED.md`.
+This document covers the security items that **require user action** (C1, C2) and the items that were **fixed in code** during Phases 2–5 (C3–C6, C12). For the complete audit context, see `../reports/_archive/2026-Q2/AUDIT_FINDINGS_VERIFIED.md`.
 
 ---
 
@@ -58,7 +58,7 @@ The audit on 2026-06-04 found real `MINIMAX_API_KEY` and `BAIDU_API_KEY` values 
 
 Commit `141123b657e2ca531b0a3761d0c38287da6ced95` (May 29 2026) added `Omni_Localizer/config/book_localization.yaml` whose header comments literally contained both API keys. Later commits (`da61b5f`, `9d62126`) only patched the **comments**; the historical diff is permanent in `.git/objects/`.
 
-> **✅ VERIFIED CLEAN 2026-06-05 (T17 prep, before doing the filter-repo).** Exhaustive scan of **663 blobs in `Omni_Localizer/.git/objects/`** (every reachable + unreachable blob, including all dangling objects from `git fsck`) for the exact leaked key signatures from `GIT_HISTORY_PURGE_PLAN.md`:
+> **✅ VERIFIED CLEAN 2026-06-05 (T17 prep, before doing the filter-repo).** Exhaustive scan of **663 blobs in `Omni_Localizer/.git/objects/`** (every reachable + unreachable blob, including all dangling objects from `git fsck`) for the exact leaked key signatures from `../reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md`:
 > - `sk-cp-CAPjdmwYi7mVzEjlbnCpHfGAi2h07` → **0 matches**
 > - `bce-v3/ALTAK-TxQXA9aqHZYbcg9FDXsNa/491ea5eaa48b124f595501b88736fb9db2a8c606` → **0 matches**
 > - Broader patterns (`sk-cp-*`, `bce-v3/*`, `sk-ant-*`, generic `sk-*` ≥20 chars) → **0 matches**
@@ -67,7 +67,7 @@ Commit `141123b657e2ca531b0a3761d0c38287da6ced95` (May 29 2026) added `Omni_Loca
 >
 > The plan's leak inventory describes a state that does not exist in this clone (neither local nor on `origin/main`, `origin/e2e-14-fix`, `origin/e2e-validated`). Either a prior cleanup already removed them, or the plan was based on an analysis of a different clone. **No filter-repo needed locally.**
 
-**If you have already rotated the keys (C1) AND the keys are no longer in any active config, the git history is purely archival.** You can choose to leave it alone. If you want to purge (now moot for the local clone, but the playbook is preserved in `GIT_HISTORY_PURGE_PLAN.md` for reference):
+**If you have already rotated the keys (C1) AND the keys are no longer in any active config, the git history is purely archival.** You can choose to leave it alone. If you want to purge (now moot for the local clone, but the playbook is preserved in `../reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md` for reference):
 
 **Option A — `git filter-repo` (recommended):**
 
@@ -113,7 +113,7 @@ done | head -5
 
 ## ✅ Code Fixes Landed in Phases 2–5 (T1–T15)
 
-The following CRITICAL items were fixed in code during the T1–T15 work cycles. They are documented here for completeness; for the full audit context see `AUDIT_FINDINGS_VERIFIED.md` § "✅ Resolution Status".
+The following CRITICAL items were fixed in code during the T1–T15 work cycles. They are documented here for completeness; for the full audit context see `../reports/_archive/2026-Q2/AUDIT_FINDINGS_VERIFIED.md` § "✅ Resolution Status".
 
 ### C3. OPP MCP `unlink()` on user-controlled paths → **FIXED**
 
@@ -236,7 +236,7 @@ The three MCP servers (`ol_mcp`, `opp_mcp`, `orf_mcp`) currently expose no authe
 2. Verify the token against a secrets manager (not a file)
 3. Add per-client rate limits
 4. Add a structured audit log of every tool call (timestamp, caller PID/UID, tool name, args hash, result code)
-5. Update `AUDIT_FINDINGS_VERIFIED.md` to mark C7 as "fixed"
+5. Update `../reports/_archive/2026-Q2/AUDIT_FINDINGS_VERIFIED.md` to mark C7 as "fixed"
 
 Until then, the recommendation is: **stdio only, never bind to a network socket**.
 
@@ -244,7 +244,7 @@ Until then, the recommendation is: **stdio only, never bind to a network socket*
 
 ## See also
 
-- `AUDIT_FINDINGS_VERIFIED.md` — full audit, 17 CRITICAL items, 22 HIGH, 35 MEDIUM/LOW
-- `GIT_HISTORY_PURGE_PLAN.md` — pre-written playbook for the C2 purge (do not run without coordination)
+- `../reports/_archive/2026-Q2/AUDIT_FINDINGS_VERIFIED.md` — full audit, 17 CRITICAL items, 22 HIGH, 35 MEDIUM/LOW
+- `../reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md` — pre-written playbook for the C2 purge (do not run without coordination)
 - `docs/T14_LIMITATION.md` — the T14 partial-state limitation (hermetic CI seam gap)
 - `SETUP.md` — Phase 1 setup guide (where the `.env` and `local.yaml` go)
