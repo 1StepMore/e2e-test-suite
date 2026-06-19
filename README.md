@@ -66,6 +66,23 @@ omni-suite --version             # 0.1.0
 omni-suite --compatibility       # version matrix
 ```
 
+
+## Cross-Format Production-Readiness
+
+Verified OPP→OL→ORF paths as of 2026-06-19:
+
+| From | Via | To | Engine / Note |
+|------|-----|----|---------------|
+| HTML / CSV / JSON | OPP → MD → OL → MD | (any MD consumer) | W1.2 — proper markdown extraction |
+| (any MD) | ORF pure-Python | HTML, PDF | W1.3 — `markdown` + WeasyPrint, no pandoc |
+| (any MD) | ORF pandoc | DOCX, ODT, EPUB, RTF, ICML | W1.1 — `pypandoc-binary` (auto-installed) |
+| EML (email) | OPP → MD → OL → ORF | MSG | W2.1 — graceful fallback on missing headers |
+| (any XLIFF) | ORF `--force` | cross-format | W2.2 — bypass format validation with warning |
+| `.url` (YouTube) | OPP auto-detect | MD | W3.1 — `markitdown[youtube-transcription]` |
+| PDF → XLIFF | OPP guard | (blocked) | W3.2 — correctly blocked (case-insensitive guard) |
+
+Dependency notes: [ORF README](Omni_Re_Formatter/README.md) · [OPP README](Omni_Pre_Processor/README.md).
+
 ---
 
 ## Git Submodules
