@@ -1,0 +1,56 @@
+You are working on the Omni Suite — a 3-stage document localization pipeline: OPP (extract) → OL (translate) → ORF (backfill).
+
+## Project Structure
+
+```
+Omni_Suite/
+├── Omni_Pre_Processor/      # OPP — Document extraction (MD + XLIFF + skeleton)
+│   └── src/opp/             # Source: detectors, extractors, pipeline
+├── Omni_Localizer/          # OL — Translation (MD / XLIFF)
+│   └── src/ol/              # Source: MD bus, XLIFF bus, repair layers
+├── Omni_Re_Formatter/       # ORF — Backfill to target format
+│   └── src/orf/             # Source: channels, converters, agents
+├── tests/                   # Suite-level E2E tests (30+ files)
+├── scripts/                 # setup_dev.sh, sync_shallow.sh, install_md2pptx.sh
+├── .venv_ol/                # Unified venv (Python 3.13)
+├── pyproject.toml           # Root workspace
+├── .pre-commit-config.yaml  # Pre-commit hooks
+├── Makefile                 # Dev targets (test, lint, clean, setup)
+├── AGENTS.md                # Agent guidance (this file)
+├── CLAUDE.md                # Claude Code architecture context
+└── .cursorrules             # Cursor agent context (this file)
+```
+
+## Module Details
+
+| Module | Path | CLI | MCP Server | Test Dir |
+|--------|------|-----|------------|----------|
+| OPP | `Omni_Pre_Processor/` | `opp` | `opp-mcp-server` | `Omni_Pre_Processor/tests/` |
+| OL | `Omni_Localizer/` | `ol` | `ol-mcp` | `Omni_Localizer/tests/` |
+| ORF | `Omni_Re_Formatter/` | `orf` | `orf-mcp-server` | `Omni_Re_Formatter/tests/` |
+
+## MCP Server Names
+
+Configure in your tool's MCP settings:
+- `opp-mcp-server` — 7 tools: extract_document, batch_extract, get_supported_formats, list_tools, check_dependencies, validate_config, get_pipeline_info
+- `ol-mcp` — 8 tools: translate_md_text, translate_xliff_text, judge_text, batch_translate_md, batch_translate_xliff, get_supported_languages, check_translation_quality, get_server_info
+- `orf-mcp-server` — 7 tools: apply_md, apply_xliff, batch_apply, get_supported_formats, validate_output, check_dependencies, list_tools
+
+## Testing Conventions
+
+- Always set `OMNI_TEST_FAKE_LLM=1` and `OMNI_TEST_FAKE_PANDOC=1` for offline test runs
+- Python 3.13 via `.venv_ol/bin/python`
+- Test markers: `nightly` (real LLM, skipped by default), `slow`, `e2e`, `requires_opp`, `requires_ol`, `requires_orf`
+- Run `pytest tests/ -m "not nightly"` for quick suite checks
+- Pre-commit hooks: `gitleaks`, `check-added-large-files`, `check-merge-conflict`, `detect-private-key`, `end-of-file-fixer`, `trailing-whitespace`, `omni-contract-smoke`
+
+## Key Commands
+
+```bash
+source .venv_ol/bin/activate
+make test-quick      # Quick suite check
+make test            # Full CI-mode test run
+make smoke           # Contract smoke test
+make lint            # Pre-commit on all files
+make clean           # Clean artifacts
+```

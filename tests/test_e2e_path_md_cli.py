@@ -59,6 +59,12 @@ class TestPathMdCLI:
         original_md_content = md_path.read_text(encoding="utf-8")
 
         env = _make_subprocess_env()
+        dummy_env = {
+            "ZHIPU_API_KEY": "test-dummy",
+            "AGNES_API_KEY": "test-dummy",
+            "NVIDIA_NIM_API_KEY": "test-dummy",
+        }
+        env.update(dummy_env)
         config_path = (
             Path(__file__).resolve().parent.parent
             / "Omni_Localizer" / "config" / "default.yaml"
@@ -66,7 +72,7 @@ class TestPathMdCLI:
         ol_result = subprocess.run(
             [sys.executable, "-m", "ol_cli", "translate-md",
              str(md_path), "-o", str(ol_out),
-             "-c", str(config_path)],
+             "-c", str(config_path), "--no-cache"],
             capture_output=True, text=True, env=env,
         )
         assert ol_result.returncode == 0, (

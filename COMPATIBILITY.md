@@ -2,15 +2,15 @@
 
 | Suite | OL    | OPP   | ORF   | Notes              |
 |-------|-------|-------|-------|--------------------|
-| 0.1.0 | 0.2.6 | 0.5.7 | 0.3.0 | Initial production |
+| 0.2.0 | 0.4.4 | 0.6.1 | 0.4.3 | Agent onboarding + E2E test health + CI infra |
 
 ## How to check installed versions
 
 ```bash
-python -c "import ol; print('OL', ol.__version__)"      # 0.2.6
-python -c "import opp; print('OPP', opp.__version__)"    # 0.5.7
-python -c "import orf; print('ORF', orf.__version__)"    # 0.3.0
-omni-suite --version                                      # 0.1.0
+python -c "import ol; print('OL', ol.__version__)"      # 0.4.4
+python -c "import opp; print('OPP', opp.__version__)"    # 0.6.1
+python -c "import orf; print('ORF', orf.__version__)"    # 0.4.3
+omni-suite --version                                      # 0.2.0
 ```
 
 ## Versioning policy
