@@ -82,6 +82,18 @@ class TestCheck:
         )
         assert "pandoc" in result.stdout.lower()
 
+    def test_check_readiness_runs_without_crash(self):
+        """check --readiness runs and produces output."""
+        checker = SUITE_ROOT / "scripts" / "check_readiness.py"
+        if not checker.exists():
+            pytest.skip("check_readiness.py not found")
+        result = subprocess.run(
+            [CLI, "-m", "omni_suite", "check", "--readiness"],
+            capture_output=True, text=True, cwd=str(SUITE_ROOT), timeout=180,
+        )
+        assert "Score:" in result.stdout
+        assert "Omni Suite" in result.stdout
+
 
 class TestPipeline:
     def test_pipeline_help_text(self):

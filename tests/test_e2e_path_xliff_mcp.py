@@ -75,7 +75,7 @@ class TestPathXliffMCP:
         converter = XLIFF2DOCXConverter()
         docx_output = output_dir / "result.docx"
         conv_result = converter.convert(
-            input_skeleton=skeleton_path,
+            input_path=skeleton_path,
             xliff_path=translated_xliff,
             output_path=docx_output,
         )

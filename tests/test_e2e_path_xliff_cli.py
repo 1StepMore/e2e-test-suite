@@ -63,10 +63,21 @@ class TestPathXliffCLI:
         )
         assert skeleton_path is not None and skeleton_path.exists()
 
+        config_path = (
+            Path(__file__).resolve().parent.parent
+            / "Omni_Localizer" / "config" / "default.yaml"
+        )
         env = _make_subprocess_env()
+        dummy_env = {
+            "ZHIPU_API_KEY": "test-dummy",
+            "AGNES_API_KEY": "test-dummy",
+            "NVIDIA_NIM_API_KEY": "test-dummy",
+        }
+        env.update(dummy_env)
         ol_result = subprocess.run(
             [sys.executable, "-m", "ol_cli", "translate-xliff",
-             str(xliff_path), "-o", str(ol_out)],
+             str(xliff_path), "-o", str(ol_out),
+             "-c", str(config_path), "--no-cache"],
             capture_output=True, text=True, env=env,
         )
         assert ol_result.returncode == 0, (

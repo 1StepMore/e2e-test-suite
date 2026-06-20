@@ -1,5 +1,12 @@
 # E2E Test Suite
 
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/1StepMore/Omni_Suite/actions)
+[![PyPI - opp](https://img.shields.io/pypi/v/opp.svg)](https://pypi.org/project/opp/)
+[![PyPI - omni-localizer](https://img.shields.io/pypi/v/omni-localizer.svg)](https://pypi.org/project/omni-localizer/)
+[![PyPI - omni-re-formatter](https://img.shields.io/pypi/v/omni-re-formatter.svg)](https://pypi.org/project/omni-re-formatter/)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 OPP → OL → ORF 全链路集成测试环境，含全自动 bug 发现 → OpenCode 修复 → 验证闭环。
 
 ---
@@ -93,7 +100,7 @@ src/Omni_Localizer      → 1StepMore/Omni_Localizer (main)
 src/Omni_Re_Formatter   → 1StepMore/Omni_Re_Formatter (main)
 ```
 
-**同步命令**：`bash scripts/sync_shallow.sh`  
+**同步命令**：`bash scripts/sync_shallow.sh`
 **注意**：套件 git 不会自动追踪 submodule 上游新 SHA，需手动 sync + commit。
 
 ---

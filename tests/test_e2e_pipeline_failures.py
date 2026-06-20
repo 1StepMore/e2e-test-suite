@@ -92,12 +92,17 @@ def _write_cli_failure_wrapper(
     ol_args: list,
     raise_spec: str,
 ) -> Path:
-    """Write a wrapper that patches _FakeModelPool.translate to raise,
-    then invokes ol_cli.main_entry() with the given subcommand + args.
+    """Write a wrapper that patches the OL CLI's async translate functions
+    to raise, then invokes ol_cli.main_entry() with the given subcommand + args.
 
-    The wrapper is its own Python process, so the in-memory patch is
-    visible to the seam in ol_cli.py (which re-imports _FakeModelPool
-    from the cached `tests.test_e2e_pipeline_fixtures` module).
+    We patch ol_cli._translate_md_async and _translate_xliff_async at the
+    module level (AFTER importing ol_cli) rather than patching
+    _FakeModelPool.translate. This is necessary because the OL CLI's
+    translate functions already catch exceptions from pool.translate()
+    internally and fall back to source text — so patching the pool doesn't
+    cause a non-zero exit. Patching the async functions themselves lets the
+    exception propagate up to the CLI's outer ``except Exception`` handler,
+    which calls ``raise typer.Exit(code=PIPELINE_ERROR)`` (exit code 1).
     """
     wrapper = tmp_path / "_omni_failure_wrapper.py"
     suite_root_str = str(SUITE_ROOT)
@@ -108,15 +113,17 @@ def _write_cli_failure_wrapper(
         if _SUITE_ROOT not in sys.path:
             sys.path.insert(0, _SUITE_ROOT)
         import unittest.mock
-        import tests.test_e2e_pipeline_fixtures as _f
 
         _exc_name, _, _msg = {raise_spec!r}.partition(":")
         _exc_map = {{"RuntimeError": RuntimeError, "ValueError": ValueError, "TimeoutError": TimeoutError}}
         _exc_cls = _exc_map.get(_exc_name, RuntimeError)
-        _f._FakeModelPool.translate = unittest.mock.AsyncMock(side_effect=_exc_cls(_msg))
+        _exc = _exc_cls(_msg)
 
         sys.argv = {["ol_cli", ol_subcommand] + ol_args!r}
         import ol_cli
+        ol_cli._translate_md_async = unittest.mock.AsyncMock(side_effect=_exc)
+        ol_cli._translate_xliff_async = unittest.mock.AsyncMock(side_effect=_exc)
+
         ol_cli.main_entry()
     """))
     return wrapper

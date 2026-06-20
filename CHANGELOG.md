@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.2.0 — 2026-06-20
+
+### Added
+
+- **Agent onboarding documentation**: Comprehensive AGENTS.md with per-module cheat sheet, MCP configuration for Claude Desktop / Cursor / OpenCode, tool-call scenarios, MCP tool reference tables, format support matrix, pre-commit hooks guide, and MCP local testing guide.
+  - `AGENTS.md`, `.opencode/skills/omni-suite/SKILL.md`
+  - `Omni_Pre_Processor/.opencode/skills/opp-extractor/SKILL.md`
+  - `Omni_Localizer/.opencode/skills/ol-localizer/SKILL.md`
+  - `Omni_Re_Formatter/.opencode/skills/orf-formatter/SKILL.md`
+
+- **Omni Suite CLI subcommands**: `omni-suite pipeline`, `omni-suite check`, `omni-suite status` for pipeline orchestration, readiness checks, and status reporting.
+  - `omni_suite/cli.py`
+
+- **Cross-format E2E test suite**: 36-path verified format matrix with production-readiness assessment across OPP/OL/ORF (W4).
+
+- **Infrastructure files**: `.cursorrules`, `CLAUDE.md`, `CONTRIBUTING.md`, `Makefile`, `PRODUCTION_READINESS.md`, `scripts/check_readiness.py`, `tests/benchmarks/`
+
+### Fixed
+
+- **OL CLI config validation without API keys**: `test_e2e_path_md_cli.py` and `test_e2e_path_xliff_cli.py` now pass dummy env vars (`ZHIPU_API_KEY`, `AGNES_API_KEY`, `NVIDIA_NIM_API_KEY`) to satisfy Pydantic config validation even with `OMNI_TEST_FAKE_LLM=1`. Also added `--no-cache` to bypass stale OL cache poisoning from prior test runs.
+  - `tests/test_e2e_path_md_cli.py`, `tests/test_e2e_path_xliff_cli.py`
+
+- **`XLIFF2DOCXConverter.convert()` API mismatch**: Changed `input_skeleton=` kwarg to `input_path=` in `test_e2e_path_xliff_mcp.py` to match the actual converter signature `(input_path, xliff_path, output_path, options=None)`.
+
+- **Pipeline failure test CLI wrapper**: `_write_cli_failure_wrapper` now patches `_translate_md_async` / `_translate_xliff_async` at module level instead of `_FakeModelPool.translate`. The OL CLI catches translate exceptions internally (falling back to source text with exit code 0), so patching the pool never produced a non-zero exit. Patching the async functions lets the exception propagate to the CLI's outer handler which calls `raise typer.Exit(code=PIPELINE_ERROR)`.
+  - `tests/test_e2e_pipeline_failures.py`
+
+- **Added `--config` flag to xliff_cli OL call**: `test_e2e_path_xliff_cli.py` was missing the `-c` flag, causing OL CLI to look for config in CWD (a temp directory) and fail.
+
+- **ORF pyproject.toml stale Python version**: `target-version` was `py310` and `python_version` was `"3.10"` while `requires-python` was `>=3.12`. Updated both to `"py312"` and `"3.12"`.
+
+- **Removed dead turnkey tests** referencing removed `scripts/turnkey/` modules.
+
+### Changed
+
+- **Suite version bumped from 0.1.0 → 0.2.0** (`VERSION`, `pyproject.toml`, `COMPATIBILITY.md`)
+- **COMPATIBILITY.md** updated to reflect current suite→submodule version mapping.
+
 ## 2026-06-12
 
 ### Fixed
