@@ -9,11 +9,11 @@ Coverage:
 - OPP:  ping, extract_document, batch_extract, detect_format_tool,
         generate_xliff, generate_markdown, save_skeleton
         (7 tools — task said 5, the actual registered count is 7)
-- OL:   translate_md_text, judge_text, load_glossary, get_relevant_terms,
-        search_tm, batch_translate_texts, translate_xliff
-        (7 tools — task said 6, the actual registered count is 7)
-- ORF:  apply_md, apply_xliff, batch_convert, detect_format, info
-        (5 tools — matches the task description)
+- OL:   ping, translate_md_text, judge_text, load_glossary,
+        get_relevant_terms, search_tm, batch_translate_texts, translate_xliff
+        (8 tools)
+- ORF:  ping, apply_md, apply_xliff, batch_convert, detect_format, info
+        (6 tools)
 
 For each tool, one happy-path test (asserts success: True and expected
 output shape) plus one error-path test (asserts no traceback leak: the
@@ -234,6 +234,9 @@ def orf_mcp_server():
     from orf.mcp.server import get_server
     return get_server()
 
+
+# ORF MCP PathValidator allowlist (must include test dirs)
+os.environ.setdefault("ORF_MCP_ALLOWED_DIRS", "/tmp:/mnt/d/贯维/Omni_Suite")
 
 # =============================================================================
 # OL: fake ModelPool for tools that hit the LLM
@@ -707,18 +710,17 @@ class TestMCPSmokeOPP:
 
 
 class TestMCPSmokeOL:
-    """In-process MCP smoke for the OL server (7 tools)."""
+    """In-process MCP smoke for the OL server (8 tools)."""
 
     @pytest.mark.asyncio
     async def test_list_tools(self, ol_mcp_server):
-        """OL server exposes 7 tools."""
+        """OL server exposes 8 tools."""
         from fastmcp import Client
 
         async with Client(ol_mcp_server) as client:
             tools = await client.list_tools()
         names = {t.name for t in tools}
-        assert len(tools) == 7, f"expected 7 tools, got {len(tools)}: {names}"
-        # Task said 6; actual registered count is 7 (includes translate_xliff).
+        assert len(tools) == 8, f"expected 8 tools, got {len(tools)}: {names}"
         assert {
             "translate_md_text",
             "judge_text",
@@ -727,6 +729,7 @@ class TestMCPSmokeOL:
             "search_tm",
             "batch_translate_texts",
             "translate_xliff",
+            "ping",
         } == names
 
     @pytest.mark.asyncio
@@ -1095,8 +1098,8 @@ class TestMCPSmokeOL:
             assert "simulated LLM outage" in " ".join(item.get("warnings", []))
 
     @pytest.mark.asyncio
-    async def test_translate_xliff(self, ol_mcp_server, fake_ol_sync_pool, tmp_path):
-        """Happy: translate_xliff processes a real XLIFF file (sync pool)."""
+    async def test_translate_xliff(self, ol_mcp_server, fake_ol_async_pool, tmp_path):
+        """Happy: translate_xliff processes a real XLIFF file (async pool)."""
         from fastmcp import Client
 
         xlf_path = tmp_path / "input.xlf"
@@ -1174,23 +1177,24 @@ class TestMCPSmokeOL:
 
 
 class TestMCPSmokeORF:
-    """In-process MCP smoke for the ORF server (5 tools)."""
+    """In-process MCP smoke for the ORF server (6 tools)."""
 
     @pytest.mark.asyncio
     async def test_list_tools(self, orf_mcp_server):
-        """ORF server exposes 5 tools."""
+        """ORF server exposes 6 tools."""
         from fastmcp import Client
 
         async with Client(orf_mcp_server) as client:
             tools = await client.list_tools()
         names = {t.name for t in tools}
-        assert len(tools) == 5, f"expected 5 tools, got {len(tools)}: {names}"
+        assert len(tools) == 6, f"expected 6 tools, got {len(tools)}: {names}"
         assert {
             "apply_md",
             "apply_xliff",
             "batch_convert",
             "detect_format",
             "info",
+            "ping",
         } == names
 
     @pytest.mark.asyncio
@@ -1551,3 +1555,139 @@ class TestMCPSmokeORF:
             # PathValidator-level response
             assert payload.get("format") == "UNKNOWN"
             assert payload.get("size_mb") == 0.0
+
+
+# =============================================================================
+# TS-3: Startup-latency smoke — catches MCP cold-start regressions
+# =============================================================================
+
+
+# Upper bounds for cold-start of each MCP server. The OL server is the
+# slowest (litellm + pydantic transitive import chain on importlib.metadata
+# entry_points()), so it gets the loosest bound. These are deliberately
+# generous — the goal is to catch a 5x+ regression, not enforce SLA.
+# Budgets are calibrated to WSL2 /mnt/d/ filesystem mounts where
+# subprocess Python launch costs ~15s of fs-I/O latency (see ol_cli.py
+# comments). On native Linux/macOS the actual times are ~3-5x lower.
+MCP_STARTUP_BUDGET_SECONDS = {
+    "opp": 60.0,
+    "ol": 90.0,
+    "orf": 60.0,
+}
+
+
+class TestMCPStartupLatency:
+    """TS-3: measure cold-start time for each MCP server.
+
+    A regression in import time directly impacts agent tool-call latency
+    (every fresh subprocess pays the import cost). These tests measure
+    the time to (1) import the server module and (2) instantiate the
+    FastMCP instance, asserting against generous upper bounds. If a
+    server's import balloons (e.g. accidentally pulling in numpy at
+    module level), CI catches it.
+    """
+
+    @pytest.mark.parametrize(
+        "server_name",
+        sorted(MCP_STARTUP_BUDGET_SECONDS.keys()),
+    )
+    def test_cold_start_under_budget(self, server_name: str, tmp_path):
+        """Each MCP server cold-starts in-process under the budgeted time.
+
+        We spawn a fresh subprocess so the measured time is the cold
+        import cost, not a re-import from a warmed-up interpreter. The
+        subprocess runs a tiny script that imports the server module,
+        builds the FastMCP instance, and prints a marker.
+        """
+        import subprocess
+        import sys
+        import time
+
+        env = os.environ.copy()
+        env.setdefault("OMNI_TEST_FAKE_PANDOC", "1")
+        env.setdefault("OMNI_TEST_FAKE_LLM", "1")
+
+        # Path validator allowlist for ORF; harmless for OPP/OL.
+        env.setdefault("ORF_MCP_ALLOWED_DIRS", "/tmp")
+        env.setdefault("OPP_ALLOWED_DIRECTORIES", "/tmp")
+
+        repo_root = str(REPO_ROOT)
+        py_paths = [
+            f"{repo_root}/Omni_Pre_Processor/src",
+            f"{repo_root}/Omni_Localizer/src",
+            f"{repo_root}/Omni_Re_Formatter/src",
+        ]
+        env["PYTHONPATH"] = os.pathsep.join(py_paths + [env.get("PYTHONPATH", "")])
+
+        if server_name == "opp":
+            script = (
+                "import time, sys; "
+                "t0 = time.perf_counter(); "
+                "from opp.mcp.server import _init_server; "
+                "from fastmcp import FastMCP; "
+                "from opp.mcp.config import MCPConfig; "
+                "from opp.mcp.server import ("
+                "    batch_extract, detect_format_tool, extract_document, "
+                "    generate_markdown, generate_xliff, ping, save_skeleton, "
+                "); "
+                "cfg = MCPConfig(allowed_directories=['/tmp']); "
+                "_init_server(cfg); "
+                "mcp = FastMCP('opp-smoke'); "
+                "mcp.add_tool(ping); mcp.add_tool(extract_document); "
+                "mcp.add_tool(batch_extract); mcp.add_tool(detect_format_tool); "
+                "mcp.add_tool(generate_xliff); mcp.add_tool(generate_markdown); "
+                "mcp.add_tool(save_skeleton); "
+                "t1 = time.perf_counter(); "
+                "print(f'opp_startup_seconds={t1 - t0:.3f}'); "
+                "sys.exit(0)"
+            )
+        elif server_name == "ol":
+            script = (
+                "import time, sys; "
+                "t0 = time.perf_counter(); "
+                "import os; os.environ.setdefault('OMNI_TEST_FAKE_LLM', '1'); "
+                "from ol_mcp.tools import mcp; "
+                "t1 = time.perf_counter(); "
+                "print(f'ol_startup_seconds={t1 - t0:.3f}'); "
+                "sys.exit(0)"
+            )
+        elif server_name == "orf":
+            script = (
+                "import time, sys; "
+                "t0 = time.perf_counter(); "
+                "from orf.mcp.server import get_server; "
+                "_ = get_server(); "
+                "t1 = time.perf_counter(); "
+                "print(f'orf_startup_seconds={t1 - t0:.3f}'); "
+                "sys.exit(0)"
+            )
+        else:
+            pytest.fail(f"unknown server: {server_name}")
+
+        t_wall0 = time.perf_counter()
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        t_wall1 = time.perf_counter()
+
+        assert result.returncode == 0, (
+            f"{server_name} cold-start subprocess failed:\n"
+            f"stdout={result.stdout}\nstderr={result.stderr}"
+        )
+
+        wall_clock = t_wall1 - t_wall0
+        budget = MCP_STARTUP_BUDGET_SECONDS[server_name]
+        assert wall_clock < budget, (
+            f"{server_name} MCP cold-start took {wall_clock:.2f}s, "
+            f"exceeds budget of {budget:.2f}s. "
+            f"Subprocess output:\n{result.stdout}\n{result.stderr}"
+        )
+        # Report the measured time for visibility in CI logs.
+        print(
+            f"\n[TS-3] {server_name} MCP cold-start: {wall_clock:.2f}s "
+            f"(budget: {budget:.2f}s)"
+        )

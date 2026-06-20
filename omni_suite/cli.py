@@ -11,9 +11,66 @@ _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
 _COMPAT_FILE = Path(__file__).parent.parent / "COMPATIBILITY.md"
 _VENV_BIN = Path(__file__).parent.parent / ".venv_ol" / "bin"
 
+# LLM provider keys that OL uses for translation/judging/restoration
+_LLM_API_KEYS = [
+    "ZHIPU_API_KEY",
+    "AGNES_API_KEY",
+    "NVIDIA_NIM_API_KEY",
+    "OPENCODE_GO_KEY",
+]
+
+# Optional but commonly expected env vars
+_OPTIONAL_VARS = [
+    "OL_CONFIG_PATH",
+    "OL_LOG_LEVEL",
+    "OPP_LOG_LEVEL",
+    "ORF_LOG_LEVEL",
+    "OMNI_CACHE_DIR",
+    "OMNI_LOG_FORMAT",
+    "MCP_SHARED_SECRET",
+    "OPP_MCP_ALLOWED_DIRS",
+    "ORF_MCP_ALLOWED_DIRS",
+    "OL_ALLOWED_DIRECTORIES",
+]
+
+
+def _validate_env(require_llm: bool = False) -> None:
+    """Warn or error on missing environment variables.
+
+    Args:
+        require_llm: If True, exit with error when no LLM key is found
+                     (used for 'pipeline' and real translation commands).
+    """
+    missing_keys: list[str] = []
+    for key in _LLM_API_KEYS:
+        if not os.environ.get(key):
+            missing_keys.append(key)
+
+    if missing_keys:
+        all_missing = len(missing_keys) == len(_LLM_API_KEYS)
+        if all_missing:
+            msg = (
+                "⚠️  No LLM provider keys found. Set at least one of:\n"
+                f"       {', '.join(_LLM_API_KEYS)}\n"
+                "   Copy .env.example → .env and fill in your keys.\n"
+                "   For testing, set OMNI_TEST_FAKE_LLM=1 to bypass LLM calls."
+            )
+        else:
+            missing_list = ", ".join(missing_keys)
+            msg = f"⚠️  Some LLM provider keys are unset: {missing_list}"
+        if require_llm:
+            print(msg, file=sys.stderr)
+            sys.exit(1)
+        print(msg)
+
+    missing_optional = [k for k in _OPTIONAL_VARS if not os.environ.get(k)]
+    if missing_optional and not os.environ.get("OMNI_TEST_FAKE_LLM"):
+        pass  # silence optional warnings — .env.example documents them
+
 
 def main() -> None:
     if len(sys.argv) < 2 or sys.argv[1] in ("--help", "-h"):
+        _validate_env(require_llm=False)
         _print_usage()
         return
     cmd = sys.argv[1]
@@ -22,6 +79,7 @@ def main() -> None:
     elif cmd == "--compatibility":
         print(_COMPAT_FILE.read_text(encoding="utf-8"))
     elif cmd == "pipeline":
+        _validate_env(require_llm=True)
         _run_pipeline(sys.argv[2:])
     elif cmd == "check":
         _run_check(sys.argv[2:])
