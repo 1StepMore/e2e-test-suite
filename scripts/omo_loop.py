@@ -772,6 +772,28 @@ def _run_tier_5(args) -> int:
     return rc_total
 
 
+def _run_format_matrix(args) -> int:
+    """Tier 7 (2026-06-21): run the format matrix verifier.
+
+    Iterates input × output combinations end-to-end and reports
+    pass/skip/fail per cell. Exits 0 if all non-skipped cells pass.
+    """
+    suite_root = _SUITE_ROOT
+    script = suite_root / "scripts" / "format_matrix_verifier.py"
+    if not script.exists():
+        print(f"[Tier7] ERROR: {script} not found", file=sys.stderr, flush=True)
+        return 1
+    env = _build_env({"OMNI_TEST_FAKE_LLM": "1", "OMNI_TEST_FAKE_PANDOC": "1"})
+    t0 = time.monotonic()
+    result = subprocess.run(
+        [sys.executable, str(script), "--suite-root", str(suite_root)],
+        capture_output=True, text=True, env=env, cwd=str(suite_root), timeout=3600,
+    )
+    elapsed = time.monotonic() - t0
+    print(f"[Tier7] exit={result.returncode} in {elapsed:.1f}s", flush=True)
+    return result.returncode
+
+
 def _run_verify_all(
     args,
     verifiers: list[tuple[str, Path, list[str]]] | None = None,
@@ -1010,7 +1032,7 @@ def _run_convergence_watch(args) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="L3 OMO loop")
-    parser.add_argument("--tier", type=int, choices=[1, 2, 3, 4, 5, 6], default=1,
+    parser.add_argument("--tier", type=int, choices=[1, 2, 3, 4, 5, 6, 7], default=1,
         help="Tier 1: single-doc full pipeline (default). "
              "Tier 2: all 4 paths via e2e_runner.py. "
              "Tier 3: format matrix (P1) via phase1_runner.py. "
@@ -1046,6 +1068,8 @@ def main() -> int:
         return _run_tier_5(args)
     if args.tier == 6:
         return _run_verify_all(args)
+    if args.tier == 7:
+        return _run_format_matrix(args)
 
     if not args.input.exists():
         print(f"ERROR: input not found: {args.input}", file=sys.stderr)
