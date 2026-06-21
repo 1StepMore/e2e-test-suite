@@ -18,7 +18,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
@@ -68,6 +67,8 @@ OL_CONFIG_PATH = str(SUITE_ROOT / "Omni_Localizer" / "config" / "test_universal.
 # ============================================================================
 
 PANDOC_AVAILABLE = shutil.which("pandoc") is not None
+
+MD2PPTX_AVAILABLE = shutil.which("md2pptx") is not None
 
 WEASYPRINT_AVAILABLE = False
 try:
@@ -893,6 +894,7 @@ class TestDocxBased:
     # Path 10: DOCX → MD → OL → ORF → PPTX
     # ------------------------------------------------------------------
 
+    @pytest.mark.skipif(not MD2PPTX_AVAILABLE, reason="md2pptx CLI not installed")
     def test_path_10_docx_md_orf_pptx(self, tmp_path: Path, use_fake_llm):
         """Path 10: DOCX→MD→OL→ORF→PPTX. Pass: PPTX > 10KB."""
         opp_dir = tmp_path / "opp"
@@ -1055,6 +1057,7 @@ class TestPptxBased:
     # Path 16: PPTX → MD → OL → ORF → PPTX
     # ------------------------------------------------------------------
 
+    @pytest.mark.skipif(not MD2PPTX_AVAILABLE, reason="md2pptx CLI not installed")
     def test_path_16_pptx_md_orf_pptx(self, tmp_path: Path, use_fake_llm):
         """Path 16: PPTX→MD→OL→ORF→PPTX. Pass: PPTX > 10KB."""
         opp_dir = tmp_path / "opp"
