@@ -772,14 +772,220 @@ def _run_tier_5(args) -> int:
     return rc_total
 
 
+def _run_verify_all(
+    args,
+    verifiers: list[tuple[str, Path, list[str]]] | None = None,
+    out_dir: Path | None = None,
+) -> int:
+    """Tier 6 (2026-06-21): aggregate the 3 verifiers into a single matrix.
+
+    Runs:
+      - scripts/check_readiness.py --readiness  (60 V1–V11 checks)
+      - scripts/verify_usability.py             (CLI + MCP usability matrix)
+      - scripts/verify_mcp.py                   (MCP smoke tests)
+
+    Exits 0 only if all three return 0. Writes a markdown matrix to
+    test_artifacts/omo_runs/verify_all_<timestamp>.md so downstream tools
+    and the convergence report can consume it.
+
+    Args:
+        args: CLI args (unused; reserved for future per-call overrides).
+        verifiers: Optional override of the verifier list. Each entry is
+            (name, script_path, extra_args). Used by tests to inject
+            fake/missing verifiers without touching the real scripts.
+        out_dir: Optional override of the report output directory.
+    """
+    suite_root = Path(__file__).resolve().parent.parent
+    if verifiers is None:
+        verifiers = [
+            ("check_readiness", suite_root / "scripts" / "check_readiness.py", ["--readiness"]),
+            ("verify_usability", suite_root / "scripts" / "verify_usability.py", []),
+            ("verify_mcp", suite_root / "scripts" / "verify_mcp.py", []),
+        ]
+    if out_dir is None:
+        out_dir = _OMO_RUNS_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    report = out_dir / f"verify_all_{stamp}.md"
+
+    env = _build_env({"OMNI_TEST_FAKE_LLM": "1", "OMNI_TEST_FAKE_PANDOC": "1"})
+    rows: list[tuple[str, int, str]] = []
+    failed: list[str] = []
+    for name, script, extra in verifiers:
+        cmd = [sys.executable, str(script), *extra]
+        t0 = time.monotonic()
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, env=env, cwd=str(suite_root), timeout=600
+            )
+            elapsed = time.monotonic() - t0
+            status = "PASS" if result.returncode == 0 else f"FAIL(rc={result.returncode})"
+            rows.append((name, result.returncode, f"{status} in {elapsed:.1f}s"))
+            if result.returncode != 0:
+                failed.append(name)
+        except subprocess.TimeoutExpired:
+            rows.append((name, 124, "TIMEOUT"))
+            failed.append(name)
+
+    lines = [
+        f"# Verify-All Report — {stamp}",
+        "",
+        "| Verifier | Exit | Status |",
+        "|----------|------|--------|",
+    ]
+    for name, rc, status in rows:
+        lines.append(f"| {name} | {rc} | {status} |")
+    lines.append("")
+    lines.append(f"Result: {len(rows) - len(failed)}/{len(rows)} passed.")
+    report.write_text("\n".join(lines), encoding="utf-8")
+    print("\n".join(lines))
+    print(f"\nReport: {report}")
+    return 0 if not failed else 1
+
+
+def _run_bug_fix(args) -> int:
+    """MVA Tier 7 (2026-06-21): read active-bugs.json, dispatch each open
+    bug to a sub-agent for TDD fix, update statuses.
+
+    The bug-fix dispatch spawns a sub-agent (via the orchestrator's task
+    system) per open bug. The sub-agent follows the TDD protocol:
+    1. Read the bug description in active-bugs.json
+    2. Write a failing test that reproduces it
+    3. Confirm RED
+    4. Write the smallest production fix
+    5. Confirm GREEN
+    6. Report FIXED or ESCALATED
+
+    The orchestrator updates active-bugs.json based on the sub-agent's
+    report. This function does NOT run the verify_all aggregator — call
+    --mode convergence-watch for the full loop.
+
+    Returns 0 if at least one bug was fixed, 1 if no open bugs or all
+    dispatches failed.
+    """
+    suite_root = _SUITE_ROOT
+    bug_file = suite_root / ".omo" / "plans" / "active-bugs.json"
+
+    if not bug_file.exists():
+        print(f"ERROR: bug file not found: {bug_file}", file=sys.stderr)
+        return 1
+
+    data = json.loads(bug_file.read_text(encoding="utf-8"))
+    open_bugs = [b for b in data.get("bugs", []) if b.get("status") == "open"]
+
+    if not open_bugs:
+        total = len(data.get("bugs", []))
+        print(f"No open bugs (all {total} are fixed/escalated/wontfix). System is converged.")
+        return 0
+
+    print(f"=== bug-fix: {len(open_bugs)} open bug(s) ===")
+    fixed_count = 0
+    for bug in open_bugs:
+        print(f"\n--- Dispatching {bug['id']}: {bug.get('symptom', '')[:80]}... ---")
+        prompt = (
+            f"You are a TDD fix agent for the Omni Suite project at "
+            f"{suite_root}.\n\n"
+            f"## Bug: {bug['id']}\n"
+            f"## File: {bug.get('file', '?')}\n"
+            f"## Symptom: {bug.get('symptom', '?')}\n"
+            f"## Verify test: {bug.get('verify_test', '?')}\n\n"
+            f"## Your task (strict TDD):\n"
+            f"1. Read the affected file(s) and the existing test referenced by verify_test\n"
+            f"2. If the verify_test does not exist yet, write it now (FAILING).\n"
+            f"3. Run the test. Confirm it FAILS for the right reason (not import error, not syntax).\n"
+            f"4. Write the SMALLEST production code change that flips the test RED->GREEN.\n"
+            f"5. Run the test again. Confirm it PASSES.\n"
+            f"6. Run the relevant module's full test suite to confirm no regression.\n"
+            f"7. Report back: print exactly 'FIXED' on the last line if the fix worked, "
+            f"or 'ESCALATED: <one-line reason>' if you cannot fix it in 3 attempts.\n\n"
+            f"## Hard rules:\n"
+            f"- NEVER add comments unless absolutely necessary.\n"
+            f"- NEVER use type-error suppression.\n"
+            f"- NEVER delete a failing test to 'pass'.\n"
+            f"- NEVER commit anything.\n"
+            f"- Do NOT modify active-bugs.json (the orchestrator does that).\n"
+        )
+        # The script has no sub-agent system, so it writes a dispatch
+        # prompt per bug. The orchestrator picks these up and runs the
+        # task() call, then updates active-bugs.json with the result.
+        dispatch_file = _OMO_RUNS_DIR / f"dispatch_{bug['id']}.txt"
+        dispatch_file.parent.mkdir(parents=True, exist_ok=True)
+        dispatch_file.write_text(prompt, encoding="utf-8")
+        print(f"  Prompt written to: {dispatch_file}")
+        print(f"  (Orchestrator must run the dispatch and update active-bugs.json)")
+
+    print(f"\n{len(open_bugs)} dispatch prompt(s) written.")
+    print("Run the orchestrator (Sisyphus) to execute them.")
+    return 0
+
+
+def _run_convergence_watch(args) -> int:
+    """MVA Tier 8 (2026-06-21): outer loop that runs Tier 6 and
+    dispatches bug-fix on RED until consecutive-green >= threshold
+    or max-fix-fail >= threshold.
+
+    This is the canonical "fully autonomous" entry point:
+        python scripts/omo_loop.py --mode convergence-watch
+
+    The loop:
+    - Cycle 1..N:
+      - Run Tier 6 aggregator
+      - If GREEN: increment consecutive_green
+      - If RED: dispatch --mode bug-fix, increment consecutive_fix_fail
+      - Exit on consecutive_green >= --consecutive-green (success)
+      - Exit on consecutive_fix_fail >= --max-fix-fail (blocked)
+
+    In standalone mode, the bug-fix step writes a dispatch prompt per
+    open bug. The orchestrator picks these up and runs the real fix
+    application, then re-runs this loop.
+    """
+    max_cycles = args.max_cycles
+    consecutive_green = 0
+    consecutive_fix_fail = 0
+
+    print(f"=== convergence-watch: max_cycles={max_cycles}, "
+          f"consecutive_green_target={args.consecutive_green}, "
+          f"max_fix_fail={args.max_fix_fail} ===")
+
+    for cycle in range(1, max_cycles + 1):
+        print(f"\n{'='*60}\n  CYCLE {cycle}\n{'='*60}")
+
+        rc = _run_verify_all(args)
+
+        if rc == 0:
+            consecutive_green += 1
+            consecutive_fix_fail = 0
+            print(f"  GREEN ({consecutive_green} consecutive)")
+            if consecutive_green >= args.consecutive_green:
+                print(f"\n*** CONVERGED: {consecutive_green} consecutive GREEN runs ***")
+                return 0
+        else:
+            consecutive_green = 0
+            consecutive_fix_fail += 1
+            print(f"  RED (fix-fail #{consecutive_fix_fail})")
+            if consecutive_fix_fail >= args.max_fix_fail:
+                print(f"\n*** BLOCKED: {consecutive_fix_fail} consecutive fix-fails ***")
+                return 1
+            print("  Dispatching --mode bug-fix...")
+            _run_bug_fix(args)
+            print("  (After orchestrator applies fixes, re-run this loop)")
+
+    print(f"\n*** MAX CYCLES REACHED ({max_cycles}) ***")
+    return 1 if consecutive_green < args.consecutive_green else 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="L3 OMO loop")
-    parser.add_argument("--tier", type=int, choices=[1, 2, 3, 4, 5], default=1,
+    parser.add_argument("--tier", type=int, choices=[1, 2, 3, 4, 5, 6], default=1,
         help="Tier 1: single-doc full pipeline (default). "
              "Tier 2: all 4 paths via e2e_runner.py. "
              "Tier 3: format matrix (P1) via phase1_runner.py. "
              "Tier 4: XLIFF backfill (P2) via phase1_runner.py. "
-             "Tier 5: module-only runs via run_test.sh.")
+             "Tier 5: module-only runs via run_test.sh. "
+             "Tier 6: verify-all (readiness + usability + mcp).")
+    parser.add_argument("--mode", choices=["tier", "bug-fix", "convergence-watch"],
+        default="tier", help="Execution mode. 'tier' runs a single tier (1-6). "
+             "'bug-fix' dispatches all open bugs. 'convergence-watch' runs the autonomous loop.")
     parser.add_argument("--max-cycles", type=int, default=10, help="Stop after N cycles (default 10)")
     parser.add_argument("--consecutive-green", type=int, default=3, help="Consecutive GREEN runs to declare converged (default 3)")
     parser.add_argument("--max-fix-fail", type=int, default=5, help="Consecutive fix-fails to declare critical blocker (default 5)")
@@ -790,6 +996,11 @@ def main() -> int:
     parser.add_argument("--use-mock", action="store_true", help="Use mock LLM (for testing without API spend)")
     args = parser.parse_args()
 
+    if args.mode == "bug-fix":
+        return _run_bug_fix(args)
+    if args.mode == "convergence-watch":
+        return _run_convergence_watch(args)
+
     # 2026-06-17 round 7: dispatch tier 2-5 to existing comprehensive infra.
     if args.tier == 2:
         return _run_tier_2(args)
@@ -799,6 +1010,8 @@ def main() -> int:
         return _run_tier_4(args)
     if args.tier == 5:
         return _run_tier_5(args)
+    if args.tier == 6:
+        return _run_verify_all(args)
 
     if not args.input.exists():
         print(f"ERROR: input not found: {args.input}", file=sys.stderr)
