@@ -795,6 +795,33 @@ def _run_verify_all(
             fake/missing verifiers without touching the real scripts.
         out_dir: Optional override of the report output directory.
     """
+    try:
+        return _run_verify_all_inner(args, verifiers, out_dir)
+    except Exception as e:
+        print(f"[Tier6] FATAL: unhandled exception: {type(e).__name__}: {e}",
+              file=sys.stderr, flush=True)
+        return 1
+
+
+def _write_verify_report(report: Path, stamp: str, rows: list, failed: list) -> None:
+    lines = [
+        f"# Verify-All Report — {stamp}",
+        "",
+        "| Verifier | Exit | Status |",
+        "|----------|------|--------|",
+    ]
+    for name, rc, status in rows:
+        lines.append(f"| {name} | {rc} | {status} |")
+    lines.append("")
+    lines.append(f"Result: {len(rows) - len(failed)}/{len(rows)} passed.")
+    report.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _run_verify_all_inner(
+    args,
+    verifiers,
+    out_dir,
+) -> int:
     suite_root = Path(__file__).resolve().parent.parent
     if verifiers is None:
         verifiers = [
@@ -811,36 +838,43 @@ def _run_verify_all(
     env = _build_env({"OMNI_TEST_FAKE_LLM": "1", "OMNI_TEST_FAKE_PANDOC": "1"})
     rows: list[tuple[str, int, str]] = []
     failed: list[str] = []
+
+    print(f"[Tier6] Starting at {stamp}", flush=True)
+    print(f"[Tier6] Report will be written to: {report}", flush=True)
+
     for name, script, extra in verifiers:
         cmd = [sys.executable, str(script), *extra]
         t0 = time.monotonic()
+        # Write verifier output to a log file. capture_output=True can
+        # deadlock on pytest runs that exceed the pipe buffer (~64KB).
+        log_path = out_dir / f"verify_{name}_{stamp}.log"
+        print(f"[Tier6] Running {name}... (log: {log_path.name})", flush=True)
+        rc = -1
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, env=env, cwd=str(suite_root), timeout=600
-            )
-            elapsed = time.monotonic() - t0
-            status = "PASS" if result.returncode == 0 else f"FAIL(rc={result.returncode})"
-            rows.append((name, result.returncode, f"{status} in {elapsed:.1f}s"))
-            if result.returncode != 0:
-                failed.append(name)
+            with open(log_path, "w") as logf:
+                result = subprocess.run(
+                    cmd, stdout=logf, stderr=subprocess.STDOUT,
+                    env=env, cwd=str(suite_root), timeout=600,
+                )
+            rc = result.returncode
         except subprocess.TimeoutExpired:
-            rows.append((name, 124, "TIMEOUT"))
+            rc = 124
+        except Exception as e:
+            print(f"[Tier6] ERROR running {name}: {type(e).__name__}: {e}",
+                  file=sys.stderr, flush=True)
+            rc = 125
+        elapsed = time.monotonic() - t0
+        status = "PASS" if rc == 0 else f"FAIL(rc={rc})"
+        rows.append((name, rc, f"{status} in {elapsed:.1f}s"))
+        if rc != 0:
             failed.append(name)
+        print(f"[Tier6] {name} -> rc={rc} in {elapsed:.1f}s", flush=True)
+        _write_verify_report(report, stamp, rows, failed)
 
-    lines = [
-        f"# Verify-All Report — {stamp}",
-        "",
-        "| Verifier | Exit | Status |",
-        "|----------|------|--------|",
-    ]
-    for name, rc, status in rows:
-        lines.append(f"| {name} | {rc} | {status} |")
-    lines.append("")
-    lines.append(f"Result: {len(rows) - len(failed)}/{len(rows)} passed.")
-    report.write_text("\n".join(lines), encoding="utf-8")
-    print("\n".join(lines))
-    print(f"\nReport: {report}")
-    return 0 if not failed else 1
+    rc = 0 if not failed else 1
+    print(f"[Tier6] DONE. Result: {len(rows) - len(failed)}/{len(rows)} passed. "
+          f"Report: {report}", flush=True)
+    return rc
 
 
 def _run_bug_fix(args) -> int:
