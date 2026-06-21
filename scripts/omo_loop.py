@@ -794,6 +794,98 @@ def _run_format_matrix(args) -> int:
     return result.returncode
 
 
+def _run_tier8(args) -> int:
+    """Tier 8 (2026-06-21): run the real corpus + fidelity + equivalence gate.
+
+    Steps:
+      1. Run format matrix with --corpus real --fidelity against test_corpus/
+         (complex DOCX/PPTX/PDF/XLSX/HTML with tables, images, formatting)
+      2. Run equivalence check between two CLI runs (deterministic with
+         FAKE_LLM, so all cells should be equivalent; catches any
+         nondeterminism in the pipeline)
+      3. Attempt MCP matrix (currently blocked: fastmcp 3.x servers don't
+         accept stdio in this env — see ACCEPTED_GAPS.md)
+
+    Exits 0 only if the CLI real-corpus matrix passes (0 FAIL) AND the
+    equivalence check reports no divergent cells. MCP step is reported
+    but does not block the gate (it's a known gap).
+    """
+    suite_root = _SUITE_ROOT
+    t0 = time.monotonic()
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    out_a = suite_root / "test_artifacts" / "matrix_real_a"
+    out_b = suite_root / "test_artifacts" / "matrix_real_b"
+
+    env = _build_env({"OMNI_TEST_FAKE_LLM": "1", "OMNI_TEST_FAKE_PANDOC": "1"})
+
+    # Step 1: Run CLI matrix with real corpus + fidelity (run A)
+    print(f"[Tier8] Step 1: CLI matrix with real corpus (run A) → {out_a}")
+    r1 = subprocess.run(
+        [sys.executable, str(suite_root / "scripts" / "format_matrix_verifier.py"),
+         "--suite-root", str(suite_root),
+         "--out-dir", str(out_a),
+         "--corpus", "real", "--fidelity",
+         "--path-filter", "both", "--parallel", "8", "--timeout", "120"],
+        capture_output=True, text=True, env=env, cwd=str(suite_root), timeout=3600,
+    )
+    a_pass = r1.returncode == 0
+    print(f"[Tier8]   run A exit={r1.returncode}")
+
+    # Step 2: Run again (run B) to test equivalence/determinism
+    print(f"[Tier8] Step 2: CLI matrix with real corpus (run B) → {out_b}")
+    r2 = subprocess.run(
+        [sys.executable, str(suite_root / "scripts" / "format_matrix_verifier.py"),
+         "--suite-root", str(suite_root),
+         "--out-dir", str(out_b),
+         "--corpus", "real", "--fidelity",
+         "--path-filter", "both", "--parallel", "8", "--timeout", "120"],
+        capture_output=True, text=True, env=env, cwd=str(suite_root), timeout=3600,
+    )
+    b_pass = r2.returncode == 0
+    print(f"[Tier8]   run B exit={r2.returncode}")
+
+    # Step 3: Equivalence check between A and B
+    print("[Tier8] Step 3: equivalence check (run A vs B)")
+    r3 = subprocess.run(
+        [sys.executable, str(suite_root / "scripts" / "equivalence_checker.py"),
+         "--a-dir", str(out_a), "--b-dir", str(out_b),
+         "--a-label", "run_A", "--b-label", "run_B",
+         "--json"],
+        capture_output=True, text=True, env=env, cwd=str(suite_root), timeout=300,
+    )
+    equiv_pass = r3.returncode == 0
+    if r3.stdout:
+        try:
+            import json as _json
+            data = _json.loads(r3.stdout)
+            print(f"[Tier8]   equivalent: {data.get('equivalent', 0)}/"
+                  f"{data.get('total', 0)} | divergent: {data.get('divergent', 0)}")
+        except _json.JSONDecodeError:
+            pass
+    print(f"[Tier8]   equivalence exit={r3.returncode}")
+
+    # Step 4: Attempt MCP matrix (expected to fail — known gap)
+    print("[Tier8] Step 4: MCP matrix (expected to be blocked — see ACCEPTED_GAPS.md)")
+    r4 = subprocess.run(
+        [sys.executable, str(suite_root / "scripts" / "mcp_matrix_verifier.py"),
+         "--out-dir", str(suite_root / "test_artifacts" / "mcp_test"),
+         "--path-filter", "md", "--subset", "docx"],
+        capture_output=True, text=True, env=env, cwd=str(suite_root), timeout=120,
+    )
+    mcp_blocked = r4.returncode != 0
+    print(f"[Tier8]   MCP matrix exit={r4.returncode} (blocked={mcp_blocked})")
+
+    elapsed = time.monotonic() - t0
+    print(f"[Tier8] Total: {elapsed:.1f}s | "
+          f"runA={'PASS' if a_pass else 'FAIL'} | "
+          f"runB={'PASS' if b_pass else 'FAIL'} | "
+          f"equivalence={'PASS' if equiv_pass else 'FAIL'} | "
+          f"MCP={'BLOCKED' if mcp_blocked else 'RAN'}")
+    # Gate passes only if both CLI runs passed and equivalence passed.
+    # MCP being blocked is expected and does not fail the gate.
+    return 0 if (a_pass and b_pass and equiv_pass) else 1
+
+
 def _run_verify_all(
     args,
     verifiers: list[tuple[str, Path, list[str]]] | None = None,
@@ -1001,11 +1093,12 @@ def _run_convergence_watch(args) -> int:
 
     gate = getattr(args, "gate", "both")
     gates = (
-        ["tier6", "tier7"] if gate == "both" else [gate]
+        ["tier6", "tier7", "tier8"] if gate == "both" else [gate]
     )
     gate_fns = {
         "tier6": ("verifier health (Tier 6)", _run_verify_all),
         "tier7": ("format matrix (Tier 7)", _run_format_matrix),
+        "tier8": ("real corpus + fidelity + equivalence (Tier 8)", _run_tier8),
     }
 
     print(f"=== convergence-watch: max_cycles={max_cycles}, "
@@ -1092,6 +1185,8 @@ def main() -> int:
         return _run_verify_all(args)
     if args.tier == 7:
         return _run_format_matrix(args)
+    if args.tier == 8:
+        return _run_tier8(args)
 
     if not args.input.exists():
         print(f"ERROR: input not found: {args.input}", file=sys.stderr)

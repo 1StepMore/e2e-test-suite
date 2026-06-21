@@ -147,6 +147,8 @@ class CellResult:
     duration_s: float
     detail: str = ""
     skip_reason: str = ""
+    fidelity: float = 0.0
+    fidelity_detail: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -207,8 +209,21 @@ def _check_skip(inp: str, outp: str, path: str) -> str | None:
     return None
 
 
+def _resolve_fixture(inp: str, dest: Path, corpus_mode: str, suite_root: Path) -> bool:
+    """Write or copy the input fixture. Returns True on success."""
+    if corpus_mode == "real":
+        corpus = suite_root / "test_corpus" / f"complex.{inp}"
+        if corpus.exists():
+            import shutil
+            shutil.copy2(corpus, dest)
+            return dest.exists()
+    _write_minimal_fixture(inp, dest)
+    return dest.exists()
+
+
 def _run_one_cell(
-    suite_root: Path, inp: str, outp: str, path: str, tmp_root: Path
+    suite_root: Path, inp: str, outp: str, path: str, tmp_root: Path,
+    corpus_mode: str = "minimal", fidelity_enabled: bool = False,
 ) -> CellResult:
     """Run a single input→output cell end-to-end via the chosen path.
 
@@ -230,8 +245,7 @@ def _run_one_cell(
     cell_dir = tmp_root / f"{path}_{inp}_to_{outp}"
     cell_dir.mkdir(parents=True, exist_ok=True)
     src = cell_dir / f"sample.{inp}"
-    _write_minimal_fixture(inp, src)
-    if not src.exists():
+    if not _resolve_fixture(inp, src, corpus_mode, suite_root):
         return CellResult(inp, outp, path, "skip", 0.0, skip_reason=f"no fixture for {inp}")
 
     env = os.environ.copy()
@@ -250,11 +264,25 @@ def _run_one_cell(
         py = Path(sys.executable)
 
     if path == "md":
-        return _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
-    if path == "xliff":
-        return _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
-    return CellResult(inp, outp, path, "fail", time.monotonic() - t0,
-                      detail=f"unknown path: {path}")
+        result = _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
+    elif path == "xliff":
+        result = _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
+    else:
+        return CellResult(inp, outp, path, "fail", time.monotonic() - t0,
+                          detail=f"unknown path: {path}")
+
+    if fidelity_enabled and result.status == "pass":
+        orf_out = cell_dir / f"result.{outp}"
+        if orf_out.exists():
+            try:
+                from fidelity_checker import compute_fidelity
+                fr = compute_fidelity(src, orf_out, outp)
+                result.fidelity = fr.overall
+                result.fidelity_detail = fr.to_dict()
+            except Exception as e:
+                result.detail = f"{result.detail}  [fidelity error: {e}]".strip()
+
+    return result
 
 
 def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResult:
@@ -572,6 +600,12 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=120, help="Per-cell timeout (seconds)")
     parser.add_argument("--parallel", type=int, default=1,
                         help="Run N cells concurrently (thread pool). Default: 1 (sequential).")
+    parser.add_argument("--corpus", choices=["minimal", "real"], default="minimal",
+                        help="Fixture source: 'minimal' = hand-crafted tiny files; "
+                             "'real' = test_corpus/ with tables, images, complex formatting.")
+    parser.add_argument("--fidelity", action="store_true",
+                        help="Compute content fidelity scores (text/table/image preservation) "
+                             "after each successful cell. Requires --corpus real for meaningful scores.")
     args = parser.parse_args()
 
     import tempfile
@@ -597,9 +631,11 @@ def main() -> int:
 
     if args.parallel <= 1:
         for inp, outp, path in cells:
-            c = _run_one_cell(suite_root, inp, outp, path, tmp_root)
+            c = _run_one_cell(suite_root, inp, outp, path, tmp_root,
+                              corpus_mode=args.corpus, fidelity_enabled=args.fidelity)
             result.cells.append(c)
-            print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s)"
+            fid_str = f"  fid={c.fidelity:.2f}" if c.fidelity else ""
+            print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s){fid_str}"
                   f"{'  ' + c.detail if c.detail else ''}"
                   f"{'  [' + c.skip_reason + ']' if c.skip_reason else ''}",
                   flush=True)
@@ -607,7 +643,8 @@ def main() -> int:
         from concurrent.futures import ThreadPoolExecutor, as_completed
         with ThreadPoolExecutor(max_workers=args.parallel) as pool:
             futures = {
-                pool.submit(_run_one_cell, suite_root, inp, outp, path, tmp_root): (inp, outp, path)
+                pool.submit(_run_one_cell, suite_root, inp, outp, path, tmp_root,
+                            args.corpus, args.fidelity): (inp, outp, path)
                 for inp, outp, path in cells
             }
             cell_results: dict[tuple[str, str, str], CellResult] = {}
