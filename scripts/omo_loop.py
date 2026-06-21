@@ -976,42 +976,61 @@ def _run_bug_fix(args) -> int:
 
 
 def _run_convergence_watch(args) -> int:
-    """MVA Tier 8 (2026-06-21): outer loop that runs Tier 6 and
-    dispatches bug-fix on RED until consecutive-green >= threshold
-    or max-fix-fail >= threshold.
+    """MVA Tier 8 (2026-06-21): outer loop that runs the configured gates
+    (Tier 6 verifier health + Tier 7 format matrix) and dispatches
+    bug-fix on RED until consecutive-green >= threshold or
+    max-fix-fail >= threshold.
 
     This is the canonical "fully autonomous" entry point:
         python scripts/omo_loop.py --mode convergence-watch
 
+    Default --gate is "both" (Tier 6 + Tier 7). Use --gate tier6 or
+    --gate tier7 to run a single gate.
+
     The loop:
     - Cycle 1..N:
-      - Run Tier 6 aggregator
-      - If GREEN: increment consecutive_green
-      - If RED: dispatch --mode bug-fix, increment consecutive_fix_fail
+      - Run each configured gate
+      - If ALL GREEN: increment consecutive_green
+      - If any RED: dispatch --mode bug-fix, increment consecutive_fix_fail
       - Exit on consecutive_green >= --consecutive-green (success)
       - Exit on consecutive_fix_fail >= --max-fix-fail (blocked)
-
-    In standalone mode, the bug-fix step writes a dispatch prompt per
-    open bug. The orchestrator picks these up and runs the real fix
-    application, then re-runs this loop.
     """
     max_cycles = args.max_cycles
     consecutive_green = 0
     consecutive_fix_fail = 0
 
+    gate = getattr(args, "gate", "both")
+    gates = (
+        ["tier6", "tier7"] if gate == "both" else [gate]
+    )
+    gate_fns = {
+        "tier6": ("verifier health (Tier 6)", _run_verify_all),
+        "tier7": ("format matrix (Tier 7)", _run_format_matrix),
+    }
+
     print(f"=== convergence-watch: max_cycles={max_cycles}, "
           f"consecutive_green_target={args.consecutive_green}, "
-          f"max_fix_fail={args.max_fix_fail} ===")
+          f"max_fix_fail={args.max_fix_fail}, "
+          f"gates={','.join(gates)} ===")
 
     for cycle in range(1, max_cycles + 1):
         print(f"\n{'='*60}\n  CYCLE {cycle}\n{'='*60}")
 
-        rc = _run_verify_all(args)
+        all_green = True
+        for g in gates:
+            label, fn = gate_fns[g]
+            print(f"  [gate {g}] running {label}...")
+            rc = fn(args)
+            if rc != 0:
+                all_green = False
+                print(f"  [gate {g}] RED (rc={rc})")
+            else:
+                print(f"  [gate {g}] GREEN")
 
-        if rc == 0:
+        if all_green:
             consecutive_green += 1
             consecutive_fix_fail = 0
-            print(f"  GREEN ({consecutive_green} consecutive)")
+            print(f"  ALL GATES GREEN ({consecutive_green} consecutive)")
             if consecutive_green >= args.consecutive_green:
                 print(f"\n*** CONVERGED: {consecutive_green} consecutive GREEN runs ***")
                 return 0
@@ -1050,6 +1069,9 @@ def main() -> int:
     parser.add_argument("--input", type=Path, default=_DEFAULT_FIXTURE)
     parser.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
     parser.add_argument("--use-mock", action="store_true", help="Use mock LLM (for testing without API spend)")
+    parser.add_argument("--gate", choices=["tier6", "tier7", "both"], default="both",
+        help="Which gate(s) convergence-watch uses to detect 'system is green'. "
+             "'tier6' = verifier health; 'tier7' = format matrix; 'both' (default) = both.")
     args = parser.parse_args()
 
     if args.mode == "bug-fix":
