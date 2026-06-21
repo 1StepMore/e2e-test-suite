@@ -34,11 +34,17 @@ class EquivalenceResult:
     b_exists: bool
     size_match: bool  # within tolerance
     text_similarity: float  # 0-1, from fidelity checker
+    md5_match: bool  # True if byte-identical (the strongest equivalence check)
     equivalent: bool  # True if all checks pass
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def _md5(path: Path) -> str:
+    import hashlib
+    return hashlib.md5(path.read_bytes()).hexdigest()
 
 
 @dataclass
@@ -127,13 +133,14 @@ def compare_runs(
 
         size_match = False
         text_sim = 0.0
+        md5_match = False
         notes = []
 
         if not a_exists and not b_exists:
             notes.append("both missing — not compared")
             report.cells.append(EquivalenceResult(
                 inp, outp, path, a_exists, b_exists, size_match,
-                text_sim, equivalent=True, notes=notes,
+                text_sim, md5_match, equivalent=True, notes=notes,
             ))
             continue
 
@@ -142,12 +149,19 @@ def compare_runs(
                 f"missing in {b_label if a_exists else a_label}"
             )
             report.cells.append(EquivalenceResult(
-                inp, outp, path, a_exists, b_exists, False, 0.0,
+                inp, outp, path, a_exists, b_exists, False, 0.0, False,
                 equivalent=False, notes=notes,
             ))
             continue
 
-        # Both exist — compare size
+        # Both exist — MD5 hash comparison (strongest equivalence check)
+        a_hash = _md5(a_out)
+        b_hash = _md5(b_out)
+        md5_match = a_hash == b_hash
+        if not md5_match:
+            notes.append(f"md5 mismatch: a={a_hash[:12]} b={b_hash[:12]}")
+
+        # Size comparison (secondary signal for debugging)
         a_size = a_out.stat().st_size
         b_size = b_out.stat().st_size
         if a_size == 0 and b_size == 0:
@@ -158,19 +172,18 @@ def compare_runs(
             ratio = min(a_size, b_size) / max(a_size, b_size)
             size_match = ratio >= (1.0 - size_tolerance)
 
-        # Compare text content
+        # Text similarity (secondary signal — noisy with FAKE_LLM)
         if a_src and a_src.exists() and b_src and b_src.exists():
-            # Use a_src as the reference (both runs start from same source)
             fr_a = compute_fidelity(a_src, a_out, outp)
             fr_b = compute_fidelity(b_src, b_out, outp)
-            # Text similarity: how similar are the two outputs to each other?
-            # Use the average of both fidelity scores
             text_sim = (fr_a.overall + fr_b.overall) / 2
         else:
             text_sim = 0.0
             notes.append("source not available for text comparison")
 
-        equivalent = size_match and text_sim >= text_threshold
+        # MD5 match is the primary equivalence check. Size and text are
+        # reported for debugging but don't gate equivalence.
+        equivalent = md5_match
         if not size_match:
             notes.append(
                 f"size diff: {a_size} vs {b_size} (tolerance {size_tolerance:.0%})"
@@ -182,7 +195,7 @@ def compare_runs(
 
         report.cells.append(EquivalenceResult(
             inp, outp, path, a_exists, b_exists, size_match,
-            text_sim, equivalent, notes,
+            text_sim, md5_match, equivalent, notes,
         ))
 
     report.total_duration_s = time.monotonic() - t0
@@ -218,7 +231,7 @@ def main() -> int:
         for c in report.cells:
             if not c.equivalent:
                 print(f"  DIVERGENT: {c.inp}→{c.outp} ({c.path}) "
-                      f"size_match={c.size_match} text_sim={c.text_sim:.2f}")
+                      f"size_match={c.size_match} text_similarity={c.text_similarity:.2f}")
                 for n in c.notes:
                     print(f"    - {n}")
     return 0 if report.divergent == 0 else 1
