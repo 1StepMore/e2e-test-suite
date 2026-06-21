@@ -31,3 +31,54 @@ repos:
         language: system
         pass_filenames: false
         stages: [manual]
+
+  # ── Invariant Convergence: Layer 1 invariants ─────────────────────
+  # Every known gap category must have an automated invariant that
+  # prevents re-introduction. Add new invariants here when new gap
+  # categories are discovered.
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.0
+    hooks:
+      - id: ruff
+        name: ruff F-class (unused imports, undefined names)
+        args: ["--select", "F", "--fix"]
+
+  - repo: local
+    hooks:
+      - id: omni-version-alignment
+        name: Omni Suite version alignment
+        entry: |
+          bash -c '
+            ROOT_REQ=$(grep "^requires-python" pyproject.toml 2>/dev/null | head -1)
+            OPP_REQ=$(grep "^requires-python" Omni_Pre_Processor/pyproject.toml 2>/dev/null | head -1)
+            OL_REQ=$(grep "^requires-python" Omni_Localizer/pyproject.toml 2>/dev/null | head -1)
+            ORF_REQ=$(grep "^requires-python" Omni_Re_Formatter/pyproject.toml 2>/dev/null | head -1)
+            if [ -n "$ROOT_REQ" ] && [ -n "$OPP_REQ" ] && [ "$ROOT_REQ" != "$OPP_REQ" ]; then
+              echo "VERSION MISMATCH Root=$ROOT_REQ OPP=$OPP_REQ"; exit 1
+            fi
+            if [ -n "$ROOT_REQ" ] && [ -n "$OL_REQ" ] && [ "$ROOT_REQ" != "$OL_REQ" ]; then
+              echo "VERSION MISMATCH Root=$ROOT_REQ OL=$OL_REQ"; exit 1
+            fi
+            if [ -n "$ROOT_REQ" ] && [ -n "$ORF_REQ" ] && [ "$ROOT_REQ" != "$ORF_REQ" ]; then
+              echo "VERSION MISMATCH Root=$ROOT_REQ ORF=$ORF_REQ"; exit 1
+            fi
+          '
+        language: system
+        pass_filenames: false
+
+      - id: omni-no-hardcoded-keys
+        name: Omni Suite hardcoded API key detector
+        entry: |
+          bash -c '
+            if grep -rn --include="*.yaml" --include="*.json" --include="*.md" \
+              -E "(sk-[A-Za-z0-9_-]{20,}|nvapi-[A-Za-z0-9_-]{20,}|[a-f0-9]{16,}\.[A-Za-z0-9]{12,})" \
+              Omni_Pre_Processor/src/ Omni_Localizer/src/ Omni_Re_Formatter/src/ \
+              Omni_Pre_Processor/config/ Omni_Localizer/config/ Omni_Re_Formatter/config/ \
+              tests/ 2>/dev/null | \
+              grep -v ".venv" | grep -v "__pycache__" | grep -v "\.git/"; then
+              echo "HARDCODED API KEY DETECTED (see matches above)"; exit 1
+            fi
+          '
+        language: system
+        pass_filenames: false

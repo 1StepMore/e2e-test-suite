@@ -59,54 +59,52 @@ AVAILABILITY = {
 # Matrix definition
 # ---------------------------------------------------------------------------
 
-# Realistic input × output combinations (subset of the full 16×16 grid).
-# Excludes silly combinations (e.g. XLSX→EPUB) and format pairs that
-# don't have a clean translation path.
-# Format: (input_format, output_format) — both via MD path
-MD_PATH_MATRIX: list[tuple[str, str]] = [
-    ("docx", "docx"),
-    ("docx", "html"),
-    ("docx", "pdf"),
-    ("docx", "csv"),
-    ("docx", "xlsx"),
-    ("docx", "xml"),
-    ("docx", "ipynb"),
-    ("docx", "eml"),
-    ("docx", "srt"),
-    ("docx", "odt"),
-    ("docx", "epub"),
-    ("docx", "rtf"),
-    ("docx", "icml"),
-    ("docx", "json"),
-    ("pptx", "pptx"),  # skipped if md2pptx missing
-    ("html", "html"),
-    ("html", "docx"),
-    ("html", "pdf"),
-    ("csv", "csv"),
-    ("csv", "xlsx"),
-    ("csv", "json"),
-    ("json", "json"),
-    ("json", "xml"),
-    ("xml", "xml"),
-    ("xml", "json"),
-    ("eml", "eml"),
-    ("eml", "html"),
-    ("xlsx", "xlsx"),
-    ("xlsx", "csv"),
-    ("epub", "epub"),
-    ("epub", "html"),
-    ("epub", "docx"),
-    ("epub", "pdf"),
-    ("ipynb", "ipynb"),
-    ("ipynb", "html"),
-    ("ipynb", "docx"),
-    ("ipynb", "pdf"),
+ALL_INPUTS: list[str] = [
+    "docx", "pptx", "xlsx",
+    "html", "epub", "pdf",
+    "csv", "json", "xml",
+    "eml", "ipynb",
+]
+
+ALL_OUTPUTS: list[str] = [
+    "docx", "odt", "epub", "html", "rtf", "pdf",
+    "pptx", "icml", "srt",
+    "csv", "xlsx", "xml",
+    "ipynb", "eml", "json",
+]
+
+XLIFF_INPUTS: list[str] = [
+    "docx", "pptx", "xlsx", "html", "epub", "eml",
+]
+
+XLIFF_OUTPUTS: list[str] = [
+    "docx", "pptx", "epub", "html", "odt",
 ]
 
 
-# Skips the input format that requires missing CLI.
+def _build_full_matrix() -> list[tuple[str, str, str]]:
+    return [(i, o, "md") for i in ALL_INPUTS for o in ALL_OUTPUTS]
+
+
+def _build_full_xliff_matrix() -> list[tuple[str, str, str]]:
+    return [(i, o, "xliff") for i in XLIFF_INPUTS for o in XLIFF_OUTPUTS]
+
+
+MD_PATH_MATRIX: list[tuple[str, str]] = [(i, o) for i, o, _ in _build_full_matrix()]
+XLIFF_PATH_MATRIX: list[tuple[str, str]] = [(i, o) for i, o, _ in _build_full_xliff_matrix()]
+
+FULL_MATRIX: list[tuple[str, str, str]] = (
+    _build_full_matrix() + _build_full_xliff_matrix()
+)
+
+
+# Skip rules. Two formats:
+#   ("axis", fmt, reason) where axis ∈ {"input", "output"} — skip if that
+#     axis's format is `fmt` and the corresponding tool is unavailable.
+#   ("input_fmt", "output_fmt", reason) — skip a specific input→output pair
+#     (used for ill-defined format combinations where generic MD can't carry
+#     the required structure: JSON, XLSX, SRT, etc.).
 SKIP_RULES: list[tuple[str, str, str]] = [
-    # (input_or_output, format, reason_when_skipped)
     ("output", "pptx", "md2pptx CLI not installed"),
     ("output", "docx", "pandoc not installed"),
     ("output", "pdf", "pandoc/weasyprint not installed"),
@@ -117,6 +115,22 @@ SKIP_RULES: list[tuple[str, str, str]] = [
     ("input", "msg", "extract-msg not installed"),
     ("output", "msg", "aspose-email-foss not installed"),
     ("input", "ipynb", "nbformat not installed"),
+    # MD→JSON: arbitrary MD has no JSON payload; md2json requires a code
+    # block or OPP key=value pairs.
+    ("*", "json", "MD→JSON requires JSON code block or OPP key=value source"),
+    # MD→SRT: subtitle format requires timestamped cues; generic MD has none.
+    ("*", "srt", "MD→SRT requires timestamped cues; no timestamps in fixture"),
+    # Cross-format jumps with no logical content mapping (table↔slide).
+    ("pptx", "xlsx", "PPTX→XLSX: no table content in slide fixture"),
+    ("xlsx", "pptx", "XLSX→PPTX: no slide content in table fixture"),
+    # XLIFF path: OPP doesn't produce skeleton.zip for non-DOCX/PPTX inputs.
+    ("xliff", "xlsx", "XLIFF: OPP doesn't produce skeleton for XLSX"),
+    ("xliff", "html", "XLIFF: OPP doesn't produce skeleton for HTML"),
+    ("xliff", "epub", "XLIFF: OPP doesn't produce skeleton for EPUB"),
+    ("xliff", "eml", "XLIFF: OPP doesn't produce skeleton for EML"),
+    # XLIFF cross-format: ORF converters assume same-format skeleton+output.
+    # Only same-format XLIFF cells are supported.
+    ("xliff_xfmt", "*", "XLIFF cross-format not supported by ORF converters"),
 ]
 
 
@@ -128,6 +142,7 @@ SKIP_RULES: list[tuple[str, str, str]] = [
 class CellResult:
     inp: str
     outp: str
+    path: str  # "md" or "xliff"
     status: str  # "pass", "skip", "fail"
     duration_s: float
     detail: str = ""
@@ -165,45 +180,59 @@ class MatrixResult:
         }
 
 
-def _check_skip(inp: str, outp: str) -> str | None:
+def _check_skip(inp: str, outp: str, path: str) -> str | None:
     """Return skip reason if the cell should be skipped, else None."""
-    for axis, fmt, reason in SKIP_RULES:
+    for rule in SKIP_RULES:
+        axis, fmt, reason = rule
         if axis == "input" and fmt == inp:
             if not AVAILABILITY.get("extract_msg" if fmt == "msg" else
                                     "nbformat" if fmt == "ipynb" else
                                     fmt, True):
                 return reason
-        if axis == "output" and fmt == outp:
+        elif axis == "output" and fmt == outp:
             if not AVAILABILITY.get("pandoc" if fmt in ("docx", "pdf", "odt", "epub", "rtf", "icml") else
                                     "md2pptx" if fmt == "pptx" else
                                     "aspose_email" if fmt == "msg" else
                                     "weasyprint" if fmt == "pdf" else
                                     True, True):
                 return reason
+        elif axis == "*" and fmt == outp:
+            return reason
+        elif axis == inp and fmt == outp:
+            return reason
+        elif axis == "xliff" and fmt == inp and path == "xliff":
+            return reason
+        elif axis == "xliff_xfmt" and path == "xliff" and inp != fmt:
+            return reason
     return None
 
 
-def _run_one_cell(suite_root: Path, inp: str, outp: str, tmp_root: Path) -> CellResult:
-    """Run a single input→output cell end-to-end via the MD path.
+def _run_one_cell(
+    suite_root: Path, inp: str, outp: str, path: str, tmp_root: Path
+) -> CellResult:
+    """Run a single input→output cell end-to-end via the chosen path.
 
-    Steps:
-    1. Create a tiny fixture of the input format
-    2. OPP extracts to MD
-    3. OL translates MD (FAKE_LLM)
-    4. ORF backfills MD to output format
+    MD path:
+    1. OPP extracts input → MD
+    2. OL translates MD (FAKE_LLM) → translated MD
+    3. ORF backfills translated MD → output
+
+    XLIFF path:
+    1. OPP extracts input → XLIFF + skeleton.zip
+    2. OL translates XLIFF → translated XLIFF
+    3. ORF backfills translated XLIFF + skeleton → output
     """
     t0 = time.monotonic()
-    skip = _check_skip(inp, outp)
+    skip = _check_skip(inp, outp, path)
     if skip:
-        return CellResult(inp, outp, "skip", 0.0, skip_reason=skip)
+        return CellResult(inp, outp, path, "skip", 0.0, skip_reason=skip)
 
-    # Fixtures: each input format needs a small source file
-    cell_dir = tmp_root / f"{inp}_to_{outp}"
+    cell_dir = tmp_root / f"{path}_{inp}_to_{outp}"
     cell_dir.mkdir(parents=True, exist_ok=True)
     src = cell_dir / f"sample.{inp}"
     _write_minimal_fixture(inp, src)
     if not src.exists():
-        return CellResult(inp, outp, "skip", 0.0, skip_reason=f"no fixture for {inp}")
+        return CellResult(inp, outp, path, "skip", 0.0, skip_reason=f"no fixture for {inp}")
 
     env = os.environ.copy()
     env["OMNI_TEST_FAKE_LLM"] = "1"
@@ -220,26 +249,33 @@ def _run_one_cell(suite_root: Path, inp: str, outp: str, tmp_root: Path) -> Cell
     if not py.exists():
         py = Path(sys.executable)
 
+    if path == "md":
+        return _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
+    if path == "xliff":
+        return _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
+    return CellResult(inp, outp, path, "fail", time.monotonic() - t0,
+                      detail=f"unknown path: {path}")
+
+
+def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResult:
+    """MD intermediate path: input → MD → translated MD → output."""
     try:
-        # Step 1: OPP extract
-        md_out = cell_dir / "out.md"
         r1 = subprocess.run(
             [str(py), "-m", "opp.cli", str(src), "--target-format", "md",
              "--source-lang", "en", "--target-lang", "zh",
              "--output-dir", str(cell_dir)],
-            capture_output=True, text=True, env=env, cwd=str(suite_root / "Omni_Pre_Processor"),
+            capture_output=True, text=True, env=env,
+            cwd=str(suite_root / "Omni_Pre_Processor"),
             timeout=120,
         )
         if r1.returncode != 0:
-            return CellResult(inp, outp, "fail", time.monotonic() - t0,
+            return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
                               detail=f"OPP: {r1.stderr[:200]}")
-        # OPP names the output file after the source stem
         md_out = cell_dir / f"{src.stem}.md"
         if not md_out.exists():
-            return CellResult(inp, outp, "fail", time.monotonic() - t0,
-                              detail=f"OPP: no .md output at {md_out}")
+            return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
+                              detail=f"OPP: no .md at {md_out}")
 
-        # Step 2: OL translate (FAKE_LLM)
         ol_dir = cell_dir / "ol"
         ol_dir.mkdir(exist_ok=True)
         r2 = subprocess.run(
@@ -251,15 +287,13 @@ def _run_one_cell(suite_root: Path, inp: str, outp: str, tmp_root: Path) -> Cell
             timeout=120,
         )
         if r2.returncode != 0:
-            return CellResult(inp, outp, "fail", time.monotonic() - t0,
+            return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
                               detail=f"OL: {r2.stderr[:200]}")
-        # OL may name output <stem>.md (the original) or _translated_<stem>.md
         ol_md = ol_dir / f"{md_out.name}"
         if not ol_md.exists():
-            return CellResult(inp, outp, "fail", time.monotonic() - t0,
+            return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
                               detail=f"OL: no translated output at {ol_md}")
 
-        # Step 3: ORF backfill
         orf_out = cell_dir / f"result.{outp}"
         r3 = subprocess.run(
             [str(py), "-m", "orf.cli", "apply-md", str(ol_md),
@@ -269,19 +303,88 @@ def _run_one_cell(suite_root: Path, inp: str, outp: str, tmp_root: Path) -> Cell
             timeout=120,
         )
         if r3.returncode != 0:
-            return CellResult(inp, outp, "fail", time.monotonic() - t0,
+            return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
                               detail=f"ORF: {r3.stderr[:200]}")
         if not orf_out.exists():
-            return CellResult(inp, outp, "fail", time.monotonic() - t0,
+            return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
                               detail=f"ORF: no output at {orf_out}")
 
     except subprocess.TimeoutExpired:
-        return CellResult(inp, outp, "fail", time.monotonic() - t0, detail="timeout")
+        return CellResult(inp, outp, "md", "fail", time.monotonic() - t0, detail="timeout")
     except Exception as e:
-        return CellResult(inp, outp, "fail", time.monotonic() - t0,
+        return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
                           detail=f"{type(e).__name__}: {e}")
 
-    return CellResult(inp, outp, "pass", time.monotonic() - t0)
+    return CellResult(inp, outp, "md", "pass", time.monotonic() - t0)
+
+
+def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResult:
+    """XLIFF intermediate path: input → XLIFF+skeleton → translated XLIFF → output."""
+    try:
+        r1 = subprocess.run(
+            [str(py), "-m", "opp.cli", str(src), "--target-format", "both",
+             "--source-lang", "en", "--target-lang", "zh",
+             "--output-dir", str(cell_dir)],
+            capture_output=True, text=True, env=env,
+            cwd=str(suite_root / "Omni_Pre_Processor"),
+            timeout=120,
+        )
+        if r1.returncode != 0:
+            return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
+                              detail=f"OPP: {r1.stderr[:200]}")
+        xlf_path = cell_dir / f"{src.stem}.xlf"
+        skeleton_path = cell_dir / f"{src.stem}.skeleton.zip"
+        if not xlf_path.exists():
+            return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
+                              detail=f"OPP: no .xlf at {xlf_path}")
+        if not skeleton_path.exists():
+            return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
+                              detail=f"OPP: no skeleton at {skeleton_path}")
+
+        ol_dir = cell_dir / "ol"
+        ol_dir.mkdir(exist_ok=True)
+        r2 = subprocess.run(
+            [str(py), "-m", "ol_cli", "translate-xliff", str(xlf_path),
+             "-s", "en", "-t", "zh", "-o", str(ol_dir),
+             "-c", str(suite_root / "Omni_Localizer" / "config" / "default.yaml")],
+            capture_output=True, text=True, env=env,
+            cwd=str(suite_root / "Omni_Localizer"),
+            timeout=120,
+        )
+        if r2.returncode != 0:
+            return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
+                              detail=f"OL: {r2.stderr[:200]}")
+        ol_xlf = ol_dir / xlf_path.name
+        if not ol_xlf.exists():
+            ol_xlf = ol_dir / f"{src.stem}.xlf"
+        if not ol_xlf.exists():
+            return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
+                              detail=f"OL: no translated .xlf in {ol_dir}")
+
+        orf_out = cell_dir / f"result.{outp}"
+        r3 = subprocess.run(
+            [str(py), "-m", "orf.cli", "apply-xliff", str(skeleton_path),
+             "--xliff", str(ol_xlf),
+             "--output", str(orf_out),
+             "--format", outp, "--force"],
+            capture_output=True, text=True, env=env,
+            cwd=str(suite_root / "Omni_Re_Formatter"),
+            timeout=120,
+        )
+        if r3.returncode != 0:
+            return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
+                              detail=f"ORF: {r3.stderr[:200]}")
+        if not orf_out.exists():
+            return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
+                              detail=f"ORF: no output at {orf_out}")
+
+    except subprocess.TimeoutExpired:
+        return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0, detail="timeout")
+    except Exception as e:
+        return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
+                          detail=f"{type(e).__name__}: {e}")
+
+    return CellResult(inp, outp, "xliff", "pass", time.monotonic() - t0)
 
 
 def _write_minimal_fixture(inp: str, dest: Path) -> None:
@@ -354,6 +457,29 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
             return
         except ImportError:
             pass
+    if inp == "pdf":
+        # Minimal valid single-page PDF (no external deps).
+        dest.write_bytes(
+            b"%PDF-1.4\n"
+            b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+            b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+            b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]"
+            b"/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj\n"
+            b"4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n"
+            b"5 0 obj<</Length 44>>stream\n"
+            b"BT /F1 12 Tf 100 700 Td (Hello, world.) Tj ET\n"
+            b"endstream endobj\n"
+            b"xref\n0 6\n"
+            b"0000000000 65535 f \n"
+            b"0000000009 00000 n \n"
+            b"0000000056 00000 n \n"
+            b"0000000103 00000 n \n"
+            b"0000000211 00000 n \n"
+            b"0000000262 00000 n \n"
+            b"trailer<</Size 6/Root 1 0 R>>\n"
+            b"startxref\n356\n%%EOF\n"
+        )
+        return
     if inp == "epub":
         # Build a minimal valid EPUB via zipfile
         import zipfile
@@ -407,13 +533,13 @@ def _render_markdown(result: MatrixResult) -> str:
         f"**Fail**: {result.failed} | "
         f"**Duration**: {result.total_duration_s:.1f}s",
         "",
-        "| Input | Output | Status | Time | Detail |",
-        "|-------|--------|--------|------|--------|",
+        "| Path | Input | Output | Status | Time | Detail |",
+        "|-------|-------|--------|--------|------|--------|",
     ]
     for c in result.cells:
         d = c.detail or c.skip_reason
         lines.append(
-            f"| {c.inp} | {c.outp} | {c.status.upper()} | "
+            f"| {c.path} | {c.inp} | {c.outp} | {c.status.upper()} | "
             f"{c.duration_s:.1f}s | {d[:50]} |"
         )
     lines.append("")
@@ -439,33 +565,66 @@ def main() -> int:
                         help="Where to write the per-cell artifacts. Default: test_artifacts/format_matrix/<timestamp>")
     parser.add_argument("--json", action="store_true", help="Output JSON instead of markdown")
     parser.add_argument("--subset", type=str, default=None,
-                        help="Only run cells whose input matches this glob (e.g. 'docx')")
+                        help="Comma-separated input formats to test (e.g. 'docx,pptx'). "
+                             "Default: full matrix.")
+    parser.add_argument("--path-filter", choices=["md", "xliff", "both"], default="both",
+                        help="Which path(s) to test. Default: both.")
     parser.add_argument("--timeout", type=int, default=120, help="Per-cell timeout (seconds)")
+    parser.add_argument("--parallel", type=int, default=1,
+                        help="Run N cells concurrently (thread pool). Default: 1 (sequential).")
     args = parser.parse_args()
 
     import tempfile
     suite_root: Path = args.suite_root.resolve()
-    out_dir: Path = args.out_dir or (
-        suite_root / "test_artifacts" / "format_matrix"
-        / time.strftime("%Y%m%d-%H%M%S")
-    )
+    if args.out_dir is None:
+        out_dir = suite_root / "test_artifacts" / "format_matrix" / time.strftime("%Y%m%d-%H%M%S")
+    else:
+        out_dir = args.out_dir.resolve() if args.out_dir.is_absolute() else (Path.cwd() / args.out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     tmp_root = out_dir / "cells"
     tmp_root.mkdir(exist_ok=True)
 
     result = MatrixResult()
     t0 = time.monotonic()
-    cells = MD_PATH_MATRIX
+    cells = list(FULL_MATRIX)
+    if args.path_filter == "md":
+        cells = [c for c in cells if c[2] == "md"]
+    elif args.path_filter == "xliff":
+        cells = [c for c in cells if c[2] == "xliff"]
     if args.subset:
-        import fnmatch
-        cells = [(i, o) for i, o in cells if fnmatch.fnmatch(i, args.subset)]
-    for inp, outp in cells:
-        c = _run_one_cell(suite_root, inp, outp, tmp_root)
-        result.cells.append(c)
-        print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s)"
-              f"{'  ' + c.detail if c.detail else ''}"
-              f"{'  [' + c.skip_reason + ']' if c.skip_reason else ''}",
-              flush=True)
+        wanted = {s.strip() for s in args.subset.split(",") if s.strip()}
+        cells = [c for c in cells if c[0] in wanted]
+
+    if args.parallel <= 1:
+        for inp, outp, path in cells:
+            c = _run_one_cell(suite_root, inp, outp, path, tmp_root)
+            result.cells.append(c)
+            print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s)"
+                  f"{'  ' + c.detail if c.detail else ''}"
+                  f"{'  [' + c.skip_reason + ']' if c.skip_reason else ''}",
+                  flush=True)
+    else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=args.parallel) as pool:
+            futures = {
+                pool.submit(_run_one_cell, suite_root, inp, outp, path, tmp_root): (inp, outp, path)
+                for inp, outp, path in cells
+            }
+            cell_results: dict[tuple[str, str, str], CellResult] = {}
+            for fut in as_completed(futures):
+                inp, outp, path = futures[fut]
+                try:
+                    c = fut.result()
+                except Exception as e:
+                    c = CellResult(inp, outp, path, "fail", 0.0, detail=f"runner exception: {e}")
+                cell_results[(inp, outp, path)] = c
+                print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s)"
+                      f"{'  ' + c.detail if c.detail else ''}"
+                      f"{'  [' + c.skip_reason + ']' if c.skip_reason else ''}",
+                      flush=True)
+            for inp, outp, path in cells:
+                if (inp, outp, path) in cell_results:
+                    result.cells.append(cell_results[(inp, outp, path)])
     result.total_duration_s = time.monotonic() - t0
 
     md_path = out_dir / "matrix.md"
