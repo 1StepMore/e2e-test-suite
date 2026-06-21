@@ -536,11 +536,20 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
             b"<html xmlns='http://www.w3.org/1999/xhtml'>"
             b"<body><h1>Test</h1><p>Hello.</p></body></html>"
         )
+        # Fixed timestamp (2020-01-01 00:00:00) for deterministic ZIP metadata.
+        # Without this, zipfile embeds the current time and the fixture differs
+        # between runs, breaking equivalence checks.
+        fixed_dt = (2020, 1, 1, 0, 0, 0)
+        def _zi(name: str) -> zipfile.ZipInfo:
+            zi = zipfile.ZipInfo(name)
+            zi.date_time = fixed_dt
+            zi.compress_type = zipfile.ZIP_DEFLATED
+            return zi
         with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("mimetype", mimetype, compress_type=zipfile.ZIP_STORED)
-            zf.writestr("META-INF/container.xml", container)
-            zf.writestr("OEBPS/content.opf", opf)
-            zf.writestr("OEBPS/c1.xhtml", ch)
+            zf.writestr(_zi("mimetype"), mimetype, compress_type=zipfile.ZIP_STORED)
+            zf.writestr(_zi("META-INF/container.xml"), container)
+            zf.writestr(_zi("OEBPS/content.opf"), opf)
+            zf.writestr(_zi("OEBPS/c1.xhtml"), ch)
         return
     # Fallback: write a small text file (will fail format detection but
     # gives a clear error)
