@@ -15,6 +15,9 @@ Anything NOT listed here is expected to have an automated invariant (test or CI 
 | Testing | Real LLM tests (`test_e2e_real_llm.py`) excluded from CI gate | Require real API keys and network access. Run on separate nightly schedule. | 2026-06-20 |
 | Testing | Observability, security, cross-format E2E tests slow (>5 min each) | Only run in full CI suite; not included in quick usability verifier. | 2026-06-20 |
 | CLI | OL `--output-dir` has literal `--output-dir` as default placeholder | Known Typer display artifact. CLI silently writes to `--output-dir/<file>`. | 2026-06-20 |
+| MCP | OPP/OL/ORF MCP servers do not accept stdio JSON-RPC in this environment | All 3 servers use `fastmcp 3.4.2` and call `_mcp.run()` without `transport="stdio"`. Manual test: server starts, reads stdin, produces no stdout response, exits 0. MCP matrix (`scripts/mcp_matrix_verifier.py`) cannot run end-to-end until servers are patched to explicitly set `transport="stdio"` or the fastmcp default is changed. **Affects**: MCP transport dimension of the 4-dimension matrix (CLI happy-path covered, MCP blocked). | 2026-06-21 |
+| MCP | CLI-vs-MCP equivalence not yet measured | Depends on the stdio gap above. Once MCP servers accept stdio, `scripts/equivalence_checker.py` can compare CLI and MCP outputs cell-by-cell. Currently it can only verify CLI-vs-CLI determinism (which passes: two runs with FAKE_LLM produce identical outputs). | 2026-06-21 |
+| Fidelity | FAKE_LLM replaces text completely, so fidelity scores against the original source are very low (0.01-0.60) for most formats | Fidelity is measured against the source, but the pipeline includes a translation step. With a real LLM that preserves content, scores would be higher. The infrastructure is in place; scores are meaningful when a real LLM is used. | 2026-06-21 |
 
 ## Format Matrix Gaps (discovered 2026-06-21)
 
