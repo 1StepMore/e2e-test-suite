@@ -236,4 +236,3 @@ class TestXLIFF2DOCXCrossFormat:
         expected_msg_fragment = "Cross-format XLIFF"
         # In the real fix we build a message that includes this fragment
         assert "Cross-format" in expected_msg_fragment
-

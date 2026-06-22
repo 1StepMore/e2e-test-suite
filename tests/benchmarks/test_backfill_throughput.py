@@ -49,7 +49,7 @@ The product supports multiple output formats including DOCX, PDF, and HTML.
 
 def _run_orf_cli(input_path: Path, output_path: Path, target_format: str) -> float:
     """Run orf apply-md via subprocess and return elapsed seconds.
-    
+
     Uses ``python -m orf.cli`` to avoid the ``orf/logging/`` module shadowing
     the stdlib ``logging`` package when running the script file directly.
     """

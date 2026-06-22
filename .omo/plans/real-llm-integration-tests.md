@@ -197,7 +197,7 @@ def _inject_floating_image(
     anchor_data: dict,  # {positionH, positionV, relativeH, relativeV, ...}
 ) -> etree._Element:
     """Construct <w:drawing><wp:anchor> for floating image.
-    
+
     Preserves the original positionH/positionV from the source DOCX.
     """
     # Construct <w:drawing>
@@ -223,13 +223,13 @@ def inject_images(self, skeleton_path, images, output_path):
     # Separate by is_floating flag
     floating = [img for img in images if getattr(img, 'is_floating', False) and img.paragraph_index is None]
     in_para = [img for img in images if not getattr(img, 'is_floating', False) and img.paragraph_index is not None]
-    
+
     # Existing logic for in_para
     positioned, unpositioned = self._inject_inline_images(doc_tree, in_para)
-    
+
     # New logic for floating (wp:anchor)
     floating_positioned, floating_unpositioned = self._inject_floating_images(doc_tree, floating)
-    
+
     return positioned + floating_positioned, unpositioned + floating_unpositioned
 ```
 
@@ -262,13 +262,13 @@ if cfg.enable_lqa:
     from ol_retry.retry import RetryManager
     judge = JudgeService(pass_threshold=cfg.lqa_threshold)
     retry = RetryManager(max_retries=cfg.lqa_max_retries, pass_threshold=cfg.lqa_threshold)
-    
+
     def translate_fn():
         return await pool.translate(shielded, src_lang, tgt_lang)
-    
+
     def judge_fn(src, tgt, unit):
         return judge.judge(src, tgt, unit, source_lang=src_lang, target_lang=tgt_lang)
-    
+
     result = retry.execute_with_retry("md_main", original_text, translate_fn, judge_fn)
     translated = result.best_translation
     if result.warning:
@@ -296,7 +296,7 @@ def convert(
 ) -> ConversionResult:
     separate_images: bool = options.get("separate_images", False)
     images_dir: Path | None = options.get("images_dir")
-    
+
     if separate_images and images_dir:
         # 1. 解析 MD，提取所有图片引用
         images = extract_image_references(input_path)
@@ -339,12 +339,12 @@ def test_xliff_mcp_real_llm_image_positioning(haier_real_docx_path, use_real_llm
     result = pipeline.process_file(haier_real_docx_path)
     xliff = pipeline.generate_xliff(result.extraction_result, tmp_path / "out.xlf", "en", "zh")
     skeleton = pipeline.save_skeleton(result.extraction_result, "haier", tmp_path)
-    
+
     # 2. OL MCP（真 LLM）: translate_xliff
     translated_xliff = ol_mcp_tools.translate_xliff(
         TranslateXliffInput(input_path=str(xliff), source_lang="en", target_lang="zh")
     )
-    
+
     # 3. ORF MCP（真）: apply_xliff with images parameter
     images_list = [img.to_image_placement() for img in result.extraction_result.images]
     orf_mcp_tools.apply_xliff(
@@ -354,11 +354,11 @@ def test_xliff_mcp_real_llm_image_positioning(haier_real_docx_path, use_real_llm
         format="docx",
         images=images_list,
     )
-    
+
     # 4. 验证 24/24 strict visual
     opp_positions = extract_image_visual_positions_from_opp(result.extraction_result)
     orf_positions = extract_image_visual_positions_from_docx(tmp_path / "out.docx")
-    
+
     for img_filename, opp_pos in opp_positions.items():
         orf_pos = orf_positions[img_filename]
         # 段内图: 严格 paragraph_index match

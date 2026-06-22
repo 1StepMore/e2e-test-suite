@@ -1072,7 +1072,7 @@ def test_terminology_accuracy():
         "transformer": "Transformer",  # 专业术语不翻译
         # ... 200+ 术语
     }
-    
+
     # 在 10 个真实文档上运行
     for doc in REAL_CORPUS:
         translated = run_pipeline(doc, "en", "zh")
@@ -1085,15 +1085,15 @@ def test_format_preservation():
     """DOCX 格式保留：表格、样式、页眉页脚不被破坏。"""
     src = REAL_CORPUS / "complex.docx"
     translated = run_pipeline(src, "en", "zh")
-    
+
     # 用 python-docx 解析翻译后的文件
     from docx import Document
     src_doc = Document(src)
     out_doc = Document(translated)
-    
+
     # 表格数量不变
     assert len(src_doc.tables) == len(out_doc.tables)
-    
+
     # 段落数大致相同（允许 ±10% 因为语言膨胀）
     src_paras = len(src_doc.paragraphs)
     out_paras = len(out_doc.paragraphs)
@@ -1194,7 +1194,7 @@ def test_format_preservation():
 
 ---
 
-**文档版本**：2.0  
-**创建日期**：2026-06-22  
-**v1 → v2 更新**：基于 Metis + Momus 审查，重大修订  
+**文档版本**：2.0
+**创建日期**：2026-06-22
+**v1 → v2 更新**：基于 Metis + Momus 审查，重大修订
 **状态**：待审阅 + 执行

@@ -402,11 +402,11 @@ Mirrors `Omni_Pre_Processor/tests/test_opp_ol_orf_contracts.py:200-326` (XLIFF c
 
 class TestOPPtoOLContract_MD:
     """Verify OPP→OL contract for MD output."""
-    
+
     def test_opp_to_ol_md_preserves_structure(self, opp_pipeline, sample_docx_path):
         # Run OPP, get .md output, pass to OL MCP translate_md_text
         ...
-    
+
     def test_ol_translates_md_to_chinese(self, sample_md_text):
         # Verify OL MCP translates MD correctly
         ...
@@ -414,7 +414,7 @@ class TestOPPtoOLContract_MD:
 
 class TestOLtoORFContract_MD:
     """Verify OL→ORF contract for MD."""
-    
+
     def test_ol_to_orf_md_produces_docx(self, sample_translated_md):
         # Run ORF CLI apply-md on translated MD
         ...
@@ -422,7 +422,7 @@ class TestOLtoORFContract_MD:
 
 class TestFullPipelineContracts_MD:
     """Full chain OPP→OL→ORF for MD."""
-    
+
     def test_md_full_chain_translation_happens(self, haier_real_docx_path, use_fake_llm, tmp_path):
         ...
 ```

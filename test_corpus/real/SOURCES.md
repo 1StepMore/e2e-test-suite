@@ -3,11 +3,11 @@
 All 20 files in `real/` are public-domain English text excerpts suitable for
 Phase 3 real-document testing of the Omni Suite document localization pipeline.
 
-**File count:** 20  
-**Total size:** 452,500 bytes (441.9 KB) — well under 1 MB  
-**Per-file cap:** 50,000 bytes (largest file is 49,998 bytes)  
-**Per-file floor:** 1,000 bytes (smallest file is 2,952 bytes)  
-**Encoding:** UTF-8 plain text  
+**File count:** 20
+**Total size:** 452,500 bytes (441.9 KB) — well under 1 MB
+**Per-file cap:** 50,000 bytes (largest file is 49,998 bytes)
+**Per-file floor:** 1,000 bytes (smallest file is 2,952 bytes)
+**Encoding:** UTF-8 plain text
 **Boilerplate:** Project Gutenberg `*** START/END OF THE PROJECT GUTENBERG ***` markers stripped from all 15 Project Gutenberg sources.
 
 ## Sources
