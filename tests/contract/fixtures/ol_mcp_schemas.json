@@ -1,0 +1,488 @@
+[
+  {
+    "description": "Translate multiple texts in parallel.",
+    "inputSchema": {
+      "description": "Input for batch_translate_texts.",
+      "properties": {
+        "concurrency": {
+          "default": 5,
+          "description": "Max parallel translations",
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "glossary_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to JSON glossary",
+          "title": "Glossary Path"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "source_lang": {
+          "description": "Source language code",
+          "title": "Source Lang",
+          "type": "string"
+        },
+        "target_lang": {
+          "description": "Target language code",
+          "title": "Target Lang",
+          "type": "string"
+        },
+        "texts": {
+          "description": "List of markdown texts to translate",
+          "items": {
+            "type": "string"
+          },
+          "title": "Texts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "texts",
+        "source_lang",
+        "target_lang"
+      ],
+      "title": "BatchTranslateInput",
+      "type": "object"
+    },
+    "name": "batch_translate_texts"
+  },
+  {
+    "description": "Extract relevant glossary terms for a given text.",
+    "inputSchema": {
+      "description": "Input for get_relevant_terms.",
+      "properties": {
+        "glossary": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "description": "Glossary dict from load_glossary",
+          "title": "Glossary",
+          "type": "object"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "text": {
+          "description": "Source text to match against",
+          "title": "Text",
+          "type": "string"
+        },
+        "top_k": {
+          "default": 5,
+          "description": "Maximum terms to return",
+          "title": "Top K",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "glossary"
+      ],
+      "title": "GetRelevantTermsInput",
+      "type": "object"
+    },
+    "name": "get_relevant_terms"
+  },
+  {
+    "description": "Evaluate translation quality using LLM judge.",
+    "inputSchema": {
+      "description": "Input for judge_text.",
+      "properties": {
+        "glossary": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inline glossary dict",
+          "title": "Glossary"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "source": {
+          "description": "Original source text",
+          "title": "Source",
+          "type": "string"
+        },
+        "source_lang": {
+          "default": "en",
+          "description": "Source language code",
+          "title": "Source Lang",
+          "type": "string"
+        },
+        "target": {
+          "description": "Translated target text",
+          "title": "Target",
+          "type": "string"
+        },
+        "target_lang": {
+          "default": "en",
+          "description": "Target language code",
+          "title": "Target Lang",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target"
+      ],
+      "title": "JudgeInput",
+      "type": "object"
+    },
+    "name": "judge_text"
+  },
+  {
+    "description": "Load a JSON glossary file for use in translation.",
+    "inputSchema": {
+      "description": "Input for load_glossary.",
+      "properties": {
+        "config_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Base dir for relative paths",
+          "title": "Config Dir"
+        },
+        "path": {
+          "description": "Path to JSON glossary file",
+          "title": "Path",
+          "type": "string"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "LoadGlossaryInput",
+      "type": "object"
+    },
+    "name": "load_glossary"
+  },
+  {
+    "description": "Health check endpoint.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "name": "ping"
+  },
+  {
+    "description": "Search translation memory for similar past translations.",
+    "inputSchema": {
+      "description": "Input for search_tm.",
+      "properties": {
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "source_text": {
+          "description": "Text to search for in TM",
+          "title": "Source Text",
+          "type": "string"
+        },
+        "threshold": {
+          "default": 0.85,
+          "description": "Minimum similarity threshold (0-1)",
+          "title": "Threshold",
+          "type": "number"
+        },
+        "tmx_path": {
+          "description": "Path to .tmx translation memory file",
+          "title": "Tmx Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_text",
+        "tmx_path"
+      ],
+      "title": "SearchTMInput",
+      "type": "object"
+    },
+    "name": "search_tm"
+  },
+  {
+    "description": "Translate markdown text directly without file I/O.",
+    "inputSchema": {
+      "description": "Input for translate_md_text.",
+      "properties": {
+        "add_frontmatter": {
+          "default": false,
+          "description": "Add YAML frontmatter to output",
+          "title": "Add Frontmatter",
+          "type": "boolean"
+        },
+        "config_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to LLM config",
+          "title": "Config Path"
+        },
+        "content": {
+          "description": "Markdown text to translate",
+          "title": "Content",
+          "type": "string"
+        },
+        "glossary_max_terms": {
+          "default": 5,
+          "description": "Max relevant glossary terms per unit (CLI: --glossary-max-terms)",
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Glossary Max Terms",
+          "type": "integer"
+        },
+        "glossary_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to JSON glossary file",
+          "title": "Glossary Path"
+        },
+        "no_glossary": {
+          "default": false,
+          "description": "Disable glossary injection even if glossary_path is set (CLI: --no-glossary)",
+          "title": "No Glossary",
+          "type": "boolean"
+        },
+        "no_restoration": {
+          "default": false,
+          "description": "Skip the A12.4 post-translation placeholder restoration (CLI: --no-restoration)",
+          "title": "No Restoration",
+          "type": "boolean"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "source_lang": {
+          "description": "Source language code (e.g. en, zh, ja)",
+          "title": "Source Lang",
+          "type": "string"
+        },
+        "target_lang": {
+          "description": "Target language code",
+          "title": "Target Lang",
+          "type": "string"
+        },
+        "traceparent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional W3C Trace Context traceparent header to make this OL span a child of an upstream trace (e.g. from OPP extract_document).",
+          "title": "Traceparent"
+        }
+      },
+      "required": [
+        "content",
+        "source_lang",
+        "target_lang"
+      ],
+      "title": "TranslateInput",
+      "type": "object"
+    },
+    "name": "translate_md_text"
+  },
+  {
+    "description": "Translate an XLIFF file (writes <target> elements to the output file).",
+    "inputSchema": {
+      "description": "Input for translate_xliff.",
+      "properties": {
+        "config_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to LLM config",
+          "title": "Config Path"
+        },
+        "glossary_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to JSON glossary file",
+          "title": "Glossary Path"
+        },
+        "input_path": {
+          "description": "Path to input XLIFF file",
+          "title": "Input Path",
+          "type": "string"
+        },
+        "output_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to output XLIFF file. None = overwrite source (with warning)",
+          "title": "Output Path"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "source_lang": {
+          "default": "zh",
+          "description": "Source language code",
+          "title": "Source Lang",
+          "type": "string"
+        },
+        "target_lang": {
+          "default": "en",
+          "description": "Target language code",
+          "title": "Target Lang",
+          "type": "string"
+        },
+        "traceparent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional W3C Trace Context traceparent header to make this OL span a child of an upstream trace (e.g. from OPP extract_document).",
+          "title": "Traceparent"
+        }
+      },
+      "required": [
+        "input_path"
+      ],
+      "title": "TranslateXliffInput",
+      "type": "object"
+    },
+    "name": "translate_xliff"
+  }
+]

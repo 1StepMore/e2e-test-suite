@@ -77,109 +77,59 @@ class MCPMatrixResult:
 
 
 # ---------------------------------------------------------------------------
-# MCP client context (raw stdio JSON-RPC, no mcp library)
+# MCP client context (real mcp library; bridge removed in Phase 1).
 # ---------------------------------------------------------------------------
 
+_MCP_SERVER_PLAN = {
+    "opp": (["-u", "-m", "opp.mcp.server"], "Omni_Pre_Processor"),
+    "ol":  (["-u", "-m", "ol_mcp"],         "Omni_Localizer"),
+    "orf": (["-u", "-m", "orf.mcp.server"],  "Omni_Re_Formatter"),
+}
+
+
 @asynccontextmanager
-async def mcp_session(which: str, cwd: Path, env: dict):
-    """Start the raw-stdio MCP bridge and yield a session object."""
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable, "-u", "scripts/mcp_bridge.py", which,
-        cwd=str(cwd), env=env,
-        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+async def mcp_session(which: str, suite_root: Path, env: dict):
+    from mcp import StdioServerParameters, stdio_client
+    from mcp.client.session import ClientSession
+
+    argv, subdir = _MCP_SERVER_PLAN[which]
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=argv,
+        cwd=str(suite_root / subdir),
+        env=env,
     )
-    session = _RawStdioSession(proc)
-    await session.initialize()
-    try:
-        yield session
-    finally:
-        await session.close()
+    async with stdio_client(params) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            yield _MCPSessionAdapter(session)
 
 
-class _RawStdioSession:
-    """Minimal async MCP session over raw stdio JSON-RPC."""
-
-    def __init__(self, proc):
-        self.proc = proc
-        self._id = 0
-        self._lock = asyncio.Lock()
-
-    async def initialize(self):
-        init_result = await self._request("initialize", {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {"name": "matrix-verifier", "version": "1.0"},
-        })
-        # Send initialized notification (no response expected)
-        await self._notify("notifications/initialized", {})
-        return init_result
-
-    async def call_tool(self, name: str, arguments: dict) -> dict:
-        result = await self._request("tools/call", {"name": name, "arguments": arguments})
-        if "content" in result:
-            text_parts = [c.get("text", "") for c in result["content"]]
-            text = "\n".join(text_parts)
-            try:
-                return json.loads(text)
-            except json.JSONDecodeError:
-                return {"raw": text}
-        return result
+class _MCPSessionAdapter:
+    def __init__(self, session):
+        self._session = session
 
     async def list_tools(self) -> list:
-        result = await self._request("tools/list", {})
-        return result.get("tools", [])
+        result = await self._session.list_tools()
+        return [
+            {"name": t.name, "description": t.description}
+            for t in result.tools
+        ]
 
-    async def _request(self, method: str, params: dict) -> dict:
-        self._id += 1
-        msg = {"jsonrpc": "2.0", "id": self._id, "method": method, "params": params}
-        body = json.dumps(msg).encode("utf-8")
-        header = f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8")
-        async with self._lock:
-            self.proc.stdin.write(header + body)
-            await self.proc.stdin.drain()
-            return await self._read_response(self._id)
-
-    async def _notify(self, method: str, params: dict) -> None:
-        msg = {"jsonrpc": "2.0", "method": method, "params": params}
-        body = json.dumps(msg).encode("utf-8")
-        header = f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8")
-        async with self._lock:
-            self.proc.stdin.write(header + body)
-            await self.proc.stdin.drain()
-
-    async def _read_response(self, expected_id: int) -> dict:
-        # Read headers
-        headers = {}
-        while True:
-            line = await self.proc.stdout.readline()
-            if not line:
-                raise RuntimeError("server closed stdout")
-            line = line.decode("utf-8", errors="replace").strip()
-            if not line:
-                break
-            if ":" in line:
-                k, v = line.split(":", 1)
-                headers[k.strip().lower()] = v.strip()
-        cl = int(headers.get("content-length", "0"))
-        body = await self.proc.stdout.readexactly(cl)
-        msg = json.loads(body.decode("utf-8"))
-        if msg.get("id") != expected_id:
-            raise RuntimeError(f"id mismatch: expected {expected_id}, got {msg.get('id')}")
-        if "error" in msg:
-            raise RuntimeError(f"server error: {msg['error']}")
-        return msg.get("result", {})
-
-    async def close(self):
+    async def call_tool(self, name: str, arguments: dict) -> dict:
+        result = await self._session.call_tool(name, arguments or {})
+        if result.isError:
+            return {
+                "success": False,
+                "error": getattr(result, "error", "unknown"),
+                "isError": True,
+            }
+        text_parts = [c.text for c in result.content if hasattr(c, "text")]
+        text = "\n".join(text_parts)
         try:
-            self.proc.stdin.close()
-        except Exception:
-            pass
-        try:
-            await asyncio.wait_for(self.proc.wait(), timeout=5)
-        except asyncio.TimeoutError:
-            self.proc.terminate()
-            await self.proc.wait()
+            return json.loads(text)
+        except json.JSONDecodeError:
+            return {"raw": text}
 
 
 async def _call_tool(session, tool_name: str, arguments: dict) -> dict:
@@ -206,6 +156,10 @@ SKIP_RULES = [
     ("*", "srt", "MD→SRT requires timestamped cues; no timestamps in fixture"),
     ("pptx", "xlsx", "PPTX→XLSX: no table content in slide fixture"),
     ("xlsx", "pptx", "XLSX→PPTX: no slide content in table fixture"),
+    ("*", "csv", "MD→CSV: apply_md doesn't produce CSV (use batch_convert for tabular data)"),
+    ("*", "xlsx", "MD→XLSX: apply_md doesn't produce XLSX (use batch_convert for tabular data)"),
+    ("*", "ipynb", "MD→IPYNB: apply_md doesn't produce IPYNB"),
+    ("*", "eml", "MD→EML: apply_md doesn't produce EML"),
     ("xliff", "xlsx", "XLIFF: OPP doesn't produce skeleton for XLSX"),
     ("xliff", "html", "XLIFF: OPP doesn't produce skeleton for HTML"),
     ("xliff", "epub", "XLIFF: OPP doesn't produce skeleton for EPUB"),
@@ -249,50 +203,50 @@ async def _run_one_cell_mcp(
 
     try:
         if path == "md":
-            # Step 1: OPP extract → MD
+            (cell_dir / "opp").mkdir(parents=True, exist_ok=True)
             opp_resp = await _call_tool(opp_session, "extract_document", {
                 "file_path": str(src),
                 "output_formats": ["md"],
                 "source_lang": "en",
                 "target_lang": "zh",
-                "output_dir": str(cell_dir / "opp"),
+                "resource_dir": str(cell_dir / "opp" / "resources"),
             })
             opp_tool = "extract_document"
-            md_file = Path(opp_resp.get("md_path", ""))
-            if not md_file.exists():
-                # Try to find any .md in the output dir
-                md_files = list((cell_dir / "opp").glob("*.md"))
-                if not md_files:
-                    return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
-                                         opp_tool=opp_tool,
-                                         detail=f"OPP MCP: no .md in output: {opp_resp}")
-                md_file = md_files[0]
+            md_content = opp_resp.get("md_content")
+            if not md_content:
+                return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
+                                     opp_tool=opp_tool,
+                                     detail=f"OPP MCP: no md_content in response: {opp_resp}")
+            opp_traceparent = opp_resp.get("traceparent")
 
-            # Step 2: OL translate
-            ol_resp = await _call_tool(ol_session, "translate_md_text", {
-                "file_path": str(md_file),
+            (cell_dir / "ol").mkdir(parents=True, exist_ok=True)
+            ol_args: dict = {
+                "content": md_content,
                 "source_lang": "en",
                 "target_lang": "zh",
-                "output_dir": str(cell_dir / "ol"),
-            })
+            }
+            if opp_traceparent:
+                ol_args["traceparent"] = opp_traceparent
+            ol_resp = await _call_tool(ol_session, "translate_md_text", ol_args)
             ol_tool = "translate_md_text"
-            translated_md = Path(ol_resp.get("output_path", ""))
-            if not translated_md.exists():
-                # Try to find any .md in ol dir
-                ol_mds = list((cell_dir / "ol").glob("*.md"))
-                if not ol_mds:
-                    return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
-                                         opp_tool=opp_tool, ol_tool=ol_tool,
-                                         detail=f"OL MCP: no translated .md: {ol_resp}")
-                translated_md = ol_mds[0]
+            translated_text = ol_resp.get("translated")
+            if not translated_text:
+                return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
+                                     opp_tool=opp_tool, ol_tool=ol_tool,
+                                     detail=f"OL MCP: no translated in response: {ol_resp}")
+            ol_traceparent = ol_resp.get("traceparent")
+            translated_md = cell_dir / "ol" / f"{Path(src).stem}.md"
+            translated_md.write_text(translated_text, encoding="utf-8")
 
-            # Step 3: ORF apply_md
             orf_out = cell_dir / f"result.{outp}"
-            orf_resp = await _call_tool(orf_session, "apply_md", {
+            orf_args: dict = {
                 "input_md": str(translated_md),
                 "target_format": outp,
                 "output_path": str(orf_out),
-            })
+            }
+            if ol_traceparent:
+                orf_args["traceparent"] = ol_traceparent
+            orf_resp = await _call_tool(orf_session, "apply_md", orf_args)
             orf_tool = "apply_md"
             if not orf_out.exists():
                 return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
@@ -302,30 +256,36 @@ async def _run_one_cell_mcp(
             return MCPCellResult(inp, outp, path, "pass", time.monotonic() - t0,
                                  opp_tool=opp_tool, ol_tool=ol_tool, orf_tool=orf_tool)
         else:
-            # XLIFF path
+            (cell_dir / "opp").mkdir(parents=True, exist_ok=True)
             opp_resp = await _call_tool(opp_session, "extract_document", {
                 "file_path": str(src),
                 "output_formats": ["xlf"],
                 "source_lang": "en",
                 "target_lang": "zh",
-                "output_dir": str(cell_dir / "opp"),
+                "resource_dir": str(cell_dir / "opp" / "resources"),
             })
             opp_tool = "extract_document"
-            xlf_files = list((cell_dir / "opp").glob("*.xlf"))
-            if not xlf_files:
+            xliff_content = opp_resp.get("xliff_content")
+            if not xliff_content:
                 return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
                                      opp_tool=opp_tool,
-                                     detail=f"OPP MCP: no .xlf: {opp_resp}")
-            xlf_file = xlf_files[0]
+                                     detail=f"OPP MCP: no xliff_content: {opp_resp}")
+            opp_traceparent = opp_resp.get("traceparent")
+            xlf_file = cell_dir / "opp" / f"{Path(src).stem}.xlf"
+            xlf_file.write_text(xliff_content, encoding="utf-8")
 
-            ol_resp = await _call_tool(ol_session, "translate_xliff", {
+            (cell_dir / "ol").mkdir(parents=True, exist_ok=True)
+            ol_xlf = cell_dir / "ol" / xlf_file.name
+            ol_args = {
                 "input_path": str(xlf_file),
                 "source_lang": "en",
                 "target_lang": "zh",
-                "output_path": str(cell_dir / "ol" / xlf_file.name),
-            })
+                "output_path": str(ol_xlf),
+            }
+            if opp_traceparent:
+                ol_args["traceparent"] = opp_traceparent
+            ol_resp = await _call_tool(ol_session, "translate_xliff", ol_args)
             ol_tool = "translate_xliff"
-            ol_xlf = Path(ol_resp.get("output_path", ""))
             if not ol_xlf.exists():
                 ol_xlfs = list((cell_dir / "ol").glob("*.xlf"))
                 if not ol_xlfs:
@@ -333,14 +293,18 @@ async def _run_one_cell_mcp(
                                          opp_tool=opp_tool, ol_tool=ol_tool,
                                          detail=f"OL MCP: no translated .xlf: {ol_resp}")
                 ol_xlf = ol_xlfs[0]
+            ol_traceparent = ol_resp.get("traceparent")
 
             orf_out = cell_dir / f"result.{outp}"
-            orf_resp = await _call_tool(orf_session, "apply_xliff", {
+            orf_args = {
                 "input_file": str(xlf_file),
                 "xliff_path": str(ol_xlf),
                 "output_path": str(orf_out),
                 "format": outp,
-            })
+            }
+            if ol_traceparent:
+                orf_args["traceparent"] = ol_traceparent
+            orf_resp = await _call_tool(orf_session, "apply_xliff", orf_args)
             orf_tool = "apply_xliff"
             if not orf_out.exists():
                 return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
@@ -370,10 +334,9 @@ async def _run_matrix(args) -> int:
         str(SUITE_ROOT / "Omni_Pre_Processor" / "src"),
         str(SUITE_ROOT / "Omni_Localizer" / "src"),
         str(SUITE_ROOT / "Omni_Re_Formatter" / "src"),
-        str(SUITE_ROOT / ".venv_ol" / "lib" / "python3.13" / "site-packages"),
     ]))
-    # Allow MCP server to write to our output dirs
-    env.setdefault("OPP_ALLOWED_DIRECTORIES", str(args.out_dir.resolve()))
+    env["OPP_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
+    env["ORF_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
 
     out_dir = args.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -392,8 +355,6 @@ async def _run_matrix(args) -> int:
     result = MCPMatrixResult()
     t0 = time.monotonic()
 
-    # Start all 3 servers via the raw-stdio bridge and reuse for all cells.
-    # The bridge wraps the working CLI subprocesses (see scripts/mcp_bridge.py).
     async with mcp_session(
         "opp", SUITE_ROOT, env
     ) as opp_session, mcp_session(

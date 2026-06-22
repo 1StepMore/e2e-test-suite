@@ -10,7 +10,7 @@ Hardcoded literals in the tracked template (current state):
 | Provider | Model | Value (truncated) |
 |---|---|---|
 | Zhipu (BigModel) | glm-4-flash | `ca5c1f6cb3d141569a4968c3df55395f.PrSHg2Cf5g7qDwzY` |
-| Agnes | agnes-2.0-flash | `sk-7StQr3GnTGShdcy0MSsZjmHtyCtn9fRD5702TqFjNPXD4eyq` |
+| Agnes | agnes-2.0-flash | `${AGNES_API_KEY}` |
 | NVIDIA NIM | deepseek-v4-flash | `nvapi-C_7ORG8fl3kH7QkVIHmoL9Dk11KdPSjikOgkyzLOPX4...` |
 | NVIDIA NIM | kimi-k2.6 | (same as above) |
 
@@ -86,9 +86,9 @@ assert it catches it.
 # every commit in default.yaml's history. Rewrite + force-push.
 cd Omni_Localizer
 git filter-repo --replace-text <(printf '%s\n' \
-  'ca5c1f6cb3d141569a4968c3df55395f.PrSHg2Cf5g7qDwzY==><REDACTED-ZHIPU-API-KEY>' \
-  'sk-7StQr3GnTGShdcy0MSsZjmHtyCtn9fRD5702TqFjNPXD4eyq==><REDACTED-AGNES-API-KEY>' \
-  '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==><REDACTED-NVIDIA-API-KEY>' \
+  '<REDACTED-ZHIPU-API-KEY>' \
+  '<REDACTED-AGNES-API-KEY>' \
+  '<REDACTED-NVIDIA-API-KEY>' \
 ) --force
 ```
 

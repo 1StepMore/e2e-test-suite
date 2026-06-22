@@ -91,6 +91,26 @@ jobs:
           OMNI_TEST_FAKE_LLM: "1"
           OMNI_TEST_FAKE_PANDOC: "1"
 
+      - name: Run usability verifier (CLI matrix)
+        run: .venv_ol/bin/python scripts/verify_usability.py
+        env:
+          OMNI_TEST_FAKE_LLM: "1"
+          OMNI_TEST_FAKE_PANDOC: "1"
+          ZHIPU_API_KEY: "sk-dummy"
+          AGNES_API_KEY: "sk-dummy"
+          NVIDIA_NIM_API_KEY: "nvapi-dummy"
+          ORF_MCP_ALLOWED_DIRS: "/tmp:/home/runner/work/Omni_Suite"
+
+      - name: Run MCP verifier
+        run: .venv_ol/bin/python scripts/verify_mcp.py
+        env:
+          OMNI_TEST_FAKE_LLM: "1"
+          OMNI_TEST_FAKE_PANDOC: "1"
+          ZHIPU_API_KEY: "sk-dummy"
+          AGNES_API_KEY: "sk-dummy"
+          NVIDIA_NIM_API_KEY: "nvapi-dummy"
+          ORF_MCP_ALLOWED_DIRS: "/tmp:/home/runner/work/Omni_Suite"
+
   # -------------------------------------------------------------------------
   # Job 2: Nightly LLM tests (slow, requires real API keys).
   # Runs on a schedule + manual dispatch. Matrix: {m2.7, deepseek}.

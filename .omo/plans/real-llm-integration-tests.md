@@ -499,18 +499,18 @@ cd /mnt/d/贯维/Omni_Suite && .venv/bin/python -m pytest \
 
 ## 9. Acceptance Criteria
 
-- [ ] Phase 1：`.env` 填好，CLI 手动调通真 LLM
-- [ ] Feature 1：OPP 24 张图中 22 张 `is_floating=True, paragraph_index=None`，2 张段内图
-- [ ] Feature 2：ORF 新 `_inject_floating_image()` 对 22 张浮动图写入 `wp:anchor` 含 H/V 坐标
-- [ ] Feature 3：`enable_lqa=True` 时 RetryManager 触发；`False` 时不触发
-- [ ] Feature 4：`separate_images=True` 时 DOCX 无图、images/ 24 张、manifest 正确
-- [ ] 3 个真 LLM 测试通过手动跑（`pytest -m nightly`）
-- [ ] 24/24 strict visual 位置匹配（2 段内图 paragraph_index + 22 浮动图 wp:anchor H/V）
-- [ ] LQA 4 维度平均 ≥ 5.0（多次跑稳定）
-- [ ] 46 fake + 4 new feature 测试保持 PASS
-- [ ] `pytest -m "not nightly"` 不跑真 LLM（CI 友好）
-- [ ] `.env` 仍被 3 个子仓 gitignore 保护
-- [ ] 没有 secret leak
+- [~] Phase 1：`.env` 填好，CLI 手动调通真 LLM
+- [~] Feature 1：OPP 24 张图中 22 张 `is_floating=True, paragraph_index=None`，2 张段内图
+- [~] Feature 2：ORF 新 `_inject_floating_image()` 对 22 张浮动图写入 `wp:anchor` 含 H/V 坐标
+- [~] Feature 3：`enable_lqa=True` 时 RetryManager 触发；`False` 时不触发
+- [~] Feature 4：`separate_images=True` 时 DOCX 无图、images/ 24 张、manifest 正确
+- [~] 3 个真 LLM 测试通过手动跑（`pytest -m nightly`）
+- [~] 24/24 strict visual 位置匹配（2 段内图 paragraph_index + 22 浮动图 wp:anchor H/V）
+- [~] LQA 4 维度平均 ≥ 5.0（多次跑稳定）
+- [~] 46 fake + 4 new feature 测试保持 PASS
+- [~] `pytest -m "not nightly"` 不跑真 LLM（CI 友好）
+- [~] `.env` 仍被 3 个子仓 gitignore 保护
+- [~] 没有 secret leak
 
 ---
 

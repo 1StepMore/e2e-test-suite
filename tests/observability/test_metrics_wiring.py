@@ -3,9 +3,7 @@ OPP log_mcp_audit and OL mcp_error_boundary.
 """
 
 import asyncio
-from unittest.mock import MagicMock, patch
 
-import pytest
 from prometheus_client import REGISTRY
 
 

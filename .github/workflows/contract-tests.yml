@@ -1,0 +1,107 @@
+name: contract-tests
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'tests/contract/**'
+      - 'tests/contract/fixtures/**'
+      - 'scripts/mcp_matrix_verifier.py'
+      - 'Omni_Pre_Processor/src/opp/cli.py'
+      - 'Omni_Pre_Processor/src/opp/mcp/server.py'
+      - 'Omni_Localizer/src/ol_cli.py'
+      - 'Omni_Localizer/src/ol_mcp/**'
+      - 'Omni_Re_Formatter/src/orf/cli.py'
+      - 'Omni_Re_Formatter/src/orf/mcp/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'tests/contract/**'
+      - 'scripts/mcp_matrix_verifier.py'
+
+jobs:
+  cli-help-contract:
+    name: CLI --help contract (frozen fixtures)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Cache .venv_ol
+        uses: actions/cache@v4
+        with:
+          path: .venv_ol
+          key: venv-ol-py313-${{ hashFiles('Omni_Pre_Processor/pyproject.toml', 'Omni_Localizer/pyproject.toml', 'Omni_Re_Formatter/pyproject.toml') }}
+      - name: Install dev deps
+        run: |
+          bash scripts/setup_dev.sh
+      - name: Run CLI contract tests
+        env:
+          OMNI_TEST_FAKE_LLM: '1'
+          OMNI_TEST_FAKE_PANDOC: '1'
+        run: .venv_ol/bin/python -m pytest tests/contract/test_cli_help.py -v --tb=short
+
+  mcp-schemas-contract:
+    name: MCP schema contract (frozen fixtures)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Cache .venv_ol
+        uses: actions/cache@v4
+        with:
+          path: .venv_ol
+          key: venv-ol-py313-${{ hashFiles('Omni_Pre_Processor/pyproject.toml', 'Omni_Localizer/pyproject.toml', 'Omni_Re_Formatter/pyproject.toml') }}
+      - name: Install dev deps
+        run: |
+          bash scripts/setup_dev.sh
+      - name: Run MCP schema contract tests
+        env:
+          OMNI_TEST_FAKE_LLM: '1'
+          OMNI_TEST_FAKE_PANDOC: '1'
+        run: .venv_ol/bin/python -m pytest tests/contract/test_mcp_schemas.py -v --tb=short
+
+  mcp-matrix:
+    name: MCP matrix (subset, --subset docx)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Cache .venv_ol
+        uses: actions/cache@v4
+        with:
+          path: .venv_ol
+          key: venv-ol-py313-${{ hashFiles('Omni_Pre_Processor/pyproject.toml', 'Omni_Localizer/pyproject.toml', 'Omni_Re_Formatter/pyproject.toml') }}
+      - name: Install dev deps
+        run: |
+          bash scripts/setup_dev.sh
+      - name: Run MCP matrix (single format)
+        env:
+          OMNI_TEST_FAKE_LLM: '1'
+          OMNI_TEST_FAKE_PANDOC: '1'
+          OPP_MCP_ALLOWED_DIRS: /tmp/mcp-matrix-ci
+          ORF_MCP_ALLOWED_DIRS: /tmp/mcp-matrix-ci
+        run: |
+          mkdir -p /tmp/mcp-matrix-ci
+          .venv_ol/bin/python scripts/mcp_matrix_verifier.py \
+            --out-dir /tmp/mcp-matrix-ci \
+            --path-filter md \
+            --subset docx \
+            --corpus minimal

@@ -1,5 +1,4 @@
 """W3.3: Content-scraping verification for AGENTS.md and SKILL.md."""
-import sys
 from pathlib import Path
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent

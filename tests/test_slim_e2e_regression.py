@@ -15,7 +15,6 @@ Marked @pytest.mark.slow for opt-in CI runs. The 14MB slim is the
 validation target, not the CI fixture.
 """
 
-import re
 import zipfile
 from pathlib import Path
 

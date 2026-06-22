@@ -7,6 +7,11 @@ dependencies = [
     "prometheus_client>=0.20.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "structlog>=24.1.0",
+]
+
 [project.scripts]
 omni-suite = "omni_suite.cli:main"
 
@@ -28,3 +33,57 @@ members = [
 omni-pre-processor = { path = "Omni_Pre_Processor" }
 omni-localizer = { path = "Omni_Localizer" }
 omni-re-formatter = { path = "Omni_Re_Formatter" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = [
+    "Omni_Pre_Processor/src/opp/extractors",
+    "Omni_Localizer/src/ol_buses",
+    "Omni_Re_Formatter/src/orf/converters",
+    "docker",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".venv_ol",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+    "N",  # pep8-naming
+]
+ignore = [
+    "E501",  # line too long (we set line-length=100 but allow longer in some cases)
+    "B008",  # function call in default argument (click/typer patterns)
+    "B904",  # raise without from inside except (acceptable in MCP tool wrappers)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["B", "N"]  # tests can use assert, mocks, and any naming
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+exclude = [
+    "Omni_Pre_Processor/src/opp/extractors",
+    "Omni_Localizer/src/ol_buses",
+    "Omni_Re_Formatter/src/orf/converters",
+    "docker",
+    "build",
+    "dist",
+    ".venv_ol",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+check_untyped_defs = false

@@ -22,7 +22,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import time
 import zipfile
@@ -70,21 +69,17 @@ os.environ.setdefault(
 )
 
 # ── Now import component modules (logging already configured) ───────
-from opp.logger import logger as opp_logger
-from opp.pipeline import OPPPipeline
 
 # Test helpers
 from test_e2e_real_llm import (
     _run_opp,
     _run_ol,
     _run_orf,
-    _run_e2e_chain,
     _assert_non_empty_file,
     _assert_image_positioning,
     _assert_translated_to_target_lang,
     _extract_docx_text,
     _judge_docx_text,
-    _require_pandoc,
     ensure_md_block_separation,
     extract_image_positions,
     OppOutputs,

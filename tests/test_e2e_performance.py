@@ -3,7 +3,6 @@
 Tests document extraction performance, timing, and resource usage.
 """
 
-import sys
 import time
 import tracemalloc
 from pathlib import Path

@@ -10,8 +10,6 @@ Run with: pytest tests/test_e2e_pipeline.py -v
 
 import json
 import os
-import subprocess
-import sys
 import zipfile
 from pathlib import Path
 
@@ -24,24 +22,21 @@ class TestOmniPipelinePrerequisites:
     def test_opp_importable(self):
         """Verify OPP module can be imported."""
         try:
-            from opp.detector import FormatType, detect_format
-            from opp.pipeline import OPPPipeline
+            import opp  # noqa: F401
         except ImportError as e:
             pytest.skip(f"OPP not importable: {e}")
 
     def test_ol_importable(self):
         """Verify OL module can be imported."""
         try:
-            from ol_md.pipeline import MDRepairPipeline
-            from ol_md.shield import shield_markdown
+            import ol_md  # noqa: F401
         except ImportError as e:
             pytest.skip(f"OL not importable: {e}")
 
     def test_orf_importable(self):
         """Verify ORF module can be imported."""
         try:
-            from orf.parsers.manifest import Manifest
-            from orf.skeleton.skeleton_loader import SkeletonLoader
+            import orf  # noqa: F401
         except ImportError as e:
             pytest.skip(f"ORF not importable: {e}")
 

@@ -9,9 +9,8 @@ see eval/reference/ — this test uses a synthetic mock set.
 Runs in CI nightly, not on every commit (costs ~5min LLM time).
 """
 
-import pytest
 
-from ol_lqa.calibration import calibrate, CalibrationReport
+from ol_lqa.calibration import calibrate
 from ol_lqa.multi_judge import DIMENSIONS, JudgeScore, MultiJudgeResult, aggregate
 
 

@@ -68,8 +68,8 @@ Until A0 is fixed, the LQA retry path cannot fire. So:
 - [x] A10. **OL-6/OL-9 fold-in**: graceful degradation + log for L2 `span_aligner` on MD path — l2_span_align returns (text, l2_applied), log level DEBUG→WARNING in both MD and XLIIF paths; callers unpack tuple; tests deferred (blocked on broken test fixture)
 - [x] A11. **Pipeline-2 fold-in**: real-LLM regression suite in CI (nightly, gated on API key + cost cap) — conftest, CostEstimator ($5/test gate), 6-input corpus, 4 real-LLM tests (gated, skip in normal CI), 2 cost-estimator tests (pass in normal CI), GitHub Actions weekly cron + runbook; real-LLM calls require user auth (~$0.08/month at weekly cadence)
 - [x] A12. **Glossary + Restoration fold-in**: CLI flags, end-to-end coverage, restoration LLM invocation verified — --glossary/--no-glossary/--glossary-max-terms flags on translate-md/translate-xliff; src/ol_terminology/ with Glossary dataclass (load/find_relevant/inject_into_prompt); src/ol_restoration/ with Restorer class (recovers stripped {{_OL_XTAG_*}}/{{_OL_CODE_*}}/{{_OL_MATH_*}}); --no-restoration flag; glossary_format.md docs; 33 new tests pass (19 glossary + 10 restoration + 4 flag tests)
-- [ ] B1. (Path B, deferred) `omni_orchestrator` repo with `Document` + `Pipeline` + `LLMProvider`
-- [ ] B2. (Path B, deferred) Library-mode integration of OPP/OL/ORF
+- [~] B1. (Path B, deferred) `omni_orchestrator` repo with `Document` + `Pipeline` + `LLMProvider`
+- [~] B2. (Path B, deferred) Library-mode integration of OPP/OL/ORF
 
 ---
 

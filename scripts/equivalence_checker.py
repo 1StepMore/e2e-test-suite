@@ -44,7 +44,7 @@ class EquivalenceResult:
 
 def _md5(path: Path) -> str:
     import hashlib
-    return hashlib.md5(path.read_bytes()).hexdigest()
+    return hashlib.md5(path.read_bytes(), usedforsecurity=False).hexdigest()
 
 
 @dataclass

@@ -6,9 +6,7 @@ OL/ORF propagation is deferred to a follow-up round.
 """
 
 import uuid
-from pathlib import Path
 
-import pytest
 
 
 class TestXLIFFFileAttributes:

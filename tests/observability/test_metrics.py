@@ -1,6 +1,5 @@
 """Tests for Phase B5: shared Prometheus metrics."""
 
-import pytest
 from prometheus_client import REGISTRY
 
 

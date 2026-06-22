@@ -11,8 +11,6 @@ Each test creates sample input files and verifies CLI output.
 import json
 import subprocess
 import sys
-import tempfile
-from pathlib import Path
 
 import pytest
 

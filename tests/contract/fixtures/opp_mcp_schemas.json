@@ -1,0 +1,236 @@
+[
+  {
+    "description": "Process multiple files in one request. Returns per-file extraction results plus aggregate counts.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "type": "string"
+        },
+        "file_paths": {
+          "description": "List of absolute file paths to extract.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "output_formats": {
+          "description": "Output formats; default is ['md'].",
+          "oneOf": [
+            {
+              "enum": [
+                "md",
+                "xlf",
+                "both"
+              ],
+              "type": "string"
+            },
+            {
+              "items": {
+                "enum": [
+                  "md",
+                  "xlf",
+                  "both"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "source_lang": {
+          "default": "zh",
+          "type": "string"
+        },
+        "target_lang": {
+          "default": "en",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_paths"
+      ],
+      "type": "object"
+    },
+    "name": "batch_extract"
+  },
+  {
+    "description": "Identify the file format using magic-bytes detection. Returns the format name and a confidence score in [0, 1].",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "type": "string"
+        },
+        "file_path": {
+          "description": "Absolute path to the file to inspect.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path"
+      ],
+      "type": "object"
+    },
+    "name": "detect_format_tool"
+  },
+  {
+    "description": "Extract content from a single document file. Supports DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML, EPUB, EML, MSG, and images. Returns markdown and/or XLIFF depending on output_formats.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "description": "Shared secret for MCP auth (when MCP_SHARED_SECRET is set).",
+          "type": "string"
+        },
+        "file_path": {
+          "description": "Absolute path to the source document.",
+          "type": "string"
+        },
+        "output_formats": {
+          "description": "Output formats; default is ['md'].",
+          "oneOf": [
+            {
+              "enum": [
+                "md",
+                "xlf",
+                "both"
+              ],
+              "type": "string"
+            },
+            {
+              "items": {
+                "enum": [
+                  "md",
+                  "xlf",
+                  "both"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "resource_dir": {
+          "description": "Directory to store extracted resources.",
+          "type": "string"
+        },
+        "source_lang": {
+          "default": "zh",
+          "description": "Source language code.",
+          "type": "string"
+        },
+        "target_lang": {
+          "default": "en",
+          "description": "Target language code.",
+          "type": "string"
+        },
+        "traceparent": {
+          "description": "Optional W3C Trace Context traceparent header to make this span a child of an upstream trace.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path"
+      ],
+      "type": "object"
+    },
+    "name": "extract_document"
+  },
+  {
+    "description": "Convert a document to Markdown format.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "type": "string"
+        },
+        "embed_images": {
+          "default": true,
+          "type": "boolean"
+        },
+        "file_path": {
+          "type": "string"
+        },
+        "output_path": {
+          "type": "string"
+        },
+        "style_mapping": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Optional mapping from style name to heading level.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "file_path"
+      ],
+      "type": "object"
+    },
+    "name": "generate_markdown"
+  },
+  {
+    "description": "Convert a document to XLIFF format for translation workflows. Requires source and target language codes.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "type": "string"
+        },
+        "file_path": {
+          "type": "string"
+        },
+        "output_path": {
+          "description": "Optional output XLIFF path.",
+          "type": "string"
+        },
+        "source_lang": {
+          "default": "zh",
+          "type": "string"
+        },
+        "target_lang": {
+          "default": "en",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path"
+      ],
+      "type": "object"
+    },
+    "name": "generate_xliff"
+  },
+  {
+    "description": "Health check endpoint.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "ping"
+  },
+  {
+    "description": "Save skeleton ZIP from an extracted DOCX/PPTX. The skeleton is required by ORF's apply_xliff for XLIFF->DOCX/PPTX backfill.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "type": "string"
+        },
+        "base_name": {
+          "default": "document",
+          "type": "string"
+        },
+        "file_path": {
+          "type": "string"
+        },
+        "output_dir": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path"
+      ],
+      "type": "object"
+    },
+    "name": "save_skeleton"
+  }
+]
