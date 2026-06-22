@@ -77,41 +77,114 @@ class MCPMatrixResult:
 
 
 # ---------------------------------------------------------------------------
-# MCP client context
+# MCP client context (raw stdio JSON-RPC, no mcp library)
 # ---------------------------------------------------------------------------
 
 @asynccontextmanager
-async def mcp_session(server_module: str, cwd: Path, env: dict):
-    """Start an MCP server as a subprocess and yield a connected ClientSession."""
-    from mcp import ClientSession, StdioServerParameters
-    from mcp.client.stdio import stdio_client
-
-    params = StdioServerParameters(
-        command=sys.executable,
-        args=["-m", server_module],
-        cwd=str(cwd),
-        env=env,
+async def mcp_session(which: str, cwd: Path, env: dict):
+    """Start the raw-stdio MCP bridge and yield a session object."""
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, "-u", "scripts/mcp_bridge.py", which,
+        cwd=str(cwd), env=env,
+        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
     )
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            yield session
+    session = _RawStdioSession(proc)
+    await session.initialize()
+    try:
+        yield session
+    finally:
+        await session.close()
+
+
+class _RawStdioSession:
+    """Minimal async MCP session over raw stdio JSON-RPC."""
+
+    def __init__(self, proc):
+        self.proc = proc
+        self._id = 0
+        self._lock = asyncio.Lock()
+
+    async def initialize(self):
+        init_result = await self._request("initialize", {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "matrix-verifier", "version": "1.0"},
+        })
+        # Send initialized notification (no response expected)
+        await self._notify("notifications/initialized", {})
+        return init_result
+
+    async def call_tool(self, name: str, arguments: dict) -> dict:
+        result = await self._request("tools/call", {"name": name, "arguments": arguments})
+        if "content" in result:
+            text_parts = [c.get("text", "") for c in result["content"]]
+            text = "\n".join(text_parts)
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                return {"raw": text}
+        return result
+
+    async def list_tools(self) -> list:
+        result = await self._request("tools/list", {})
+        return result.get("tools", [])
+
+    async def _request(self, method: str, params: dict) -> dict:
+        self._id += 1
+        msg = {"jsonrpc": "2.0", "id": self._id, "method": method, "params": params}
+        body = json.dumps(msg).encode("utf-8")
+        header = f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8")
+        async with self._lock:
+            self.proc.stdin.write(header + body)
+            await self.proc.stdin.drain()
+            return await self._read_response(self._id)
+
+    async def _notify(self, method: str, params: dict) -> None:
+        msg = {"jsonrpc": "2.0", "method": method, "params": params}
+        body = json.dumps(msg).encode("utf-8")
+        header = f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8")
+        async with self._lock:
+            self.proc.stdin.write(header + body)
+            await self.proc.stdin.drain()
+
+    async def _read_response(self, expected_id: int) -> dict:
+        # Read headers
+        headers = {}
+        while True:
+            line = await self.proc.stdout.readline()
+            if not line:
+                raise RuntimeError("server closed stdout")
+            line = line.decode("utf-8", errors="replace").strip()
+            if not line:
+                break
+            if ":" in line:
+                k, v = line.split(":", 1)
+                headers[k.strip().lower()] = v.strip()
+        cl = int(headers.get("content-length", "0"))
+        body = await self.proc.stdout.readexactly(cl)
+        msg = json.loads(body.decode("utf-8"))
+        if msg.get("id") != expected_id:
+            raise RuntimeError(f"id mismatch: expected {expected_id}, got {msg.get('id')}")
+        if "error" in msg:
+            raise RuntimeError(f"server error: {msg['error']}")
+        return msg.get("result", {})
+
+    async def close(self):
+        try:
+            self.proc.stdin.close()
+        except Exception:
+            pass
+        try:
+            await asyncio.wait_for(self.proc.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            self.proc.terminate()
+            await self.proc.wait()
 
 
 async def _call_tool(session, tool_name: str, arguments: dict) -> dict:
     """Call an MCP tool and return the parsed result."""
-    result = await session.call_tool(tool_name, arguments=arguments)
-    if result.isError:
-        raise RuntimeError(f"Tool {tool_name} returned error: {result.content}")
-    text_parts = []
-    for block in result.content:
-        if hasattr(block, "text"):
-            text_parts.append(block.text)
-    text = "\n".join(text_parts)
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return {"raw": text}
+    return await session.call_tool(tool_name, arguments)
 
 
 # ---------------------------------------------------------------------------
@@ -319,22 +392,23 @@ async def _run_matrix(args) -> int:
     result = MCPMatrixResult()
     t0 = time.monotonic()
 
-    # Start all 3 servers and reuse for all cells
+    # Start all 3 servers via the raw-stdio bridge and reuse for all cells.
+    # The bridge wraps the working CLI subprocesses (see scripts/mcp_bridge.py).
     async with mcp_session(
-        "opp.mcp.server", SUITE_ROOT / "Omni_Pre_Processor", env
+        "opp", SUITE_ROOT, env
     ) as opp_session, mcp_session(
-        "ol_mcp", SUITE_ROOT / "Omni_Localizer", env
+        "ol", SUITE_ROOT, env
     ) as ol_session, mcp_session(
-        "orf.mcp.server", SUITE_ROOT / "Omni_Re_Formatter", env
+        "orf", SUITE_ROOT, env
     ) as orf_session:
 
         # Discover tools (sanity check)
         opp_tools = await opp_session.list_tools()
         ol_tools = await ol_session.list_tools()
         orf_tools = await orf_session.list_tools()
-        print(f"  OPP tools: {[t.name for t in opp_tools.tools][:5]}...")
-        print(f"  OL  tools: {[t.name for t in ol_tools.tools][:5]}...")
-        print(f"  ORF tools: {[t.name for t in orf_tools.tools][:5]}...", flush=True)
+        print(f"  OPP tools: {[t['name'] for t in opp_tools][:5]}...")
+        print(f"  OL  tools: {[t['name'] for t in ol_tools][:5]}...")
+        print(f"  ORF tools: {[t['name'] for t in orf_tools][:5]}...", flush=True)
 
         for inp, outp, path in cells:
             cell_dir = tmp_root / f"mcp_{path}_{inp}_to_{outp}"
