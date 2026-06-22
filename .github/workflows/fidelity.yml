@@ -59,7 +59,7 @@ jobs:
       - name: Install OL for translate_md_text
         run: |
           git clone --depth 1 https://github.com/1StepMore/Omni_Localizer.git /tmp/ol
-          pip install -e /tmp/ol
+          pip install -e "/tmp/ol[mcp]"
       - name: Regenerate candidate + score
         env:
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
