@@ -27,19 +27,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: false
+          submodules: true
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Cache .venv_ol
-        uses: actions/cache@v4
-        with:
-          path: .venv_ol
-          key: venv-ol-py313-${{ hashFiles('Omni_Pre_Processor/pyproject.toml', 'Omni_Localizer/pyproject.toml', 'Omni_Re_Formatter/pyproject.toml') }}
-      - name: Install dev deps
+      - name: Install submodules
         run: |
-          bash scripts/setup_dev.sh
+          pip install -e ./src/Omni_Pre_Processor -e ./src/Omni_Localizer -e ./src/Omni_Re_Formatter
+      - name: Install root deps
+        run: pip install pytest pyyaml
       - name: Run CLI contract tests
         env:
           OMNI_TEST_FAKE_LLM: '1'
@@ -53,19 +50,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: false
+          submodules: true
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Cache .venv_ol
-        uses: actions/cache@v4
-        with:
-          path: .venv_ol
-          key: venv-ol-py313-${{ hashFiles('Omni_Pre_Processor/pyproject.toml', 'Omni_Localizer/pyproject.toml', 'Omni_Re_Formatter/pyproject.toml') }}
-      - name: Install dev deps
+      - name: Install submodules with MCP extras
         run: |
-          bash scripts/setup_dev.sh
+          pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
+      - name: Install root deps
+        run: pip install pytest pyyaml
       - name: Run MCP schema contract tests
         env:
           OMNI_TEST_FAKE_LLM: '1'
@@ -79,19 +73,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: false
+          submodules: true
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Cache .venv_ol
-        uses: actions/cache@v4
-        with:
-          path: .venv_ol
-          key: venv-ol-py313-${{ hashFiles('Omni_Pre_Processor/pyproject.toml', 'Omni_Localizer/pyproject.toml', 'Omni_Re_Formatter/pyproject.toml') }}
-      - name: Install dev deps
+      - name: Install submodules with MCP extras
         run: |
-          bash scripts/setup_dev.sh
+          pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
+      - name: Install root deps
+        run: pip install pytest pyyaml
       - name: Run MCP matrix (single format)
         env:
           OMNI_TEST_FAKE_LLM: '1'
