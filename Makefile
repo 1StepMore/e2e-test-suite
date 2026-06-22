@@ -20,7 +20,7 @@
 #
 # =============================================================================
 
-.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios smoke security-scan lint matrix matrix-subset clean help
+.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset clean help
 
 PYTHON := .venv_ol/bin/python
 PYTEST := $(PYTHON) -m pytest
@@ -43,6 +43,9 @@ help:
 	@echo "  test-distributed-tracing — Run W3C trace context propagation tests (Phase 4.5)"
 	@echo "  test-health         — Spawn MCP servers with /health endpoint, assert 200 OK"
 	@echo "  test-error-scenarios — Run the 11 exit-code matrix tests (plan § 6.4)"
+	@echo "  fidelity      — Run fidelity scoring on existing Alice ch1 translation; gate on char_cosine >= 0.9 (CI gate)"
+	@echo "  fidelity-unit — Run FidelityScorer unit tests only (no scoring)"
+	@echo "  fidelity-nightly — Regenerate candidate via real LLM, then score (requires ZHIPU_API_KEY in .env)"
 	@echo "  smoke         — Run contract smoke test"
 	@echo "  security-scan — Run gitleaks + bandit + pip-audit"
 	@echo "  lint          — ruff check + mypy on parent + submodules"
@@ -97,6 +100,19 @@ test-health:
 
 test-error-scenarios:
 	$(FAKE_ENV) $(PYTEST) tests/error_scenarios/ -v --tb=short --timeout=30
+
+fidelity:
+	$(PYTHON) tests/fidelity/run_fidelity.py
+
+fidelity-unit:
+	$(FAKE_ENV) $(PYTEST) tests/fidelity/test_fidelity_scorer.py -v --tb=short
+
+fidelity-nightly:
+	@test -n "$$ZHIPU_API_KEY" || (echo "FAIL: ZHIPU_API_KEY not set; fidelity-nightly requires real LLM"; exit 1)
+	@echo "fidelity-nightly: regenerate candidate via Zhipu (para-by-para, ~30 LLM calls)"
+	@echo "Run: .venv_ol/bin/python tests/fidelity/regenerate_candidate.py"
+	@.venv_ol/bin/python tests/fidelity/regenerate_candidate.py
+	$(MAKE) fidelity
 
 security-scan:
 	@echo "Running security scans (gitleaks + bandit + pip-audit)..."
