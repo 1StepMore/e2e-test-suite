@@ -864,26 +864,26 @@ def _run_tier8(args) -> int:
             pass
     print(f"[Tier8]   equivalence exit={r3.returncode}")
 
-    # Step 4: Attempt MCP matrix (expected to fail — known gap)
-    print("[Tier8] Step 4: MCP matrix (expected to be blocked — see ACCEPTED_GAPS.md)")
+    # Step 4: MCP matrix via raw-stdio bridge (c6197f8). Should now PASS
+    # because the bridge bypasses the FastMCP 3.4.2 stdio bug.
+    print("[Tier8] Step 4: MCP matrix via raw-stdio bridge")
     r4 = subprocess.run(
         [sys.executable, str(suite_root / "scripts" / "mcp_matrix_verifier.py"),
          "--out-dir", str(suite_root / "test_artifacts" / "mcp_test"),
          "--path-filter", "md", "--subset", "docx"],
-        capture_output=True, text=True, env=env, cwd=str(suite_root), timeout=120,
+        capture_output=True, text=True, env=env, cwd=str(suite_root), timeout=300,
     )
-    mcp_blocked = r4.returncode != 0
-    print(f"[Tier8]   MCP matrix exit={r4.returncode} (blocked={mcp_blocked})")
+    mcp_pass = r4.returncode == 0
+    print(f"[Tier8]   MCP matrix exit={r4.returncode} (passed={mcp_pass})")
 
     elapsed = time.monotonic() - t0
     print(f"[Tier8] Total: {elapsed:.1f}s | "
           f"runA={'PASS' if a_pass else 'FAIL'} | "
           f"runB={'PASS' if b_pass else 'FAIL'} | "
           f"equivalence={'PASS' if equiv_pass else 'FAIL'} | "
-          f"MCP={'BLOCKED' if mcp_blocked else 'RAN'}")
-    # Gate passes only if both CLI runs passed and equivalence passed.
-    # MCP being blocked is expected and does not fail the gate.
-    return 0 if (a_pass and b_pass and equiv_pass) else 1
+          f"MCP={'PASS' if mcp_pass else 'FAIL'}")
+    # Gate passes only if all 4 steps pass: CLI×2 + equivalence + MCP.
+    return 0 if (a_pass and b_pass and equiv_pass and mcp_pass) else 1
 
 
 def _run_verify_all(
@@ -1162,7 +1162,7 @@ def main() -> int:
     parser.add_argument("--input", type=Path, default=_DEFAULT_FIXTURE)
     parser.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
     parser.add_argument("--use-mock", action="store_true", help="Use mock LLM (for testing without API spend)")
-    parser.add_argument("--gate", choices=["tier6", "tier7", "both"], default="both",
+    parser.add_argument("--gate", choices=["tier6", "tier7", "tier8", "both"], default="both",
         help="Which gate(s) convergence-watch uses to detect 'system is green'. "
              "'tier6' = verifier health; 'tier7' = format matrix; 'both' (default) = both.")
     args = parser.parse_args()
