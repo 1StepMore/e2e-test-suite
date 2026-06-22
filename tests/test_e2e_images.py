@@ -464,8 +464,6 @@ class TestImageEdgeCases:
 def _create_docx_with_images(path: Path) -> None:
     """Create DOCX with multiple images at known positions."""
     from docx import Document
-    from docx.oxml.ns import qn
-    from docx.oxml import OxmlElement
 
     doc = Document()
     doc.add_heading("Document Title", level=1)
@@ -565,7 +563,7 @@ def _create_minimal_png(width: int = 100, height: int = 100) -> bytes:
 def _create_pptx_with_images(path: Path) -> None:
     """Create PPTX with images."""
     from pptx import Presentation
-    from pptx.util import Inches, Pt
+    from pptx.util import Inches
 
     prs = Presentation()
     prs.slide_width = Inches(10)

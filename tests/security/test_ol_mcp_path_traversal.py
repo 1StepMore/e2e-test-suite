@@ -6,8 +6,6 @@ security audit where ``load_glossary``, ``search_tm``, and
 ``translate_xliff`` accepted file paths with zero validation.
 """
 
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -16,7 +14,6 @@ from ol_mcp.security import (
     BLOCKED_EXTENSIONS,
     SYSTEM_DIRS,
     PathValidator,
-    ValidationResult,
     get_default_validator,
 )
 

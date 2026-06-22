@@ -12,9 +12,7 @@ Each test:
 import json
 import shutil
 import sys
-import tempfile
 import zipfile
-from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -248,7 +246,7 @@ def sample_skeleton_odf(tmp_path: Path) -> Path:
     odt_file = tmp_path / "skeleton.odt"
     try:
         from odf.opendocument import OpenDocumentText
-        from odf.style import Style, TextProperties
+        from odf.style import Style
         from odf.text import P, H
 
         doc = OpenDocumentText()

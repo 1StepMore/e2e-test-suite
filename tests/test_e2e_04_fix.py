@@ -13,11 +13,9 @@ The fix should be either:
 This test fails with the current code because import times out.
 """
 import subprocess
-import sys
 import time
 from pathlib import Path
 
-import pytest
 
 
 class TestE204ExtractorImport:

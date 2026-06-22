@@ -69,7 +69,7 @@ pytest tests/security/ -q        # 63 security tests
 pytest tests/ -q                 # all suite-level tests
 
 # 4. 查看版本
-omni-suite --version             # 0.1.0
+omni-suite --version             # 0.2.0
 omni-suite --compatibility       # version matrix
 ```
 

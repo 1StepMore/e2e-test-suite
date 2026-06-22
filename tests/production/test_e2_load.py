@@ -11,8 +11,6 @@ Set OMNI_E2_SKIP=1 to skip.
 
 import asyncio
 import os
-import subprocess
-import sys
 import time
 from pathlib import Path
 

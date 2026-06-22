@@ -7,7 +7,6 @@ for both OL and ORF MCP servers. Auth is checked (per Phase A4).
 import asyncio
 import json
 
-import pytest
 
 
 class TestOLHealthEndpoint:

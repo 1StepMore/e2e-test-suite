@@ -10,7 +10,7 @@ Hardcoded literals in the tracked template (current state):
 | Provider | Model | Value (truncated) |
 |---|---|---|
 | Zhipu (BigModel) | glm-4-flash | `REDACTED_ZHIPU_KEY` |
-| Agnes | agnes-2.0-flash | `sk-7StQr3GnTGShdcy0MSsZjmHtyCtn9fRD5702TqFjNPXD4eyq` |
+| Agnes | agnes-2.0-flash | `${AGNES_API_KEY}` |
 | NVIDIA NIM | deepseek-v4-flash | `REDACTED_NVIDIA_NIM_KEY...` |
 | NVIDIA NIM | kimi-k2.6 | (same as above) |
 
@@ -86,9 +86,9 @@ assert it catches it.
 # every commit in default.yaml's history. Rewrite + force-push.
 cd Omni_Localizer
 git filter-repo --replace-text <(printf '%s\n' \
-  'REDACTED_ZHIPU_KEY==><REDACTED-ZHIPU-API-KEY>' \
-  'sk-7StQr3GnTGShdcy0MSsZjmHtyCtn9fRD5702TqFjNPXD4eyq==><REDACTED-AGNES-API-KEY>' \
-  'REDACTED_NVIDIA_NIM_KEY_a8l03T1h2XH5zSUxjR-f==><REDACTED-NVIDIA-API-KEY>' \
+  '<REDACTED-ZHIPU-API-KEY>' \
+  '<REDACTED-AGNES-API-KEY>' \
+  '<REDACTED-NVIDIA-API-KEY>' \
 ) --force
 ```
 

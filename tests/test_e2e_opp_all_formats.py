@@ -12,13 +12,18 @@ Each format test verifies:
 4. OPP preserves images and formatting where applicable
 """
 
+import importlib.util
 import json
-import tempfile
 import zipfile
 from io import BytesIO
 from pathlib import Path
 
 import pytest
+
+
+def _import_exists(mod_name: str) -> bool:
+    """Check if a module is available without importing it."""
+    return importlib.util.find_spec(mod_name) is not None
 
 
 class TestOPPDocxFormat:
@@ -91,7 +96,6 @@ class TestOPPPptxFormat:
     def test_pptx_detect_and_extract(self, opp_pipeline, tmp_path):
         """OPP should detect and extract PPTX content."""
         from pptx import Presentation
-        from pptx.util import Inches
 
         prs = Presentation()
         slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -372,9 +376,7 @@ class TestOPPEmailFormat:
     @pytest.mark.requires_opp
     def test_msg_detect_and_extract(self, opp_pipeline, tmp_path):
         """OPP should detect and extract MSG email content."""
-        try:
-            import extract_msg
-        except ImportError:
+        if not _import_exists("extract_msg"):
             pytest.skip("extract-msg not installed")
 
         msg_path = tmp_path / "test.msg"
@@ -650,9 +652,7 @@ def _create_minimal_epub(epub_path: Path) -> None:
 
 def _create_minimal_msg(msg_path: Path) -> None:
     """Create minimal MSG file (Outlook)."""
-    try:
-        import extract_msg
-    except ImportError:
+    if not _import_exists("extract_msg"):
         msg_path.write_bytes(b"PK\x03\x04placeholder")
         return
 

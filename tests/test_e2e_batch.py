@@ -9,10 +9,8 @@ Each test creates multiple input files, runs the batch command,
 and verifies all files were processed successfully.
 """
 
-import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 

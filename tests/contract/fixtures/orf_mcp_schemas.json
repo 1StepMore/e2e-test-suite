@@ -1,0 +1,195 @@
+[
+  {
+    "description": "Convert MD to target format. Images (from OPP images.json) are extracted during conversion into images.zip + images.json alongside the output document when separate_images=True (default). When separate_images=False, images embedded as base64 data URIs in the markdown are decoded and placed inline in the output document by Pandoc.",
+    "inputSchema": {
+      "properties": {
+        "author": {
+          "type": "string"
+        },
+        "embed_images": {
+          "default": false,
+          "type": "boolean"
+        },
+        "images": {
+          "description": "Optional image placements (OPP images.json shape).",
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "input_md": {
+          "description": "Path to input markdown file.",
+          "type": "string"
+        },
+        "lang": {
+          "type": "string"
+        },
+        "max_file_size_mb": {
+          "type": "number"
+        },
+        "output_path": {
+          "description": "Optional output path. Must be inside an allowed directory.",
+          "type": "string"
+        },
+        "reference_doc": {
+          "description": "Pandoc reference DOCX for style template.",
+          "type": "string"
+        },
+        "separate_images": {
+          "default": true,
+          "type": "boolean"
+        },
+        "target_format": {
+          "description": "Target format (docx, odt, epub, html, rtf, pdf, pptx, icml, srt, csv, xlsx, xml, ipynb, eml, msg, json).",
+          "type": "string"
+        },
+        "template": {
+          "description": "Pandoc template path.",
+          "type": "string"
+        },
+        "text_only": {
+          "default": false,
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "traceparent": {
+          "description": "Optional W3C Trace Context traceparent header to make this ORF span a child of an upstream trace (e.g. from OL translate_md_text).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input_md",
+        "target_format"
+      ],
+      "type": "object"
+    },
+    "name": "apply_md"
+  },
+  {
+    "description": "Apply XLIFF translation to original document with optional image injection. Provide either xliff_path or xliff_content (mutually exclusive). Image placements must use data_base64 — file_path is rejected (C4 fix).",
+    "inputSchema": {
+      "properties": {
+        "force": {
+          "default": false,
+          "description": "Bypass skeleton-vs-format validation for cross-format conversions.",
+          "type": "boolean"
+        },
+        "format": {
+          "description": "Output format (docx, pptx, epub, html, odf, ...).",
+          "type": "string"
+        },
+        "images": {
+          "description": "Optional image placements.",
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "input_file": {
+          "description": "Path to source document (DOCX, PPTX, EPUB, ...).",
+          "type": "string"
+        },
+        "max_file_size_mb": {
+          "type": "number"
+        },
+        "no_cache": {
+          "default": false,
+          "description": "Skip ORF's content-addressed cache.",
+          "type": "boolean"
+        },
+        "output_path": {
+          "description": "Path to write the backfilled document.",
+          "type": "string"
+        },
+        "traceparent": {
+          "description": "Optional W3C Trace Context traceparent header to make this ORF span a child of an upstream trace (e.g. from OL translate_xliff).",
+          "type": "string"
+        },
+        "xliff_content": {
+          "description": "XLIFF body as a string (mutually exclusive with xliff_path).",
+          "type": "string"
+        },
+        "xliff_path": {
+          "description": "Path to translated XLIFF file.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input_file",
+        "xliff_path",
+        "output_path",
+        "format"
+      ],
+      "type": "object"
+    },
+    "name": "apply_xliff"
+  },
+  {
+    "description": "Batch convert MD files in a directory to a target format.",
+    "inputSchema": {
+      "properties": {
+        "input_dir": {
+          "description": "Directory containing MD files to convert.",
+          "type": "string"
+        },
+        "pattern": {
+          "default": "*.md",
+          "description": "Glob pattern for input files.",
+          "type": "string"
+        },
+        "target_format": {
+          "description": "Target format (docx, html, epub, ...).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input_dir",
+        "target_format"
+      ],
+      "type": "object"
+    },
+    "name": "batch_convert"
+  },
+  {
+    "description": "Detect document format using magic bytes detection.",
+    "inputSchema": {
+      "properties": {
+        "file_path": {
+          "description": "Path to document file.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path"
+      ],
+      "type": "object"
+    },
+    "name": "detect_format"
+  },
+  {
+    "description": "Get document information (format, size, resource count, manifest status).",
+    "inputSchema": {
+      "properties": {
+        "file_path": {
+          "description": "Path to document file.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path"
+      ],
+      "type": "object"
+    },
+    "name": "info"
+  },
+  {
+    "description": "Health check endpoint. Returns module name and version.",
+    "inputSchema": {
+      "properties": {},
+      "type": "object"
+    },
+    "name": "ping"
+  }
+]

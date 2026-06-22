@@ -10,8 +10,6 @@ Each test directly calls the MCP tool functions.
 
 import asyncio
 import json
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
@@ -227,11 +225,10 @@ class TestOLMCP:
             mock_pool.return_value = mock_instance
             mock_pool.get_instance.return_value = mock_instance
 
-            # 2026-06-18 round 14: repair pipeline must also be mocked.
-            # It expects a 2-tuple (repaired_text, warnings_list); without
-            # this the inner call raises "too many values to unpack".
+            # MDRepairPipeline.repair() returns a string, not a tuple.
+            # Mock must return a plain string to match the real signature.
             mock_repair_instance = MagicMock()
-            mock_repair_instance.repair = MagicMock(return_value=("# repaired", []))
+            mock_repair_instance.repair = MagicMock(return_value="# repaired (zh)")
             mock_repair.return_value = mock_repair_instance
 
             mock_limiter_instance = MagicMock()
@@ -265,7 +262,7 @@ class TestOLMCP:
             mock_pool.get_instance.return_value = mock_instance
 
             mock_repair_instance = MagicMock()
-            mock_repair_instance.repair = MagicMock(return_value=("# repaired", []))
+            mock_repair_instance.repair = MagicMock(return_value="# repaired (zh)")
             mock_repair.return_value = mock_repair_instance
 
             mock_limiter_instance = MagicMock()
@@ -303,7 +300,7 @@ class TestOLMCP:
             mock_pool.get_instance.return_value = mock_instance
 
             mock_repair_instance = MagicMock()
-            mock_repair_instance.repair = MagicMock(return_value=("# repaired", []))
+            mock_repair_instance.repair = MagicMock(return_value="# repaired (zh)")
             mock_repair.return_value = mock_repair_instance
 
             mock_limiter_instance = MagicMock()

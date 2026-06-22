@@ -7,7 +7,6 @@ Run with:
 """
 
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -89,7 +88,6 @@ class TestPipelineContract:
 
     def test_no_omni_test_fake_llm_noop(self):
         """OMNI_TEST_FAKE_LLM is unset in this process (safety check)."""
-        import os
         # FAKE_LLM may or may not be set depending on env; this test documents
         # the expected behavior: the smoke test does not force it.
         assert True

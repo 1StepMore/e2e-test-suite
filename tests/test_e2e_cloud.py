@@ -8,9 +8,8 @@ ORF cloud client tests live in ``Omni_Re_Formatter/tests/test_cloud_clients.py``
 """
 
 import os
-import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 

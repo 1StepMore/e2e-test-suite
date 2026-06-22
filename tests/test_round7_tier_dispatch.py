@@ -13,9 +13,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
-import pytest
 
 _SUITE_ROOT = Path(__file__).resolve().parents[1]
 _E2E_RUNNER = _SUITE_ROOT / "tests" / "e2e_runner.py"

@@ -7,12 +7,10 @@ OPP → OL → ORF localization pipeline.
 import os
 import sys
 import shutil
-import tempfile
 import zipfile
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Generator
 
 import pytest
 from docx import Document
@@ -23,6 +21,9 @@ from docx import Document
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 os.environ.setdefault("DISABLE_LITELLM_TELEMETRY", "True")
 os.environ.setdefault("LITELLM_TELEMETRY", "False")
+# 2026-06-20: ORF MCP PathValidator allowlist (must include test dirs).
+# Without this, every ORF MCP tool call in tests returns PATH_NOT_ALLOWED.
+os.environ.setdefault("ORF_MCP_ALLOWED_DIRS", "/tmp:/mnt/d/贯维/Omni_Suite")
 
 
 _VENV_BIN = Path(__file__).resolve().parents[1] / ".venv_ol" / "bin"

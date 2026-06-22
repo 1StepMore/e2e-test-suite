@@ -43,7 +43,6 @@ preserves 7/7 unique images per existing test_e2e_real_llm.py findings).
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 import os
 import subprocess
@@ -56,6 +55,9 @@ from typing import Any, Literal, Optional
 import pytest
 from lxml import etree
 
+# ORF MCP validates paths against ORF_MCP_ALLOWED_DIRS; set it early to
+# prevent PATH_NOT_ALLOWED errors on all ORF MCP tool invocations.
+os.environ.setdefault("ORF_MCP_ALLOWED_DIRS", "/tmp:/mnt/d/贯维/Omni_Suite")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -419,7 +421,6 @@ async def _translate_xliff_in_process(
     XML manipulation avoids the entire repair cascade while still
     producing a valid XLIFF that ORF can backfill.
     """
-    import re as _re
     from lxml import etree as _et
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

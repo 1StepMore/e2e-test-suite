@@ -1,0 +1,49 @@
+FROM python:3.13-slim
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pandoc \
+    tesseract-ocr \
+    poppler-utils \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir opp omni-localizer omni-re-formatter
+
+RUN opp --version && ol --version && orf --version
+
+# Smoke test: extract a real text file
+RUN mkdir -p /tmp/out && \
+    printf 'Hello, world.\nThis is an OPP smoke test.\n' > /tmp/test.txt && \
+    opp /tmp/test.txt --target-format md --output-dir /tmp/out && \
+    ls -la /tmp/out/ && \
+    test -f /tmp/out/test.md && \
+    echo "OPP extract: OK" && \
+    head -5 /tmp/out/test.md
+
+# End-to-end smoke test: extract a real DOCX
+COPY test_corpus /tmp/test_corpus
+RUN if [ -d /tmp/test_corpus ]; then \
+      for f in /tmp/test_corpus/*.docx; do \
+        [ -f "$$f" ] || continue; \
+        echo "== Extracting $$f =="; \
+        opp "$$f" --target-format md --output-dir /tmp/out 2>&1 | tail -5; \
+        test -f "/tmp/out/$$(basename $$f .docx).md" && echo "DOCX extract: OK"; \
+      done; \
+    fi
+
+# Final report
+RUN echo "=== Versions ===" && \
+    opp --version && \
+    ol --version && \
+    orf --version && \
+    echo "=== pip check ===" && \
+    pip check && \
+    echo "=== All checks passed ==="
+
+CMD ["bash", "-c", "opp --version && ol --version && orf --version && echo 'Container ready.'"]
