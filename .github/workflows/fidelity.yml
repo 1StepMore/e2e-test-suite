@@ -27,20 +27,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: false
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Cache .venv_ol
-        uses: actions/cache@v4
-        with:
-          path: .venv_ol
-          key: venv-ol-py313-fidelity-${{ hashFiles('Omni_Pre_Processor/pyproject.toml', 'Omni_Localizer/pyproject.toml', 'Omni_Re_Formatter/pyproject.toml') }}
-      - name: Install dev deps
-        run: |
-          bash scripts/setup_dev.sh
+      - name: Install sacrebleu
+        run: pip install sacrebleu
       - name: Verify candidate exists
         run: |
           if [ ! -f test_artifacts/ol/alice_ch1_zhipu_real.md ]; then
@@ -49,9 +41,7 @@ jobs:
             exit 1
           fi
       - name: Run fidelity gate
-        env:
-          OMNI_TEST_FAKE_LLM: '1'
-        run: make fidelity
+        run: python tests/fidelity/run_fidelity.py
 
   fidelity-nightly:
     name: Fidelity nightly (regenerate via Zhipu)
@@ -60,25 +50,24 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: false
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Cache .venv_ol
-        uses: actions/cache@v4
-        with:
-          path: .venv_ol
-          key: venv-ol-py313-fidelity-${{ hashFiles('Omni_Pre_Processor/pyproject.toml', 'Omni_Localizer/pyproject.toml', 'Omni_Re_Formatter/pyproject.toml') }}
-      - name: Install dev deps
+      - name: Install sacrebleu
+        run: pip install sacrebleu
+      - name: Install OL for translate_md_text
         run: |
-          bash scripts/setup_dev.sh
+          git clone --depth 1 https://github.com/1StepMore/Omni_Localizer.git /tmp/ol
+          pip install -e /tmp/ol
       - name: Regenerate candidate + score
         env:
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
           HF_ENDPOINT: 'https://hf-mirror.com'
-        run: make fidelity-nightly
+          PYTHONPATH: /tmp/ol/src
+        run: |
+          python tests/fidelity/regenerate_candidate.py
+          python tests/fidelity/run_fidelity.py
       - name: Upload result
         if: always()
         uses: actions/upload-artifact@v4
