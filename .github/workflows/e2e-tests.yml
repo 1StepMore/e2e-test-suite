@@ -49,8 +49,16 @@ jobs:
       - name: uv sync (root workspace + all 3 submodules)
         run: uv sync --frozen
 
+      - name: Install submodules + test deps (uv sync doesn't pick up src/ submodules)
+        run: |
+          uv pip install --system -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
+          uv pip install --system pytest pyyaml python-docx python-pptx pypandoc-binary
+
       - name: Create .venv_ol symlink for legacy paths
         run: ln -s .venv .venv_ol
+
+      - name: Create .venv_ol/bin/python symlink (for legacy test paths)
+        run: mkdir -p .venv_ol/bin && ln -sf .venv/bin/python .venv_ol/bin/python
 
       - name: Upgrade vulnerable transitive deps (CVE remediation)
         run: uv pip install --system --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp
@@ -159,6 +167,11 @@ jobs:
 
       - name: uv sync
         run: uv sync --frozen
+
+      - name: Install submodules + test deps
+        run: |
+          uv pip install --system -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
+          uv pip install --system pytest pyyaml python-docx python-pptx pypandoc-binary
 
       - name: Create .venv_ol symlink for legacy paths
         run: ln -s .venv .venv_ol
