@@ -51,8 +51,8 @@ jobs:
 
       - name: Install submodules + test deps (uv sync doesn't pick up src/ submodules)
         run: |
-          .venv/bin/pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
-          .venv/bin/pip install pytest pyyaml python-docx python-pptx pypandoc-binary
+          uv pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
+          uv pip install pytest pyyaml python-docx python-pptx pypandoc-binary
 
       - name: Create .venv_ol symlink for legacy paths
         run: ln -s .venv .venv_ol
@@ -170,8 +170,8 @@ jobs:
 
       - name: Install submodules + test deps
         run: |
-          .venv/bin/pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
-          .venv/bin/pip install pytest pyyaml python-docx python-pptx pypandoc-binary
+          uv pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
+          uv pip install pytest pyyaml python-docx python-pptx pypandoc-binary
 
       - name: Create .venv_ol symlink for legacy paths
         run: ln -s .venv .venv_ol
