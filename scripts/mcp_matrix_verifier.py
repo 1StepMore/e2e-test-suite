@@ -331,9 +331,9 @@ async def _run_matrix(args) -> int:
     env["OMNI_TEST_FAKE_PANDOC"] = "1"
     env["PYTHONPATH"] = ":".join(filter(None, [
         env.get("PYTHONPATH", ""),
-        str(SUITE_ROOT / "Omni_Pre_Processor" / "src"),
-        str(SUITE_ROOT / "Omni_Localizer" / "src"),
-        str(SUITE_ROOT / "Omni_Re_Formatter" / "src"),
+        str(SUITE_ROOT / "src" / "Omni_Pre_Processor" / "src"),
+        str(SUITE_ROOT / "src" / "Omni_Localizer" / "src"),
+        str(SUITE_ROOT / "src" / "Omni_Re_Formatter" / "src"),
     ]))
     env["OPP_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
     env["ORF_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
