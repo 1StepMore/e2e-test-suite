@@ -57,8 +57,8 @@ jobs:
       - name: Create .venv_ol symlink for legacy paths
         run: ln -s .venv .venv_ol
 
-      - name: Create .venv_ol/bin/python symlink (for legacy test paths)
-        run: mkdir -p .venv_ol/bin && ln -sf .venv/bin/python .venv_ol/bin/python
+      - name: Ensure .venv/bin/python exists (uv creates python3, not python)
+        run: cd .venv/bin && [ ! -e python ] && [ -e python3 ] && ln -s python3 python; cd -
 
       - name: Upgrade vulnerable transitive deps (CVE remediation)
         run: uv pip install --system --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp
@@ -176,8 +176,8 @@ jobs:
       - name: Create .venv_ol symlink for legacy paths
         run: ln -s .venv .venv_ol
 
-      - name: Create .venv_ol/bin/python symlink (for legacy test paths)
-        run: mkdir -p .venv_ol/bin && ln -sf .venv/bin/python .venv_ol/bin/python
+      - name: Ensure .venv/bin/python exists (uv creates python3, not python)
+        run: cd .venv/bin && [ ! -e python ] && [ -e python3 ] && ln -s python3 python; cd -
 
       - name: Configure LLM credentials
         run: |

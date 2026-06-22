@@ -39,7 +39,7 @@ jobs:
         run: |
           pip install -e ./src/Omni_Pre_Processor -e ./src/Omni_Localizer -e ./src/Omni_Re_Formatter
       - name: Install root deps
-        run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api
+        run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: Run CLI contract tests
         env:
           OMNI_TEST_FAKE_LLM: '1'
@@ -64,7 +64,7 @@ jobs:
         run: |
           pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
       - name: Install root deps
-        run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api
+        run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: Run MCP schema contract tests
         env:
           OMNI_TEST_FAKE_LLM: '1'
@@ -89,7 +89,7 @@ jobs:
         run: |
           pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
       - name: Install root deps
-        run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api
+        run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: Run MCP matrix (single format)
         env:
           OMNI_TEST_FAKE_LLM: '1'
