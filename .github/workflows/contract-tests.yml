@@ -37,12 +37,12 @@ jobs:
         run: |
           pip install -e ./src/Omni_Pre_Processor -e ./src/Omni_Localizer -e ./src/Omni_Re_Formatter
       - name: Install root deps
-        run: pip install pytest pyyaml
+        run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml
       - name: Run CLI contract tests
         env:
           OMNI_TEST_FAKE_LLM: '1'
           OMNI_TEST_FAKE_PANDOC: '1'
-        run: .venv_ol/bin/python -m pytest tests/contract/test_cli_help.py -v --tb=short
+        run: python -m pytest tests/contract/test_cli_help.py -v --tb=short
 
   mcp-schemas-contract:
     name: MCP schema contract (frozen fixtures)
@@ -60,12 +60,12 @@ jobs:
         run: |
           pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
       - name: Install root deps
-        run: pip install pytest pyyaml
+        run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml
       - name: Run MCP schema contract tests
         env:
           OMNI_TEST_FAKE_LLM: '1'
           OMNI_TEST_FAKE_PANDOC: '1'
-        run: .venv_ol/bin/python -m pytest tests/contract/test_mcp_schemas.py -v --tb=short
+        run: python -m pytest tests/contract/test_mcp_schemas.py -v --tb=short
 
   mcp-matrix:
     name: MCP matrix (subset, --subset docx)
@@ -83,7 +83,7 @@ jobs:
         run: |
           pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
       - name: Install root deps
-        run: pip install pytest pyyaml
+        run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml
       - name: Run MCP matrix (single format)
         env:
           OMNI_TEST_FAKE_LLM: '1'
@@ -92,7 +92,7 @@ jobs:
           ORF_MCP_ALLOWED_DIRS: /tmp/mcp-matrix-ci
         run: |
           mkdir -p /tmp/mcp-matrix-ci
-          .venv_ol/bin/python scripts/mcp_matrix_verifier.py \
+          python scripts/mcp_matrix_verifier.py \
             --out-dir /tmp/mcp-matrix-ci \
             --path-filter md \
             --subset docx \
