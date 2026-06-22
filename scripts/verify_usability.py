@@ -72,6 +72,10 @@ def _run_group(name: str, test_files: list[str]) -> tuple[int, int, int, bool]:
 
         # Fallback: when output has no parseable summary (e.g. import errors)
         if proc.returncode != 0:
+            print(f"  --- {name} raw output (last 30 lines) ---")
+            for line in output.splitlines()[-30:]:
+                print(f"  {line}")
+            print(f"  --- end {name} output ---")
             return 0, 1, 0, False
         return 0, 0, 0, False
     except subprocess.TimeoutExpired:
