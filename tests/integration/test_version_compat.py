@@ -34,9 +34,9 @@ ENV = dict(
     OMNI_TEST_FAKE_LLM="1",
     OMNI_TEST_FAKE_PANDOC="1",
     PYTHONPATH=":".join(filter(None, [
-        str(SUITE_ROOT / "Omni_Pre_Processor" / "src"),
-        str(SUITE_ROOT / "Omni_Localizer" / "src"),
-        str(SUITE_ROOT / "Omni_Re_Formatter" / "src"),
+        str(SUITE_ROOT / "src" / "Omni_Pre_Processor" / "src"),
+        str(SUITE_ROOT / "src" / "Omni_Localizer" / "src"),
+        str(SUITE_ROOT / "src" / "Omni_Re_Formatter" / "src"),
         str(SUITE_ROOT / ".venv_ol" / "lib" / "python3.13" / "site-packages"),
     ])),
 )
@@ -55,9 +55,9 @@ def _read_version(module_dir: str) -> str:
 
 
 CURRENT_VERSIONS = {
-    "opp": _read_version("Omni_Pre_Processor"),
-    "ol": _read_version("Omni_Localizer"),
-    "orf": _read_version("Omni_Re_Formatter"),
+    "opp": _read_version("src/Omni_Pre_Processor"),
+    "ol": _read_version("src/Omni_Localizer"),
+    "orf": _read_version("src/Omni_Re_Formatter"),
 }
 
 
@@ -76,7 +76,7 @@ def _run_pipeline(tmp_path: Path, source: Path, target_format: str) -> Path:
          "--source-lang", "en", "--target-lang", "zh",
          "--output-dir", str(opp_out)],
         capture_output=True, text=True, env={**ENV, "OPP_ALLOWED_DIRECTORIES": str(tmp_path)},
-        cwd=str(SUITE_ROOT / "Omni_Pre_Processor"), timeout=60,
+        cwd=str(SUITE_ROOT / "src" / "Omni_Pre_Processor"), timeout=60,
     )
     assert r1.returncode == 0, f"OPP failed:\n{r1.stderr[:500]}"
 
@@ -92,7 +92,7 @@ def _run_pipeline(tmp_path: Path, source: Path, target_format: str) -> Path:
         [PYTHON, "-m", "ol_cli", "translate-md", str(md_file),
          "-s", "en", "-t", "zh", "-o", str(ol_out), "--json"],
         capture_output=True, text=True, env=ENV,
-        cwd=str(SUITE_ROOT / "Omni_Localizer"), timeout=60,
+        cwd=str(SUITE_ROOT / "src" / "Omni_Localizer"), timeout=60,
     )
     assert r2.returncode == 0, f"OL failed:\n{r2.stderr[:500]}"
 
@@ -107,7 +107,7 @@ def _run_pipeline(tmp_path: Path, source: Path, target_format: str) -> Path:
         [PYTHON, "-m", "orf.cli", "apply-md", str(translated),
          "--target-format", target_format, "--output", str(orf_out), "--json"],
         capture_output=True, text=True, env=ENV,
-        cwd=str(SUITE_ROOT / "Omni_Re_Formatter"), timeout=60,
+        cwd=str(SUITE_ROOT / "src" / "Omni_Re_Formatter"), timeout=60,
     )
     assert r3.returncode == 0, f"ORF failed:\n{r3.stderr[:500]}"
     assert orf_out.exists(), f"ORF: no output at {orf_out}"
