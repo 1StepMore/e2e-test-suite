@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install sacrebleu
-        run: pip install sacrebleu
+        run: pip install --upgrade sacrebleu pip pydantic-settings python-multipart cryptography starlette aiohttp
       - name: Verify candidate exists
         run: |
           if [ ! -f test_artifacts/ol/alice_ch1_zhipu_real.md ]; then
