@@ -18,6 +18,7 @@ on:
     paths:
       - 'tests/contract/**'
       - 'scripts/mcp_matrix_verifier.py'
+  workflow_dispatch:
 
 jobs:
   cli-help-contract:

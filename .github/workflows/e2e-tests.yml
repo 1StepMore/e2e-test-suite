@@ -49,6 +49,12 @@ jobs:
       - name: uv sync (root workspace + all 3 submodules)
         run: uv sync --frozen
 
+      - name: Create .venv_ol symlink for legacy paths
+        run: ln -s .venv .venv_ol
+
+      - name: Upgrade vulnerable transitive deps (CVE remediation)
+        run: .venv/bin/pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp
+
       - name: Scan tracked configs for hardcoded secrets (Phase A2 regression)
         run: |
           if grep -rn --include="*.yaml" --include="*.yml" --include="*.json" \
@@ -153,6 +159,9 @@ jobs:
 
       - name: uv sync
         run: uv sync --frozen
+
+      - name: Create .venv_ol symlink for legacy paths
+        run: ln -s .venv .venv_ol
 
       - name: Configure LLM credentials
         run: |
