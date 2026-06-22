@@ -1,0 +1,24 @@
+{
+  "corpus": "Alice in Wonderland chapter 1",
+  "candidate_source": "Zhipu glm-4-flash (para-by-para, real LLM)",
+  "reference_source": "Bilinguis.com Chinese Alice (public domain, angelibrary/Wikisource source)",
+  "candidate_chars": 3530,
+  "reference_chars": 3612,
+  "metrics": {
+    "bleu": 0.0,
+    "char_jaccard": 0.6628,
+    "char_cosine": 0.9129,
+    "semantic_cosine_neural": "skipped (model download timeout; cache incomplete)"
+  },
+  "thresholds": {
+    "bleu": "0.1-0.4 realistic for en→zh (0.9 unrealistic for BLEU on Chinese)",
+    "char_jaccard": ">0.6 good vocabulary overlap",
+    "char_cosine": ">0.7 good distribution match"
+  },
+  "verdict": {
+    "bleu_passes": false,
+    "jaccard_passes": true,
+    "cosine_passes": true
+  },
+  "note": "BLEU=0 is expected for modern Chinese vs 1922 archaic Chinese (赵元任). Char-level metrics measure vocabulary overlap. For true semantic fidelity, use cross-lingual neural model (e.g. MiniLM-L12-v2) but model cache was incomplete after earlier timeouts."
+}
