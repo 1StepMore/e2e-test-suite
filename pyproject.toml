@@ -87,3 +87,14 @@ exclude = [
 [[tool.mypy.overrides]]
 module = "tests.*"
 check_untyped_defs = false
+
+[tool.pytest.ini_options]
+markers = [
+    "asyncio: async test functions",
+    "e2e: end-to-end tests",
+    "nightly: nightly-only tests requiring real LLM API",
+    "requires_opp: tests that require the OPP component",
+    "requires_ol: tests that require the OL component",
+    "requires_orf: tests that require the ORF component",
+    "slow: tests that take significant time",
+]
