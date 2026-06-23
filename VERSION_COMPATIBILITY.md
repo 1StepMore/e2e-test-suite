@@ -11,6 +11,7 @@
 |-----|-----|-----|--------|-------------|-------|
 | 0.6.2 | 0.4.5 | 0.4.4 | ✅ Tested | 2026-06-23 | E2E-07/14/15/64/65 surgical cherry-picks |
 | 0.6.3 | 0.4.5 | 0.4.4 | ✅ Tested | 2026-06-23 | OPP v0.6.3: stderr handler in verbose mode (test_detect_format_flag) |
+| 0.6.4 | 0.4.6 | 0.4.5 | ✅ Tested | 2026-06-24 | E2E-74/77/78/79/80/81/82/83 — full OL shield / ORF md2pptx+CSV / OPP CSV+docling sweep |
 | 0.6.1 | 0.4.4 | 0.4.3 | ✅ Tested | 2026-06-22 | Current production baseline |
 | 0.6.0 | 0.4.3 | 0.4.2 | ✅ Tested | 2026-06-15 | Previous release |
 | 0.5.0 | 0.4.0 | 0.4.0 | ⚠️ Partial | 2026-06-01 | Known XLIFF schema mismatch |
