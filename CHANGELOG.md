@@ -119,3 +119,24 @@
 - DOCX image extraction: `test_multiple_images_per_paragraph` returns 1 instead of 2+
 - 3 ORF MCP tests fail in full-suite context due to FastMCP tool-handler caching (pass individually)
 - 2 OL MD repair cascade bugs (consecutive placeholders edge case, HTML entity escaping — pre-existing)
+
+## 0.2.1 — 2026-06-23
+
+### Changed
+
+- **Submodule pointer advance**: OPP 0.6.1 → 0.6.2, OL 0.4.4 → 0.4.5, ORF 0.4.3 → 0.4.4
+  - `src/Omni_Pre_Processor` → b98d54a04e614de0649d49b556b5a4a024a0daed
+  - `src/Omni_Localizer` → fa00e2fb00bab3a5fa81c7849f6211e87b1eb36d
+  - `src/Omni_Re_Formatter` → c875562c8bbde33b07e49606ac132a179e8619b3
+
+### Fixed
+
+- **E2E-15 (OPP)**: Orphaned image double-embedding in MarkdownGenerator
+- **E2E-65 (OL)**: Prompt injection stripping in level1 repair
+- **E2E-14 (OL)**: Base64 image ref dedup in translate_md_text
+- **E2E-64 (OL)**: XLIFF repair is_complete() check + RouterRateLimitError retry
+- **E2E-07 (ORF)**: Fuzzy match for length-mismatched paragraphs in xliff2docx
+
+### Updated
+
+- `COMPATIBILITY.md` and `VERSION_COMPATIBILITY.md` matrices

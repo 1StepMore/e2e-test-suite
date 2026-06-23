@@ -9,6 +9,7 @@
 
 | opp | ol | orf | Status | Last Tested | Notes |
 |-----|-----|-----|--------|-------------|-------|
+| 0.6.2 | 0.4.5 | 0.4.4 | ✅ Tested | 2026-06-23 | E2E-07/14/15/64/65 surgical cherry-picks |
 | 0.6.1 | 0.4.4 | 0.4.3 | ✅ Tested | 2026-06-22 | Current production baseline |
 | 0.6.0 | 0.4.3 | 0.4.2 | ✅ Tested | 2026-06-15 | Previous release |
 | 0.5.0 | 0.4.0 | 0.4.0 | ⚠️ Partial | 2026-06-01 | Known XLIFF schema mismatch |
