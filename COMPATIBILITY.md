@@ -3,6 +3,7 @@
 | Suite | OL    | OPP   | ORF   | Notes              |
 |-------|-------|-------|-------|--------------------|
 | 0.2.0 | 0.4.4 | 0.6.1 | 0.4.3 | Agent onboarding + E2E test health + CI infra |
+| 0.2.1 | 0.4.5 | 0.6.2 | 0.4.4 | E2E-07, E2E-14, E2E-15, E2E-64, E2E-65 surgical cherry-picks |
 
 ## How to check installed versions
 
