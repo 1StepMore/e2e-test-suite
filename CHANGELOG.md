@@ -140,3 +140,18 @@
 ### Updated
 
 - `COMPATIBILITY.md` and `VERSION_COMPATIBILITY.md` matrices
+
+## 0.2.2 — 2026-06-23
+
+### Changed
+
+- **Submodule pointer advance**: OPP 0.6.2 → 0.6.3 (stderr handler for verbose mode UX)
+  - `src/Omni_Pre_Processor` → 102353307fe9723cd3c9c478a79a7d8746722451
+
+### Fixed
+
+- **OPP CLI verbose mode UX**: `opp --detect-format -v <file>` now writes `[INFO]   Detected: docx (confidence: 1.0)` to stderr. Previously the message only went to the log file, which broke the human-UX expectation set by `test_detect_format_flag`.
+
+### Updated
+
+- `COMPATIBILITY.md` and `VERSION_COMPATIBILITY.md` matrices
