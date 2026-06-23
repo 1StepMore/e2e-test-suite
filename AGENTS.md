@@ -6,6 +6,38 @@ This file guides AI agents (Claude, Cursor, OpenCode, etc.) on how to work with 
 
 A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translate) → **ORF** (backfill). Each module is a standalone sub-repo with its own CLI, MCP server, and test suite.
 
+## Current Versions (2026-06-23)
+
+| Component | Version | Status |
+|---|---|---|
+| Omni_Suite (this repo) | 0.2.1 | ✅ Tagged, all 4 repos on main, working trees clean |
+| Omni_Pre_Processor | 0.6.2 | ✅ 3 commits ahead of origin/main (E2E-15 + version + stderr fix) |
+| Omni_Localizer | 0.4.5 | ✅ 4 commits ahead (3 E2E fixes + version) |
+| Omni_Re_Formatter | 0.4.4 | ✅ 2 commits ahead (E2E-07 + version) |
+
+**Pinned combo (last tested)**: opp 0.6.2 + ol 0.4.5 + orf 0.4.4 + suite 0.2.1.
+**Next push order** (when network allows): sub-repos first → then Omni_Suite pointer advance.
+
+## Recent Changes (since last production tag)
+
+**OPP v0.6.1 → v0.6.2** (3 commits):
+- `fix(E2E-15)`: filter orphaned images in MarkdownGenerator (prevents double-embedding via Pandoc)
+- `chore(release)`: version bump
+- `fix(opp): attach stderr handler in verbose mode` — **`opp --detect-format -v` now writes "Detected: docx" to stderr** (was file-only before)
+
+**OL v0.4.4 → v0.4.5** (4 commits):
+- `fix(E2E-65)`: prompt injection strip in level1 repair (defends against LLM echoing system prompt)
+- `fix(E2E-14)`: b64 image ref dedup in `translate_md_text` MCP tool
+- `fix(E2E-64)`: XLIFF repair `is_complete()` checks actual XML tag presence; `RouterRateLimitError` retry
+- `chore(release)`: version bump
+
+**ORF v0.4.3 → v0.4.4** (2 commits):
+- `fix(E2E-07)`: fuzzy paragraph match in `_backfill_split_runs` (ratio ≥ 0.85, length diff ≤ 5)
+- `chore(release)`: version bump
+
+**Omni_Suite v0.2.0 → v0.2.1** (1 commit):
+- `chore(suite)`: advance submodule pointers to new versions + update compat matrices
+
 ## Quick Start
 
 ```bash
@@ -473,3 +505,7 @@ orf apply-md /tmp/test_ol/sample.md --target-format docx -o /tmp/result.docx
 - Use `uvx` for quick MCP server execution without manual install. For pip-installed variants, use `opp mcp`, `ol mcp`, and `orf mcp` as the command.
 - Set `OMNI_TEST_FAKE_LLM=1` in the MCP server environment for zero-cost testing without real API keys.
 - Use `batch_extract` (OPP) or `batch_translate_texts` (OL) for processing multiple files in a single call.
+- **`opp -v` now writes to stderr** (as of v0.6.2). Use `--detect-format -v file.docx` to see the detected format in your terminal without reading the log file.
+- **OL E2E-65 (prompt injection strip)**: when calling `translate_md_text` with real LLMs, the output is post-processed to strip `CRITICAL/IMPORTANT/NOTE: Output ONLY...` echoes. Don't strip these patterns yourself; OL handles it.
+- **OPP E2E-15 (orphan image filter)**: `extract_document` with `--target-format both` will not double-embed images that were already output inline. The image `images.json` manifest reflects this.
+- **ORF E2E-07 (fuzzy match)**: `apply_xliff` to DOCX now tolerates small text mismatches between XLIFF source and DOCX paragraphs (up to 5-char length diff, 0.85 ratio). If you previously got `SKIPPED units`, retry — they should now backfill.
