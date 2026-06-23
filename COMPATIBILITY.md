@@ -5,6 +5,7 @@
 | 0.2.0 | 0.4.4 | 0.6.1 | 0.4.3 | Agent onboarding + E2E test health + CI infra |
 | 0.2.1 | 0.4.5 | 0.6.2 | 0.4.4 | E2E-07, E2E-14, E2E-15, E2E-64, E2E-65 surgical cherry-picks |
 | 0.2.2 | 0.4.5 | 0.6.3 | 0.4.4 | OPP v0.6.3 (stderr handler for verbose mode UX) |
+| 0.2.3 | 0.4.6 | 0.6.4 | 0.4.5 | E2E-74/77/78/79/80/81/82/83 — full E2E-74/75/76 + shield/md2pptx/CSV/docling fixes |
 
 ## How to check installed versions
 

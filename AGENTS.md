@@ -6,16 +6,16 @@ This file guides AI agents (Claude, Cursor, OpenCode, etc.) on how to work with 
 
 A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translate) → **ORF** (backfill). Each module is a standalone sub-repo with its own CLI, MCP server, and test suite.
 
-## Current Versions (2026-06-23)
+## Current Versions (2026-06-24)
 
 | Component | Version | Status |
 |---|---|---|
-| Omni_Suite (this repo) | 0.2.2 | ✅ Tagged, all 4 repos on main, working trees clean |
-| Omni_Pre_Processor | 0.6.3 | ✅ 4 commits ahead of origin/main (E2E-15 + version + stderr fix + version) |
-| Omni_Localizer | 0.4.5 | ✅ 4 commits ahead (3 E2E fixes + version) |
-| Omni_Re_Formatter | 0.4.4 | ✅ 2 commits ahead (E2E-07 + version) |
+| Omni_Suite (this repo) | 0.2.3 | ✅ Tagged, all 4 repos on main, working trees clean |
+| Omni_Pre_Processor | 0.6.4 | ✅ E2E-81/82 + version bump |
+| Omni_Localizer | 0.4.6 | ✅ E2E-74/77/78/83 + version bump + conftest litellm stub fix |
+| Omni_Re_Formatter | 0.4.5 | ✅ E2E-79/80 + version bump |
 
-**Pinned combo (last tested)**: opp 0.6.3 + ol 0.4.5 + orf 0.4.4 + suite 0.2.2.
+**Pinned combo (last tested)**: opp 0.6.4 + ol 0.4.6 + orf 0.4.5 + suite 0.2.3.
 **Next push order** (when network allows): sub-repos first → then Omni_Suite pointer advance.
 
 ## Recent Changes (since last production tag)
