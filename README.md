@@ -69,14 +69,14 @@ pytest tests/security/ -q        # 63 security tests
 pytest tests/ -q                 # all suite-level tests
 
 # 4. 查看版本
-omni-suite --version             # 0.2.0
+omni-suite --version             # 0.2.1
 omni-suite --compatibility       # version matrix
 ```
 
 
 ## Cross-Format Production-Readiness
 
-Verified OPP→OL→ORF paths as of 2026-06-19:
+Verified OPP→OL→ORF paths as of 2026-06-23:
 
 | From | Via | To | Engine / Note |
 |------|-----|----|---------------|
@@ -114,6 +114,11 @@ src/Omni_Re_Formatter   → 1StepMore/Omni_Re_Formatter (main)
 | E2E-05 | MD Path 结构优化（标题层级、段落分隔、文字样式） | ✅ 已完成 | 本批次 |
 | E2E-06 | MD Path 段落膨胀修复（OL token_stream + <!-- p -->正则收紧） | ✅ 已完成 | 本批次 |
 | E2E-07 | 边界条件测试修复（OPP/ORF/images 共 9 项） | ✅ 已完成 | 本批次 |
+| E2E-14 | OL MCP `translate_md_text` 输出含重复 base64 image refs | ✅ 已修复 | `ea07b7f` |
+| E2E-15 | OPP MarkdownGenerator 重复嵌入图片（inline + Images section） | ✅ 已修复 | `309c89a` |
+| E2E-64 | OL XLIFF repair `is_complete()` 误报 + 缺 `RouterRateLimitError` retry | ✅ 已修复 | `2128727` |
+| E2E-65 | OL 缺 prompt injection 剥离（LLM 回显 "CRITICAL: Output ONLY..."） | ✅ 已修复 | `d5b7d0c` |
+| OPP-stderr | `opp -v` 不写终端（仅写文件），verbose UX 失效 | ✅ 已修复 | `9d4576d` |
 
 ### E2E-05: MD Path 结构优化
 
@@ -152,14 +157,18 @@ orf apply-md ./ol_out/document.md --target-format docx -o result.docx
 
 ## 环境说明
 
-| 组件 | 路径 | 版本 |
+| 组件 | 路径 | 版本 / SHA |
 |------|------|------|
-| OPP | `Omni_Pre_Processor` | `3684e87` |
-| OL | `Omni_Localizer` | `4685a47` |
-| ORF | `Omni_Re_Formatter` | `c7d6853`（含 `15834db`）|
+| OPP | `Omni_Pre_Processor` | **0.6.2** @ `9d4576d` |
+| OL | `Omni_Localizer` | **0.4.5** @ `fa00e2f` |
+| ORF | `Omni_Re_Formatter` | **0.4.4** @ `c875562` |
+| Suite | `.` | **0.2.1** @ `22f76f5` |
 | Python 3.13（统一 venv） | `.venv_ol/` | ✅ 当前唯一活跃 venv，所有组件共用 |
 | Python 3.12（已弃用） | `.venv/` | ⚠️ 旧 venv，OPP/ORF CLI 曾用，勿再使用 |
 | OL MCP 专用 venv | `~/.hermes/venvs/omni-localizer` | Python 3.13（OL MCP 服务）|
+
+**Pinned combo**: opp 0.6.2 + ol 0.4.5 + orf 0.4.4 + suite 0.2.1（last tested 2026-06-23）。
+**Pushed combo (待 push)**: same as above; local commits only, network too slow for `git push` as of 2026-06-23.
 
 ---
 
