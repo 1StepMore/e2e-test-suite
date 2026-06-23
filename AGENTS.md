@@ -10,20 +10,20 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 
 | Component | Version | Status |
 |---|---|---|
-| Omni_Suite (this repo) | 0.2.1 | ✅ Tagged, all 4 repos on main, working trees clean |
-| Omni_Pre_Processor | 0.6.2 | ✅ 3 commits ahead of origin/main (E2E-15 + version + stderr fix) |
+| Omni_Suite (this repo) | 0.2.2 | ✅ Tagged, all 4 repos on main, working trees clean |
+| Omni_Pre_Processor | 0.6.3 | ✅ 4 commits ahead of origin/main (E2E-15 + version + stderr fix + version) |
 | Omni_Localizer | 0.4.5 | ✅ 4 commits ahead (3 E2E fixes + version) |
 | Omni_Re_Formatter | 0.4.4 | ✅ 2 commits ahead (E2E-07 + version) |
 
-**Pinned combo (last tested)**: opp 0.6.2 + ol 0.4.5 + orf 0.4.4 + suite 0.2.1.
+**Pinned combo (last tested)**: opp 0.6.3 + ol 0.4.5 + orf 0.4.4 + suite 0.2.2.
 **Next push order** (when network allows): sub-repos first → then Omni_Suite pointer advance.
 
 ## Recent Changes (since last production tag)
 
-**OPP v0.6.1 → v0.6.2** (3 commits):
+**OPP v0.6.1 → v0.6.3** (4 commits):
 - `fix(E2E-15)`: filter orphaned images in MarkdownGenerator (prevents double-embedding via Pandoc)
-- `chore(release)`: version bump
 - `fix(opp): attach stderr handler in verbose mode` — **`opp --detect-format -v` now writes "Detected: docx" to stderr** (was file-only before)
+- Two `chore(release)`: version bumps 0.6.1→0.6.2→0.6.3
 
 **OL v0.4.4 → v0.4.5** (4 commits):
 - `fix(E2E-65)`: prompt injection strip in level1 repair (defends against LLM echoing system prompt)
@@ -35,8 +35,9 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 - `fix(E2E-07)`: fuzzy paragraph match in `_backfill_split_runs` (ratio ≥ 0.85, length diff ≤ 5)
 - `chore(release)`: version bump
 
-**Omni_Suite v0.2.0 → v0.2.1** (1 commit):
-- `chore(suite)`: advance submodule pointers to new versions + update compat matrices
+**Omni_Suite v0.2.0 → v0.2.2** (2 commits):
+- `chore(suite)`: advance submodule pointers + update compat matrices
+- `chore(suite)`: advance OPP pointer to v0.6.3 + suite bump to v0.2.2
 
 ## Quick Start
 

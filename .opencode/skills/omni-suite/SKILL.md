@@ -1,6 +1,6 @@
 ---
 name: omni-suite
-description: Orchestrate the 3-stage Omni Suite document localization pipeline (OPP extract → OL translate → ORF backfill). Current versions: opp 0.6.2, ol 0.4.5, orf 0.4.4, suite 0.2.1.
+description: Orchestrate the 3-stage Omni Suite document localization pipeline (OPP extract → OL translate → ORF backfill). Current versions: opp 0.6.3, ol 0.4.5, orf 0.4.4, suite 0.2.2.
 ---
 
 # Omni Suite — Document Localization Pipeline
@@ -9,7 +9,7 @@ A 3-stage pipeline for translating documents between formats and languages.
 
 ## Current versions (2026-06-23)
 
-- **OPP** 0.6.2, **OL** 0.4.5, **ORF** 0.4.4, **suite** 0.2.1
+- **OPP** 0.6.3, **OL** 0.4.5, **ORF** 0.4.4, **suite** 0.2.2
 - All 4 repos on `main`, working trees clean, ready to test
 - E2E-65/64/15/14/07 cherry-picks + OPP stderr-handler fix landed
 
