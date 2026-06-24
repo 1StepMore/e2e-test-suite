@@ -236,6 +236,29 @@ _FORMAT_RATIO_OVERRIDES: dict[str, float] = {
     "md": 0.25,     # MD: default
 }
 
+# Per-language-pair overrides for MIN_TARGET_RATIO (Issue e2e #6).
+# Highest priority tier in the lookup chain (lang > format > default).
+# Intentionally empty — every (src, tgt) pair currently falls through
+# to _FORMAT_RATIO_OVERRIDES / MIN_TARGET_RATIO. Populate from matrix
+# regressions as data warrants.
+_LANG_RATIO_OVERRIDES: dict[tuple[str, str], float] = {}
+
+
+def _resolve_min_ratio(
+    source_format: Optional[str],
+    source_lang: str,
+    target_lang: str,
+) -> float:
+    """Return the min target/source ratio for this (format, lang) tuple.
+
+    Lookup chain: language pair > format > MIN_TARGET_RATIO default.
+    """
+    lang_pair = (source_lang, target_lang)
+    if lang_pair in _LANG_RATIO_OVERRIDES:
+        return _LANG_RATIO_OVERRIDES[lang_pair]
+    fmt = (source_format or "").lower().strip()
+    return _FORMAT_RATIO_OVERRIDES.get(fmt, MIN_TARGET_RATIO)
+
 
 def check_translation_quality(
     source: str,
@@ -271,10 +294,10 @@ def check_translation_quality(
         source_format: Format hint for ratio overrides (one of
             "docx", "pdf", "json", etc.; case-insensitive). Optional
             — defaults to the conservative `MIN_TARGET_RATIO` of 0.3.
-        source_lang: Source language code (default "en"). Reserved
-            for future use — not currently consulted.
-        target_lang: Target language code (default "zh"). Reserved
-            for future use.
+        source_lang: Source language code (default "en"). Used in the
+            ratio lookup chain (see _LANG_RATIO_OVERRIDES).
+        target_lang: Target language code (default "zh"). Used in the
+            ratio lookup chain (see _LANG_RATIO_OVERRIDES).
 
     Returns:
         A `QualityResult` with `is_complete` and the individual check
@@ -340,8 +363,7 @@ def check_translation_quality(
         )
 
     # ---- Check 3: target has translation (ratio-based, format-aware) ----
-    fmt = (source_format or "").lower().strip()
-    min_ratio = _FORMAT_RATIO_OVERRIDES.get(fmt, MIN_TARGET_RATIO)
+    min_ratio = _resolve_min_ratio(source_format, source_lang, target_lang)
 
     # Short-source fallback: if source is < 20 chars, a 50% length
     # ratio is the floor (with `MIN_TARGET_CHARS=1` as the hard
@@ -373,7 +395,7 @@ def check_translation_quality(
             target_source_ratio=ratio,
             reason=(
                 f"NO_TRANSLATION: target/source ratio {ratio:.2f} < "
-                f"min_ratio {min_ratio:.2f} for format={fmt!r}; "
+                f"min_ratio {min_ratio:.2f} for format={source_format!r}; "
                 f"target_chars={target_chars}, cn_chars={cn_chars}"
             ),
             notes=notes,
@@ -398,4 +420,6 @@ __all__ = [
     "MIN_TARGET_CHARS",
     "MIN_TARGET_RATIO",
     "_FORMAT_RATIO_OVERRIDES",
+    "_LANG_RATIO_OVERRIDES",
+    "_resolve_min_ratio",
 ]
