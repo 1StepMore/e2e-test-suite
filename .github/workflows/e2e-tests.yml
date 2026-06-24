@@ -46,13 +46,11 @@ jobs:
       - name: Install md2pptx (Phase C2)
         run: bash scripts/install_md2pptx.sh
 
-      - name: uv sync (root workspace + all 3 submodules)
+      - name: uv sync (root workspace installs all 3 submodules via [tool.uv.workspace])
         run: uv sync --frozen
 
-      - name: Install submodules + test deps (uv sync doesn't pick up src/ submodules)
-        run: |
-          uv pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
-          uv pip install pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio
+      - name: Install test deps (pytest + docx/pptx/pandoc + structlog/otel + psutil)
+        run: uv pip install pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio
 
       - name: Create .venv_ol symlink for legacy paths
         run: ln -s .venv .venv_ol
@@ -168,10 +166,8 @@ jobs:
       - name: uv sync
         run: uv sync --frozen
 
-      - name: Install submodules + test deps
-        run: |
-          uv pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
-          uv pip install pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio
+      - name: Install test deps
+        run: uv pip install pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio
 
       - name: Create .venv_ol symlink for legacy paths
         run: ln -s .venv .venv_ol

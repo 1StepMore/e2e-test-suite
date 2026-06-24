@@ -110,7 +110,7 @@ src/Omni_Re_Formatter   → 1StepMore/Omni_Re_Formatter (main)
 | Bug | 工具 | 状态 | 修复 SHA |
 |-----|------|------|----------|
 | E2E-03 | ORF MCP | ✅ 已修复 | `15834db` |
-| E2E-04 | OL CLI translate-xliff 挂死（module-level KeyBERT 导入，模块预加载 hang），无输出文件 | ❌ 待修复（fix 已写，待 commit） | — |
+| E2E-04 | OL CLI translate-xliff 挂死（module-level KeyBERT 导入，模块预加载 hang），无输出文件 | ✅ 已修复 | `4da6310` (OL) |
 | E2E-05 | MD Path 结构优化（标题层级、段落分隔、文字样式） | ✅ 已完成 | 本批次 |
 | E2E-06 | MD Path 段落膨胀修复（OL token_stream + <!-- p -->正则收紧） | ✅ 已完成 | 本批次 |
 | E2E-07 | 边界条件测试修复（OPP/ORF/images 共 9 项） | ✅ 已完成 | 本批次 |

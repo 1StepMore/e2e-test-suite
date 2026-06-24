@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 # Ensure component paths are set up
-from conftest import setup_component_paths
+from tests.conftest import setup_component_paths
 setup_component_paths()
 
 # Path to the real large DOCX file (~14MB, 7,681 paragraphs) in the repo root
@@ -393,7 +393,7 @@ class TestThroughput:
 
         Measures how many documents can be processed per minute.
         """
-        from conftest import run_opp_extraction
+        from tests.conftest import run_opp_extraction
 
         output_dir = tmp_path / "throughput_output"
 

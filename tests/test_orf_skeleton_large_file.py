@@ -11,7 +11,7 @@ import pytest
 from lxml import etree
 
 # Ensure ORF is on sys.path (same pattern as test_e2e_performance.py)
-from conftest import setup_component_paths
+from tests.conftest import setup_component_paths
 
 setup_component_paths()
 

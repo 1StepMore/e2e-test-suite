@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from conftest import setup_component_paths
+from tests.conftest import setup_component_paths
 setup_component_paths()
 
 pytest.skip("opp.cloud_utils module was removed; cloud tests migrated to "
@@ -440,7 +440,7 @@ class TestCloudPipelineIntegration:
     @pytest.fixture
     def pipeline_output(self, tmp_path: Path, opp_pipeline, sample_docx_path) -> dict:
         """Set up OPP pipeline output for cloud upload testing."""
-        from conftest import run_opp_extraction
+        from tests.conftest import run_opp_extraction
 
         output_dir = tmp_path / "pipeline_output"
         output_dir.mkdir(exist_ok=True)
