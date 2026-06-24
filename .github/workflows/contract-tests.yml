@@ -27,17 +27,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
       - name: Create .venv_ol symlink (test files hardcode this path)
         run: mkdir -p .venv_ol/bin && ln -sf $(which python) .venv_ol/bin/python
-      - name: Install submodules
+      - name: Install suite + 3 sub-repos (root-level clones via uv workspace)
         run: |
-          pip install -e ./src/Omni_Pre_Processor -e ./src/Omni_Localizer -e ./src/Omni_Re_Formatter
+          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: Run CLI contract tests
@@ -52,17 +50,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
       - name: Create .venv_ol symlink (test files hardcode this path)
         run: mkdir -p .venv_ol/bin && ln -sf $(which python) .venv_ol/bin/python
-      - name: Install submodules with MCP extras
+      - name: Install suite + 3 sub-repos (root-level clones via uv workspace)
         run: |
-          pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
+          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: Run MCP schema contract tests
@@ -77,17 +73,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
       - name: Create .venv_ol symlink (test files hardcode this path)
         run: mkdir -p .venv_ol/bin && ln -sf $(which python) .venv_ol/bin/python
-      - name: Install submodules with MCP extras
+      - name: Install suite + 3 sub-repos (root-level clones via uv workspace)
         run: |
-          pip install -e ./src/Omni_Pre_Processor -e "./src/Omni_Localizer[mcp]" -e ./src/Omni_Re_Formatter
+          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: Run MCP matrix (single format)

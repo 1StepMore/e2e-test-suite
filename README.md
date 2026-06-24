@@ -94,14 +94,20 @@ Dependency notes: [ORF README](Omni_Re_Formatter/README.md) · [OPP README](Omni
 
 ## Git Submodules
 
-```
-src/Omni_Pre_Processor   → 1StepMore/Omni_Pre_Processor (main)
-src/Omni_Localizer      → 1StepMore/Omni_Localizer (main)
-src/Omni_Re_Formatter   → 1StepMore/Omni_Re_Formatter (main)
-```
-
-**同步命令**：`bash scripts/sync_shallow.sh`
-**注意**：套件 git 不会自动追踪 submodule 上游新 SHA，需手动 sync + commit。
+> **As of 2026-06-24**: the `src/Omni_*/` git submodules have been removed.
+> OPP/OL/ORF are now regular top-level directories in this repo
+> (`Omni_Pre_Processor/`, `Omni_Localizer/`, `Omni_Re_Formatter/`), each
+> with its own `.git/` for tracking upstream changes. To pull upstream
+> updates, run `git pull` inside the directory:
+>
+> ```bash
+> cd Omni_Pre_Processor && git pull origin main
+> cd Omni_Localizer && git pull origin main
+> cd Omni_Re_Formatter && git pull origin main
+> ```
+>
+> `scripts/sync_shallow.sh` is now a deprecation stub (errors with a clear
+> message). The historical `src/Omni_*/` paths are no longer used.
 
 ---
 
@@ -211,7 +217,7 @@ mcp_ol_translate_xliff({params: {input_path: "...", output_path: "...", ...}})
 
 ## E2E-03 修复记录
 
-**文件**：`src/Omni_Re_Formatter/src/orf/mcp/server.py:189`
+**文件**：`Omni_Re_Formatter/src/orf/mcp/server.py:189`
 
 **问题**：`images=None` 时访问未初始化变量 `temp_created`，导致 `NameError`
 
@@ -219,7 +225,7 @@ mcp_ol_translate_xliff({params: {input_path: "...", output_path: "...", ...}})
 
 **验证**：
 ```bash
-PYTHONPATH="src/Omni_Re_Formatter/src" .venv312/bin/python -c "
+PYTHONPATH="Omni_Re_Formatter/src" .venv312/bin/python -c "
 from orf.mcp.server import _run_cli_command
 # 模拟 images=None 调用
 result = _run_cli_command(['apply-xliff', '/nonexistent.docx', '--xliff', '/nonexistent.xliff', '--output', '/tmp/out.docx', '--format', 'docx'])

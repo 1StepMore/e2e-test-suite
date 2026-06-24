@@ -285,8 +285,6 @@ To avoid scope creep:
   are not API-breaking unless they drop a symbol we re-export.
 - **Localization of CLI messages** (currently English-only). When we
   add translations, we will do it as an additive change.
-- **The `src/Omni_*/` empty submodule paths** — these are a historical
-  quirk, not API. See `docs/ARCHITECTURE.md` § 9.
 
 ---
 

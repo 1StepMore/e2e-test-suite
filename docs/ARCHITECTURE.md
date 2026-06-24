@@ -407,7 +407,7 @@ observability story (see Phase 4 in
 | 6 | **MCP over stdio, one server per module** | Stdio is the only transport agents uniformly support; one server per module keeps failure domains and security allowlists independent. | `Omni_*/src/*/mcp/server.py` × 3 |
 | 7 | **Cross-format XLIFF needs `--force`** | ORF's default is to refuse a format-mismatched backfill (e.g. DOCX xlf → PPTX) because silent fallbacks lose layout. `--force` makes the override explicit. | `Omni_Re_Formatter/src/orf/cli.py` |
 | 8 | **Coordinate releases via `bumpversion.py` + `VERSION_COMPATIBILITY.md`** | The three modules version independently (different teams, different cadences) but every shipped combination must be matrix-tested before it lands in the compat table. | `scripts/bumpversion.py`, `VERSION_COMPATIBILITY.md` |
-| 9 | **Submodule layout declared at `src/Omni_*/` but actual repos at `Omni_*/`** | Historical mismatch in `.gitmodules`. We commit in the top-level repos directly; `src/Omni_*/` stays empty/uninitialized. Documented in `learnings.md`. | `.gitmodules`, top-level `Omni_*/.git/` |
+| 9 | **(removed 2026-06-24) src/Omni_*/ git submodules no longer exist** | OPP/OL/ORF are now regular top-level directories. The `.gitmodules` entries were dropped; `scripts/sync_shallow.sh` is now a deprecation stub. | `.gitmodules` (removed), `scripts/sync_shallow.sh` (stub) |
 | 10 | **Single shared venv at `.venv_ol/` (Python 3.13)** | Eliminates "wrong venv" bugs. `.venv/` (Python 3.12) is deprecated. | `.venv_ol/`, `README.md` (Environment section) |
 
 ---
@@ -462,7 +462,6 @@ Omni_Suite/                              ← this repo (parent / test suite)
 │   │   └── mcp/server.py                ← MCP server (6 tools)
 │   ├── pyproject.toml                   ← version 0.4.3
 │   └── README.md
-├── src/Omni_*/                          ← declared by .gitmodules, currently empty
 ├── tests/                               ← parent suite tests (30+ files)
 │   ├── integration/test_version_compat.py
 │   ├── observability/                   ← 38 tests
@@ -492,12 +491,6 @@ Omni_Suite/                              ← this repo (parent / test suite)
 ├── .venv_ol/                            ← shared Python 3.13 venv
 └── README.md
 ```
-
-> **Note on `src/Omni_*/`**: `.gitmodules` declares submodule paths under
-> `src/`, but the actual code is committed at the top-level `Omni_*/` paths
-> (each is a standalone git repo with its own `.git/`). The `src/Omni_*/`
-> paths are intentionally empty. See
-> `.omo/notepads/2026-06-22-production-readiness-plan/learnings.md` → "Submodule layout issue".
 
 ---
 
