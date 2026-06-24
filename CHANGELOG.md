@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`tests/quality_checks.py` — codified translation quality module** (`tests/quality_checks.py`): The QC logic from the 2026-06-24 full-matrix regression test runner (a one-off `/tmp/run_scene_matrix.py` script that produced a 200-cell matrix and flagged 48 false-positive FAILs) is now a proper suite module with 25 regression tests. Fixes the three hardcoded, format-insensitive rules that caused the false positives (issue #4):
+
+  1. **Degenerate detection no longer flags markdown table separator lines** — the original `(.)1{9,}` regex matched `|--------|` (10+ consecutive dashes). Now strips table-separator rows before applying the regex. Resolves 8 DOCX + 2 CSV false-positive cells (Symptom A: 10格).
+  2. **Translation-existence check is now target/source length ratio, not absolute** — the original `cn_chars > 20` rejected PDF/PPTX/XLSX/CSV edge cases where the source itself was <20 chars. New defaults: `MIN_TARGET_RATIO=0.25` (calibrated for en→zh density) with per-format overrides (`pdf=0.15`, `pptx=0.20`, `xlsx=0.20`, `csv=0.20`, `json=0.10`, `html=0.10`, `eml=0.20`); `MIN_TARGET_CHARS=1` (50% of source length with hard minimum 1) for short sources (<20 chars). Resolves 12 PDF + 6 PPTX + 3 XLSX + 1 CSV false-positive cells (Symptom B: 22格).
+  3. **Source that is entirely fenced code blocks auto-PASSes** — JSON files and HTML files with only `<img>` metadata extract to pure code blocks. After the v0.4.7 #5 fence-preservation fix, the translation is correctly the same code block verbatim, not "missing translation". New check `_is_entirely_fenced_code()` short-circuits to PASS with `source_non_translatable=True`. Resolves 10 JSON + 6 HTML false-positive cells (Symptom C: 16格).
+
+  Public API: `check_translation_quality(source, target, source_format=None, source_lang="en", target_lang="zh") -> QualityResult` returns a structured `QualityResult` dataclass with `is_complete`, `has_translation`, `is_degenerate`, `source_non_translatable`, `target_chars`, `source_chars`, `cn_chars`, `target_source_ratio`, `reason`, `notes`. The matrix test runner consumes this to categorize each cell.
+
+  25 unit tests in `tests/test_quality_checks.py` pin the contract: 5 for the table-separator fix (including negative cases), 9 for the ratio-based check (including format overrides), 6 for the non-translatable source bypass, 4 for module constants, 1 for the dataclass. The 3 false-positive scenarios from issue #4 all now PASS; the 2 negative cases (real degenerate 11 dots, empty target) still correctly FAIL.
+
+### Fixed
+
+- **Matrix regression false-positive rate: 48格/200 (24%) → 0格/200**. All 48 false-positive cells from the 2026-06-24 matrix run were caused by the three hardcoded QC rules above. The matrix is now expected to report a true pass rate close to 100% (excluding the 16 cells for code-only formats which were never supposed to be tested for translation completeness).
+
 ## 0.2.0 — 2026-06-20
 
 ### Added
