@@ -497,7 +497,12 @@ orf apply-md /tmp/test_ol/sample.md --target-format docx -o /tmp/result.docx
 - ORF `apply-md` supports 16 formats; check the table before assuming availability.
 - `omni_suite/cli.py` is print-only — use per-module CLIs for real work.
 - For end-to-end orchestration, chain per-module MCPs in sequence.
-- Per-module `AGENTS.md` / `SKILL.md` files exist in each sub-repo for deeper context.
+- Per-sub-repo `AGENTS.md` files (in each sub-repo root) cover dev
+  / agent context for that sub-repo: architecture, CLI, MCP tools,
+  env vars, test patterns, known gotchas. SKILL.md files exist in
+  OPP and OL sub-repos at `src/.../SKILL.md` for tool-level references;
+  ORF has no SKILL.md (worst-off, see its AGENTS.md "Known issues"
+  for context).
 - Tests live under `tests/` at suite root and within each `Omni_*/tests/` sub-repo.
 - For end-to-end orchestration, chain per-module MCPs in sequence, passing `output_dir` from each step as input to the next.
 - OPP MCP provides 7 tools: `extract_document`, `batch_extract`, `detect_format_tool`, `generate_markdown`, `generate_xliff`, `save_skeleton`, `ping`.
