@@ -2,8 +2,26 @@
   {
     "description": "Convert MD to target format. Images (from OPP images.json) are extracted during conversion into images.zip + images.json alongside the output document when separate_images=True (default). When separate_images=False, images embedded as base64 data URIs in the markdown are decoded and placed inline in the output document by Pandoc.",
     "inputSchema": {
+      "anyOf": [
+        {
+          "required": [
+            "input_md",
+            "target_format"
+          ]
+        },
+        {
+          "required": [
+            "content",
+            "target_format"
+          ]
+        }
+      ],
       "properties": {
         "author": {
+          "type": "string"
+        },
+        "content": {
+          "description": "Inline markdown content (text-in/text-out agent flow). Mutually exclusive with ``input_md``.",
           "type": "string"
         },
         "embed_images": {
@@ -18,7 +36,7 @@
           "type": "array"
         },
         "input_md": {
-          "description": "Path to input markdown file.",
+          "description": "Path to input markdown file. Mutually exclusive with ``content``.",
           "type": "string"
         },
         "lang": {
@@ -59,10 +77,6 @@
           "type": "string"
         }
       },
-      "required": [
-        "input_md",
-        "target_format"
-      ],
       "type": "object"
     },
     "name": "apply_md"
