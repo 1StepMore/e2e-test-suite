@@ -223,16 +223,80 @@ def opp_mcp_server(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def ol_mcp_server():
-    """The OL MCP server — the module-level ``mcp`` instance is pre-populated."""
-    from ol_mcp.tools import mcp
+    """The OL MCP server — wrapped in FastMCP for in-process testing.
+
+    OL exposes a low-level ``mcp.server.Server`` instance directly via
+    ``ol_mcp.tools.mcp``. fastmcp.Client cannot infer the transport from
+    a low-level ``Server`` (its transport inference only handles
+    ``FastMCP`` instances, URL strings, and ``MCPConfig`` dicts — see
+    fastmcp/client/transports/inference.py:155). Without the wrap, every
+    OL smoke test would fail with "ValueError: Could not infer a valid
+    transport from: <mcp.server.lowlevel.server.Server>".
+
+    The wrap imports the 8 OL tool functions (which are module-level
+    callables, decorated only by ``@_register_tool(...)`` to populate the
+    TOOL_REGISTRY) and registers them in a fresh FastMCP instance.
+    Mirrors how the OPP fixture (above) works.
+
+    Compatibility with fake-pool patches: ``patch("ol_mcp.tools.ModelPool")``
+    (used by ``fake_ol_async_pool`` / ``fake_ol_sync_pool`` fixtures
+    below) still works because the imported tool functions look up
+    ``ModelPool`` at call time in their own module globals, not at import
+    time in this fixture's module.
+    """
+    from fastmcp import FastMCP
+    from ol_mcp.tools import (
+        translate_md_text,
+        judge_text,
+        load_glossary,
+        get_relevant_terms,
+        search_tm,
+        batch_translate_texts,
+        translate_xliff,
+        ping,
+    )
+
+    mcp = FastMCP("OL MCP Server (smoke)")
+    mcp.add_tool(translate_md_text)
+    mcp.add_tool(judge_text)
+    mcp.add_tool(load_glossary)
+    mcp.add_tool(get_relevant_terms)
+    mcp.add_tool(search_tm)
+    mcp.add_tool(batch_translate_texts)
+    mcp.add_tool(translate_xliff)
+    mcp.add_tool(ping)
     return mcp
 
 
 @pytest.fixture(scope="module")
 def orf_mcp_server():
-    """The ORF MCP server singleton (registers tools on first call)."""
-    from orf.mcp.server import get_server
-    return get_server()
+    """The ORF MCP server — wrapped in FastMCP for in-process testing.
+
+    ORF exposes 6 standalone tool functions (``apply_md``, ``apply_xliff``,
+    ``batch_convert``, ``detect_format``, ``info``, ``ping``) and a
+    low-level ``mcp.server.Server`` singleton via ``get_server()``. Same
+    transport-inference problem as OL — fastmcp.Client cannot use the
+    low-level Server directly. The wrap registers the 6 tool functions
+    in a fresh FastMCP instance, mirroring the OPP/OL fixtures.
+    """
+    from fastmcp import FastMCP
+    from orf.mcp.server import (
+        apply_md,
+        apply_xliff,
+        batch_convert,
+        detect_format,
+        info,
+        ping,
+    )
+
+    mcp = FastMCP("ORF MCP Server (smoke)")
+    mcp.add_tool(apply_md)
+    mcp.add_tool(apply_xliff)
+    mcp.add_tool(batch_convert)
+    mcp.add_tool(detect_format)
+    mcp.add_tool(info)
+    mcp.add_tool(ping)
+    return mcp
 
 
 # ORF MCP PathValidator allowlist (must include test dirs)
@@ -1616,6 +1680,7 @@ class TestMCPStartupLatency:
             f"{repo_root}/Omni_Pre_Processor/src",
             f"{repo_root}/Omni_Localizer/src",
             f"{repo_root}/Omni_Re_Formatter/src",
+            f"{repo_root}/tests",  # for tests/_import_blocker.install()
         ]
         env["PYTHONPATH"] = os.pathsep.join(py_paths + [env.get("PYTHONPATH", "")])
 
@@ -1642,10 +1707,17 @@ class TestMCPStartupLatency:
                 "sys.exit(0)"
             )
         elif server_name == "ol":
+            # Issue #1: install the heavy-import blocker in the subprocess
+            # BEFORE importing ol_mcp. The parent process's conftest blocker
+            # is in-memory sys.meta_path state and does not propagate to
+            # the fresh subprocess interpreter. Without this, the OL
+            # import chain (litellm → transformers → torch) takes 30-90s
+            # and the test fails with a pytest-timeout.
             script = (
                 "import time, sys; "
                 "t0 = time.perf_counter(); "
                 "import os; os.environ.setdefault('OMNI_TEST_FAKE_LLM', '1'); "
+                "from _import_blocker import install; install(); "
                 "from ol_mcp.tools import mcp; "
                 "t1 = time.perf_counter(); "
                 "print(f'ol_startup_seconds={t1 - t0:.3f}'); "
