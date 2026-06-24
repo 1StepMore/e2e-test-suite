@@ -10,12 +10,12 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 
 | Component | Version | Status |
 |---|---|---|
-| Omni_Suite (this repo) | 0.2.3 | ✅ Tagged, all 4 repos on main, working trees clean |
-| Omni_Pre_Processor | 0.6.4 | ✅ E2E-81/82 + version bump |
-| Omni_Localizer | 0.4.6 | ✅ E2E-74/77/78/83 + version bump + conftest litellm stub fix |
-| Omni_Re_Formatter | 0.4.5 | ✅ E2E-79/80 + version bump |
+\g<1>0.2.3\g<2>✅ Tagged, all 4 repos on main, working trees clean |
+\g<1>0.6.6\g<2>✅ E2E-81/82 + version bump |
+\g<1>0.4.7\g<2>✅ E2E-74/77/78/83 + version bump + conftest litellm stub fix |
+\g<1>0.4.5\g<2>✅ E2E-79/80 + version bump |
 
-**Pinned combo (last tested)**: opp 0.6.4 + ol 0.4.6 + orf 0.4.5 + suite 0.2.3.
+\g<1>0.6.6\g<2>0.4.7\g<3>0.4.5\g<4>0.2.3.
 **Next push order** (when network allows): sub-repos first → then Omni_Suite pointer advance.
 
 ## Recent Changes (since last production tag)

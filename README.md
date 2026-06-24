@@ -69,7 +69,7 @@ pytest tests/security/ -q        # 63 security tests
 pytest tests/ -q                 # all suite-level tests
 
 # 4. 查看版本
-omni-suite --version             # 0.2.2
+\g<1>0.2.3
 omni-suite --compatibility       # version matrix
 ```
 
@@ -159,15 +159,15 @@ orf apply-md ./ol_out/document.md --target-format docx -o result.docx
 
 | 组件 | 路径 | 版本 / SHA |
 |------|------|------|
-| OPP | `Omni_Pre_Processor` | **0.6.3** @ `1023533` |
-| OL | `Omni_Localizer` | **0.4.5** @ `fa00e2f` |
-| ORF | `Omni_Re_Formatter` | **0.4.4** @ `c875562` |
-| Suite | `.` | **0.2.2** @ `5021dd5` |
+\g<1>0.6.6\g<2>
+\g<1>0.4.7\g<2>
+\g<1>0.4.5\g<2>
+\g<1>0.2.3\g<2>
 | Python 3.13（统一 venv） | `.venv_ol/` | ✅ 当前唯一活跃 venv，所有组件共用 |
 | Python 3.12（已弃用） | `.venv/` | ⚠️ 旧 venv，OPP/ORF CLI 曾用，勿再使用 |
 | OL MCP 专用 venv | `~/.hermes/venvs/omni-localizer` | Python 3.13（OL MCP 服务）|
 
-**Pinned combo**: opp 0.6.3 + ol 0.4.5 + orf 0.4.4 + suite 0.2.2（last tested 2026-06-23）。
+\g<1>0.6.6\g<2>0.4.7\g<3>0.4.5\g<4>0.2.3（last tested 2026-06-23）。
 **Pushed combo (待 push)**: same as above; local commits only, network too slow for `git push` as of 2026-06-23.
 
 ---
