@@ -20,6 +20,8 @@
 
 - **Matrix regression false-positive rate: 48格/200 (24%) → 0格/200**. All 48 false-positive cells from the 2026-06-24 matrix run were caused by the three hardcoded QC rules above. The matrix is now expected to report a true pass rate close to 100% (excluding the 16 cells for code-only formats which were never supposed to be tested for translation completeness).
 
+- **`tests/quality_checks.py` — language-pair aware ratio lookup chain** (Issue e2e #6): added `_LANG_RATIO_OVERRIDES: dict[(src, tgt), float]` and `_resolve_min_ratio()` helper implementing a 3-tier lookup (lang pair > format > default `MIN_TARGET_RATIO`). The `source_lang` and `target_lang` parameters of `check_translation_quality` are now consulted (previously marked "reserved for future use"). The lang table is intentionally empty by default — every (src, tgt) pair currently falls through to format/default, preserving all existing behavior. 6 new tests in `TestLangPairRatioLookup` pin the lookup chain: format override used when no lang entry, default used when neither, lang overrides format, lang overrides default, empty table is backward-compatible, existing call signature still works.
+
 ## 0.2.0 — 2026-06-20
 
 ### Added

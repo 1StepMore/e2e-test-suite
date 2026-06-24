@@ -34,7 +34,9 @@ from quality_checks import (  # noqa: E402  (sys.path mutation must come first)
     MIN_TARGET_RATIO,
     QualityResult,
     _FORMAT_RATIO_OVERRIDES,
+    _LANG_RATIO_OVERRIDES,
     _is_entirely_fenced_code,
+    _resolve_min_ratio,
     check_translation_quality,
 )
 
@@ -323,3 +325,40 @@ class TestQualityResultDataclass:
         assert r.is_degenerate is True
         assert r.reason.startswith("DEGENERATE_OUTPUT")
         assert r.notes == ["test note"]
+
+
+class TestLangPairRatioLookup:
+    """Issue e2e #6: lang > format > default lookup chain in _resolve_min_ratio."""
+
+    def test_format_override_used_when_no_lang_entry(self):
+        assert _resolve_min_ratio("pdf", "en", "zh") == 0.15
+        assert _resolve_min_ratio("json", "en", "zh") == 0.10
+
+    def test_default_ratio_when_no_lang_no_format(self):
+        assert _resolve_min_ratio("unknown_fmt", "en", "zh") == MIN_TARGET_RATIO
+        assert _resolve_min_ratio(None, "en", "zh") == MIN_TARGET_RATIO
+
+    def test_lang_pair_overrides_format(self):
+        _LANG_RATIO_OVERRIDES[("en", "ru")] = 0.50
+        try:
+            assert _resolve_min_ratio("pdf", "en", "ru") == 0.50
+            assert _resolve_min_ratio("docx", "en", "ru") == 0.50
+        finally:
+            _LANG_RATIO_OVERRIDES.pop(("en", "ru"), None)
+
+    def test_lang_pair_overrides_default(self):
+        _LANG_RATIO_OVERRIDES[("en", "ja")] = 0.30
+        try:
+            assert _resolve_min_ratio("unknown_fmt", "en", "ja") == 0.30
+            assert _resolve_min_ratio(None, "en", "ja") == 0.30
+        finally:
+            _LANG_RATIO_OVERRIDES.pop(("en", "ja"), None)
+
+    def test_empty_table_does_not_change_existing_behavior(self):
+        assert len(_LANG_RATIO_OVERRIDES) == 0
+        for fmt in ("pdf", "json", "docx", "csv"):
+            assert _resolve_min_ratio(fmt, "en", "zh") == _FORMAT_RATIO_OVERRIDES[fmt]
+
+    def test_existing_call_signature_backward_compatible(self):
+        r = check_translation_quality("Hello PDF", "你好 PDF", "pdf")
+        assert r.is_complete is True
