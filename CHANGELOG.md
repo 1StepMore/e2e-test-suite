@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Multi-language E2E test scenes** (`tests/scenes/scene-07-multi-lang/`, `tests/test_scene_07_multi_lang.py`): 12 cells across 3 language pairs (en→fr, en→ja, en→ru) × 4 formats (DOCX, PDF, HTML, JSON). Uses the FAKE_LLM seam to verify pipeline non-crash and output structure (openable, parseable). Declaratively parametrized via `@pytest.mark.parametrize`. Fixtures generated synthetically via python-docx, PyMuPDF, and inline string literals. Runs via `pytest -m scene07 -v`.
+
 - **`tests/quality_checks.py` — codified translation quality module** (`tests/quality_checks.py`): The QC logic from the 2026-06-24 full-matrix regression test runner (a one-off `/tmp/run_scene_matrix.py` script that produced a 200-cell matrix and flagged 48 false-positive FAILs) is now a proper suite module with 25 regression tests. Fixes the three hardcoded, format-insensitive rules that caused the false positives (issue #4):
 
   1. **Degenerate detection no longer flags markdown table separator lines** — the original `(.)1{9,}` regex matched `|--------|` (10+ consecutive dashes). Now strips table-separator rows before applying the regex. Resolves 8 DOCX + 2 CSV false-positive cells (Symptom A: 10格).

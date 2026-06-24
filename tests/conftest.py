@@ -1041,5 +1041,8 @@ def pytest_configure(config):
         "markers", "nightly: Real LLM tests; CI default skip, run via -m nightly"
     )
     config.addinivalue_line(
+        "markers", "scene07: Multi-language E2E test scenes (3 lang pairs × 4 formats)"
+    )
+    config.addinivalue_line(
         "markers", "benchmark: Throughput and timing benchmarks for OPP/OL/ORF"
     )
