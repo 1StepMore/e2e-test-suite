@@ -93,6 +93,20 @@ def _strip_log_noise(text: str) -> str:
     return text
 
 
+def _canonicalize(text: str) -> str:
+    """Normalize whitespace and trailing newlines so a fixture saved on
+    Windows (CRLF + trailing newline) and one saved on Linux (LF, no
+    trailing newline) compare equal.
+
+    Why: json.dumps() does NOT add a trailing newline, but writing the
+    same content to disk and reading it back through a shell echo or
+    text editor can. The frozen-baseline contract is about schema
+    content, not about byte-exact line endings. See issue #1.
+    """
+    text = text.replace("\r\n", "\n")
+    return text.rstrip() + "\n"
+
+
 def _server_env(module: str) -> dict[str, str]:
     env = os.environ.copy()
     env["OMNI_TEST_FAKE_LLM"] = "1"
@@ -140,8 +154,10 @@ async def _fetch_schemas(module: str) -> list[dict]:
 
 
 def _normalize(schemas: list[dict]) -> str:
-    return _strip_log_noise(
-        json.dumps(schemas, indent=2, sort_keys=True, ensure_ascii=False)
+    return _canonicalize(
+        _strip_log_noise(
+            json.dumps(schemas, indent=2, sort_keys=True, ensure_ascii=False)
+        )
     )
 
 
@@ -150,7 +166,7 @@ def _check(module: str, fixture_path: Path) -> None:
         f"Missing fixture: {fixture_path}. "
         f"Regenerate via the capture helper in tests/contract/test_mcp_schemas.py."
     )
-    expected_raw = _strip_log_noise(fixture_path.read_text(encoding="utf-8"))
+    expected_raw = _canonicalize(_strip_log_noise(fixture_path.read_text(encoding="utf-8")))
     actual = anyio.run(_fetch_schemas, module)
     names = {s["name"] for s in actual}
     expected_names = EXPECTED_TOOLS[module]
