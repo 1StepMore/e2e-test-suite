@@ -9,7 +9,9 @@ import sys
 import shutil
 import zipfile
 import json
+import types
 from datetime import datetime
+from importlib.machinery import ModuleSpec
 from pathlib import Path
 
 import pytest
@@ -24,6 +26,205 @@ os.environ.setdefault("LITELLM_TELEMETRY", "False")
 # 2026-06-20: ORF MCP PathValidator allowlist (must include test dirs).
 # Without this, every ORF MCP tool call in tests returns PATH_NOT_ALLOWED.
 os.environ.setdefault("ORF_MCP_ALLOWED_DIRS", "/tmp:/mnt/d/贯维/Omni_Suite")
+
+# 2026-06-24: Dummy API keys (same set as Omni_Localizer/tests/conftest.py).
+# FAKE_LLM mode creates _FakeModelPool and ignores these values; config
+# validators only check that the env vars are non-empty. Without these, OL
+# config validation aborts at import time and the OL MCP server fails to start.
+_DUMMY_API_KEYS = {
+    "ZHIPU_API_KEY": "sk-dummy",
+    "AGNES_API_KEY": "sk-dummy",
+    "NVIDIA_NIM_API_KEY": "nvapi-dummy",
+    "BAIDU_API_KEY": "sk-dummy",
+    "BAIDU_SECRET_KEY": "sk-dummy",
+    "OPENAI_API_KEY": "sk-dummy",
+    "ANTHROPIC_API_KEY": "sk-dummy",
+    "MINIMAX_API_KEY": "sk-dummy",
+    "MINIMAX_BASE_URL": "http://localhost:8080/v1",
+}
+for _k, _v in _DUMMY_API_KEYS.items():
+    os.environ.setdefault(_k, _v)
+
+
+# =============================================================================
+# Heavy-import blocker (ported from Omni_Localizer/tests/conftest.py)
+# =============================================================================
+# Several MCP test paths transitively import litellm, torch, transformers,
+# sentence_transformers, keybert, yake, span_aligner via ol_mcp → ol →
+# ol_pool / ol_terminology. These take 30-90s+ to import and aren't needed
+# for the MCP smoke contract (FAKE_LLM seam bypasses all LLM calls). Without
+# this blocker, `import ol_mcp` hangs for the full pytest-timeout window and
+# the OL/ORF smoke tests fail with "Failed: Timeout" (issue #1: 28/30 fail).
+#
+# The mechanism: pre-populate sys.modules with lightweight stubs and use a
+# meta_path blocker for submodules. Tests that need the real modules patch
+# them explicitly (see tests/test_mcp_smoke.py — it uses the in-process
+# fastmcp Client, not real LLM calls, so the stubs are sufficient).
+#
+# Ported verbatim from Omni_Localizer/tests/conftest.py (E2E-74 litellm stub
+# fix from OL 0.4.6). Keeping both copies in sync is documented in
+# Omni_Localizer/AGENTS.md → "Env vars" + "Tests" sections.
+
+
+class _StubModule(types.ModuleType):
+    def __getattr__(self, name):
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
+        cls = type(name, (), {})
+        try:
+            object.__setattr__(self, name, cls)
+        except (AttributeError, TypeError):
+            pass
+        return cls
+
+
+def _make_stub(name, attrs=None):
+    mod = _StubModule(name)
+    if attrs:
+        for k, v in attrs.items():
+            setattr(mod, k, v)
+    return mod
+
+
+_LITELLM_ATTRS = {
+    "Router": type("Router", (), {}),
+    "disable_model_name_normalization": False,
+}
+_LITELLM_EXC_ATTRS = {
+    "AuthenticationError": type("AuthenticationError", (Exception,), {}),
+    "RateLimitError": type("RateLimitError", (Exception,), {}),
+    "Timeout": type("Timeout", (Exception,), {}),
+}
+_LITELLM_TYPES_ROUTER_ATTRS = {
+    "RouterRateLimitError": type("RouterRateLimitError", (Exception,), {}),
+}
+_TORCH_CUDA_ATTRS = {"is_available": (lambda: False)}
+_TORCH_ATTRS = {
+    "cuda": None,
+    "device": (lambda *a, **k: "cpu"),
+    "float32": "float32",
+    "no_grad": type("_NoGrad", (), {
+        "__enter__": lambda s: None,
+        "__exit__": lambda s, *a: None,
+    }),
+}
+_TRANSFORMERS_ATTRS = {
+    "AutoConfig": type("AutoConfig", (), {
+        "from_pretrained": classmethod(lambda cls, *a, **k: type("_FakeConfig", (), {})()),
+    }),
+    "AutoTokenizer": type("AutoTokenizer", (), {
+        "from_pretrained": classmethod(lambda cls, *a, **k: type("_FakeTokenizer", (), {})()),
+    }),
+    "AutoModel": type("AutoModel", (), {
+        "from_pretrained": classmethod(
+            lambda cls, *a, **k: type("_FakeModel", (), {
+                "eval": lambda s: None,
+                "to": lambda s, *a, **k: None,
+                "__call__": lambda s, *a, **k: None,
+            })(),
+        ),
+    }),
+}
+_SENTENCE_TRANSFORMER_ATTRS = {
+    "SentenceTransformer": (lambda *a, **k: None),
+}
+_SPAN_ALIGNER_ATTRS = {
+    "SpanProjector": type("SpanProjector", (), {
+        "project": lambda self, text, *a, **k: text,
+        "align": lambda self, *a, **k: [],
+    }),
+    "align_spans": (lambda *a, **k: []),
+}
+_TYPER_ATTRS = {
+    "Typer": type("_TyperAppStub", (), {
+        "__init__": lambda s, *a, **k: None,
+        "command": lambda s, *a, **k: (lambda f: f),
+        "callback": lambda s, *a, **k: (lambda f: f),
+        "add_typer": lambda s, *a, **k: None,
+        "__call__": lambda s, *a, **k: (lambda f: f),
+    }),
+    "Option": (lambda *a, **k: None),
+    "Argument": (lambda *a, **k: None),
+    "BadParameter": type("BadParameter", (Exception,), {"message": ""}),
+    "Exit": type("Exit", (Exception,), {}),
+    "echo": lambda *a, **k: None,
+    "run": lambda f: f,
+    "style": lambda x, **k: x,
+}
+
+sys.modules.setdefault("litellm", _make_stub("litellm", _LITELLM_ATTRS))
+_litellm_stub = sys.modules["litellm"]
+if not hasattr(_litellm_stub, "__path__"):
+    _litellm_stub.__path__ = []
+sys.modules.setdefault(
+    "litellm.exceptions", _make_stub("litellm.exceptions", _LITELLM_EXC_ATTRS),
+)
+sys.modules.setdefault(
+    "sentence_transformers",
+    _make_stub("sentence_transformers", _SENTENCE_TRANSFORMER_ATTRS),
+)
+torch_stub = sys.modules.setdefault("torch", _make_stub("torch", _TORCH_ATTRS))
+torch_cuda_stub = _make_stub("torch.cuda", _TORCH_CUDA_ATTRS)
+sys.modules.setdefault("torch.cuda", torch_cuda_stub)
+torch_stub.cuda = torch_cuda_stub
+sys.modules.setdefault("transformers", _make_stub("transformers", _TRANSFORMERS_ATTRS))
+sys.modules.setdefault("span_aligner", _make_stub("span_aligner", _SPAN_ALIGNER_ATTRS))
+for _heavy in ("keybert", "yake"):
+    sys.modules.setdefault(_heavy, _make_stub(_heavy))
+sys.modules.setdefault("typer", _make_stub("typer", _TYPER_ATTRS))
+
+
+_BLOCKED_TOPS = frozenset({
+    "litellm", "torch", "transformers",
+    "sentence_transformers", "keybert", "yake",
+    "span_aligner", "typer",
+})
+
+_PRESET_BY_NAME = {
+    "litellm": _LITELLM_ATTRS,
+    "litellm.exceptions": _LITELLM_EXC_ATTRS,
+    "litellm.types.router": _LITELLM_TYPES_ROUTER_ATTRS,
+    "sentence_transformers": _SENTENCE_TRANSFORMER_ATTRS,
+    "torch.cuda": _TORCH_CUDA_ATTRS,
+    "transformers": _TRANSFORMERS_ATTRS,
+    "span_aligner": _SPAN_ALIGNER_ATTRS,
+    "typer": _TYPER_ATTRS,
+}
+
+
+class _HeavyImportBlocker:
+    """Block heavy imports (litellm, torch, etc.) by returning stub specs.
+
+    Inserted at sys.meta_path[0] so it runs before any other finder. When
+    a real import would happen for a blocked module, we return a stub
+    spec instead — this prevents the 30-90s+ import chain in
+    `litellm.types.secret_managers.main` (the deepest hot path) and
+    similar hangs in `transformers` / `torch`.
+    """
+
+    def find_spec(self, name, path, target=None):
+        top = name.split(".")[0]
+        if name in _BLOCKED_TOPS or top in _BLOCKED_TOPS:
+            return ModuleSpec(name, self)
+        return None
+
+    def create_module(self, spec):
+        return _StubModule(spec.name)
+
+    def exec_module(self, module):
+        if module.__name__ in _PRESET_BY_NAME:
+            for k, v in _PRESET_BY_NAME[module.__name__].items():
+                setattr(module, k, v)
+        # Stubbed submodules of a blocked top-level package must look
+        # like packages so Python can walk further into them. Without
+        # ``__path__``, ``from litellm.types.router import X`` would
+        # fail because the stubbed ``litellm.types`` is a Module, not
+        # a Package.
+        if "." in module.__name__ and not hasattr(module, "__path__"):
+            module.__path__ = []
+
+
+sys.meta_path.insert(0, _HeavyImportBlocker())
 
 
 _VENV_BIN = Path(__file__).resolve().parents[1] / ".venv_ol" / "bin"
