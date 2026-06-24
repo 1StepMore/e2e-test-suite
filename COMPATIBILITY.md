@@ -10,10 +10,10 @@
 ## How to check installed versions
 
 ```bash
-python -c "import ol; print('OL', ol.__version__)"      # 0.4.6
-python -c "import opp; print('OPP', opp.__version__)"    # 0.6.4
-python -c "import orf; print('ORF', orf.__version__)"    # 0.4.5
-omni-suite --version                                      # 0.2.3
+\g<1>0.4.7
+\g<1>0.6.6
+\g<1>0.4.5
+\g<1>0.2.3
 ```
 
 ## Versioning policy

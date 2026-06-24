@@ -82,3 +82,14 @@ repos:
           '
         language: system
         pass_filenames: false
+
+      - id: omni-version-docs-sync
+        name: Omni Suite version doc sync (README/AGENTS/COMPATIBILITY must match pyproject.toml)
+        entry: python3 scripts/sync_version_docs.py --check
+        language: system
+        pass_filenames: false
+        # Only run on commits that touch the version sources or the doc files;
+        # otherwise the check is wasted work. This matches both:
+        #  - pyproject.toml files (when a version is bumped)
+        #  - the doc targets (when someone edits them by hand)
+        files: ^(pyproject\.toml|Omni_(Pre_Processor|Localizer|Re_Formatter)/pyproject\.toml|README\.md|AGENTS\.md|COMPATIBILITY\.md|VERSION_COMPATIBILITY\.md|scripts/sync_version_docs\.py)$
