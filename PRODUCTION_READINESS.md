@@ -49,8 +49,8 @@
 
 | # | Check | Method | Auto? |
 |---|-------|--------|-------|
-| 4.1 | All 12 pytest markers are registered in `tests/conftest.py` | Parse `pytest_configure()` marker registration | 🔧 |
-| 4.2 | `tests/test_pipeline_contract_smoke.py` exists and runs | File existence + dry run; this file is referenced but currently MISSING | 🔧 |
+| 4.1 | All 12 pytest markers are registered (10 in `tests/pytest.ini` + 2 extra `unit`/`integration` in `Omni_Re_Formatter/pyproject.toml`; ORF's `e2e` is a duplicate of the suite-level one) | Parse both files' marker registration | 🔧 |
+| 4.2 | `tests/test_pipeline_contract_smoke.py` exists and runs | File existence + dry run; 100 lines, wired into pre-commit manual hook (stages: [manual]) | 🔧 |
 | 4.3 | Each module has a `tests/` directory with at least one test | Directory existence check | 🔧 |
 | 4.4 | No test file contains `@pytest.mark.skip` without a documented reason | grep for bare `@pytest.mark.skip` | 🔧 |
 | 4.5 | All `xfail` markers have a `reason=` string | grep for `@pytest.mark.xfail` without reason | 🔧 |

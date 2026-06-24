@@ -34,9 +34,9 @@
 ## Current Versions
 
 ```
-opp: 0.6.1 (commit 4187ac1)
-ol:  0.4.4 (commit e52597f)
-orf: 0.4.3 (commit 8120cbc)
+opp: 0.6.5 (commit 710c6a3)
+ol:  0.4.7 (commit 0adcf8f)
+orf: 0.4.5 (commit 0ea2373)
 ```
 
 ## Integration Pipeline Versions
