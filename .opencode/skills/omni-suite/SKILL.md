@@ -40,6 +40,33 @@ A 3-stage pipeline for translating documents between formats and languages.
    ```
    The E2E-07 fuzzy paragraph match handles XLIFF source ↔ DOCX paragraph mismatches (up to 5-char length diff, ratio ≥ 0.85).
 
+### Alternative: XLIFF Path (layout-preserving)
+
+When you need the output to look exactly like the source document:
+
+1. **Extract** (OPP) with XLIFF target:
+   ```bash
+   opp <file> --target-format xlf --source-lang en --target-lang zh --output-dir /tmp/opp
+   ```
+
+2. **Translate** (OL) the XLIFF:
+   ```bash
+   OMNI_TEST_FAKE_LLM=1 ol translate-xliff /tmp/opp/file.xlf -s en -t zh -o /tmp/ol
+   ```
+
+3. **Backfill** (ORF) using skeleton.zip:
+   ```bash
+   orf apply-xliff <original.docx> --xliff /tmp/ol/file.xlf --output result.docx
+   ```
+
+### Choosing a Pipeline Path
+
+| If you need... | Use... | Why |
+|---|---|---|
+| Fast text output, any format | MD path | `apply-md` supports 16 formats |
+| Exact original layout | XLIFF path | `apply-xliff` reuses skeleton.zip |
+| Both options | Extract with `both` | Produces MD + XLIFF + skeleton in one pass |
+
 ## Output formats supported
 
 DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON

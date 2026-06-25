@@ -92,6 +92,74 @@ Dependency notes: [ORF README](Omni_Re_Formatter/README.md) · [OPP README](Omni
 
 ---
 
+## Pipeline Selection Strategy
+
+The Omni Suite supports two pipeline paths depending on your goal.
+Choose wisely — the path determines which OPP output format, which
+OL translation tool, and which ORF backfill tool you should use.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│            Which pipeline path should I use?                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  Do you need to preserve the ORIGINAL DOCUMENT LAYOUT?            │
+│  (fonts, styles, exact paragraph positions, floating images)      │
+│                           │                                       │
+│          ┌────────────────┴────────────────┐                      │
+│          ▼                                 ▼                       │
+│   ╔══════════════════╗          ╔═════════════════════╗            │
+│   ║  XLIFF PATH      ║          ║  MD PATH            ║            │
+│   ║  (layout-faithful)║          ║  (text-first)       ║            │
+│   ╚══════════════════╝          ╚═════════════════════╝            │
+│          │                                 │                        │
+│   OPP --target-format xlf       OPP --target-format md              │
+│        or both                         or both                      │
+│          ▼                                 ▼                        │
+│   OL translate-xliff            OL translate-md                     │
+│          ▼                                 ▼                        │
+│   ORF apply-xliff               ORF apply-md                        │
+│   (needs skeleton.zip)          (16 output formats)                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**MD Path** — Use when:
+- Text quality and speed matter more than pixel-perfect layout
+- You're targeting web, e-book, or plain-text outputs
+- You want to convert to a different format than the source (e.g. DOCX → EPUB)
+- Image placement can be approximate
+
+**XLIFF Path** — Use when:
+- The output must look exactly like the source (contracts, branded docs)
+- You have a skeleton.zip from OPP (produced alongside XLIFF)
+- You're staying in the same format (DOCX → DOCX, PPTX → PPTX)
+- Floating images, custom styles, and exact fonts must be preserved
+
+**Format Support by Path**
+
+| Input Format | MD Path | XLIFF Path | Notes |
+|-------------|---------|------------|-------|
+| DOCX | ✅ | ✅ | Preferred path for both |
+| PPTX | ✅ | ✅ | XLIFF preserves slide masters |
+| EPUB | ✅ | ✅ | XLIFF preserves CSS layout |
+| PDF | ✅ | ❌ | PDF→XLIFF intentionally blocked |
+| HTML | ✅ | ❌ | No skeleton.zip |
+| CSV / JSON / XML | ✅ | ❌ | Data formats, no layout |
+| EML / MSG | ✅ | ❌ | Email formats |
+| Images (OCR) | ✅ | ❌ | Text extraction only |
+| YouTube URL | ✅ | ❌ | Transcription only |
+
+**When to use `--target-format both`**: If you're unsure, extract both.
+The extra disk space is negligible, and having both paths available
+means you can switch without re-extracting.
+
+**Related**: Per-repo decision trees in each AGENTS.md for deeper detail:
+- [OPP --target-format guide](https://github.com/1StepMore/Omni_Pre_Processor/blob/main/AGENTS.md)
+- [OL translate-md vs translate-xliff](https://github.com/1StepMore/Omni_Localizer/blob/main/AGENTS.md)
+- [ORF apply-md vs apply-xliff](https://github.com/1StepMore/Omni_Re_Formatter/blob/main/AGENTS.md)
+
+---
+
 ## Git Submodules
 
 > **As of 2026-06-24**: the `src/Omni_*/` git submodules have been removed.
