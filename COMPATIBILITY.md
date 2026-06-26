@@ -6,14 +6,16 @@
 | 0.2.1 | 0.4.5 | 0.6.2 | 0.4.4 | E2E-07, E2E-14, E2E-15, E2E-64, E2E-65 surgical cherry-picks |
 | 0.2.2 | 0.4.5 | 0.6.3 | 0.4.4 | OPP v0.6.3 (stderr handler for verbose mode UX) |
 | 0.2.3 | 0.4.6 | 0.6.4 | 0.4.5 | E2E-74/77/78/79/80/81/82/83 — full E2E-74/75/76 + shield/md2pptx/CSV/docling fixes |
+| 0.2.4 | 0.5.6 | 0.6.6 | 0.4.5 | 13-issue batch: doc cleanup, OPP#8/9/10, OL#8/9/10/18, ORF#5/12/13 |
+| 0.2.5 | 0.5.7 | 0.7.5 | 0.4.10 | Doc cleanup batch: OPP#17, OL#20, ORF#15, e2e#22 |
+| 0.2.6 | 0.5.8 | 0.7.7 | 0.4.12 | Pipeline version sync |
+| 0.2.7 | 0.5.9 | 0.7.9 | 0.4.15 | PDF→HTML→XLIFF→HTML→PDF pipeline: ORF#17 fix, OPP pdf2html, ORF html2pdf+xliff2pdf |
 
 ## How to check installed versions
 
 ```bash
-\g<1>0.4.7
-\g<1>0.6.6
-\g<1>0.4.5
-\g<1>0.2.3
+.venv_ol/bin/python -c "import importlib.metadata; print('opp:', importlib.metadata.version('omni-pre-processor')); print('ol:', importlib.metadata.version('omni-localizer')); print('orf:', importlib.metadata.version('omni-re-formatter'))"
+cat VERSION
 ```
 
 ## Versioning policy
