@@ -14,13 +14,14 @@ dev = [
 
 [project.scripts]
 omni-suite = "omni_suite.cli:main"
+omni-mcp = "omni_mcp.server:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["omni_metrics", "omni_suite"]
+packages = ["omni_metrics", "omni_suite", "omni_mcp"]
 
 [tool.uv.workspace]
 members = [
