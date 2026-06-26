@@ -443,6 +443,55 @@ class TestErrorHandling:
         assert result is not None, "ORF should handle invalid MD without crashing"
 
 
+class TestPDFPipeline:
+    """Test the new PDF→HTML→XLIFF→HTML→PDF pipeline (ORF#17 batch)."""
+
+    @pytest.mark.requires_opp
+    def test_opp_pdf2html_extractor_exists(self):
+        """PDF2HTMLExtractor must be importable from OPP."""
+        try:
+            from opp.extractors.pdf2html import PDF2HTMLExtractor
+            assert ".pdf" in PDF2HTMLExtractor().supported_extensions()
+        except ImportError as e:
+            pytest.skip(f"OPP pdf2html not available: {e}")
+
+    @pytest.mark.requires_orf
+    def test_orf_html2pdf_extractor_exists(self):
+        """HTML2PDFConverter must be importable from ORF."""
+        try:
+            from orf.channels.html2pdf import HTML2PDFConverter
+            assert HTML2PDFConverter().supported_format == "PDF"
+        except ImportError as e:
+            pytest.skip(f"ORF html2pdf not available: {e}")
+
+    @pytest.mark.requires_orf
+    def test_orf_xliff2pdf_extractor_exists(self):
+        """XLIFF2PDFConverter must be importable from ORF."""
+        try:
+            from orf.channels.xliff2pdf import XLIFF2PDFConverter
+            assert XLIFF2PDFConverter().supported_format == "PDF"
+        except ImportError as e:
+            pytest.skip(f"ORF xliff2pdf not available: {e}")
+
+    @pytest.mark.requires_orf
+    def test_xliff2pdf_requires_skeleton_html(self, tmp_path):
+        """XLIFF→PDF must fail with clear error when skeleton_html missing."""
+        try:
+            from orf.channels.xliff2pdf import XLIFF2PDFConverter
+            from orf.converters.options import ConverterOptions
+        except ImportError:
+            pytest.skip("ORF xliff2pdf not available")
+
+        pdf = tmp_path / "in.pdf"
+        pdf.write_bytes(b"%PDF-1.4")
+        xlf = tmp_path / "in.xlf"
+        xlf.write_text("<xliff/>")
+        out = tmp_path / "out.pdf"
+        result = XLIFF2PDFConverter().convert(pdf, xlf, out)
+        assert not result.success
+        assert any("skeleton_html" in str(e) for e in (result.errors or []))
+
+
 class TestPipelinePerformance:
     """Test pipeline performance."""
 
