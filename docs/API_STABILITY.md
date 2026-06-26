@@ -99,7 +99,7 @@ implementation details even if they are importable today.**
 | **`manifest.json` schema** | Required keys, types, `manifest_version` | OPP `cli.py:392-457` |
 | **`skeleton.zip` key-files list** | For DOCX: `word/document.xml`, `word/styles.xml`, `word/numbering.xml`, `word/settings.xml`, `[Content_Types].xml`. For PPTX: all `ppt/*`. | OPP `cli.py` |
 | **ORF output-format whitelist** | The 16 formats `apply-md` accepts | ORF `cli.py` / `security.py` |
-| **Environment variables** | `OMNI_TEST_FAKE_LLM=1`, `OMNI_TEST_FAKE_PANDOC=1`, `OPP_MCP_ALLOWED_DIRS`, `OL_CONFIG_PATH`, `ORF_MCP_ALLOWED_DIRS`, `MCP_SHARED_SECRET` | Per-module `mcp/config.py` |
+| **Environment variables** | `OMNI_TEST_FAKE_LLM=1`, `OMNI_TEST_FAKE_PANDOC=1`, `OPP_MCP_ALLOWED_DIRS`, `OL_MCP_ALLOWED_DIRS`, `OL_CONFIG_PATH`, `ORF_MCP_ALLOWED_DIRS`, `MCP_SHARED_SECRET` | Per-module `mcp/config.py` |
 | **Package names & import names** | `pip install omni-pre-processor` (imports as `opp`), `pip install omni-localizer`, `pip install omni-re-formatter` | Per-module `pyproject.toml` |
 
 ### 3.2 Private surface (may change without notice)
