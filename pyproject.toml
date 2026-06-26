@@ -1,10 +1,12 @@
 [project]
 name = "omni-suite"
-version = "0.2.3"
+version = "0.2.4"
 description = "Omni Localization Suite — OPP + OL + ORF meta-package"
 requires-python = ">=3.13"
 dependencies = [
     "prometheus_client>=0.20.0",
+    "mcp>=1.0.0,<2.0.0",
+    "anyio>=4.5.0,<5.0.0",
 ]
 
 [project.optional-dependencies]
