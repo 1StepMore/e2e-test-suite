@@ -1,6 +1,6 @@
 [project]
 name = "omni-suite"
-version = "0.2.5"
+version = "0.2.6"
 description = "Omni Localization Suite — OPP + OL + ORF meta-package"
 requires-python = ">=3.13"
 dependencies = [
