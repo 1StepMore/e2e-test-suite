@@ -46,7 +46,7 @@ OPP_FIXTURE = FIXTURES_DIR / "opp_mcp_schemas.json"
 ORF_FIXTURE = FIXTURES_DIR / "orf_mcp_schemas.json"
 OL_FIXTURE = FIXTURES_DIR / "ol_mcp_schemas.json"
 
-EXPECTED_COUNTS = {"opp": 7, "orf": 6, "ol": 8}
+EXPECTED_COUNTS = {"opp": 7, "orf": 6, "ol": 9}
 
 EXPECTED_TOOLS = {
     "opp": frozenset({
@@ -74,6 +74,7 @@ EXPECTED_TOOLS = {
         "search_tm",
         "batch_translate_texts",
         "translate_xliff",
+        "get_translation_status",
         "ping",
     }),
 }
@@ -204,10 +205,10 @@ def test_ol_mcp_schemas_frozen():
     _check("ol", OL_FIXTURE)
 
 
-def test_total_mcp_tool_count_is_21():
-    """Sanity: 7 OPP + 6 ORF + 8 OL = 21 MCP tools. Sum is part of the contract."""
-    assert sum(EXPECTED_COUNTS.values()) == 21
+def test_total_mcp_tool_count_is_22():
+    """Sanity: 7 OPP + 6 ORF + 9 OL = 22 MCP tools. Sum is part of the contract."""
+    assert sum(EXPECTED_COUNTS.values()) == 22
     actual_total = sum(
         len(EXPECTED_TOOLS[m]) for m in ("opp", "orf", "ol")
     )
-    assert actual_total == 21
+    assert actual_total == 22
