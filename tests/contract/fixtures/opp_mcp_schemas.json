@@ -125,6 +125,11 @@
         "traceparent": {
           "description": "Optional W3C Trace Context traceparent header to make this span a child of an upstream trace.",
           "type": "string"
+        },
+        "verbose": {
+          "default": false,
+          "description": "Include extra metadata (detected_format, confidence, processing_steps) in the response.",
+          "type": "boolean"
         }
       },
       "required": [

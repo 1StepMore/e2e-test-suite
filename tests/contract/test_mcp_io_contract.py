@@ -128,10 +128,10 @@ ERROR_INPUTS = {
         },
     },
     "orf": {
-        "tool": "apply_md",
+        "tool": "batch_convert",
         "args": {
-            "content": "",
-            "output_path": "/tmp/out.docx",
+            "input_dir": "/tmp/nonexistent",  # passes schema validation, fails tool-level path check
+            "target_format": "docx",
         },
     },
     "ol": {
