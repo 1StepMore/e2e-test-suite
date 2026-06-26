@@ -114,6 +114,38 @@
     "name": "get_relevant_terms"
   },
   {
+    "description": "Poll the status of an async translation task by request_id.",
+    "inputSchema": {
+      "description": "Input for get_translation_status.",
+      "properties": {
+        "request_id": {
+          "description": "The request_id returned by an async translation call",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        }
+      },
+      "required": [
+        "request_id"
+      ],
+      "title": "GetTranslationStatusInput",
+      "type": "object"
+    },
+    "name": "get_translation_status"
+  },
+  {
     "description": "Evaluate translation quality using LLM judge.",
     "inputSchema": {
       "description": "Input for judge_text.",
@@ -254,9 +286,21 @@
           "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
           "title": "Shared Secret"
         },
+        "source_lang": {
+          "default": "en",
+          "description": "Source language code (OL#8: required for language-pair filtering)",
+          "title": "Source Lang",
+          "type": "string"
+        },
         "source_text": {
           "description": "Text to search for in TM",
           "title": "Source Text",
+          "type": "string"
+        },
+        "target_lang": {
+          "default": "zh",
+          "description": "Target language code (OL#8: required for language-pair filtering)",
+          "title": "Target Lang",
           "type": "string"
         },
         "threshold": {
@@ -289,6 +333,12 @@
           "default": false,
           "description": "Add YAML frontmatter to output",
           "title": "Add Frontmatter",
+          "type": "boolean"
+        },
+        "async_mode": {
+          "default": false,
+          "description": "If True, return immediately with a request_id and run translation in background. Poll via get_translation_status.",
+          "title": "Async Mode",
           "type": "boolean"
         },
         "config_path": {
@@ -394,6 +444,12 @@
     "inputSchema": {
       "description": "Input for translate_xliff.",
       "properties": {
+        "async_mode": {
+          "default": false,
+          "description": "If True, return immediately with a request_id and run translation in background. Poll via get_translation_status.",
+          "title": "Async Mode",
+          "type": "boolean"
+        },
         "config_path": {
           "anyOf": [
             {
