@@ -20,6 +20,17 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 
 ## Recent Changes (since last production tag)
 
+**OL v0.5.5 → v0.5.6** (1 commit):
+- `fix(OL#16)`: BYOK env var validation — `_check_env_vars()` now uses `logging.warning()` instead of `raise ValueError()`. Unset env vars no longer block startup. Added `field_name` param for accurate warning text in `api_key` vs `base_url`. 7 new tests, 925+ tests pass, 0 regressions.
+
+**Omni_Suite v0.2.3 → v0.2.4** (1 commit):
+- `fix(e2e#13)`: added `mcp>=1.0.0,<2.0.0` and `anyio>=4.5.0,<5.0.0` runtime dependencies. `omni-mcp` console script now deployable from fresh `pip install -e .`.
+
+**Docs (e2e#14, 3 commits, no version bump)**:
+- `Omni_Pre_Processor/AGENTS.md`: added "Path Configuration (MCP Server)" section — `OPP_MCP_ALLOWED_DIRS` env var, fail-closed design
+- `Omni_Re_Formatter/AGENTS.md`: added "Path Configuration (MCP Server)" section — `ORF_ALLOWED_DIRECTORIES` env var, fail-open to CWD
+- `Omni_Suite/docs/agent-pipeline-guide.md`: CREATED (268 lines, 6 sections) with OPP vs ORF path config comparison table
+
 **OPP v0.6.1 → v0.6.3** (4 commits):
 - `fix(E2E-15)`: filter orphaned images in MarkdownGenerator (prevents double-embedding via Pandoc)
 - `fix(opp): attach stderr handler in verbose mode` — **`opp --detect-format -v` now writes "Detected: docx" to stderr** (was file-only before)
