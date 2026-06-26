@@ -29,6 +29,16 @@ err()   { printf "${RED}[ERR]${NC}   %s\n" "$*"; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# ── Detect workspace root (child vs sibling layout) ─────────────────────────
+if [ -d "$PROJECT_ROOT/Omni_Pre_Processor" ]; then
+    WORKSPACE_ROOT="$PROJECT_ROOT"
+elif [ -d "$(dirname "$PROJECT_ROOT")/Omni_Pre_Processor" ]; then
+    WORKSPACE_ROOT="$(dirname "$PROJECT_ROOT")"
+else
+    echo "[ERR] Cannot find Omni_Pre_Processor relative to PROJECT_ROOT=$PROJECT_ROOT"
+    exit 1
+fi
+
 # ── CLI flags ────────────────────────────────────────────────────────────────
 CHECK_ONLY=false
 for arg in "$@"; do
@@ -110,7 +120,7 @@ if [ "$CHECK_ONLY" = false ]; then
         warn "uv not found — falling back to pip install -e for each submodule"
         warn "Install uv for the recommended workflow: https://docs.astral.sh/uv/"
         pip install --upgrade pip setuptools wheel -q
-        pip install -e "$PROJECT_ROOT/Omni_Pre_Processor" -e "$PROJECT_ROOT/Omni_Localizer" -e "$PROJECT_ROOT/Omni_Re_Formatter"
+        pip install -e "$WORKSPACE_ROOT/Omni_Pre_Processor" -e "$WORKSPACE_ROOT/Omni_Localizer" -e "$WORKSPACE_ROOT/Omni_Re_Formatter"
     fi
 
     # Ensure pandoc is on PATH for ORF MD→{docx,odt,epub,rtf,icml,pdf}
@@ -137,9 +147,9 @@ if [ -f "$COMPAT_FILE" ]; then
         EXPECTED_OPP=$(echo "$EXPECTED_LINE" | awk -F'|' '{print $4}' | tr -d ' ')
         EXPECTED_ORF=$(echo "$EXPECTED_LINE" | awk -F'|' '{print $5}' | tr -d ' ')
 
-        ACTUAL_OL=$(grep -m1 "^version" "$PROJECT_ROOT/Omni_Localizer/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
-        ACTUAL_OPP=$(grep -m1 "^version" "$PROJECT_ROOT/Omni_Pre_Processor/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
-        ACTUAL_ORF=$(grep -m1 "^version" "$PROJECT_ROOT/Omni_Re_Formatter/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
+        ACTUAL_OL=$(grep -m1 "^version" "$WORKSPACE_ROOT/Omni_Localizer/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
+        ACTUAL_OPP=$(grep -m1 "^version" "$WORKSPACE_ROOT/Omni_Pre_Processor/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
+        ACTUAL_ORF=$(grep -m1 "^version" "$WORKSPACE_ROOT/Omni_Re_Formatter/pyproject.toml" | sed 's/.*"\(.*\)".*/\1/')
 
         info "Version check (from COMPATIBILITY.md):"
         info "  OL:  expected=$EXPECTED_OL actual=$ACTUAL_OL"

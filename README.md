@@ -1,6 +1,6 @@
 # E2E Test Suite
 
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/1StepMore/Omni_Suite/actions)
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/1StepMore/e2e-test-suite/actions)
 [![PyPI - opp](https://img.shields.io/pypi/v/opp.svg)](https://pypi.org/project/opp/)
 [![PyPI - omni-localizer](https://img.shields.io/pypi/v/omni-localizer.svg)](https://pypi.org/project/omni-localizer/)
 [![PyPI - omni-re-formatter](https://img.shields.io/pypi/v/omni-re-formatter.svg)](https://pypi.org/project/omni-re-formatter/)
