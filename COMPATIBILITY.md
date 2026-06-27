@@ -11,6 +11,7 @@
 | 0.2.6 | 0.5.8 | 0.7.7 | 0.4.12 | Pipeline version sync |
 | 0.2.7 | 0.5.9 | 0.7.9 | 0.4.15 | PDF→HTML→XLIFF→HTML→PDF pipeline: ORF#17 fix, OPP pdf2html, ORF html2pdf+xliff2pdf |
 | 0.2.8 | 0.5.9 | 0.8.0 | 0.4.16 | PDF pipeline polish: OPP#20 (PDF2HTML integration), OPP#21 (skeleton <head>+page-break), OPP#22 (base64 filter), ORF#20 (options.css), ORF#21 (inline skeleton_html + CLI pdf format) |
+| 0.2.9 | 0.5.9 | 0.8.1 | 0.4.16 | OPP#24 — PDF image position fix: strip inaccurate <img> coords from PyMuPDF HTML, rebuild with `page.get_image_info()` bbox + `doc.extract_image()` (preserves original encoding) |
 
 ## How to check installed versions
 
