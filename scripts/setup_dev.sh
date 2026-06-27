@@ -62,12 +62,12 @@ esac
 ok "OS detected: $OS_NAME ($OS_FAMILY)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Step 2 — Verify Python >= 3.12
+# Step 2 — Verify Python >= 3.13
 # ═══════════════════════════════════════════════════════════════════════════════
 info "Checking Python version …"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 if ! command -v "$PYTHON_BIN" &>/dev/null; then
-    err "python3 not found. Please install Python >= 3.12."
+    err "python3 not found. Please install Python >= 3.13."
     exit 1
 fi
 
@@ -75,8 +75,8 @@ PY_MAJOR="$("$PYTHON_BIN" -c 'import sys; print(sys.version_info.major)')"
 PY_MINOR="$("$PYTHON_BIN" -c 'import sys; print(sys.version_info.minor)')"
 PY_VERSION="${PY_MAJOR}.${PY_MINOR}"
 
-if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 12 ]; }; then
-    err "Python >= 3.12 required, found $PY_VERSION"
+if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 13 ]; }; then
+    err "Python >= 3.13 required, found $PY_VERSION"
     exit 1
 fi
 ok "Python $PY_VERSION detected"
@@ -106,6 +106,15 @@ fi
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
 ok "Virtual environment activated ($(.venv_ol/bin/python --version))"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Step 3b — Warn about deprecated .venv/ (Issue #9)
+# ═══════════════════════════════════════════════════════════════════════════════
+if [ -d "$PROJECT_ROOT/.venv" ]; then
+    warn "Deprecated .venv/ detected (Python 3.12-era, superseded by .venv_ol/)."
+    warn "You can safely remove it: rm -rf $PROJECT_ROOT/.venv"
+    warn "All components now use .venv_ol/ exclusively."
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Step 4 — Install via uv sync (Phase C1: root workspace)
