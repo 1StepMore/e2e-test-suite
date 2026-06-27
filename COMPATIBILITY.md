@@ -12,6 +12,7 @@
 | 0.2.7 | 0.5.9 | 0.7.9 | 0.4.15 | PDF→HTML→XLIFF→HTML→PDF pipeline: ORF#17 fix, OPP pdf2html, ORF html2pdf+xliff2pdf |
 | 0.2.8 | 0.5.9 | 0.8.0 | 0.4.16 | PDF pipeline polish: OPP#20 (PDF2HTML integration), OPP#21 (skeleton <head>+page-break), OPP#22 (base64 filter), ORF#20 (options.css), ORF#21 (inline skeleton_html + CLI pdf format) |
 | 0.2.9 | 0.5.9 | 0.8.1 | 0.4.16 | OPP#24 — PDF image position fix: strip inaccurate <img> coords from PyMuPDF HTML, rebuild with `page.get_image_info()` bbox + `doc.extract_image()` (preserves original encoding) |
+| 0.3.0 | 0.5.9 | 0.8.2 | 0.4.16 | OPP#26 — zero body margin/padding + <p> margin in DEFAULT_PDF2HTML_CSS (eliminates +12pt Y image offset) |
 
 ## How to check installed versions
 
