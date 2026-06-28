@@ -4,6 +4,8 @@
 
 ### Added
 
+- **`feat(check_deps.sh + doctor.yml)`: add `make doctor` + CI gate (7-check health)** — `make doctor` runs Python/keys/pandoc/WeasyPrint/md2pptx/MCP/submodule checks; CI runs on every PR with `continue-on-error: true` initially
+
 - **Multi-language E2E test scenes** (`tests/scenes/scene-07-multi-lang/`, `tests/test_scene_07_multi_lang.py`): 12 cells across 3 language pairs (en→fr, en→ja, en→ru) × 4 formats (DOCX, PDF, HTML, JSON). Uses the FAKE_LLM seam to verify pipeline non-crash and output structure (openable, parseable). Declaratively parametrized via `@pytest.mark.parametrize`. Fixtures generated synthetically via python-docx, PyMuPDF, and inline string literals. Runs via `pytest -m scene07 -v`.
 
 - **`tests/quality_checks.py` — codified translation quality module** (`tests/quality_checks.py`): The QC logic from the 2026-06-24 full-matrix regression test runner (a one-off `/tmp/run_scene_matrix.py` script that produced a 200-cell matrix and flagged 48 false-positive FAILs) is now a proper suite module with 25 regression tests. Fixes the three hardcoded, format-insensitive rules that caused the false positives (issue #4):
@@ -18,9 +20,21 @@
 
 ### Fixed
 
+- **`fix(setup_dev.sh)`: enforce Python >= 3.13** — was wrongly allowing Python 3.12, which caused cryptic errors downstream from components that now require 3.13 features
+
+- **`fix(setup_dev.sh)`: warn about deprecated `.venv/` (Python 3.12-era)** — the old `.venv/` directory is stale; users get a clear warning to remove it and let setup_dev.sh create `.venv_ol/`
+
 - **Matrix regression false-positive rate: 48格/200 (24%) → 0格/200**. All 48 false-positive cells from the 2026-06-24 matrix run were caused by the three hardcoded QC rules above. The matrix is now expected to report a true pass rate close to 100% (excluding the 16 cells for code-only formats which were never supposed to be tested for translation completeness).
 
 - **`tests/quality_checks.py` — language-pair aware ratio lookup chain** (Issue e2e #6): added `_LANG_RATIO_OVERRIDES: dict[(src, tgt), float]` and `_resolve_min_ratio()` helper implementing a 3-tier lookup (lang pair > format > default `MIN_TARGET_RATIO`). The `source_lang` and `target_lang` parameters of `check_translation_quality` are now consulted (previously marked "reserved for future use"). The lang table is intentionally empty by default — every (src, tgt) pair currently falls through to format/default, preserving all existing behavior. 6 new tests in `TestLangPairRatioLookup` pin the lookup chain: format override used when no lang entry, default used when neither, lang overrides format, lang overrides default, empty table is backward-compatible, existing call signature still works.
+
+### Changed
+
+- **`docs(README, SETUP, AGENTS)`: add Python >= 3.13 prerequisite notes** — all onboarding documents now clearly state Python >= 3.13 is required; 3.12 users are directed to upgrade before filing bugs
+
+- **`chore(scripts/README.md)`: document 17 dev scripts** — comprehensive reference for all scripts in `scripts/`, each with purpose, usage, and dependency notes
+
+- **`chore(Makefile)`: `make lint` now depends on `smoke` (contract gate)** — linting no longer runs in isolation; the smoke test contract gate must pass first, preventing lint-only CI passes on broken pipelines
 
 ## 0.2.0 — 2026-06-20
 
