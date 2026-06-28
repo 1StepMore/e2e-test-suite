@@ -185,15 +185,15 @@ means you can switch without re-extracting.
 
 | 组件 | 路径 | 版本 / SHA |
 |------|------|------|
-| OPP | `Omni_Pre_Processor/` | v0.6.6 |
-| OL | `Omni_Localizer/` | v0.4.7 |
-| ORF | `Omni_Re_Formatter/` | v0.4.5 |
-| Omni_Suite | `./` | v0.2.3 |
+| OPP | `Omni_Pre_Processor/` | v0.9.0 |
+| OL | `Omni_Localizer/` | v0.5.9 |
+| ORF | `Omni_Re_Formatter/` | v0.4.16 |
+| Omni_Suite | `./` | v0.4.0 |
 | Python 3.13（统一 venv） | `.venv_ol/` | ✅ 当前唯一活跃 venv，所有组件共用 |
 | Python 3.12（已弃用） | `.venv/` | ⚠️ 旧 venv，OPP/ORF CLI 曾用，勿再使用 |
 | OL MCP 专用 venv | `~/.hermes/venvs/omni-localizer` | Python 3.13（OL MCP 服务）|
 
-v0.6.6 · v0.4.7 · v0.4.5 · v0.2.3（last tested 2026-06-23）。
+v0.9.0 · v0.5.9 · v0.4.16 · v0.4.0（last tested 2026-06-23）。
 **Pushed combo (待 push)**: same as above; local commits only, network too slow for `git push` as of 2026-06-23.
 
 ---
@@ -287,4 +287,11 @@ pytest tests/test_e2e_real_llm.py -v -k test_md_channel
 pytest tests/test_e2e_opp_all_formats.py -v -k "pptx or ipynb"
 pytest tests/test_e2e_orf_all_formats.py -v -k "icml or md2pptx or md2pdf"
 pytest tests/test_e2e_images.py -v -k "pptx"
+```
+
+---
+
+## Plans
+
+The `.omo/plans/` directory contains work plans generated during development. See the plan file for current tasks.
 ```
