@@ -20,7 +20,7 @@
 #
 # =============================================================================
 
-.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset clean help
+.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset clean doctor help
 
 PYTHON := .venv_ol/bin/python
 PYTEST := $(PYTHON) -m pytest
@@ -29,6 +29,7 @@ FAKE_ENV := OMNI_TEST_FAKE_LLM=1 OMNI_TEST_FAKE_PANDOC=1
 help:
 	@echo "Omni Suite targets:"
 	@echo "  setup         — bash scripts/setup_dev.sh"
+	@echo "  doctor        — Run dependency health check (read-only)"
 	@echo "  test          — Run all CI-mode tests (OPP + OL + ORF + suite e2e)"
 	@echo "  test-quick    — pytest tests/ -m \"not nightly\" -q"
 	@echo "  test-opp      — Run OPP CI-mode tests"
@@ -55,6 +56,9 @@ help:
 
 setup:
 	bash scripts/setup_dev.sh
+
+doctor:
+	bash scripts/check_deps.sh
 
 test: test-opp test-ol test-orf
 	$(FAKE_ENV) $(PYTEST) tests/ -m "not nightly" --tb=short -q --no-header
