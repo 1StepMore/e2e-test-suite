@@ -13,7 +13,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir opp omni-localizer omni-re-formatter
+ARG INSTALL_MODE=local
+RUN if [ "$INSTALL_MODE" = "local" ]; then \
+        pip install -e /workspace/Omni_Pre_Processor; \
+        pip install -e /workspace/Omni_Localizer; \
+        pip install -e /workspace/Omni_Re_Formatter; \
+      else \
+        pip install opp omni-localizer omni-re-formatter; \
+      fi
 
 RUN opp --version && ol --version && orf --version
 

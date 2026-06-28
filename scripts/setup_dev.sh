@@ -189,9 +189,13 @@ if [ -f "$ENV_EXAMPLE" ]; then
     if [ ! -f "$ENV_TARGET" ]; then
         info "Copying .env.example → .env …"
         cp "$ENV_EXAMPLE" "$ENV_TARGET"
-        ok ".env created from .env.example"
+        chmod 600 "$ENV_TARGET"
+        ok ".env created from .env.example with chmod 600"
         warn "Edit .env to set your API keys before running real-LLM tests."
     else
+        # Enforce secure permissions on existing .env
+        chmod 600 "$ENV_TARGET" 2>/dev/null || true
+        ok ".env permissions locked to 600"
         info ".env already exists — skipped copy"
     fi
 else
