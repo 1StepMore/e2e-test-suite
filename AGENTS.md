@@ -29,6 +29,8 @@ v0.7.8 · v0.5.9 · v0.4.13 · v0.2.6.
 - `fix(e2e#22)`: Update Suite README directory tree; clean Suite AGENTS.md version table and history
 - Version bumps: OPP v0.7.8, OL v0.5.9, ORF v0.4.13, Suite v0.2.6
 
+> **Prerequisite:** Python >= 3.13. Verify with `python3 --version`.
+
 ## Quick Start
 
 ```bash

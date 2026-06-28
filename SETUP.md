@@ -1,5 +1,8 @@
 # Phase 1 Setup — Real LLM Integration Tests
 
+> **Prerequisite:** Python >= 3.13. All Omni Suite components require Python 3.13+.
+> Verify with `python3 --version` before proceeding.
+
 > **Goal:** Wire your real MiniMax + Baidu Qianfan API keys so the nightly `pytest -m nightly` tests can hit real LLMs (instead of the fake LLM that runs in CI).
 >
 > **Time:** ~10 minutes.
