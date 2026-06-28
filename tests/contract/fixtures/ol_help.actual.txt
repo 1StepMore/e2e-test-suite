@@ -1,0 +1,16 @@
+                                                                                
+ Usage: ol_cli.py [OPTIONS] COMMAND [ARGS]...                                   
+                                                                                
+ Omni-Localizer: AI-native localization pipeline with automated quality         
+ control.                                                                       
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --version          Show version                                              │
+│ --help             Show this message and exit.                               │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ translate-md                                                                 │
+│ translate-xliff                                                              │
+│ translate-batch                                                              │
+│ extract-warnings                                                             │
+╰──────────────────────────────────────────────────────────────────────────────╯

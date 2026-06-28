@@ -123,6 +123,9 @@ jobs:
           NVIDIA_NIM_API_KEY: "nvapi-dummy"
           ORF_MCP_ALLOWED_DIRS: "/tmp:/home/runner/work/Omni_Suite"
 
+      - name: Clean up test artifacts
+        run: rm -rf mcp_resources/ resources/ logs/ final-out/ test_artifacts/
+
   # -------------------------------------------------------------------------
   # Job 2: Nightly LLM tests (slow, requires real API keys).
   # Runs on a schedule + manual dispatch. Matrix: {m2.7, deepseek}.

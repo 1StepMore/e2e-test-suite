@@ -20,7 +20,7 @@
 #
 # =============================================================================
 
-.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset clean doctor help
+.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset clean clean-artifacts doctor help
 
 PYTHON := .venv_ol/bin/python
 PYTEST := $(PYTHON) -m pytest
@@ -144,3 +144,6 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
 	rm -rf build/ dist/ *.egg-info
+
+clean-artifacts:
+	rm -rf mcp_resources/ resources/ logs/ final-out/ test_artifacts/

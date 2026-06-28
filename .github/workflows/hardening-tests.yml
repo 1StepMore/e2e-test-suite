@@ -1,0 +1,84 @@
+name: hardening-tests
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'tests/test_no_hardcoded_fake_llm.py'
+      - 'tests/test_version_consistency.py'
+      - 'tests/test_orf_16_formats.py'
+      - 'tests/test_oom_protections.py'
+      - 'tests/test_docker_python_version.py'
+      - 'tests/test_ci_no_submodules.py'
+      - 'tests/test_no_broad_except.py'
+      - 'omni_suite/__init__.py'
+      - 'omni_suite/cli.py'
+      - 'VERSION'
+      - 'pyproject.toml'
+      - 'Omni_Pre_Processor/pyproject.toml'
+      - 'Omni_Localizer/pyproject.toml'
+      - 'Omni_Re_Formatter/pyproject.toml'
+      - 'Makefile'
+      - '.github/workflows/hardening-tests.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'tests/test_no_hardcoded_fake_llm.py'
+      - 'tests/test_version_consistency.py'
+      - 'tests/test_orf_16_formats.py'
+      - 'tests/test_oom_protections.py'
+      - 'tests/test_docker_python_version.py'
+      - 'tests/test_ci_no_submodules.py'
+      - 'tests/test_no_broad_except.py'
+      - 'VERSION'
+      - 'pyproject.toml'
+      - 'Omni_Pre_Processor/pyproject.toml'
+      - 'Omni_Localizer/pyproject.toml'
+      - 'Omni_Re_Formatter/pyproject.toml'
+      - 'Makefile'
+      - '.github/workflows/hardening-tests.yml'
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same branch when a new commit is pushed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hardening-regression:
+    name: Hardening regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pyyaml
+
+      - name: Run hardening regression tests
+        run: |
+          python -m pytest \
+            tests/test_no_hardcoded_fake_llm.py \
+            tests/test_version_consistency.py \
+            tests/test_docker_python_version.py \
+            tests/test_ci_no_submodules.py \
+            tests/test_no_broad_except.py \
+            tests/test_orf_16_formats.py \
+            tests/test_oom_protections.py \
+            -v --tb=short
+        env:
+          OMNI_TEST_FAKE_LLM: '1'
+
+      - name: Clean up test artifacts
+        run: |
+          rm -rf mcp_resources/ resources/ logs/ final-out/ test_artifacts/
