@@ -8,14 +8,12 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 
 ## Current Versions (2026-06-24)
 
-| Component | Version | Status |
+| Component | Version | Notes |
 |---|---|---|
-\g<1>0.2.3\g<2>✅ Tagged, all 4 repos on main, working trees clean |
-\g<1>0.6.6\g<2>✅ E2E-81/82 + version bump |
-\g<1>0.4.7\g<2>✅ E2E-74/77/78/83 + version bump + conftest litellm stub fix |
-\g<1>0.4.5\g<2>✅ E2E-79/80 + version bump |
-
-\g<1>0.6.6\g<2>0.4.7\g<3>0.4.5\g<4>0.2.3.
+| OPP | 0.9.0 | Latest: PDF position fix (OPP#28), skeleton HTML cleanup |
+| OL | 0.5.9 | Latest: agent-pipeline-guide, prompt injection strip (E2E-65) |
+| ORF | 0.4.16 | Latest: PDF→HTML→XLIFF→HTML→PDF pipeline (ORF#19) |
+| Suite | 0.4.0 | Latest: v0.4.0 bump after OPP#28 critical position fix |
 **Next push order** (when network allows): sub-repos first → then Omni_Suite pointer advance.
 
 ## Recent Changes (since last production tag)
