@@ -28,6 +28,9 @@
 
 - **`tests/quality_checks.py` — language-pair aware ratio lookup chain** (Issue e2e #6): added `_LANG_RATIO_OVERRIDES: dict[(src, tgt), float]` and `_resolve_min_ratio()` helper implementing a 3-tier lookup (lang pair > format > default `MIN_TARGET_RATIO`). The `source_lang` and `target_lang` parameters of `check_translation_quality` are now consulted (previously marked "reserved for future use"). The lang table is intentionally empty by default — every (src, tgt) pair currently falls through to format/default, preserving all existing behavior. 6 new tests in `TestLangPairRatioLookup` pin the lookup chain: format override used when no lang entry, default used when neither, lang overrides format, lang overrides default, empty table is backward-compatible, existing call signature still works.
 
+- **`fix(scripts/check_deps.sh)`: sub-repo structure check** — replaced sub-repo check (which expected `Omni_*/pyproject.toml`) with suite-self check. After 2026-06-24 the 3 sub-repos are now separate git repos, not submodules of e2e-test-suite. The doctor CI workflow was failing on every push to main before this fix.
+- **`fix(scripts/sync_version_docs.py)`: regex backreference bug** (root cause of AGENTS.md version table corruption): the `_count()` callback returned the raw `\g<N>` template string instead of expanded form, causing literal `\g<1>0.2.3\g<2>` artifacts in version tables. Fixed by calling `m.expand(replacement)` before returning. The AGENTS.md version table was manually corrected in PR #33; this fix prevents the bug from recurring.
+
 ### Changed
 
 - **`docs(README, SETUP, AGENTS)`: add Python >= 3.13 prerequisite notes** — all onboarding documents now clearly state Python >= 3.13 is required; 3.12 users are directed to upgrade before filing bugs
