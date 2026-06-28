@@ -6,47 +6,28 @@ This file guides AI agents (Claude, Cursor, OpenCode, etc.) on how to work with 
 
 A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translate) → **ORF** (backfill). Each module is a standalone sub-repo with its own CLI, MCP server, and test suite.
 
-## Current Versions (2026-06-24)
+## Current Versions
 
-| Component | Version | Notes |
+| Component | Version | Status |
 |---|---|---|
-| OPP | 0.9.0 | Latest: PDF position fix (OPP#28), skeleton HTML cleanup |
-| OL | 0.5.9 | Latest: agent-pipeline-guide, prompt injection strip (E2E-65) |
-| ORF | 0.4.16 | Latest: PDF→HTML→XLIFF→HTML→PDF pipeline (ORF#19) |
-| Suite | 0.4.0 | Latest: v0.4.0 bump after OPP#28 critical position fix |
-**Next push order** (when network allows): sub-repos first → then Omni_Suite pointer advance.
+| Omni_Suite | v0.2.6 | Suite-level orchestration + E2E tests |
+| OPP | v0.7.8 | 13+ input formats, MCP with path security |
+| OL | v0.5.9 | 8 MCP tools, 4-layer repair pipeline |
+| ORF | v0.4.13 | 16 backfill formats, Foreman/Specialist |
 
-## Recent Changes (since last production tag)
+v0.7.8 · v0.5.9 · v0.4.13 · v0.2.6.
 
-**OL v0.5.5 → v0.5.6** (1 commit):
-- `fix(OL#16)`: BYOK env var validation — `_check_env_vars()` now uses `logging.warning()` instead of `raise ValueError()`. Unset env vars no longer block startup. Added `field_name` param for accurate warning text in `api_key` vs `base_url`. 7 new tests, 925+ tests pass, 0 regressions.
+## Recent Changes
 
-**Omni_Suite v0.2.3 → v0.2.4** (1 commit):
-- `fix(e2e#13)`: added `mcp>=1.0.0,<2.0.0` and `anyio>=4.5.0,<5.0.0` runtime dependencies. `omni-mcp` console script now deployable from fresh `pip install -e .`.
+> **Note**: Entries before v0.2.6 have been condensed for readability.
+> See git log for full history (including the submodule era).
 
-**Docs (e2e#14, 3 commits, no version bump)**:
-- `Omni_Pre_Processor/AGENTS.md`: added "Path Configuration (MCP Server)" section — `OPP_MCP_ALLOWED_DIRS` env var, fail-closed design
-- `Omni_Re_Formatter/AGENTS.md`: added "Path Configuration (MCP Server)" section — `ORF_ALLOWED_DIRECTORIES` env var, fail-open to CWD
-- `Omni_Suite/docs/agent-pipeline-guide.md`: CREATED (268 lines, 6 sections) with OPP vs ORF path config comparison table
-
-**OPP v0.6.1 → v0.6.3** (4 commits):
-- `fix(E2E-15)`: filter orphaned images in MarkdownGenerator (prevents double-embedding via Pandoc)
-- `fix(opp): attach stderr handler in verbose mode` — **`opp --detect-format -v` now writes "Detected: docx" to stderr** (was file-only before)
-- Two `chore(release)`: version bumps 0.6.1→0.6.2→0.6.3
-
-**OL v0.4.4 → v0.4.5** (4 commits):
-- `fix(E2E-65)`: prompt injection strip in level1 repair (defends against LLM echoing system prompt)
-- `fix(E2E-14)`: b64 image ref dedup in `translate_md_text` MCP tool
-- `fix(E2E-64)`: XLIFF repair `is_complete()` checks actual XML tag presence; `RouterRateLimitError` retry
-- `chore(release)`: version bump
-
-**ORF v0.4.3 → v0.4.4** (2 commits):
-- `fix(E2E-07)`: fuzzy paragraph match in `_backfill_split_runs` (ratio ≥ 0.85, length diff ≤ 5)
-- `chore(release)`: version bump
-
-**Omni_Suite v0.2.0 → v0.2.2** (2 commits):
-- `chore(suite)`: advance submodule pointers + update compat matrices
-- `chore(suite)`: advance OPP pointer to v0.6.3 + suite bump to v0.2.2
+**v0.2.5 → v0.2.6** — Doc cleanup batch (OPP#17, OL#20, ORF#15, e2e#22):
+- `fix(OPP#17)`: Replace `Omni_Suite` references and `../` paths with absolute URLs in `Omni_Pre_Processor/AGENTS.md`
+- `fix(OL#20)`: Same fix in `Omni_Localizer/AGENTS.md`
+- `fix(ORF#15)`: Same fix in `Omni_Re_Formatter/AGENTS.md`
+- `fix(e2e#22)`: Update Suite README directory tree; clean Suite AGENTS.md version table and history
+- Version bumps: OPP v0.7.8, OL v0.5.9, ORF v0.4.13, Suite v0.2.6
 
 ## Quick Start
 

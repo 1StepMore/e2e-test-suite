@@ -1,6 +1,6 @@
 # E2E Test Suite
 
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/1StepMore/Omni_Suite/actions)
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/1StepMore/e2e-test-suite/actions)
 [![PyPI - opp](https://img.shields.io/pypi/v/opp.svg)](https://pypi.org/project/opp/)
 [![PyPI - omni-localizer](https://img.shields.io/pypi/v/omni-localizer.svg)](https://pypi.org/project/omni-localizer/)
 [![PyPI - omni-re-formatter](https://img.shields.io/pypi/v/omni-re-formatter.svg)](https://pypi.org/project/omni-re-formatter/)
@@ -14,39 +14,37 @@ OPP → OL → ORF 全链路集成测试环境，含全自动 bug 发现 → Ope
 ## 目录结构
 
 ```
-Omni_Suite/
-├── Omni_Pre_Processor/   # OPP — 文档提取（源码直接位于根目录）
-├── Omni_Localizer/       # OL — 文档翻译（源码直接位于根目录）
-├── Omni_Re_Formatter/    # ORF — 文档回写（源码直接位于根目录）
-├── src/                  # Git submodules（空/未检出）
-│   ├── Omni_Pre_Processor/
-│   ├── Omni_Localizer/
-│   └── Omni_Re_Formatter/
+.
+├── Omni_Pre_Processor/   # OPP — 文档提取（独立 git repo）
+├── Omni_Localizer/       # OL — 文档翻译（独立 git repo）
+├── Omni_Re_Formatter/    # ORF — 文档回写（独立 git repo）
 │
 ├── tests/                # E2E 测试套件（30+ 测试文件）
 │   ├── conftest.py       # 共享 fixtures
 │   ├── pytest.ini        # pytest 配置
-│   ├── test_e2e_real_llm.py  # 24 个 nightly 测试（2026-06-13 统计）
+│   ├── test_e2e_real_llm.py  # 24 个 nightly 测试
 │   └── ...
 │
 ├── scripts/
-│   └── sync_shallow.sh   # 同步 submodule SHA
+│   └── setup_dev.sh      # 一键安装脚本
 │
-├── test_artifacts/       # 测试产物（每次运行）
-├── test_output/          # 旧版测试输出
+├── docs/                 # Suite-level 文档
+│   ├── AGENTS.md
+│   ├── ARCHITECTURE.md
+│   ├── API_STABILITY.md
+│   └── ...
 │
 ├── reports/
 │   ├── TEMPLATE-Bug-Report.md
 │   ├── TEMPLATE-Comparison-Report.md
-│   └── E2E-*.md          # 具体 bug 报告
+│   └── E2E-*.md
 │
-├── .venv_ol/             # ✅ 当前统一 venv（Python 3.13，所有组件共用）
+├── .venv_ol/             # ✅ Python 3.13 统一 venv
 │
 ├── .gitignore
-├── .gitmodules
-├── pyproject.toml        # ✅ 根 workspace (Phase C1)
-├── VERSION               # Suite 版本 (Phase C5)
-├── COMPATIBILITY.md      # 版本兼容矩阵 (Phase C5)
+├── pyproject.toml        # 根 workspace
+├── VERSION               # Suite 版本
+├── COMPATIBILITY.md      # 版本兼容矩阵
 ├── uv.lock               # 根 lock 文件
 └── README.md
 ```
@@ -56,8 +54,8 @@ Omni_Suite/
 ## 快速上手
 
 ```bash
-# 1. 同步 submodules
-bash scripts/sync_shallow.sh
+# 1. Sub-repos are independent — pull updates inside each directory
+#    cd Omni_Pre_Processor && git pull origin main
 
 # 2. 安装（root workspace，Phase C1）
 bash scripts/setup_dev.sh
@@ -69,7 +67,7 @@ pytest tests/security/ -q        # 63 security tests
 pytest tests/ -q                 # all suite-level tests
 
 # 4. 查看版本
-\g<1>0.2.3
+omni-suite --version
 omni-suite --compatibility       # version matrix
 ```
 
@@ -154,9 +152,9 @@ The extra disk space is negligible, and having both paths available
 means you can switch without re-extracting.
 
 **Related**: Per-repo decision trees in each AGENTS.md for deeper detail:
-- [OPP --target-format guide](https://github.com/1StepMore/Omni_Pre_Processor/blob/main/AGENTS.md)
-- [OL translate-md vs translate-xliff](https://github.com/1StepMore/Omni_Localizer/blob/main/AGENTS.md)
-- [ORF apply-md vs apply-xliff](https://github.com/1StepMore/Omni_Re_Formatter/blob/main/AGENTS.md)
+- [OPP AGENTS.md](Omni_Pre_Processor/AGENTS.md) — `--target-format` decision tree
+- [OL AGENTS.md](Omni_Localizer/AGENTS.md) — `translate-md` vs `translate-xliff`
+- [ORF AGENTS.md](Omni_Re_Formatter/AGENTS.md) — `apply-md` vs `apply-xliff`
 
 ---
 
@@ -233,15 +231,15 @@ orf apply-md ./ol_out/document.md --target-format docx -o result.docx
 
 | 组件 | 路径 | 版本 / SHA |
 |------|------|------|
-\g<1>0.6.6\g<2>
-\g<1>0.4.7\g<2>
-\g<1>0.4.5\g<2>
-\g<1>0.2.3\g<2>
+| OPP | `Omni_Pre_Processor/` | v0.6.6 |
+| OL | `Omni_Localizer/` | v0.4.7 |
+| ORF | `Omni_Re_Formatter/` | v0.4.5 |
+| Omni_Suite | `./` | v0.2.3 |
 | Python 3.13（统一 venv） | `.venv_ol/` | ✅ 当前唯一活跃 venv，所有组件共用 |
 | Python 3.12（已弃用） | `.venv/` | ⚠️ 旧 venv，OPP/ORF CLI 曾用，勿再使用 |
 | OL MCP 专用 venv | `~/.hermes/venvs/omni-localizer` | Python 3.13（OL MCP 服务）|
 
-\g<1>0.6.6\g<2>0.4.7\g<3>0.4.5\g<4>0.2.3（last tested 2026-06-23）。
+v0.6.6 · v0.4.7 · v0.4.5 · v0.2.3（last tested 2026-06-23）。
 **Pushed combo (待 push)**: same as above; local commits only, network too slow for `git push` as of 2026-06-23.
 
 ---

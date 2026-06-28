@@ -430,7 +430,7 @@ opp ──── MD / XLIFF ────▶ ol ──── MD / XLIFF ───
 | OPP | 0.6.1 | `1StepMore/Omni_Pre_Processor` | `omni-pre-processor` (imports as `opp`) |
 | OL | 0.4.4 | `1StepMore/Omni_Localizer` | `omni-localizer` |
 | ORF | 0.4.3 | `1StepMore/Omni_Re_Formatter` | `omni-re-formatter` |
-| omni-suite | 0.2.0 | `1StepMore/Omni_Suite` (this repo) | meta-package, print-only CLI |
+| omni-suite | 0.2.0 | `1StepMore/e2e-test-suite` (this repo) | meta-package, print-only CLI |
 
 **Version policy** is documented in `docs/API_STABILITY.md` (companion
 document in this directory). Cross-module coordination is recorded in
