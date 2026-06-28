@@ -11,11 +11,11 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 | Component | Version | Status |
 |---|---|---|
 | Omni_Suite | v0.4.0 | Suite-level orchestration + E2E tests |
-| OPP | v0.9.0 | 13+ input formats, MCP with path security |
+| OPP | v0.9.1 | 13+ input formats, MCP with path security |
 | OL | v0.5.9 | 8 MCP tools, 4-layer repair pipeline |
 | ORF | v0.4.16 | 16 backfill formats, Foreman/Specialist |
 
-v0.9.0 · v0.5.9 · v0.4.16 · v0.4.0.
+v0.9.1 · v0.5.9 · v0.4.16 · v0.4.0.
 
 ## Recent Changes
 
