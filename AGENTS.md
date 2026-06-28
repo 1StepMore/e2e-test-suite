@@ -10,12 +10,12 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 
 | Component | Version | Status |
 |---|---|---|
-| Omni_Suite | v0.2.6 | Suite-level orchestration + E2E tests |
-| OPP | v0.7.8 | 13+ input formats, MCP with path security |
+| Omni_Suite | v0.4.0 | Suite-level orchestration + E2E tests |
+| OPP | v0.9.0 | 13+ input formats, MCP with path security |
 | OL | v0.5.9 | 8 MCP tools, 4-layer repair pipeline |
-| ORF | v0.4.13 | 16 backfill formats, Foreman/Specialist |
+| ORF | v0.4.16 | 16 backfill formats, Foreman/Specialist |
 
-v0.7.8 · v0.5.9 · v0.4.13 · v0.2.6.
+v0.9.0 · v0.5.9 · v0.4.16 · v0.4.0.
 
 ## Recent Changes
 
@@ -27,7 +27,7 @@ v0.7.8 · v0.5.9 · v0.4.13 · v0.2.6.
 - `fix(OL#20)`: Same fix in `Omni_Localizer/AGENTS.md`
 - `fix(ORF#15)`: Same fix in `Omni_Re_Formatter/AGENTS.md`
 - `fix(e2e#22)`: Update Suite README directory tree; clean Suite AGENTS.md version table and history
-- Version bumps: OPP v0.7.8, OL v0.5.9, ORF v0.4.13, Suite v0.2.6
+- Version bumps: OPP v0.9.0, OL v0.5.9, ORF v0.4.16, Suite v0.4.0
 
 > **Prerequisite:** Python >= 3.13. Verify with `python3 --version`.
 

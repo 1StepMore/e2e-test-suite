@@ -27,6 +27,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
@@ -50,6 +52,8 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
