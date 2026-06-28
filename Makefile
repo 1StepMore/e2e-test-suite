@@ -125,7 +125,7 @@ security-scan:
 smoke:
 	$(FAKE_ENV) $(PYTEST) tests/test_pipeline_contract_smoke.py --tb=short -v
 
-lint:
+lint: smoke
 	$(PYTHON) -m ruff check .
 	$(PYTHON) -m mypy . --no-incremental || true
 
