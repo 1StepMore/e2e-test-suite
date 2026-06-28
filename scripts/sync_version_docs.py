@@ -140,9 +140,10 @@ def _apply(path: Path, replacements: list[tuple[re.Pattern[str], str]]) -> int:
         # replacement differs from the matched text.
         def _count(m: re.Match[str]) -> str:
             nonlocal real_changes
-            if m.group(0) != replacement:
+            expanded = m.expand(replacement)
+            if m.group(0) != expanded:
                 real_changes += 1
-            return replacement
+            return expanded
 
         new = pattern.sub(_count, new)
     if new != content:
