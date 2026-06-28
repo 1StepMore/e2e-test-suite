@@ -98,7 +98,7 @@ def _run_pipeline(args: list[str]) -> None:
     Usage: omni-suite pipeline <file> [--source-lang en] [--target-lang zh] [--target-format docx] [--output <path>]
     """
     if not args or args[0] in ("--help", "-h"):
-        print("Usage: omni-suite pipeline <file> [--source-lang en] [--target-lang zh] [--target-format docx] --output <path>")
+        print("Usage: omni-suite pipeline <file> [--source-lang en] [--target-lang zh] [--target-format docx] [--fake-llm] --output <path>")
         return
 
     # Parse args
@@ -112,8 +112,10 @@ def _run_pipeline(args: list[str]) -> None:
     opp = shutil.which("opp") or f"{_VENV_BIN}/opp"
     ol = shutil.which("ol") or f"{_VENV_BIN}/ol"
     orf = shutil.which("orf") or f"{_VENV_BIN}/orf"
-    env = {**os.environ, "OMNI_TEST_FAKE_LLM": "1",
+    env = {**os.environ,
            "OL_CONFIG_PATH": str(suite_root / "Omni_Localizer" / "config" / "test_universal.yaml")}
+    if kwargs.get("fake-llm"):
+        env["OMNI_TEST_FAKE_LLM"] = "1"
 
     temp_dir = Path("/tmp/omni-suite-pipeline") / Path(file_path).stem
     temp_dir.mkdir(parents=True, exist_ok=True)
@@ -285,6 +287,7 @@ def _print_usage() -> None:
     print("  --version              Print suite version")
     print("  --compatibility        Print version compatibility matrix")
     print("  pipeline <file>        Run OPP→OL→ORF pipeline on a file")
+    print("    --fake-llm           Use fake LLM mode (bypasses API keys)")
     print("  check [--quick|--readiness[ --verbose]]")
     print("                         Run all module tests, quick-env check,")
     print("                         or production-readiness check")

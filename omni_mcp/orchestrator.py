@@ -4,6 +4,16 @@ The orchestrator runs each stage as a separate CLI subprocess, passing
 ``OMNI_TEST_FAKE_LLM=1`` by default for hermetic testing.  Results are
 returned as standardized ``{success, content: {...}}`` or
 ``{success, error: {code, message}}`` dicts.
+
+SECURITY
+--------
+This orchestrator calls OPP/OL/ORF **CLIs** as subprocesses (see
+``_run_cli()``), bypassing the sub-module MCP path security provided by
+OPP's and ORF's ``PathValidator``.  Any ``translate_file()`` invocation
+therefore accepts arbitrary ``file_path`` values without path validation.
+Only use this module in trusted environments.  A proper MCP-to-MCP bridge
+(deferred to a later wave) would chain JSON-RPC calls through each sub-
+module's MCP server, preserving PathValidator checks.
 """
 
 from __future__ import annotations
@@ -42,7 +52,8 @@ def _run_cli(
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
-    merged_env.setdefault("OMNI_TEST_FAKE_LLM", "1")
+    # FIXED: default is REAL (0); FAKE mode must be explicitly set in env
+    merged_env.setdefault("OMNI_TEST_FAKE_LLM", os.environ.get("OMNI_TEST_FAKE_LLM", "0"))
 
     try:
         result = subprocess.run(
@@ -127,6 +138,11 @@ def translate_file(
         ``{success: True, content: {output_path, pipeline, ...}}`` on success.
         ``{success: False, error: {code, message}}`` on failure.
     """
+    logger.warning(
+        "SECURITY: omni_mcp bypasses sub-module MCP path security (PathValidator). "
+        "Only use in trusted environments."
+    )
+
     start = time.time()
     file_path = str(Path(file_path).resolve())
 

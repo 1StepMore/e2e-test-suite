@@ -2,6 +2,9 @@
 
 Uses ``mcp.server.Server`` + ``mcp.server.stdio.stdio_server`` (standard
 mcp library, v1.27.2) — consistent with OPP, OL, and ORF MCP servers.
+
+SECURITY: This server calls OPP/OL/ORF CLIs directly, bypassing sub-module
+MCP path security (PathValidator).  Only use in trusted environments.
 """
 
 from __future__ import annotations
@@ -208,7 +211,37 @@ async def _run() -> None:
 
 
 def main() -> None:
-    """Synchronous entry point invoked by ``python -m omni_mcp``."""
+    """Synchronous entry point invoked by ``python -m omni_mcp``.
+
+    WARNING
+    -------
+    This server calls OPP/OL/ORF CLIs directly, bypassing sub-module MCP
+    path security (PathValidator).  Pass ``--danger-disable-security`` to
+    acknowledge this risk — the flag is required for documentation purposes;
+    without it a startup warning is emitted.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="omni-mcp — suite-level MCP orchestrator",
+    )
+    parser.add_argument(
+        "--danger-disable-security",
+        action="store_true",
+        help=(
+            "Acknowledge that this server bypasses OPP/OL/ORF MCP path security "
+            "(PathValidator).  Only use in trusted environments."
+        ),
+    )
+    args = parser.parse_args()
+
+    if not args.danger_disable_security:
+        logger.warning(
+            "SECURITY: omni-mcp server started without --danger-disable-security flag. "
+            "This server calls OPP/OL/ORF CLIs directly, bypassing sub-module MCP "
+            "path security (PathValidator).  Only use in trusted environments."
+        )
+
     anyio.run(_run)
 
 
