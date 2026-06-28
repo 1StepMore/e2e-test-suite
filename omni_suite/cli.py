@@ -1,6 +1,7 @@
 """omni-suite — suite-level CLI for the Omni document localization pipeline."""
 from __future__ import annotations
 
+import importlib.metadata
 import os
 import shutil
 import subprocess
@@ -77,6 +78,8 @@ def main() -> None:
     cmd = sys.argv[1]
     if cmd == "--version":
         print(_VERSION_FILE.read_text(encoding="utf-8").strip())
+    elif cmd == "--versions":
+        _print_versions()
     elif cmd == "--compatibility":
         print(_COMPAT_FILE.read_text(encoding="utf-8"))
     elif cmd == "pipeline":
@@ -281,10 +284,29 @@ def _run_readiness_check(args: list[str]) -> None:
     sys.exit(result.returncode)
 
 
+_DISTRIBUTIONS = [
+    ("omni-suite", "omni-suite"),
+    ("opp", "omni-pre-processor"),
+    ("ol", "omni-localizer"),
+    ("orf", "omni-re-formatter"),
+]
+
+
+def _print_versions() -> None:
+    """Print all 4 component versions from importlib.metadata."""
+    for label, dist in _DISTRIBUTIONS:
+        try:
+            ver = importlib.metadata.version(dist)
+        except importlib.metadata.PackageNotFoundError:
+            ver = "N/A (not installed)"
+        print(f"{label}: {ver}")
+
+
 def _print_usage() -> None:
     print("Usage: omni-suite <command> [options]")
     print("Commands:")
     print("  --version              Print suite version")
+    print("  --versions             Print all component versions")
     print("  --compatibility        Print version compatibility matrix")
     print("  pipeline <file>        Run OPP→OL→ORF pipeline on a file")
     print("    --fake-llm           Use fake LLM mode (bypasses API keys)")
