@@ -178,21 +178,21 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Check 7 — Repo structure (all 3 sub-repos present)
+# Check 7 — Repo structure (suite self-check)
 # ═══════════════════════════════════════════════════════════════════════════════
+# The OPP/OL/ORF sub-repos are now separate git repos (since 2026-06-24),
+# not submodules of this suite. This check validates that the suite's own
+# key files are present rather than expecting sub-repo pyproject.toml files.
 info "Checking repo structure …"
-MISSING=0
-for repo in Omni_Pre_Processor Omni_Localizer Omni_Re_Formatter; do
-    if [ -f "$PROJECT_ROOT/$repo/pyproject.toml" ]; then
-        :  # found
-    else
-        err "$repo/pyproject.toml not found — missing sub-repo"
-        MISSING=$((MISSING + 1))
-        FAILURES=$((FAILURES + 1))
+SUITE_FILES_OK=true
+for f in "pyproject.toml" "Makefile" "scripts/setup_dev.sh" "scripts/check_deps.sh" "AGENTS.md"; do
+    if [ ! -f "$PROJECT_ROOT/$f" ]; then
+        err "  Suite file missing: $f"
+        SUITE_FILES_OK=false
     fi
 done
-if [ "$MISSING" -eq 0 ]; then
-    ok "Submodule structure: all 3 present"
+if [ "$SUITE_FILES_OK" = "true" ]; then
+    ok "Suite structure: all key files present"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
