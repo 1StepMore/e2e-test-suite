@@ -33,8 +33,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Install sacrebleu
-        run: pip install --upgrade sacrebleu pip pydantic-settings python-multipart cryptography starlette aiohttp
+      - name: Install sacrebleu + opentelemetry (run_fidelity.py imports ol_mcp which imports opentelemetry)
+        run: pip install --upgrade sacrebleu pip pydantic-settings python-multipart cryptography starlette aiohttp opentelemetry-api opentelemetry-sdk
       - name: Verify candidate exists
         run: |
           if [ ! -f test_artifacts/ol/alice_ch1_zhipu_real.md ]; then
@@ -58,8 +58,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Install sacrebleu
-        run: pip install sacrebleu
+      - name: Install sacrebleu + opentelemetry (ol_mcp/tracing.py imports opentelemetry)
+        run: pip install --upgrade sacrebleu litellm opentelemetry-api opentelemetry-sdk
       - name: Install OL for translate_md_text
         run: |
           git clone --depth 1 https://github.com/1StepMore/Omni_Localizer.git /tmp/ol
