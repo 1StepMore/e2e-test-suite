@@ -55,6 +55,9 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Clone 3 sub-repos (parent .gitignore excludes them; conftest needs their src/)
+        run: bash scripts/clone_subrepos.sh
+
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
@@ -63,7 +66,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pyyaml
+          # python-docx is required by tests/conftest.py (sample_docx_path fixture)
+          # python-pptx is required by tests/conftest.py (sample_pptx_path fixture)
+          # pytest-timeout is required by tests/test_corpus_fidelity_equivalence.py (@pytest.mark.timeout)
+          pip install pytest pyyaml python-docx python-pptx reportlab pytest-timeout
 
       - name: Run hardening regression tests
         run: |
