@@ -91,7 +91,7 @@
           "type": "boolean"
         },
         "format": {
-          "description": "Output format (docx, pptx, epub, html, odf, ...).",
+          "description": "Output format (docx, pptx, epub, html, odf, json, ...).",
           "type": "string"
         },
         "images": {
