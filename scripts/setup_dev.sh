@@ -25,6 +25,35 @@ ok()    { printf "${GREEN}[OK]${NC}    %s\n" "$*"; }
 warn()  { printf "${YELLOW}[WARN]${NC}  %s\n" "$*"; }
 err()   { printf "${RED}[ERR]${NC}   %s\n" "$*"; }
 
+# ── Auto-clone sub-repos if missing ──────────────────────────────────────────
+# Clones the 3 sub-repos (OPP, OL, ORF) when they are missing from a fresh
+# git clone of the suite.  URLs can be overridden via env vars:
+#   OMNI_OPP_URL, OMNI_OL_URL, OMNI_ORF_URL
+clone_submodules_if_needed() {
+    local ws
+    ws="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    local -a subs=(
+        "Omni_Pre_Processor|${OMNI_OPP_URL:-https://github.com/1StepMore/Omni_Pre_Processor.git}"
+        "Omni_Localizer|${OMNI_OL_URL:-https://github.com/1StepMore/Omni_Localizer.git}"
+        "Omni_Re_Formatter|${OMNI_ORF_URL:-https://github.com/1StepMore/Omni_Re_Formatter.git}"
+    )
+    for entry in "${subs[@]}"; do
+        local name="${entry%%|*}"
+        local url="${entry##*|}"
+        local target="$ws/$name"
+        if [[ -d "$target/.git" ]]; then
+            ok "$name already cloned"
+        else
+            info "Cloning $name from $url"
+            if ! git clone --depth 1 "$url" "$target"; then
+                err "Failed to clone $name. Run manually: git clone --depth 1 $url $target"
+                exit 1
+            fi
+            ok "$name cloned"
+        fi
+    done
+}
+
 # ── Resolve project root ─────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -60,6 +89,12 @@ case "$OS_NAME" in
     *)       OS_FAMILY="unknown" ;;
 esac
 ok "OS detected: $OS_NAME ($OS_FAMILY)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Step 1.5 — Auto-clone sub-repos (if missing from a fresh git clone)
+# ═══════════════════════════════════════════════════════════════════════════════
+info "Checking sub-repo clones …"
+clone_submodules_if_needed
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Step 2 — Verify Python >= 3.13

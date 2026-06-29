@@ -51,6 +51,27 @@ OPP → OL → ORF 全链路集成测试环境，含全自动 bug 发现 → Ope
 
 ---
 
+## 前置条件：Python 3.13
+
+所有组件（OPP/OL/ORF/Suite）均要求 **Python >= 3.13**。系统默认 Python 通常为 3.10–3.12，需先安装 3.13：
+
+```bash
+# 方式 A：使用 uv（推荐 — 速度快，自带 venv 管理）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv python install 3.13
+
+# 方式 B：使用 pyenv（适合需要多版本切换的开发者）
+pyenv install 3.13.3
+pyenv local 3.13.3
+
+# 验证
+python3 --version   # 必须 >= 3.13
+```
+
+> 如果系统已有 3.13，可直接跳到下一节。
+
+---
+
 ## 快速上手
 
 ```bash
@@ -185,7 +206,7 @@ means you can switch without re-extracting.
 
 | 组件 | 路径 | 版本 / SHA |
 |------|------|------|
-| OPP | `Omni_Pre_Processor/` | v0.9.0 |
+| OPP | `Omni_Pre_Processor/` | v0.9.1 |
 | OL | `Omni_Localizer/` | v0.5.9 |
 | ORF | `Omni_Re_Formatter/` | v0.4.16 |
 | Omni_Suite | `./` | v0.4.0 |
@@ -193,7 +214,7 @@ means you can switch without re-extracting.
 | Python 3.12（已弃用） | `.venv/` | ⚠️ 旧 venv，OPP/ORF CLI 曾用，勿再使用 |
 | OL MCP 专用 venv | `~/.hermes/venvs/omni-localizer` | Python 3.13（OL MCP 服务）|
 
-v0.9.0 · v0.5.9 · v0.4.16 · v0.4.0（last tested 2026-06-23）。
+v0.9.1 · v0.5.9 · v0.4.16 · v0.4.0（last tested 2026-06-23）。
 **Pushed combo (待 push)**: same as above; local commits only, network too slow for `git push` as of 2026-06-23.
 
 ---
