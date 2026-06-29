@@ -69,6 +69,7 @@ jobs:
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
           HF_ENDPOINT: 'https://hf-mirror.com'
           PYTHONPATH: /tmp/ol/src
+          OL_CONFIG_PATH: /tmp/ol/config/default.yaml
         run: |
           python tests/fidelity/regenerate_candidate.py
           python tests/fidelity/run_fidelity.py
