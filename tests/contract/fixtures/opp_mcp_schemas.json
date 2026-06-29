@@ -84,6 +84,10 @@
           "description": "Absolute path to the source document.",
           "type": "string"
         },
+        "ocr_lang": {
+          "description": "OCR language code (e.g. 'chi_sim', 'jpn', 'fra'). Sets OPP_OCR_LANG env var before extraction. Default: 'eng'.",
+          "type": "string"
+        },
         "output_formats": {
           "description": "Output formats; default is ['md'].",
           "oneOf": [
