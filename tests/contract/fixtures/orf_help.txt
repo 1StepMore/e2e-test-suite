@@ -7,10 +7,11 @@ Options:
   -v, --verbose                启用详细日志
   --log-format [console|json]  日志输出格式: 'console' (默认) 或 'json'。也可通过
                                OMNI_LOG_FORMAT 环境变量设置。
+  --load-dotenv                Load .env file before running (opt-in)
   --help                       Show this message and exit.
 
 Commands:
-  apply-md       将 MD 文件转换为目标格式
-  apply-xliff    Apply XLIFF translation to original document.
+  apply-md
+  apply-xliff
   convert-batch  批量转换 MD 文件
   info           Show information about a document file.
