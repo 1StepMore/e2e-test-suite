@@ -104,6 +104,7 @@ jobs:
         env:
           OMNI_TEST_FAKE_LLM: "1"
           OMNI_TEST_FAKE_PANDOC: "1"
+          OMNI_SUITE_RUNNING_OPP_TESTS: "1"
 
       - name: Run OL module tests
         run: |
