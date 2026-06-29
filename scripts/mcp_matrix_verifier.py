@@ -96,7 +96,7 @@ async def mcp_session(which: str, suite_root: Path, env: dict):
     params = StdioServerParameters(
         command=sys.executable,
         args=argv,
-        cwd=str(suite_root / "src" / subdir),
+        cwd=str(suite_root / subdir),
         env=env,
     )
     async with stdio_client(params) as (read_stream, write_stream):
