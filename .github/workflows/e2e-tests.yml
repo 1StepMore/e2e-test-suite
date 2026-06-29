@@ -59,7 +59,12 @@ jobs:
             shared-mime-info fontconfig
 
       - name: Install md2pptx (Phase C2)
-        run: bash scripts/install_md2pptx.sh
+        run: |
+          # md2pptx is a Python script that imports pptx; install python-pptx
+          # in the system Python (where md2pptx will run via its shebang)
+          # before install_md2pptx.sh's --version verification.
+          pip install python-pptx
+          bash scripts/install_md2pptx.sh
 
       - name: uv sync (root workspace installs all 3 submodules via [tool.uv.workspace])
         run: uv sync --frozen
