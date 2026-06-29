@@ -33,6 +33,7 @@ _LOG_NOISE_PATTERNS = [
     re.compile(r"^\[INFO\] Log file: .+$", re.MULTILINE),
     re.compile(r"^\[DEBUG\] .+$", re.MULTILINE),
     re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} .+$", re.MULTILINE),
+    re.compile(r"\x1b\[[0-9;]*[A-Za-z]"),
 ]
 
 
