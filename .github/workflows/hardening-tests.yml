@@ -81,6 +81,8 @@ jobs:
             tests/test_no_broad_except.py \
             tests/test_orf_16_formats.py \
             tests/test_oom_protections.py \
+            tests/test_link_integrity.py \
+            tests/test_ol_graceful_degradation.py \
             -v --tb=short
         env:
           OMNI_TEST_FAKE_LLM: '1'

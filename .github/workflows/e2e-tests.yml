@@ -46,14 +46,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pandoc
 
+      - name: 'Install weasyprint C libs (CI-G3: real PDF render in e2e)'
+        run: |
+          # CI-G3: install weasyprint system deps so test_md2pdf_channel.py::
+          # test_convert_weasyprint_real_render_cjk can exercise a real
+          # PDF render (not just the mock). Previously the e2e ci-suite
+          # only installed pandoc, so PDF regressions slipped through
+          # (OPP#24/26/28).
+          sudo apt-get install -y \
+            libpango-1.0-0 libpangoft2-1.0-0 libpangocairo-1.0-0 \
+            libcairo2 libcairo-gobject2 libgdk-pixbuf2.0-0 \
+            shared-mime-info fontconfig
+
       - name: Install md2pptx (Phase C2)
         run: bash scripts/install_md2pptx.sh
 
       - name: uv sync (root workspace installs all 3 submodules via [tool.uv.workspace])
         run: uv sync --frozen
 
-      - name: Install test deps (pytest + docx/pptx/pandoc + structlog/otel + psutil + pytest-timeout)
-        run: uv pip install pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout
+      - name: Install test deps (pytest + docx/pptx/pandoc + structlog/otel + psutil + pytest-timeout + weasyprint for CI-G3)
+        run: uv pip install pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout weasyprint
 
       - name: Create .venv_ol symlink for legacy paths
         run: ln -s .venv .venv_ol
