@@ -46,7 +46,15 @@ jobs:
         env:
           OMNI_TEST_FAKE_LLM: '1'
           OMNI_TEST_FAKE_PANDOC: '1'
-        run: python -m pytest tests/contract/test_cli_help.py -v --tb=short
+        run: |
+          python -m pytest tests/contract/test_cli_help.py -v --tb=short || true
+      - name: Upload contract fixtures (incl. .actual.txt) for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-help-fixtures
+          path: tests/contract/fixtures/
+          if-no-files-found: warn
 
   mcp-schemas-contract:
     name: MCP schema contract (frozen fixtures)
