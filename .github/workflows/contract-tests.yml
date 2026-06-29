@@ -85,9 +85,17 @@ jobs:
           if-no-files-found: warn
 
   mcp-matrix:
-    name: MCP matrix (subset, --subset docx)
+    name: MCP matrix XLIFF (${{ matrix.xliff_format }})
+    # CI-G6: previously this job hardcoded `--subset docx` and only
+    # exercised the DOCX XLIFF backfill path. mcp_matrix_verifier.py
+    # defines XLIFF_OUTPUTS = {docx, pptx, epub, html, odt}; this job
+    # now runs the matrix across all 5 formats.
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        xliff_format: [docx, pptx, epub, html, odt]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -105,7 +113,7 @@ jobs:
           pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
-      - name: Run MCP matrix (single format)
+      - name: 'Run MCP matrix (XLIFF: ${{ matrix.xliff_format }})'
         env:
           OMNI_TEST_FAKE_LLM: '1'
           OMNI_TEST_FAKE_PANDOC: '1'
@@ -114,7 +122,7 @@ jobs:
         run: |
           mkdir -p /tmp/mcp-matrix-ci
           python scripts/mcp_matrix_verifier.py \
-            --out-dir /tmp/mcp-matrix-ci \
-            --path-filter md \
-            --subset docx \
+            --out-dir /tmp/mcp-matrix-ci/${{ matrix.xliff_format }} \
+            --path-filter xliff \
+            --subset ${{ matrix.xliff_format }} \
             --corpus minimal
