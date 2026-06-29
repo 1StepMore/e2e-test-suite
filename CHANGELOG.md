@@ -194,3 +194,15 @@
 ### Updated
 
 - `COMPATIBILITY.md` and `VERSION_COMPATIBILITY.md` matrices
+
+## 0.3.0 — 2026-06-XX
+
+### Unknown
+
+- Version bumped in `pyproject.toml` to `0.3.0` but release notes were not retroactively written. Tracking the change to call out that this version exists.
+
+## 0.4.0 — 2026-06-XX
+
+### Unknown
+
+- Version bumped in `pyproject.toml` to `0.4.0` (current) but release notes were not retroactively written. Tracking the change to call out that this version exists.
