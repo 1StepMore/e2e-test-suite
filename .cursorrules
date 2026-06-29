@@ -31,10 +31,37 @@ Omni_Suite/
 
 ## MCP Server Names
 
-Configure in your tool's MCP settings:
-- `opp-mcp-server` — 7 tools: extract_document, batch_extract, get_supported_formats, list_tools, check_dependencies, validate_config, get_pipeline_info
-- `ol-mcp` — 8 tools: translate_md_text, translate_xliff_text, judge_text, batch_translate_md, batch_translate_xliff, get_supported_languages, check_translation_quality, get_server_info
-- `orf-mcp-server` — 7 tools: apply_md, apply_xliff, batch_apply, get_supported_formats, validate_output, check_dependencies, list_tools
+Configure in your tool's MCP settings. **Note:** naming is not uniform —
+`opp-mcp-server` and `orf-mcp-server` use the `-server` suffix, but `ol-mcp`
+does NOT.
+
+- `opp-mcp-server` — **7 tools**: `extract_document`, `batch_extract`, `detect_format_tool`, `generate_markdown`, `generate_xliff`, `save_skeleton`, `ping`
+- `ol-mcp` (no `-server` suffix) — **8 tools**: `translate_md_text`, `translate_xliff`, `judge_text`, `load_glossary`, `get_relevant_terms`, `search_tm`, `batch_translate_texts`, `ping`
+- `orf-mcp-server` — **6 tools** (not 7): `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `ping`
+
+## MCP Path Allowlists (different per server!)
+
+Each MCP server has its OWN env var for the path allowlist — do not conflate:
+
+- OPP: `OPP_MCP_ALLOWED_DIRS` (e.g. `/docs:/tmp/out`). **NOT** `OPP_ALLOWED_DIRECTORIES` (CLI-only).
+- OL: `OL_MCP_ALLOWED_DIRS` (or configured in `ol_mcp/config.py`).
+- ORF: `ORF_MCP_ALLOWED_DIRS` (defaults to `[Path.cwd()]` if unset — **production should always set it explicitly**).
+
+OPP is fail-closed (`ValueError: allowed_directories cannot be empty` if unset).
+ORF is fail-open (defaults to CWD). OL configures via file, not env.
+
+## MCP stdio workaround (FastMCP 3.4.2 bug)
+
+If MCP servers fail to respond to stdio JSON-RPC, use `scripts/mcp_bridge.py`
+(raw JSON-RPC over stdin/stdout, no `mcp` library). See `../ACCEPTED_GAPS.md` line 18.
+
+## CLI frameworks differ
+
+- OPP: argparse (`opp`)
+- OL: typer (`ol`)
+- ORF: click (`orf`)
+
+Flag names are uniform (`--kebab-case`). Help-text styles differ. See `../docs/DECISIONS.md` ADR 0001.
 
 ## Testing Conventions
 
