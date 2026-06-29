@@ -64,6 +64,12 @@ jobs:
       - name: Upgrade vulnerable transitive deps (CVE remediation)
         run: uv pip install --system --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp
 
+      - name: Install 3 sub-repos as editable packages
+        run: |
+          uv pip install --python .venv/bin/python -e ./Omni_Pre_Processor
+          uv pip install --python .venv/bin/python -e "./Omni_Localizer[mcp]"
+          uv pip install --python .venv/bin/python -e ./Omni_Re_Formatter
+
       - name: Scan tracked configs for hardcoded secrets (Phase A2 regression)
         run: |
           if grep -rn --include="*.yaml" --include="*.yml" --include="*.json" \
