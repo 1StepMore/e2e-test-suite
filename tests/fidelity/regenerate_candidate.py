@@ -29,6 +29,16 @@ def main() -> int:
         print("FAIL: ZHIPU_API_KEY not set in .env", file=sys.stderr)
         return 1
 
+    zhipu_key = os.environ["ZHIPU_API_KEY"]
+    if zhipu_key.startswith("sk-dummy") or zhipu_key.startswith("nvapi-dummy"):
+        print(
+            "SKIP: ZHIPU_API_KEY is a dummy placeholder (sk-dummy / nvapi-dummy). "
+            "Real Zhipu regeneration requires a valid production key. "
+            "fidelity-gate still validates the existing test artifact.",
+            file=sys.stderr,
+        )
+        return 0
+
     sys.path.insert(0, str(REPO_ROOT / "Omni_Localizer" / "src"))
     from ol_mcp.tools import translate_md_text, TranslateInput
 
