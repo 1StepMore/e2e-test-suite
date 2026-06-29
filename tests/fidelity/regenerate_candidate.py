@@ -50,14 +50,17 @@ def main() -> int:
             r = await translate_md_text(TranslateInput(
                 content=p, source_lang="en", target_lang="zh", add_frontmatter=False,
             ))
-            rd = json.loads(r)
+            rd = json.loads(r) if isinstance(r, str) else r
             if rd.get("success"):
                 results.append(rd.get("translated", p))
                 if i % 5 == 0:
                     print(f"  [{i+1}/{len(paragraphs)}] done")
             else:
+                err = rd.get("error", "?")
+                if not isinstance(err, str):
+                    err = json.dumps(err, ensure_ascii=False)
+                print(f"  [{i+1}] failed: {err[:60]}", file=sys.stderr)
                 results.append(p)
-                print(f"  [{i+1}] failed: {rd.get('error', '?')[:60]}", file=sys.stderr)
         return results
 
     translated = asyncio.run(translate_all())
