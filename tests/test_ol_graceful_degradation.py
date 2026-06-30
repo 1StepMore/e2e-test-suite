@@ -5,22 +5,22 @@ unset, the OL CLI must either:
   (a) translate successfully using a built-in fallback, OR
   (b) exit with a clear error message (not a stack trace / crash)
 
-Prior to this test (and the matching gap fix), all 12 OL-touching CI
-workflows set ``OMNI_TEST_FAKE_LLM=1`` unconditionally. The
-"missing API key" path was never exercised. The user's bug report
-identified the silent-fallback behavior as a CI gap: with no real
-keys and no fake, the CLI returned the source text with success
-status, hiding the configuration error.
+History: prior to this fix, all 12 OL-touching CI workflows set
+``OMNI_TEST_FAKE_LLM=1`` unconditionally, so the "missing API key"
+path was never exercised. The actual behavior was:
+  1. ``import litellm`` takes ~30s on cold start
+  2. ModelPool's Router init fails on the missing ``${VAR}`` refs
+  3. The exception is caught → ``_test_mode = True``
+  4. ``ModelPool.translate()`` returns the literal string "placeholder"
+  5. CLI exits 0 with the source MD overwritten by "placeholder"
+
+The fix (``precheck_api_keys()`` in ``cli/_shared.py``) scans the
+config YAML for ``${VAR}`` placeholders and exits non-zero with
+a clear, actionable error BEFORE any expensive LLM work — bypassing
+the 30s litellm import entirely. This test pins the contract.
 
 This test runs ``ol translate-md`` in a subprocess with the env
 carefully cleared, so it does NOT contaminate the parent test env.
-
-NOTE: This test is marked xfail because the current OL CLI hangs
-or silently returns source text when no API keys are available —
-the very bug this test is designed to catch. The xfail marker
-documents the known failure. When OL is fixed to fail fast with
-a clear error, remove the xfail marker and the test will
-naturally pass.
 """
 from __future__ import annotations
 
@@ -68,12 +68,6 @@ def _clean_env() -> dict[str, str]:
 class TestOLGracefulDegradation:
     """CI-G7: OL must not silently return source text on missing keys."""
 
-    @pytest.mark.xfail(
-        reason="CI-G7: OL CLI currently hangs or silently returns source text "
-               "when no API keys are configured. This is the bug being detected. "
-               "When OL fails fast with a clear error, remove the xfail marker.",
-        strict=False,
-    )
     def test_ol_cli_does_not_silently_succeed_without_keys(self, tmp_path: Path):
         """Run ``ol translate-md`` with no API keys and no FAKE_LLM.
 
@@ -89,8 +83,12 @@ class TestOLGracefulDegradation:
         output_dir.mkdir()
 
         env = _clean_env()
-        # Use absolute paths because we change CWD to Omni_Localizer.
-        python_exe = str(Path(sys.executable).resolve())
+        # Do NOT call .resolve() here — the venv is a symlink and
+        # resolving past the symlink bypasses pyvenv.cfg, leaving
+        # the subprocess Python without the venv's site-packages
+        # (typer, litellm, etc.). The symlink form is what triggers
+        # pyvenv.cfg processing and the site-packages bootstrap.
+        python_exe = str(Path(sys.executable).absolute())
         cmd = [
             python_exe,
             "-m",
@@ -134,6 +132,12 @@ class TestOLGracefulDegradation:
         if proc.returncode == 0:
             if output_md.exists():
                 content = output_md.read_text(encoding="utf-8")
+                if "placeholder" in content.lower():
+                    raise AssertionError(
+                        "CI-G7: ol translate-md silently returned the LLM "
+                        f"'placeholder' string (Router init failed + test_mode "
+                        f"path) with exit=0. stderr:\n{proc.stderr!r}"
+                    )
                 if "Hello" in content and "你好" not in content:
                     raise AssertionError(
                         "CI-G7: ol translate-md silently returned source "
