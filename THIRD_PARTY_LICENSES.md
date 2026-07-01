@@ -35,7 +35,6 @@ metadata of each package at the time of writing.
 | `PyYAML` | ≥6.0.0 | MIT | YAML parser |
 | `hypomnema` | ≥0.8 | MIT | Translation memory |
 | `jinja2` | ≥3.1.0 | BSD-3-Clause | Templating |
-| `keybert` | ≥0.9.0 | MIT | Keyword extraction |
 | `litellm` | ≥1.82.0 | MIT | Multi-provider LLM router |
 | `markdown-it-py` | ≥3.0.0 | MIT | Markdown parser |
 | `openevalkit` | ≥0.1.7 | MIT | Translation evaluation |
