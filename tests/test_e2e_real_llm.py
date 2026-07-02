@@ -129,11 +129,10 @@ def use_real_llm(monkeypatch):
         monkeypatch.setenv("OL_CONFIG_PATH", str(local_yaml))
 
     if not any(os.environ.get(k) for k in ["MINIMAX_API_KEY", "BAIDU_API_KEY"]):
-        pytest.fail(
+        pytest.skip(
             "Tier 3 LQA test requires a real LLM API key. "
             "Set MINIMAX_API_KEY or BAIDU_API_KEY in Omni_Localizer/.env, "
-            "or in the test environment. Silent skip is removed — a missing key "
-            "now ERRORs so pipeline regressions are visible instead of hidden."
+            "or in the test environment. Run `make e2e-help` for setup instructions."
         )
 
 

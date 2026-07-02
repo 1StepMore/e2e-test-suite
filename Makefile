@@ -20,11 +20,14 @@
 #
 # =============================================================================
 
-.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset clean clean-artifacts doctor help
+.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset clean clean-artifacts doctor help e2e e2e-help
 
 PYTHON := .venv_ol/bin/python
 PYTEST := $(PYTHON) -m pytest
 FAKE_ENV := OMNI_TEST_FAKE_LLM=1 OMNI_TEST_FAKE_PANDOC=1
+# E2E tests use real LLM calls — never set FAKE_LLM. Still bypass pandoc
+# since we only produce text artifacts (no actual DOCX rendering).
+E2E_ENV := OMNI_TEST_FAKE_PANDOC=1
 
 help:
 	@echo "Omni Suite targets:"
@@ -48,6 +51,8 @@ help:
 	@echo "  fidelity-unit — Run FidelityScorer unit tests only (no scoring)"
 	@echo "  fidelity-nightly — Regenerate candidate via real LLM, then score (requires ZHIPU_API_KEY in .env)"
 	@echo "  smoke         — Run contract smoke test"
+	@echo "  e2e           — Run real-LLM E2E pipeline tests (19 tests, nightly)"
+	@echo "  e2e-help      — Show E2E setup instructions"
 	@echo "  security-scan — Run gitleaks + bandit + pip-audit"
 	@echo "  lint          — ruff check + mypy on parent + submodules"
 	@echo "  matrix        — Run full MD matrix (165 cells, ~3min, real MCP)"
@@ -128,6 +133,58 @@ security-scan:
 
 smoke:
 	$(FAKE_ENV) $(PYTEST) tests/test_pipeline_contract_smoke.py --tb=short -v
+
+# ---------------------------------------------------------------------------
+# E2E nightly tests — run the full OPP → OL → ORF pipeline with REAL LLMs.
+# These are excluded from `make test` (which uses FAKE_LLM) and require at
+# least one API key. Without a key, tests are SKIPPED (not failed) so
+# developers can run `make e2e` without polluting CI.
+# ---------------------------------------------------------------------------
+e2e:
+	@if [ -z "$$MINIMAX_API_KEY" ] && [ -z "$$BAIDU_API_KEY" ]; then \
+		echo ""; \
+		echo "  No real LLM API keys detected."; \
+		echo ""; \
+		echo "  E2E tests require at least one of:"; \
+		echo "    - MINIMAX_API_KEY (MiniMax M2.7)"; \
+		echo "    - BAIDU_API_KEY   (Baidu ERNIE)"; \
+		echo ""; \
+		echo "  Set them in Omni_Localizer/.env or export in your shell."; \
+		echo "  Run 'make e2e-help' for detailed setup instructions."; \
+		echo ""; \
+		echo "  All 19 tests will SKIP gracefully (not fail)."; \
+		echo ""; \
+	fi
+	$(E2E_ENV) $(PYTEST) tests/test_e2e_real_llm.py -v -m "nightly" --tb=short
+
+e2e-help:
+	@echo ""
+	@echo "E2E Nightly Tests — Setup Guide"
+	@echo "================================"
+	@echo ""
+	@echo "These tests run the full OPP→OL→ORF pipeline with REAL LLM calls."
+	@echo "They are NOT run by 'make test' (which uses FAKE_LLM)."
+	@echo ""
+	@echo "Prerequisites:"
+	@echo "  1. Python 3.13+ installed (make doctor to verify)"
+	@echo "  2. At least one of these API keys in the environment:"
+	@echo "       MINIMAX_API_KEY    (MiniMax M2.7)"
+	@echo "       BAIDU_API_KEY      (Baidu ERNIE)"
+	@echo ""
+	@echo "Setup:"
+	@echo "  1. Copy Omni_Localizer/.env.example to Omni_Localizer/.env (if needed)"
+	@echo "  2. Add your API key(s) to .env"
+	@echo "  3. Run: make e2e"
+	@echo ""
+	@echo "What you get:"
+	@echo "  - 19 tests across 4 tiers (per-component smoke, full E2E, LQA, formats)"
+	@echo "  - Full OPP→OL→ORF pipeline with REAL translations"
+	@echo "  - Estimated runtime: 25-40 minutes (depends on LLM latency)"
+	@echo ""
+	@echo "Options:"
+	@echo "  make e2e              # Run all nightly tests (skips if no key)"
+	@echo "  make e2e-help         # Show this help"
+	@echo ""
 
 lint: smoke
 	$(PYTHON) -m ruff check .
