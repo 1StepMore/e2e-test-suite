@@ -213,7 +213,7 @@ jobs:
           mkdir -p Omni_Localizer/config
           cat > Omni_Localizer/.env <<EOF
           MINIMAX_API_KEY=${{ secrets.MINIMAX_API_KEY }}
-          BAIDU_API_KEY=${{ secrets.BAUDU_API_KEY }}
+          BAIDU_API_KEY=${{ secrets.BAIDU_API_KEY }}
           MINIMAX_BASE_URL=https://api.minimaxi.com/v1
           BAIDU_BASE_URL=https://qianfan.baidubce.com/v2
           EOF

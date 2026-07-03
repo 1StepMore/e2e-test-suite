@@ -13,6 +13,8 @@ CI_FILES = [
     ROOT / ".github" / "workflows" / "contract-tests.yml",
     ROOT / ".github" / "workflows" / "e2e-tests.yml",
     ROOT / ".github" / "workflows" / "doctor.yml",
+    ROOT / ".github" / "workflows" / "hardening-tests.yml",
+    ROOT / ".github" / "workflows" / "fidelity.yml",
 ]
 
 
