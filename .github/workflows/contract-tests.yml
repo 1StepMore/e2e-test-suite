@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
+      - 'CONTRACT.md'
       - 'tests/contract/**'
       - 'tests/contract/fixtures/**'
       - 'scripts/mcp_matrix_verifier.py'
@@ -16,11 +17,29 @@ on:
   pull_request:
     branches: [main, master]
     paths:
+      - 'CONTRACT.md'
       - 'tests/contract/**'
       - 'scripts/mcp_matrix_verifier.py'
   workflow_dispatch:
 
 jobs:
+  contract-documentation:
+    name: CONTRACT.md documentation (P3-T3/T4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run contract documentation tests
+        run: python -m pytest tests/contract/test_contract_documentation.py -v --tb=short
+
   cli-help-contract:
     name: CLI --help contract (frozen fixtures)
     runs-on: ubuntu-latest
