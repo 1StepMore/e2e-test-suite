@@ -125,12 +125,14 @@ def _replacements(v: dict[str, str]) -> list[tuple[re.Pattern[str], str]]:
     ]
 
 
-def _apply(path: Path, replacements: list[tuple[re.Pattern[str], str]]) -> int:
+def _apply(path: Path, replacements: list[tuple[re.Pattern[str], str]], *, dry_run: bool = False) -> int:
     """Return the number of substitutions that actually changed text.
 
     `subn` reports matches even when the replacement string equals the
     matched substring (a no-op write). For the --check mode we need
     only the count of substitutions that produce a real diff.
+
+    If *dry_run* is True the file is never written to.
     """
     content = path.read_text(encoding="utf-8")
     new = content
@@ -146,7 +148,7 @@ def _apply(path: Path, replacements: list[tuple[re.Pattern[str], str]]) -> int:
             return expanded
 
         new = pattern.sub(_count, new)
-    if new != content:
+    if new != content and not dry_run:
         path.write_text(new, encoding="utf-8")
     return real_changes
 
@@ -156,6 +158,14 @@ def main() -> int:
     parser.add_argument(
         "--check", action="store_true",
         help="Exit non-zero if any doc would change. Used by pre-commit.",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Report what would change without writing. Exits 1 if changes are needed.",
+    )
+    parser.add_argument(
+        "--validate", action="store_true",
+        help="Same as --check (alias).",
     )
     args = parser.parse_args()
 
@@ -169,12 +179,21 @@ def main() -> int:
         if not target.exists():
             print(f"WARNING: {target} does not exist, skipping", file=sys.stderr)
             continue
-        n = _apply(target, replacements)
+        n = _apply(target, replacements, dry_run=args.dry_run)
         if n > 0:
             changed_files.append(f"{target.relative_to(SUITE_ROOT)} ({n} substitutions)")
             total_subs += n
 
-    if args.check:
+    if args.dry_run:
+        if changed_files:
+            print("DRY-RUN: would update the following files:", file=sys.stderr)
+            for line in changed_files:
+                print(f"  - {line}", file=sys.stderr)
+            return 1
+        print("DRY-RUN: no changes needed.")
+        return 0
+
+    if args.check or args.validate:
         if changed_files:
             print("ERROR: version docs are out of date:", file=sys.stderr)
             for line in changed_files:
