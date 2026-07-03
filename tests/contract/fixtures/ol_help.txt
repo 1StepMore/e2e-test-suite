@@ -13,4 +13,27 @@
 │ translate-xliff                                                              │
 │ translate-batch                                                              │
 │ extract-warnings                                                             │
+│ capabilities        Print OL module capabilities (roles, language pairs,     │
+│                     available tools).                                        │
+│ shield-md           Shield code/links/math/HTML/images in markdown before    │
+│                     LLM translation.                                         │
+│ unshield-md         Restore shielded markers after LLM translation.          │
+│ extract-terms       Extract key terms from source text. Requires: pip        │
+│                     install omni-localizer.                                  │
+│ add-tm-entries      Add entries to a TMX translation memory file. Requires:  │
+│                     pip install omni-localizer.                              │
+│ disambiguate        Resolve polysemous terms using confidence-based          │
+│                     selection (no LLM).                                      │
+│ generate-report     Generate HTML and CSV quality reports from translation   │
+│                     warnings and model costs.                                │
+│ inspect-config      Inspect OL configuration: models, paths, LQA settings.   │
+│ judge-text          Evaluate translation quality using LLM judge (OL#8       │
+│                     rubric).                                                 │
+│ load-glossary       Load a JSON glossary file and print as JSON.             │
+│ search-tm           Search translation memory for similar past translations. │
+│ translation-status  Poll the status of an async OL translation task.         │
+│ ping                Health check: print OL server version.                   │
+│ verify-terms        Verify glossary term usage in translated content.        │
+│ profile-doc         Profile a document's writing style and emit a            │
+│                     StyleGuide.                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯

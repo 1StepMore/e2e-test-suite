@@ -13,5 +13,7 @@ Options:
 Commands:
   apply-md
   apply-xliff
+  capabilities   Print ORF module capabilities (formats, tools).
   convert-batch  批量转换 MD 文件
+  detect-format  Detect the file format of a document.
   info           Show information about a document file.
