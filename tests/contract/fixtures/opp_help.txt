@@ -7,15 +7,17 @@ usage: opp [-h] [--detect-format] [--resource-dir RESOURCE_DIR]
            [--asr-engine {whisper}]
            [--model-size {tiny,base,small,medium,large-v3}] [--config CONFIG]
            [--no-cache] [--clear-cache] [--max-file-size MAX_FILE_SIZE]
-           [--log-format {console,json}] [--load-dotenv]
-           files [files ...]
+           [--log-format {console,json}] [--load-dotenv] [--capabilities]
+           [--validate-xliff] [--xliff-content XLIFF_CONTENT]
+           [--xliff-file XLIFF_FILE]
+           [files ...]
 
 OPP - Omni Pre-Processor. Extract content from DOCX, PPTX, PDF, HTML, and EPUB
 files.
 
 positional arguments:
   files                 Input files or folders to process (DOCX, PPTX, PDF,
-                        HTML, EPUB)
+                        HTML, EPUB). Optional when --capabilities is set.
 
 options:
   -h, --help            show this help message and exit
@@ -62,10 +64,23 @@ options:
                         extraction)
   --clear-cache         Remove all cached OPP outputs and exit
   --max-file-size, --max-file-size-mb MAX_FILE_SIZE
-                        拒绝超过此大小 (MB) 的文件 (默认: 不限制)
+                        Reject files larger than this size in MB (default: no
+                        limit)
   --log-format {console,json}
-                        日志输出格式 (默认: console)。也可通过 OMNI_LOG_FORMAT 环境变量设置。
+                        Log output format (default: console). Also
+                        configurable via OMNI_LOG_FORMAT env var.
   --load-dotenv         Load .env file before running (opt-in)
+  --capabilities        Print OPP module capabilities (input formats, output
+                        formats, available tools) and exit
+  --validate-xliff      Validate an XLIFF 1.2 file (schema + trans-unit
+                        content rules) and exit. Uses --xliff-content (inline)
+                        if provided, otherwise --xliff-file.
+  --xliff-content XLIFF_CONTENT
+                        Inline XLIFF XML string. Used with --validate-xliff
+                        (takes precedence over --xliff-file).
+  --xliff-file XLIFF_FILE
+                        Path to .xlf/.xliff file. Used with --validate-xliff
+                        (when --xliff-content is not set).
 
 Examples: opp file.docx Extract from a single file opp folder/ Process folder
 (batch mode) opp --detect-format file.docx Auto-detect format and extract opp
