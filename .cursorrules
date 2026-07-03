@@ -39,12 +39,13 @@ does NOT.
 - `ol-mcp` (no `-server` suffix) — **8 tools**: `translate_md_text`, `translate_xliff`, `judge_text`, `load_glossary`, `get_relevant_terms`, `search_tm`, `batch_translate_texts`, `ping`
 - `orf-mcp-server` — **6 tools** (not 7): `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `ping`
 
-## MCP Path Allowlists (different per server!)
+## MCP Path Allowlists
 
-Each MCP server has its OWN env var for the path allowlist — do not conflate:
+**Preferred**: Set `MCP_ALLOWED_DIRECTORIES` once — it is read by all 3 MCP servers (OPP, OL, ORF).
 
+Per-module overrides (checked first, fall back to `MCP_ALLOWED_DIRECTORIES`):
 - OPP: `OPP_MCP_ALLOWED_DIRS` (e.g. `/docs:/tmp/out`). **NOT** `OPP_ALLOWED_DIRECTORIES` (CLI-only).
-- OL: `OL_MCP_ALLOWED_DIRS` (or configured in `ol_mcp/config.py`).
+- OL: `OL_ALLOWED_DIRECTORIES` (or configured in `ol_mcp/config.py`).
 - ORF: `ORF_MCP_ALLOWED_DIRS` (defaults to `[Path.cwd()]` if unset — **production should always set it explicitly**).
 
 OPP is fail-closed (`ValueError: allowed_directories cannot be empty` if unset).

@@ -119,8 +119,10 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 |---|---|---|
 | `OMNI_TEST_FAKE_LLM=1` | **Yes (tests/offline)** | Mock LLM responses. Without this, OL tries real API calls. |
 | `OMNI_TEST_FAKE_PANDOC=1` | **Yes (tests with DOCX/PPTX/EPUB)** | Bypass pandoc subprocess (use `markdown` lib). |
-| `OPP_MCP_ALLOWED_DIRS` | **Yes (OPP MCP)** | Colon-separated path allowlist. **NOT** `OPP_ALLOWED_DIRECTORIES` (that's CLI-only). |
-| `ORF_MCP_ALLOWED_DIRS` | **Yes (ORF MCP)** | Colon-separated path allowlist. **Name differs from OPP's**. |
+| `MCP_ALLOWED_DIRECTORIES` | **Yes (all MCP)** | Unified path allowlist for OPP/OL/ORF MCP servers. Per-module vars below act as overrides. |
+| `OPP_MCP_ALLOWED_DIRS` | Override (OPP MCP) | Colon-separated path allowlist. Falls back to `MCP_ALLOWED_DIRECTORIES`. |
+| `ORF_MCP_ALLOWED_DIRS` | Override (ORF MCP) | Colon-separated path allowlist. Falls back to `MCP_ALLOWED_DIRECTORIES`. |
+| `OL_ALLOWED_DIRECTORIES` | Override (OL MCP) | Comma-separated path allowlist. Falls back to `MCP_ALLOWED_DIRECTORIES`. |
 | `MCP_SHARED_SECRET` | Optional | Shared-secret auth for MCP requests. |
 | `OMNI_LOG_FORMAT` | Optional | `json` for structured logs (default: `console`). |
 | `OPP_OCR_LANG` | Optional | Tesseract OCR language code (e.g. `chi_sim`, `jpn`, `fra`). |
