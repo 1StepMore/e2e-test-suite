@@ -14,6 +14,7 @@
 | 0.2.9 | 0.5.9 | 0.8.1 | 0.4.16 | OPP#24 — PDF image position fix: strip inaccurate <img> coords from PyMuPDF HTML, rebuild with `page.get_image_info()` bbox + `doc.extract_image()` (preserves original encoding) |
 | 0.3.0 | 0.5.9 | 0.8.2 | 0.4.16 | OPP#26 — zero body margin/padding + <p> margin in DEFAULT_PDF2HTML_CSS (eliminates +12pt Y image offset) |
 | 0.4.0 | 0.5.9 | 0.9.0 | 0.4.16 | OPP#28 — CRITICAL: correct PDF text + image positions for top-left page space. Fixes OPP#24's wrong bottom-left origin assumption (M.d<0 → use bbox[1], not page_h-bbox[3]). Adds `position:absolute` to <p> tags. 552pt image offset resolved. |
+| 0.4.0 | 0.7.0 | 0.9.1 | 0.4.16 | OL 0.7.0 version bump + OPP 0.9.1 patch |
 
 ## How to check installed versions
 
