@@ -12,10 +12,10 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 |---|---|---|
 | Omni_Suite | v0.4.0 | Suite-level orchestration + E2E tests |
 | OPP | v0.9.1 | 13+ input formats, MCP with path security |
-| OL | v0.6.0 | 9 MCP tools, 4-layer repair pipeline, StyleGuide injection, --polish pass |
+| OL | v0.7.0 | 9 MCP tools, 4-layer repair pipeline, StyleGuide injection, --polish pass, quality gates |
 | ORF | v0.4.16 | 16 backfill formats, Foreman/Specialist |
 
-v0.9.1 · v0.6.0 · v0.4.16 · v0.4.0.
+v0.9.1 · v0.7.0 · v0.4.16 · v0.4.0.
 
 ## Recent Changes
 
@@ -272,8 +272,8 @@ These MCP tool calls work in any AI coding tool that supports MCP. Use them to o
 
 | Tool | Description | Key Parameters |
 |------|-------------|---------------|
-| `translate_md_text` | Translate markdown text through shield, translate, repair, unshield pipeline | `content` (str), `source_lang` (str), `target_lang` (str), `glossary_path` (str, optional), `config_path` (str, optional), `add_frontmatter` (bool) |
-| `translate_xliff` | Translate XLIFF file, write translated target back to output | `input_path` (str), `output_path` (str, optional), `source_lang` (str), `target_lang` (str), `glossary_path` (str, optional), `config_path` (str, optional) |
+| `translate_md_text` | Translate markdown text through shield, translate, repair, unshield pipeline. Returns quality-gate warnings when `quality_gates:` are enabled in config. | `content` (str), `source_lang` (str), `target_lang` (str), `glossary_path` (str, optional), `config_path` (str, optional), `add_frontmatter` (bool) |
+| `translate_xliff` | Translate XLIFF file, write translated target back to output. Inserts quality-gate warnings when `quality_gates:` are enabled in config. | `input_path` (str), `output_path` (str, optional), `source_lang` (str), `target_lang` (str), `glossary_path` (str, optional), `config_path` (str, optional) |
 | `judge_text` | Evaluate translation quality with rubric scores (adequacy, fluency, terminology, format) | `source` (str), `target` (str), `source_lang` (str), `target_lang` (str), `glossary` (dict, optional) |
 | `load_glossary` | Load a JSON glossary file for use in translation | `path` (str), `config_dir` (str, optional) |
 | `get_relevant_terms` | Extract top-k relevant glossary terms for a source text | `text` (str), `glossary` (dict), `top_k` (int, default: 5) |
@@ -505,5 +505,6 @@ orf apply-md /tmp/test_ol/sample.md --target-format docx -o /tmp/result.docx
 - Use `batch_extract` (OPP) or `batch_translate_texts` (OL) for processing multiple files in a single call.
 - **`opp -v` now writes to stderr** (as of v0.6.2). Use `--detect-format -v file.docx` to see the detected format in your terminal without reading the log file.
 - **OL E2E-65 (prompt injection strip)**: when calling `translate_md_text` with real LLMs, the output is post-processed to strip `CRITICAL/IMPORTANT/NOTE: Output ONLY...` echoes. Don't strip these patterns yourself; OL handles it.
+- **OL quality gates**: Post-translation quality gates are configurable via `quality_gates:` in OL config. When enabled, `translate_md_text` returns quality warnings in its output and `translate_xliff` inserts them into the XLIFF. Tune length ratio thresholds with `OL_LENGTH_RATIO_MIN` / `OL_LENGTH_RATIO_MAX` env vars. Set `OL_TARGET_LOCALE` to enforce locale-specific checks.
 - **OPP E2E-15 (orphan image filter)**: `extract_document` with `--target-format both` will not double-embed images that were already output inline. The image `images.json` manifest reflects this.
 - **ORF E2E-07 (fuzzy match)**: `apply_xliff` to DOCX now tolerates small text mismatches between XLIFF source and DOCX paragraphs (up to 5-char length diff, 0.85 ratio). If you previously got `SKIPPED units`, retry — they should now backfill.
