@@ -54,6 +54,19 @@ AVAILABILITY = {
     "nbformat": _can_import("nbformat"),
 }
 
+# Map format names to their availability key in AVAILABILITY.
+# Used by both input and output availability checks in _check_skip().
+_AVAIL_MAP: dict[str, str] = {
+    "docx": "pandoc",
+    "odt": "pandoc",
+    "epub": "pandoc",
+    "rtf": "pandoc",
+    "icml": "pandoc",
+    "pdf": "pandoc",
+    "pptx": "md2pptx",
+    "msg": "aspose_email",
+}
+
 
 # ---------------------------------------------------------------------------
 # Matrix definition
@@ -187,17 +200,22 @@ def _check_skip(inp: str, outp: str, path: str) -> str | None:
     for rule in SKIP_RULES:
         axis, fmt, reason = rule
         if axis == "input" and fmt == inp:
-            if not AVAILABILITY.get("extract_msg" if fmt == "msg" else
-                                    "nbformat" if fmt == "ipynb" else
-                                    fmt, True):
+            # msg → extract_msg, ipynb → nbformat; other input formats
+            # route through _AVAIL_MAP (most are always-available).
+            avail_key = ("extract_msg" if fmt == "msg" else
+                         "nbformat" if fmt == "ipynb" else
+                         _AVAIL_MAP.get(fmt))
+            if avail_key is not None and not AVAILABILITY.get(avail_key, False):
                 return reason
         elif axis == "output" and fmt == outp:
-            if not AVAILABILITY.get("pandoc" if fmt in ("docx", "pdf", "odt", "epub", "rtf", "icml") else
-                                    "md2pptx" if fmt == "pptx" else
-                                    "aspose_email" if fmt == "msg" else
-                                    "weasyprint" if fmt == "pdf" else
-                                    True, True):
-                return reason
+            if fmt == "pdf":
+                # PDF: skip only if BOTH pandoc AND weasyprint are unavailable
+                if not AVAILABILITY.get("pandoc", False) and not AVAILABILITY.get("weasyprint", False):
+                    return reason
+            else:
+                avail_key = _AVAIL_MAP.get(fmt)
+                if avail_key and not AVAILABILITY.get(avail_key, False):
+                    return reason
         elif axis == "*" and fmt == outp:
             return reason
         elif axis == inp and fmt == outp:
