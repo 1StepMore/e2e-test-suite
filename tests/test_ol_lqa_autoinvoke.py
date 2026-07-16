@@ -26,6 +26,7 @@ def _write_config(tmp_path: Path, *, enable_lqa: bool, threshold: float = 7.0, m
         enable_lqa: {str(enable_lqa).lower()}
         lqa_threshold: {threshold}
         lqa_max_retries: {max_retries}
+        max_md_concurrent: 1
         llm_pool:
           translation:
             - provider: "openai"
@@ -96,7 +97,7 @@ def _mock_judge_with_scores(scores: list[float]) -> MagicMock:
         )
 
     judge = MagicMock()
-    judge.judge = MagicMock(side_effect=[make_result(s) for s in scores])
+    judge.judge = AsyncMock(side_effect=[make_result(s) for s in scores])
     return judge
 
 
@@ -108,15 +109,20 @@ def _run_translate_md_async(
     pool: MagicMock,
     judge: MagicMock | None = None,
 ) -> str:
-    """Run _translate_md_async with mocked pool (and optionally judge)."""
+    """Run _translate_md_async with mocked pool (and optionally judge).
+
+    NOTE: _translate_md_async uses _FakeModelPool when OMNI_TEST_FAKE_LLM=1
+    (which is the default in CI), so we patch _FakeModelPool rather than
+    the real ModelPool.
+    """
     from ol_cli import _translate_md_async
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if judge is not None:
-        with patch("ol_pool.router.ModelPool") as MockModelPool, \
+        with patch("ol_pool.fake._FakeModelPool") as MockFP, \
              patch("ol_lqa.judge.JudgeService", return_value=judge):
-            MockModelPool.get_instance.return_value = pool
+            MockFP.return_value = pool
             return asyncio.run(_translate_md_async(
                 input_path=input_path,
                 output_path=output_dir,
@@ -126,8 +132,8 @@ def _run_translate_md_async(
                 add_frontmatter=False,
             ))
     else:
-        with patch("ol_pool.router.ModelPool") as MockModelPool:
-            MockModelPool.get_instance.return_value = pool
+        with patch("ol_pool.fake._FakeModelPool") as MockFP:
+            MockFP.return_value = pool
             return asyncio.run(_translate_md_async(
                 input_path=input_path,
                 output_path=output_dir,
