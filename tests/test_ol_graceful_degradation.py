@@ -153,3 +153,76 @@ class TestOLGracefulDegradation:
                 f"CI-G7: ol translate-md failed with exit={proc.returncode} "
                 f"but stderr lacks a clear error. stderr:\n{proc.stderr!r}"
             )
+
+    def test_sigint_exit_code_3(self, tmp_path: Path):
+        """Process-level test: SIGINT during translate-batch → exit code 3 (INTERRUPTED).
+
+        Verifies that Ctrl+C during a batch translation triggers the signal handler
+        and the process exits with ExitCode.INTERRUPTED (3) instead of hanging or
+        silently succeeding.
+
+        Also documents the expected behaviour for:
+        - SIGTERM: currently NOT handled (default terminate behaviour)
+        - Network loss: manifests as per-unit Exceptions → fallback to source
+        - Mid-pipeline crash: no recovery — partial output on disk
+        """
+        batch_dir = tmp_path / "batch"
+        batch_dir.mkdir()
+        for i in range(3):
+            p = batch_dir / f"ch{i}.md"
+            p.write_text(
+                "# Chapter {0}\n\n"
+                "This is a long paragraph to ensure the translator has enough "
+                "work to do before SIGINT arrives.\n\n"
+                "## Section {0}.1\n\n"
+                "Another paragraph to keep the processor busy.\n\n"
+                "## Section {0}.2\n\n"
+                "Yet more text to ensure the batch enqueue loop is active.\n".format(i),
+                encoding="utf-8",
+            )
+
+        env = os.environ.copy()
+        env["OMNI_TEST_FAKE_LLM"] = "1"
+        env["OMNI_RUN_REAL_LLM"] = ""
+        env["PYTHONPATH"] = str(OL_SRC)
+        for k in list(env.keys()):
+            if k.endswith("_API_KEY") or k.endswith("_KEY") or k.endswith("_BASE_URL"):
+                env.pop(k)
+
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "ol_cli", "translate-batch",
+             str(batch_dir), "-s", "en", "-t", "zh", "-o", str(out_dir)],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(SUITE_ROOT / "Omni_Localizer"),
+        )
+
+        time.sleep(0.5)
+        if proc.poll() is not None:
+            pytest.fail(
+                f"Process exited before SIGINT sent (rc={proc.returncode}). "
+                f"stdout: {proc.stdout.read().decode()[-1000:]}"
+                f"stderr: {proc.stderr.read().decode()[-1000:]}"
+            )
+
+        proc.send_signal(signal.SIGINT)
+
+        try:
+            rc = proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=2)
+            pytest.fail("Process did not exit within 10s after SIGINT")
+
+        stdout_text = proc.stdout.read().decode() if proc.stdout else ""
+        stderr_text = proc.stderr.read().decode() if proc.stderr else ""
+
+        assert rc == 3, (
+            f"Expected exit code 3 (INTERRUPTED), got {rc}\n"
+            f"stdout (last 1000 chars): {stdout_text[-1000:]}\n"
+            f"stderr (last 2000 chars): {stderr_text[-2000:]}"
+        )
