@@ -56,8 +56,8 @@ def _build_input_md(tmp_path: Path) -> Path:
 def _clean_env() -> dict[str, str]:
     """Return an env dict with all *_API_KEY unset and FAKE_LLM disabled."""
     env = os.environ.copy()
-    env.pop("OMNI_TEST_FAKE_LLM", None)
-    env.pop("OMNI_RUN_REAL_LLM", None)
+    for k in ("OMNI_TEST_FAKE_LLM", "OMNI_RUN_REAL_LLM", "OPENCODE_GO_KEY", "OPENCODE_GO_BASE_URL"):
+        env.pop(k, None)
     for k in list(env.keys()):
         if k.endswith("_API_KEY") or k.endswith("_BASE_URL"):
             env.pop(k, None)
