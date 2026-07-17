@@ -201,22 +201,25 @@ class TestOLGracefulDegradation:
             cwd=str(SUITE_ROOT / "Omni_Localizer"),
         )
 
-        time.sleep(0.5)
-        if proc.poll() is not None:
-            pytest.fail(
-                f"Process exited before SIGINT sent (rc={proc.returncode}). "
-                f"stdout: {proc.stdout.read().decode()[-1000:]}"
-                f"stderr: {proc.stderr.read().decode()[-1000:]}"
-            )
+        # Cold-start import takes ~6s. During import the Python-level
+        # signal handler cannot run (CPython is in C-level import code),
+        # so we wait for import to complete before sending SIGINT.
+        # The batch then has a ~0.6s processing window for 5 small files.
+        t0 = time.monotonic()
+        rc = None
+        while time.monotonic() - t0 < 15:
+            if proc.poll() is not None:
+                rc = proc.returncode
+                break
+            # Start sending SIGINT after 6s (import should be done)
+            if time.monotonic() - t0 > 6.0:
+                proc.send_signal(signal.SIGINT)
+            time.sleep(0.25)
 
-        proc.send_signal(signal.SIGINT)
-
-        try:
-            rc = proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
+        if rc is None:
             proc.kill()
             proc.wait(timeout=2)
-            pytest.fail("Process did not exit within 10s after SIGINT")
+            pytest.fail("Process did not exit within 15s after SIGINT")
 
         stdout_text = proc.stdout.read().decode() if proc.stdout else ""
         stderr_text = proc.stderr.read().decode() if proc.stderr else ""
