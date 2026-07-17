@@ -82,9 +82,14 @@ def main() -> None:
         _print_versions()
     elif cmd == "--compatibility":
         print(_COMPAT_FILE.read_text(encoding="utf-8"))
-    elif cmd == "pipeline":
-        _validate_env(require_llm=True)
-        _run_pipeline(sys.argv[2:])
+    elif cmd in ("pipeline", "translate"):
+        remaining = sys.argv[2:]
+        # Show help without requiring API keys
+        if not remaining or remaining[0] in ("--help", "-h"):
+            _run_pipeline(["--help"])
+        else:
+            _validate_env(require_llm=True)
+            _run_pipeline(remaining)
     elif cmd == "check":
         _run_check(sys.argv[2:])
     elif cmd == "status":
@@ -304,12 +309,30 @@ def _print_versions() -> None:
 
 def _print_usage() -> None:
     print("Usage: omni-suite <command> [options]")
+    print("")
     print("Commands:")
     print("  --version              Print suite version")
     print("  --versions             Print all component versions")
     print("  --compatibility        Print version compatibility matrix")
-    print("  pipeline <file>        Run OPP→OL→ORF pipeline on a file")
+    print("  translate|pipeline <file>")
+    print("                         Run OPP→OL→ORF pipeline on a file")
+    print("    --source-lang LANG   Source language (default: en)")
+    print("    --target-lang LANG   Target language (default: zh)")
+    print("    --target-format FMT  Output format (default: docx)")
+    print("                         Supports any of ORF's 16 formats")
     print("    --fake-llm           Use fake LLM mode (bypasses API keys)")
+    print("    --output PATH        Output file path (auto-generated if omitted)")
+    print("")
+    print("  Pipeline path selection:")
+    print("    MD path (default):   omni-suite translate <file> --target-format <fmt>")
+    print("                         Uses OPP→OL(translate-md)→ORF(apply-md).")
+    print("                         Best for text-first output in any of 16 formats.")
+    print("                         See --target-format for supported formats.")
+    print("    XLIFF path (manual): opp <file> --target-format xlf ...")
+    print("                         Then: ol translate-xliff ...")
+    print("                         Then: orf apply-xliff ...")
+    print("                         Best for exact original layout preservation.")
+    print("")
     print("  check [--quick|--readiness[ --verbose]]")
     print("                         Run all module tests, quick-env check,")
     print("                         or production-readiness check")
