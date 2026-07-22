@@ -12,7 +12,7 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 |---|---|---|
 | Omni_Suite | v0.4.0 | Suite-level orchestration + E2E tests |
 | OPP | v0.9.1 | 13+ input formats, MCP with path security |
-| OL | v0.7.0 | 9 MCP tools, 4-layer repair pipeline, StyleGuide injection, --polish pass, 8 quality gates |
+| OL | v0.7.0 | 21 MCP tools, 4-layer repair pipeline, StyleGuide injection, --polish pass, 8 quality gates |
 | ORF | v0.4.16 | 16 backfill formats, Foreman/Specialist |
 
 v0.9.1 · v0.7.0 · v0.4.16 · v0.4.0.
@@ -49,7 +49,7 @@ omni-suite --version
 | Module | Role | CLI (key subcommand) | MCP tools | Source |
 |--------|------|---------------------|-----------|--------|
 | **OPP** | Extract documents → MD + XLIFF + skeleton | `opp <file> --target-format both --output-dir <dir>` | 7 tools (`extract_document`, `batch_extract`…) | `Omni_Pre_Processor/src/` |
-| **OL** | Translate MD/XLIFF between languages | `ol translate-md <file> -s <src> -t <tgt> -o <dir>` | 8 tools (`translate_md_text`, `judge_text`…) | `Omni_Localizer/src/` |
+| **OL** | Translate MD/XLIFF between languages | `ol translate-md <file> -s <src> -t <tgt> -o <dir>` | 21 tools (`translate_md_text`, `judge_text`…) | `Omni_Localizer/src/` |
 | **ORF** | Backfill translated content → target format | `orf apply-md <file> --target-format <fmt> -o <out>` | 6 tools (`apply_md`, `apply_xliff`…) | `Omni_Re_Formatter/src/` |
 
 ## Common Tasks
@@ -75,7 +75,7 @@ orf apply-md /tmp/ol/document.md --target-format docx -o result.docx
 Each module exposes its own MCP server. Configure in your agent's MCP settings:
 
 - `opp-mcp-server` — 7 extraction tools
-- `ol-mcp` — 8 translation tools
+- `ol-mcp` — 21 translation tools
 - `orf-mcp-server` — 6 backfill tools
 
 > **Note**: The MCP server names are not uniform across modules. OPP and ORF use `-server` suffix (`opp-mcp-server`, `orf-mcp-server`) while OL omits it (`ol-mcp`). This is a historical naming inconsistency; all three follow the same protocol.
@@ -268,7 +268,7 @@ These MCP tool calls work in any AI coding tool that supports MCP. Use them to o
 | `save_skeleton` | Save skeleton ZIP from extracted document (required by ORF apply_xliff) | `file_path` (str), `base_name` (str, default: document), `output_dir` (str, optional) |
 | `ping` | Health check endpoint | (none) |
 
-### OL MCP Server (8 tools)
+### OL MCP Server (21 tools)
 
 | Tool | Description | Key Parameters |
 |------|-------------|---------------|
@@ -279,6 +279,19 @@ These MCP tool calls work in any AI coding tool that supports MCP. Use them to o
 | `get_relevant_terms` | Extract top-k relevant glossary terms for a source text | `text` (str), `glossary` (dict), `top_k` (int, default: 5) |
 | `search_tm` | Search TMX translation memory for similar past translations | `source_text` (str), `tmx_path` (str), `threshold` (float, default: 0.85) |
 | `batch_translate_texts` | Translate multiple markdown texts in parallel | `texts` (list[str]), `source_lang` (str), `target_lang` (str), `glossary_path` (str, optional), `concurrency` (int, default: 5) |
+| `translate_file` | End-to-end file translation (OPP→OL→ORF in one call) | `input_path` (str), `source_lang` (str), `target_lang` (str), `target_format` (str), `output_path` (str) |
+| `get_translation_status` | Poll status of an async translation task | `request_id` (str) |
+| `verify_terms` | Verify glossary term usage in translated content (no LLM) | `source` (str), `target` (str), `glossary` (dict) |
+| `profile_doc` | Profile a document's writing style via LLM, producing a StyleGuide | `content` (str), `source_lang` (str) |
+| `extract_terms` | Extract key terms from source texts using YAKE | `texts` (list[str]), `top_k` (int) |
+| `add_tm_entries` | Add entries to a TMX translation memory file | `tmx_path` (str), `entries` (list[dict]) |
+| `disambiguate` | Resolve polysemous glossary terms with LLM context understanding | `text` (str), `glossary` (dict) |
+| `shield_md_text` | Shield markdown content (replace code, math, links with markers) | `content` (str) |
+| `unshield_md_text` | Unshield markdown content (restore markers from shield_map) | `content` (str), `shield_map` (dict) |
+| `generate_report` | Generate a translation report (HTML + CSV) | `source_path` (str), `target_path` (str) |
+| `inspect_config` | Inspect the resolved OL configuration | (none) |
+| `get_capabilities` | Return module capabilities (roles, language pairs, tools) | (none) |
+| `extract_warnings` | Extract warning markers from an output file | `file_path` (str) |
 | `ping` | Health check endpoint | (none) |
 
 ### ORF MCP Server (6 tools)
