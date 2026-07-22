@@ -207,14 +207,14 @@ means you can switch without re-extracting.
 | 组件 | 路径 | 版本 / SHA |
 |------|------|------|
 | OPP | `Omni_Pre_Processor/` | v0.9.1 |
-| OL | `Omni_Localizer/` | v0.5.9 |
+| OL | `Omni_Localizer/` | v0.7.1 |
 | ORF | `Omni_Re_Formatter/` | v0.4.16 |
 | Omni_Suite | `./` | v0.4.0 |
 | Python 3.13（统一 venv） | `.venv_ol/` | ✅ 当前唯一活跃 venv，所有组件共用 |
 | Python 3.12（已弃用） | `.venv/` | ⚠️ 旧 venv，OPP/ORF CLI 曾用，勿再使用 |
 | OL MCP 专用 venv | `~/.hermes/venvs/omni-localizer` | Python 3.13（OL MCP 服务）|
 
-v0.9.1 · v0.5.9 · v0.4.16 · v0.4.0（last tested 2026-06-23）。
+v0.9.1 · v0.7.1 · v0.4.17 · v0.4.0（last tested 2026-07-22）。
 **Pushed combo (待 push)**: same as above; local commits only, network too slow for `git push` as of 2026-06-23.
 
 ---

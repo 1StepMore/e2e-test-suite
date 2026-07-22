@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- **OL#78 — AGENTS.md OL tool count stale (6 occurrences, 8→21)**: updated version table, per-module cheat sheet, MCP server descriptions, and OL AGENTS.md header to reflect OL's current 21 MCP tools (was 8). (Suite-level docs alignment)
+
 ### Added
 
 - **`feat(check_deps.sh + doctor.yml)`: add `make doctor` + CI gate (7-check health)** — `make doctor` runs Python/keys/pandoc/WeasyPrint/md2pptx/MCP/submodule checks; CI runs on every PR with `continue-on-error: true` initially
