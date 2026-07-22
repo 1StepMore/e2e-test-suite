@@ -312,6 +312,30 @@ pytest tests/test_e2e_images.py -v -k "pptx"
 
 ---
 
+## Validation Master Plans
+
+The `docs/` directory contains comprehensive validation master plans for all four components in the **AutoInfo-style format** (user question → executable scenarios → binary verdict). Each plan can be executed by any AI agent to independently validate production readiness.
+
+| File | Scope | Coverage |
+|------|-------|----------|
+| `docs/SUITE_VALIDATION_MASTER_PLAN.md` | Suite-level orchestration (OPP→OL→ORF) | 15 Qs, 3 pipeline paths, real API E2E |
+| `docs/OPP_VALIDATION_MASTER_PLAN.md` | OPP extraction engine | 17 Qs, 13 input formats, 7 MCP tools |
+| `docs/OL_VALIDATION_MASTER_PLAN.md` | OL translation engine | 17 Qs, 21 MCP tools, 8 quality gates, real LLM |
+| `docs/ORF_VALIDATION_MASTER_PLAN.md` | ORF backfill engine | 14 Qs, 16 output formats, 6 MCP tools |
+
+**How to use:**
+1. Open the relevant plan file (e.g. `docs/OL_VALIDATION_MASTER_PLAN.md`)
+2. Pick a user question from the table of contents
+3. Each scenario is executable as a CLI command, MCP call, or Python script
+4. Compare actual vs. expected result and fill the verdict box
+
+```bash
+# Quick start: run the suite-level smoke test
+make doctor  # verify all dependencies first
+```
+
+---
+
 ## Plans
 
 The `.omo/plans/` directory contains work plans generated during development. See the plan file for current tasks.
