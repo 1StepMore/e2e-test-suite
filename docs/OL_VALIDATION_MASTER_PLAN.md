@@ -5,7 +5,7 @@
 **For:** OpenCode, Claude Code, Cline, Hermes Agent — any AI agent validating OL
 **Date:** 2026-07-22
 **Strategy:** Every section asks a user question → executes scenarios → reports a binary verdict
-**Current Baseline:** v0.7.0 — 21 MCP tools, 8 quality gates, 4-layer repair pipeline, ModelPool failover, LQA
+**Current Baseline:** v0.7.1 — 21 MCP tools, 8 quality gates, 4-layer repair pipeline, ModelPool failover, LQA
 
 ---
 
@@ -23,6 +23,18 @@
 The plan is designed so that any AI agent can execute it independently and report: **"✅ All PASS"** or **"❌ These N items FAILED"**.
 
 ---
+## ⏱ Execution Priority
+
+| Priority | Questions | Reason |
+|----------|-----------|--------|
+| P0 | Q1-OL, Q2-OL, Q3-OL | Core functionality — if these fail, nothing else matters |
+| P1 | Q5-OL, Q6-OL, Q7-OL | Important but depend on P0 passing |
+| P2 | Q4-OL, Q8-OL, Q9-OL, Q10-OL, Q11-OL, Q12-OL, Q13-OL | Can be deferred if P0/P1 fail — run after core is verified |
+| P3 | Q14-OL, Q15-OL, Q16-OL, Q17-OL | Cost-incurring — run last and only if P0-P2 pass |
+
+**Execution rule:** Run P0 first. If any P0 FAIL, fix before continuing to P1.
+If P1 FAIL, fix before P2. P3 requires real API keys — skip if not configured.
+
 
 ## Verdict Legend
 
@@ -146,6 +158,17 @@ ol translate-md sample.md -s en -t zh -o /tmp/test-md-translate/output/ --config
 - ✅ Bold/italic markers preserved (** ** and * *)
 - ✅ YAML frontmatter present (source_lang, target_lang, original_file, processor, version)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.2 🟢 JSON output is parseable
@@ -153,6 +176,17 @@ ol translate-md sample.md -s en -t zh -o /tmp/test-md-translate/output/ --config
 ol translate-md sample.md -s en -t zh -o /tmp/test-md-translate/output-json/ --config /mnt/d/贯维/Omni_Suite/Omni_Localizer/config/default.yaml --no-glossary --json 2>/dev/null
 ```
 **Expected Result:** ✅ Valid JSON with `{"success": true, "input_file": "...", "output_file": "...", "source_lang": "en", "target_lang": "zh"}`
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -165,6 +199,17 @@ ol translate-md sample.md -s en -t zh -o /tmp/test-md-translate/output-nofm/ --c
 - ✅ Output file does NOT start with `---` YAML frontmatter
 - ✅ Translated content is present
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.4 🟢 Chunk-by-paragraph mode
@@ -176,6 +221,17 @@ ol translate-md sample.md -s en -t zh -o /tmp/test-md-translate/output-chunk/ --
 - ✅ Output file created with translated content
 - ✅ Paragraph boundaries preserved
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.5 🔴 Translate with non-existent input file
@@ -183,6 +239,17 @@ ol translate-md sample.md -s en -t zh -o /tmp/test-md-translate/output-chunk/ --
 ol translate-md /tmp/nonexistent/nope.md -s en -t zh -o /tmp/test-md-translate/output/
 ```
 **Expected Result:** ❌ Exit code != 0. Error message mentions file not found. No crash.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -199,6 +266,13 @@ ol translate-md /tmp/nonexistent/nope.md -s en -t zh -o /tmp/test-md-translate/o
 | 1.5 Nonexistent input | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -244,6 +318,17 @@ ol translate-xliff sample.xlf -s en -t zh -o /tmp/test-xliff-translate/output/ -
 - ✅ XML structure preserved (all `<trans-unit>`, `<source>`, `<bx/>`, `<ex/>` intact)
 - ✅ Inline tags (`<bx id="1"/>`, `<ex id="1"/>`) preserved in target
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 2.2 🟢 XLIFF with empty target tags (pre-populated target)
@@ -265,6 +350,17 @@ ol translate-xliff sample-pretarget.xlf -s en -t zh -o /tmp/test-xliff-translate
 ```
 **Expected Result:** ✅ Exit code 0. `<target>` filled. XML valid.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 2.3 🔴 XLIFF with no trans-units
@@ -282,6 +378,17 @@ ol translate-xliff empty.xlf -s en -t zh -o /tmp/test-xliff-translate/output/ --
 ```
 **Expected Result:** ❌ Error message: "No translation units found". Exit code != 0. No crash.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 2.4 🔴 Non-existent XLIFF file
@@ -289,6 +396,17 @@ ol translate-xliff empty.xlf -s en -t zh -o /tmp/test-xliff-translate/output/ --
 ol translate-xliff /tmp/nonexistent.xlf -s en -t zh -o /tmp/test-xliff-translate/output/ --config /mnt/d/贯维/Omni_Suite/Omni_Localizer/config/default.yaml
 ```
 **Expected Result:** ❌ Exit code != 0. File not found error. No crash.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -304,6 +422,13 @@ ol translate-xliff /tmp/nonexistent.xlf -s en -t zh -o /tmp/test-xliff-translate
 | 2.4 Non-existent file | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -340,6 +465,17 @@ print(f'Fake translation is non-empty: {result}')
 - ✅ No network calls made
 - ✅ Deterministic output (same input → same output)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 3.2 🟢 FAKE_LLM mode is detectable from env var
@@ -353,6 +489,17 @@ print('FAKE_LLM detected')
 ```
 **Expected Result:** ✅ Env var `OMNI_TEST_FAKE_LLM=1` is set and recognized.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 3.3 🟢 Tests pass with FAKE_LLM
@@ -361,6 +508,17 @@ cd /mnt/d/贯维/Omni_Suite
 OMNI_TEST_FAKE_LLM=1 pytest Omni_Localizer/tests/ -v --tb=short -x 2>&1 | head -60
 ```
 **Expected Result:** ✅ Test suite passes. 0 failures. Tests complete within reasonable time.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -373,6 +531,17 @@ pytest Omni_Localizer/tests/test_ol_mcp.py -v --tb=short -x 2>&1 | head -30
 export OMNI_TEST_FAKE_LLM=1
 ```
 **Expected Result:** ❌ Tests fail with `${VAR}` resolution errors or API key errors. This is EXPECTED — FAKE_LLM is required without real keys.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -388,6 +557,13 @@ export OMNI_TEST_FAKE_LLM=1
 | 3.4 Tests fail without FAKE_LLM | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -419,6 +595,17 @@ print('✅ Role-based routing exists (production: litellm Router with simple-shu
 ```
 **Expected Result:** ✅ ModelPool supports role-based routing (translation vs judging vs restoration models configured separately in YAML).
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 4.2 🟢 Circuit breaker opens after 5 consecutive failures
@@ -435,6 +622,17 @@ print('✅ Circuit breaker exists (pybreaker, configured in ModelPool)')
 ```
 **Expected Result:** ✅ Circuit breaker is configured with 5-failure threshold and 60s cooldown.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 4.3 🟢 Model pool retries on failure (num_retries=2)
@@ -450,6 +648,17 @@ print('✅ Retry mechanism exists')
 "
 ```
 **Expected Result:** ✅ `num_retries=2` is configured on the litellm Router. Failing calls are retried up to 2 times before fallback.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -471,6 +680,17 @@ print('✅ has_source_language_residual works correctly')
 ```
 **Expected Result:** ✅ `has_source_language_residual()` correctly detects source language text in target output. Used by the Polish guard to avoid reverting translations.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -485,6 +705,13 @@ print('✅ has_source_language_residual works correctly')
 | 4.4 Language residual helper | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -511,7 +738,7 @@ python3 -c "
 from ol_lqa.quality_gates import run_quality_gates
 # Source has <bx>, target is missing <bx> → should flag
 warnings = run_quality_gates(
-    '<bx id=\"1\"/>Hello<ex id=\"1\"/>', 
+    '<bx id=\"1\"/>Hello<ex id=\"1\"/>',
     '你好<ex id=\"1\"/>',  # missing <bx>
     inline_tags_enabled=True,
 )
@@ -521,6 +748,17 @@ print('✅ Gate 1 catches inline tag mismatch')
 "
 ```
 **Expected Result:** ✅ `INLINE_TAG_MISMATCH` warning generated when `<bx>`/`<ex>`/`<x>` tag counts differ between source and target.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -542,6 +780,17 @@ print('✅ Gate 2 catches terminology inconsistency')
 ```
 **Expected Result:** ✅ `TERMINOLOGY_INCONSISTENCY` warning generated when glossary term is used inconsistently (source term mixed into target language).
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 5.3 🟢 Gate 3 — length_ratio: detects out-of-bounds length
@@ -562,6 +811,17 @@ print('✅ Gate 3 catches length ratio violation')
 "
 ```
 **Expected Result:** ✅ `LENGTH_RATIO` warning generated when `len(target)/len(source)` is outside configured bounds.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -588,6 +848,17 @@ print('✅ Gate 4 catches locale violations')
 ```
 **Expected Result:** ✅ `CURRENCY_MIXING`, `DATE_LEAKAGE`, `DIGIT_GROUPING`, or `UNIT_SPELLING` warnings generated as appropriate.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 5.5 🟢 Gate 5 — source_copy: detects unchanged source echo
@@ -606,6 +877,17 @@ print('✅ Gate 5 catches source copy')
 "
 ```
 **Expected Result:** ✅ `SOURCE_COPY` warning generated when target text is identical (or near-identical) to source text.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -627,6 +909,17 @@ print('✅ Gate 6 catches CJK residue')
 ```
 **Expected Result:** ✅ `SOURCE_SCRIPT_FRAGMENT` warning generated when CJK characters appear in non-CJK target locale.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 5.7 🟢 Gate 7 — protocol_artifact_check: detects LLM protocol markers
@@ -645,6 +938,17 @@ print('✅ Gate 7 catches protocol artifacts')
 "
 ```
 **Expected Result:** ✅ `PROTOCOL_ARTIFACT` warning generated when LLM protocol/metadata markers (e.g. `[USERTEXTSTART]`, `[USERTEXTEND]`) appear in output.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -669,6 +973,17 @@ else:
 "
 ```
 **Expected Result:** ✅ `TERM_AUDIT_MISMATCH`, `TERM_AUDIT_ABSENT`, `TERM_AUDIT_INCONSISTENCY`, or `TERM_AUDIT_LOW_CONFIDENCE` warnings generated as appropriate.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -704,6 +1019,17 @@ print('✅ Quality gates are advisory')
 ```
 **Expected Result:** ✅ All 8 gates run without exceptions. Warnings are returned, execution continues normally.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -723,6 +1049,13 @@ print('✅ Quality gates are advisory')
 | 5.9 Advisory (non-blocking) | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -764,6 +1097,17 @@ asyncio.run(test())
 ```
 **Expected Result:** ✅ `JudgeService.judge()` returns an `EvaluationResult` with `scorer_scores`, `judge_scores` (adequacy, fluency, terminology_consistency, format_preservation), `warnings`, and `format_preserved`.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 6.2 🟢 LQA retry mechanism (RetryManager)
@@ -778,6 +1122,17 @@ print('✅ RetryManager exists')
 "
 ```
 **Expected Result:** ✅ `RetryManager` exists. LQA retries up to `lqa_max_retries` (default 2) when `judge_score < lqa_threshold` (default 7.0).
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -795,6 +1150,17 @@ print('✅ QA rules execute without error')
 ```
 **Expected Result:** ✅ `check_pair()` runs translate-toolkit pofilter rules (accelerators, brackets, printf, variables, xmltags) without errors.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -808,6 +1174,13 @@ print('✅ QA rules execute without error')
 | 6.3 QA rules subset | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -856,6 +1229,17 @@ print(f'✅ All {len(tool_names)} tools registered correctly')
 ```
 **Expected Result:** ✅ All 21 MCP tools are registered. No missing tools.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.2 🟢 ping — health check
@@ -874,6 +1258,17 @@ print('✅ ping works')
 "
 ```
 **Expected Result:** ✅ Returns `{success: true, content: {module: "ol", version: "..."}}`.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -904,6 +1299,17 @@ asyncio.run(test())
 "
 ```
 **Expected Result:** ✅ Returns `{success: true, content: {translated: "...", source_lang: "en", target_lang: "zh", warnings: [...]}}`.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -941,6 +1347,17 @@ asyncio.run(test())
 ```
 **Expected Result:** ✅ Returns `{success: true, content: {output_path: "...", units_processed: N, warnings: [...]}}`.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.5 🟢 judge_text — translation quality evaluation via MCP
@@ -968,6 +1385,17 @@ asyncio.run(test())
 ```
 **Expected Result:** ✅ Returns scores for adequacy, fluency, terminology, format.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.6 🟢 load_glossary / get_relevant_terms — glossary workflow
@@ -984,13 +1412,13 @@ async def test():
     with tempfile.NamedTemporaryFile(suffix='.json', mode='w', delete=False) as f:
         j.dump(glossary_data, f)
         glossary_path = f.name
-    
+
     # Load
     load_params = LoadGlossaryInput(path=glossary_path)
     load_result = json.loads(await load_glossary(load_params))
     print(f'Load result: {json.dumps(load_result, indent=2)[:200]}')
     assert load_result.get('success') == True, 'load_glossary should succeed'
-    
+
     # Get relevant terms
     get_params = GetRelevantTermsInput(
         text='Call the API endpoint to proceed',
@@ -1006,6 +1434,17 @@ asyncio.run(test())
 "
 ```
 **Expected Result:** ✅ `load_glossary` returns glossary data. `get_relevant_terms` returns top-k relevant terms for source text.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1032,7 +1471,7 @@ async def test():
     with tempfile.NamedTemporaryFile(suffix='.tmx', mode='w', delete=False) as f:
         f.write(tmx_content)
         tmx_path = f.name
-    
+
     params = SearchTMInput(
         source_text='Hello World',
         tmx_path=tmx_path,
@@ -1049,6 +1488,17 @@ asyncio.run(test())
 "
 ```
 **Expected Result:** ✅ Returns TM matches with similarity scores ≥ threshold.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1080,6 +1530,17 @@ asyncio.run(test())
 ```
 **Expected Result:** ✅ Returns `{success: true, content: {translations: [...], warnings: [...]}}`.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.9 🟢 shield_md_text / unshield_md_text — shield round-trip
@@ -1092,16 +1553,16 @@ from ol_mcp.tools import ShieldMdInput, UnshieldMdInput
 
 async def test():
     content = '# Hello\nThis has a `code` block and $math$ and [link](https://x.com).'
-    
+
     shield_params = ShieldMdInput(content=content)
     shield_result = json.loads(await shield_md_text(shield_params))
     print(f'Shield result: {json.dumps(shield_result, indent=2)[:200]}')
     assert shield_result.get('success') == True, 'shield should succeed'
-    
+
     shielded = shield_result['content']['shielded']
     shield_map = shield_result['content']['shield_map']
     print(f'Shielded length: {len(shielded)}')
-    
+
     unshield_params = UnshieldMdInput(content=shielded, shield_map=shield_map)
     unshield_result = json.loads(await unshield_md_text(unshield_params))
     assert unshield_result.get('success') == True, 'unshield should succeed'
@@ -1114,6 +1575,17 @@ asyncio.run(test())
 "
 ```
 **Expected Result:** ✅ Shield replaces code/math/link with `[OL:TYPE:NNNN]` markers. Unshield restores original content. Round-trip preserves all text.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1143,6 +1615,17 @@ asyncio.run(test())
 ```
 **Expected Result:** ✅ Returns `{success: true, content: {terms: {term: score, ...}}}`.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.11 🟢 add_tm_entries — TMX memory management
@@ -1157,7 +1640,7 @@ async def test():
     with tempfile.NamedTemporaryFile(suffix='.tmx', mode='w', delete=False) as f:
         f.write('<?xml version=\"1.0\"?><tmx version=\"1.4\"><body></body></tmx>')
         tmx_path = f.name
-    
+
     params = TMAddInput(
         tmx_path=tmx_path,
         entries=[TMEntry(source='Hello', target='你好', source_lang='en', target_lang='zh')],
@@ -1171,6 +1654,17 @@ asyncio.run(test())
 "
 ```
 **Expected Result:** ✅ Entry added to TMX file. Returns success confirmation.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1197,6 +1691,17 @@ asyncio.run(test())
 "
 ```
 **Expected Result:** ✅ Returns disambiguated terms with context-aware translations.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1228,6 +1733,17 @@ asyncio.run(test())
 ```
 **Expected Result:** Returns `{success: true, content: {verified: bool, mismatches: [...], absent: [...], inconsistencies: [...], low_confidence: [...]}}`.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.14 🟢 profile_doc — style profiling via LLM
@@ -1253,6 +1769,17 @@ asyncio.run(test())
 ```
 **Expected Result:** Returns StyleGuide with tone, register, target audience, key conventions.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.15 🟢 inspect_config — config inspection
@@ -1274,6 +1801,17 @@ asyncio.run(test())
 "
 ```
 **Expected Result:** Returns resolved config with quality_gates, model pool, locale settings.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1297,6 +1835,17 @@ asyncio.run(test())
 ```
 **Expected Result:** Returns module capabilities: roles (translation, judging, restoration), language pairs, available tools.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.17 🟢 extract_warnings — warning extraction from files
@@ -1312,7 +1861,7 @@ async def test():
         f.write('<!-- OL_WARN: LENGTH_RATIO -->\n')
         f.write('# Test\n')
         file_path = f.name
-    
+
     params = ExtractWarningsInput(file_path=file_path)
     result = json.loads(await extract_warnings(params))
     print(f'Extract warnings: {json.dumps(result, indent=2)[:200]}')
@@ -1323,6 +1872,17 @@ asyncio.run(test())
 "
 ```
 **Expected Result:** Returns warnings found in file as a list.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1361,6 +1921,17 @@ asyncio.run(test())
 ```
 **Expected Result:** Creates report.html and report.csv in output directory.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.19 🟢 get_translation_status — async task polling
@@ -1383,6 +1954,17 @@ asyncio.run(test())
 "
 ```
 **Expected Result:** Returns status for valid request_id, error for invalid. Does NOT crash.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1413,6 +1995,17 @@ asyncio.run(test())
 ```
 **Expected Result:** With valid files, translates end-to-end. With invalid files, returns error gracefully (no crash).
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.21 🔴 Unknown tool name returns structured error
@@ -1432,6 +2025,17 @@ print('✅ Unknown tool handled correctly')
 "
 ```
 **Expected Result:** Unknown tool returns structured error `OL_UNKNOWN_TOOL`. No Python traceback, no crash.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1465,6 +2069,13 @@ print('✅ Unknown tool handled correctly')
 
 **OVERALL: ⬜**
 
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
+
 ---
 
 # Part 4: Agent-as-User Workflows
@@ -1497,9 +2108,9 @@ async def test():
     from ol_mcp.judge import judge_text
     from ol_mcp.verify_terms import verify_terms
     from ol_mcp.tools import VerifyTermsInput
-    
+
     glossary = {'API': {'translation': 'API', 'variants': {'API': 'API'}, 'confidence': 0.95}}
-    
+
     # Translate
     t_params = TranslateInput(
         content='Call the API to get data.',
@@ -1510,7 +2121,7 @@ async def test():
     translated = t_result.get('content', {}).get('translated', '')
     print(f'Step 1 - Translated: {translated}')
     assert len(translated) > 0
-    
+
     # Judge
     j_params = JudgeInput(
         source='Call the API to get data.',
@@ -1521,7 +2132,7 @@ async def test():
     j_result = json.loads(await judge_text(j_params))
     print(f'Step 2 - Judge result keys: {j_result.keys()}')
     assert j_result.get('success') == True
-    
+
     # Verify terms
     v_params = VerifyTermsInput(
         source='Call the API to get data.',
@@ -1533,13 +2144,24 @@ async def test():
     v_result = json.loads(await verify_terms(v_params))
     print(f'Step 3 - Verify terms: {json.dumps(v_result, indent=2)[:200]}')
     assert v_result.get('success') == True
-    
+
     print('✅ Full agent workflow: translate → judge → verify_terms')
 
 asyncio.run(test())
 "
 ```
 **Expected Result:** All three steps succeed. The agent can chain translate → judge → verify_terms in sequence.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1552,7 +2174,7 @@ os.environ['OMNI_TEST_FAKE_LLM'] = '1'
 async def test():
     from ol_mcp.translate_md import translate_md_text
     from ol_mcp.tools import TranslateInput
-    
+
     params = TranslateInput(
         content='Hello World',
         source_lang='en',
@@ -1576,6 +2198,17 @@ asyncio.run(test())
 ```
 **Expected Result:** Translation response includes `warnings` field with quality gate results.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -1588,6 +2221,13 @@ asyncio.run(test())
 | 8.2 Translate with quality gates | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -1633,6 +2273,17 @@ ol translate-md doc.md -s en -t zh -o /tmp/test-glossary/output/ --config /mnt/d
 - ✅ Output file created
 - ✅ FAKE_LLM mode handles glossary gracefully (no crash)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 9.2 🟢 Glossary injection via MCP (translate_md_text with glossary_path)
@@ -1664,6 +2315,17 @@ asyncio.run(test())
 ```
 **Expected Result:** Translation succeeds with glossary loaded. Any glossary load issues are reported as warnings (best-effort).
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 9.3 🟢 Load glossary → Get relevant terms → Disambiguate workflow
@@ -1676,30 +2338,41 @@ async def test():
     from ol_mcp.glossary import load_glossary, get_relevant_terms
     from ol_mcp.disambiguate import disambiguate
     from ol_mcp.tools import LoadGlossaryInput, GetRelevantTermsInput, DisambiguateInput
-    
+
     glossary_data = {
         'bank': {'translation': '银行', 'variants': {'bank': '银行', 'banks': '银行'}, 'confidence': 0.8},
         'river': {'translation': '河流', 'variants': {'river': '河流'}, 'confidence': 0.9},
     }
-    
+
     # Get relevant terms
     get_params = GetRelevantTermsInput(text='Go to the bank near the river.', glossary=glossary_data, top_k=5)
     get_result = json.loads(await get_relevant_terms(get_params))
     print(f'Relevant terms: {json.dumps(get_result, indent=2)[:200]}')
     assert get_result.get('success') == True
-    
+
     # Disambiguate
     dis_params = DisambiguateInput(text='Go to the bank near the river.', glossary=glossary_data)
     dis_result = json.loads(await disambiguate(dis_params))
     print(f'Disambiguate: {json.dumps(dis_result, indent=2)[:200]}')
     assert dis_result.get('success') == True
-    
+
     print('✅ Glossary workflow: load → relevant → disambiguate')
 
 asyncio.run(test())
 "
 ```
 **Expected Result:** Three-step terminology workflow succeeds: load_glossary → get_relevant_terms → disambiguate.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1713,13 +2386,13 @@ async def test():
     from ol_mcp.tm import search_tm
     from ol_mcp.tm_add import add_tm_entries
     from ol_mcp.tools import SearchTMInput, TMAddInput, TMEntry
-    
+
     # Create TMX, add entry, then search
     tmx_content = '<?xml version=\"1.0\"?><tmx version=\"1.4\"><body></body></tmx>'
     with tempfile.NamedTemporaryFile(suffix='.tmx', mode='w', delete=False) as f:
         f.write(tmx_content)
         tmx_path = f.name
-    
+
     # Add
     add_params = TMAddInput(
         tmx_path=tmx_path,
@@ -1727,7 +2400,7 @@ async def test():
     )
     add_result = json.loads(await add_tm_entries(add_params))
     assert add_result.get('success') == True
-    
+
     # Search
     search_params = SearchTMInput(
         source_text='Hello World',
@@ -1746,6 +2419,17 @@ asyncio.run(test())
 ```
 **Expected Result:** add_tm_entries → search_tm workflow succeeds. TM search returns the added entry.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -1760,6 +2444,13 @@ asyncio.run(test())
 | 9.4 TM add → search | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -1787,6 +2478,17 @@ ol --help
 - ✅ `--help` flag works
 - ✅ `--version` flag works
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 10.2 🟢 translate-md --help
@@ -1794,6 +2496,17 @@ ol --help
 ol translate-md --help
 ```
 **Expected Result:** ✅ Shows parameters: file, -s/--source-lang, -t/--target-lang, -o/--output-dir, --config, --glossary, --no-glossary, --chunk-by-paragraph, --concurrency, --no-frontmatter, --no-restoration, --json, --log-format
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1803,6 +2516,17 @@ ol translate-xliff --help
 ```
 **Expected Result:** ✅ Shows parameters: file, -s, -t, -o, --config, --glossary, --json
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 10.4 🟢 translate-batch --help
@@ -1810,6 +2534,17 @@ ol translate-xliff --help
 ol translate-batch --help
 ```
 **Expected Result:** ✅ Shows parameters: directory, -s, -t, -o, --config, --glossary, --concurrency, --no-detect-language, --json
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1819,6 +2554,17 @@ ol extract-warnings --help
 ```
 **Expected Result:** ✅ Shows parameters: file, -o/--output, --json
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 10.6 🟢 mcp --help
@@ -1826,6 +2572,17 @@ ol extract-warnings --help
 ol mcp --help
 ```
 **Expected Result:** ✅ Shows MCP server startup options (stdio transport, optional flags).
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1840,6 +2597,17 @@ ol translate-batch ./docs/ -s en -t zh -o /tmp/test-batch/output/ --config /mnt/
 ```
 **Expected Result:** ✅ Exit code 0. All 3 files translated. JSON output shows summary: total_files=3, succeeded=3.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 10.8 🟢 translate-md with --json output
@@ -1847,6 +2615,17 @@ ol translate-batch ./docs/ -s en -t zh -o /tmp/test-batch/output/ --config /mnt/
 cd /tmp/test-md-translate && ol translate-md sample.md -s en -t zh -o /tmp/test-batch/output-single/ --config /mnt/d/贯维/Omni_Suite/Omni_Localizer/config/default.yaml --no-glossary --json 2>/dev/null | python3 -c "import sys,json; json.load(sys.stdin); print('VALID JSON')"
 ```
 **Expected Result:** ✅ Valid JSON with `{"success": true, "input_file": "...", "output_file": "...", "source_lang": "en", "target_lang": "zh"}`.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1856,6 +2635,17 @@ ol translate-md sample.md -t zh -o /tmp/test-batch/output/
 ```
 **Expected Result:** ❌ Error message mentions missing -s/--source-lang. Exit code != 0. No traceback.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 10.10 🔴 Unknown flag
@@ -1863,6 +2653,17 @@ ol translate-md sample.md -t zh -o /tmp/test-batch/output/
 ol translate-md sample.md -s en -t zh --nonexistent-flag
 ```
 **Expected Result:** ❌ Error: "No such option". Does NOT crash with traceback.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1884,6 +2685,13 @@ ol translate-md sample.md -s en -t zh --nonexistent-flag
 | 10.10 Unknown flag | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -1924,6 +2732,17 @@ asyncio.run(test())
 ```
 **Expected Result:** Does NOT crash. Returns empty translation or clear error. No traceback.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 11.2 🟢 Large content (>50K chars) emits warning but not blocked
@@ -1948,6 +2767,17 @@ asyncio.run(test())
 "
 ```
 **Expected Result:** E2E-83: Large content (>50K chars) emits WARNING log but is NOT blocked (no `OL_MAX_INPUT_SIZE_MB` rejection for MCP path). Returns either translation or clear error.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1974,6 +2804,17 @@ print('✅ Shield round-trip preserves all content')
 ```
 **Expected Result:** Shield → Unshield round-trip is lossless. Original content is fully restored.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 11.4 🟢 CLI input size limit enforced (>50MB rejected)
@@ -1983,6 +2824,17 @@ cd /tmp && dd if=/dev/zero of=huge.md bs=1M count=60 2>/dev/null
 ol translate-md huge.md -s en -t zh -o /tmp/test-boundary/output/ 2>&1; echo 'EXIT:' $?
 ```
 **Expected Result:** ❌ File >50MB (OL_MAX_INPUT_SIZE_MB default) is rejected with error message. Clean exit, no crash.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1998,6 +2850,13 @@ ol translate-md huge.md -s en -t zh -o /tmp/test-boundary/output/ 2>&1; echo 'EX
 | 11.4 >50MB input | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -2025,6 +2884,17 @@ export OMNI_TEST_FAKE_LLM=1
 ```
 **Expected Result:** ❌ Exit code != 0. Error message mentions missing API key or `${VAR}` resolution failure. NOT a Python traceback.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 12.2 🟢 MCP tools return structured error (not crash) when keys missing
@@ -2041,6 +2911,17 @@ print('➖ SKIP (needs isolated subprocess without keys)')
 ```
 **Expected Result:** ❌ MCP tools return structured error responses (not Python tracebacks) when API keys are not configured.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 12.3 🟢 FAKE_LLM bypasses all key checks
@@ -2051,6 +2932,17 @@ echo '# Test' > sample.md
 ol translate-md sample.md -s en -t zh -o /tmp/test-fake-nokeys/output/ --config /mnt/d/贯维/Omni_Suite/Omni_Localizer/config/default.yaml --no-glossary 2>&1; echo 'EXIT:' $?
 ```
 **Expected Result:** ✅ Exit code 0. With `OMNI_TEST_FAKE_LLM=1`, translation works even without API keys.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2070,6 +2962,17 @@ print('✅ Two-layer env var: startup warning + runtime ValueError')
 ```
 **Expected Result:** ✅ `${VAR}` pattern in config has two-layer behavior: (1) startup WARNING if unset, (2) runtime `ValueError` if model invoked. `OMNI_TEST_FAKE_LLM=1` bypasses all checks.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -2084,6 +2987,13 @@ print('✅ Two-layer env var: startup warning + runtime ValueError')
 | 12.4 Two-layer env var check | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -2111,6 +3021,17 @@ echo '{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}' | timeout 10 python3
 ```
 **Expected Result:** ✅ Server starts. Responds to JSON-RPC ping with a valid response. Exit code 0.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 13.2 🔴 MCP server handles invalid JSON-RPC gracefully
@@ -2118,6 +3039,17 @@ echo '{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}' | timeout 10 python3
 echo 'invalid json' | timeout 5 python3 -m ol_mcp 2>/dev/null; echo "Exit: $?"
 ```
 **Expected Result:** ❌ Server does NOT crash. Returns JSON-RPC error response. No Python traceback leaked to stdout.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2127,6 +3059,17 @@ echo '{"jsonrpc":"2.0","id":2,"method":"list_tools","params":{}}' | timeout 10 p
 ```
 **Expected Result:** ✅ Returns tool list with 21+ tool entries.
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 13.4 🟢 ol import cleanly
@@ -2134,6 +3077,17 @@ echo '{"jsonrpc":"2.0","id":2,"method":"list_tools","params":{}}' | timeout 10 p
 python3 -c "from ol_mcp import __version__; print(f'ol_mcp v{__version__}')"
 ```
 **Expected Result:** ✅ Package imports without error. Version string present.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2143,6 +3097,17 @@ cd /mnt/d/贯维/Omni_Suite
 OMNI_TEST_FAKE_LLM=1 pytest Omni_Localizer/tests/ -v --tb=short -x 2>&1 | tail -30
 ```
 **Expected Result:** ✅ Test suite passes. 0 failures.
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2159,6 +3124,13 @@ OMNI_TEST_FAKE_LLM=1 pytest Omni_Localizer/tests/ -v --tb=short -x 2>&1 | tail -
 | 13.5 Test suite passes | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -2242,6 +3214,17 @@ print('✅ Real provider pool detected with correct roles and priorities')
 - ✅ Providers include real base URLs (not fake)
 - ✅ `FAKE_LLM` is NOT set in the resolved config
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 14.2 🟢 Real key produces valid translation (verify end-to-end connectivity)
@@ -2261,17 +3244,17 @@ async def test():
         target_lang='zh',
     )
     result = json.loads(await translate_md_text(params))
-    
+
     translated = result.get('content', {}).get('translated', '')
     print(f'Source: Hello, this is a test of real LLM translation.')
     print(f'Target: {translated}')
     print(f'Target length: {len(translated)} chars')
-    
+
     assert len(translated) > 0, 'Translated content should not be empty'
     assert '你好' in translated or '测试' in translated, 'Translation should contain Chinese characters'
     print(f'Quality gates warnings: {len(result.get(\"warnings\", []))}')
     print('✅ Real LLM translation: content produced, Chinese detected')
-    
+
 asyncio.run(test())
 "
 ```
@@ -2281,6 +3264,17 @@ asyncio.run(test())
 - ✅ Output contains Chinese characters (not source echo)
 - ✅ `translated` field populated with real translation
 - ✅ Warnings list present (may be empty)
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2298,16 +3292,16 @@ from ol_mcp.inspect_config import inspect_config
 async def test():
     result = json.loads(await inspect_config())
     llm_pool = result.get('llm_pool', {})
-    
+
     for role in ['translation', 'judging', 'restoration']:
         models = llm_pool.get(role, [])
         print(f'{role}: {len(models)} model(s)')
         for m in models:
             print(f'  {m.get(\"provider\")} / {m.get(\"model\")} (priority {m.get(\"priority\")})')
         assert len(models) >= 1, f'{role} should have at least 1 model'
-    
+
     print('✅ All 3 role pools (translation, judging, restoration) configured')
-    
+
 asyncio.run(test())
 "
 ```
@@ -2316,6 +3310,17 @@ asyncio.run(test())
 - ✅ All 3 role pools (translation, judging, restoration) have ≥1 model each
 - ✅ Each pool has priority-ordered fallback models
 - ✅ Each model entry has `provider`, `model`, `priority`, `role`, `api_key` (via `${ENV_VAR}`)
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2368,7 +3373,7 @@ async def test():
     print(f'Fallback translation: {translated[:100]}')
     assert len(translated) > 0, 'Fallback should produce translation'
     print('✅ Fallback chain works: primary failed, fallback succeeded')
-    
+
 asyncio.run(test())
 "
 ```
@@ -2378,6 +3383,17 @@ asyncio.run(test())
 - ✅ Pool automatically tries priority 2 (glm-4-flash)
 - ✅ Fallback produces valid Chinese translation
 - ✅ No unhandled exception propagates to caller
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2393,6 +3409,13 @@ asyncio.run(test())
 | 14.4 Fallback chain activation | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -2416,7 +3439,7 @@ async def test():
     # Step 1: Real translation
     from ol_mcp.translate_md import translate_md_text
     from ol_mcp.tools import TranslateInput
-    
+
     t_params = TranslateInput(
         content='Machine translation quality evaluation is a complex task that requires both linguistic knowledge and automated metrics.',
         source_lang='en',
@@ -2426,11 +3449,11 @@ async def test():
     translated = t_result.get('content', {}).get('translated', '')
     print(f'Step 1 - Translated ({len(translated)} chars): {translated[:100]}...')
     assert len(translated) > 0
-    
+
     # Step 2: Real judge (uses judging model pool)
     from ol_mcp.judge import judge_text
     from ol_mcp.tools import JudgeInput
-    
+
     j_params = JudgeInput(
         source='Machine translation quality evaluation is a complex task that requires both linguistic knowledge and automated metrics.',
         target=translated,
@@ -2439,17 +3462,17 @@ async def test():
     )
     j_result = json.loads(await judge_text(j_params))
     print(f'Step 2 - Judge result keys: {list(j_result.keys())}')
-    
+
     # Check for score or success indicator
     adequacy = j_result.get('adequacy')
     fluency = j_result.get('fluency')
     terminology = j_result.get('terminology')
     print(f'Adequacy: {adequacy}, Fluency: {fluency}, Terminology: {terminology}')
-    
+
     # At minimum, judge should return success
     assert j_result.get('success') == True, 'Judge should succeed'
     print('✅ Real translation → real judge: LQA scores produced')
-    
+
 asyncio.run(test())
 "
 ```
@@ -2459,6 +3482,17 @@ asyncio.run(test())
 - ✅ Judge returns real LQA scores (adequacy, fluency, terminology)
 - ✅ Both steps complete without timeout
 - ✅ Judge output is non-deterministic but within expected range
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2522,15 +3556,15 @@ async def test():
     result = json.loads(await translate_md_text(params))
     translated = result.get('content', {}).get('translated', '')
     warnings = result.get('warnings', [])
-    
+
     print(f'Translated: {translated[:120]}')
     print(f'Warnings: {len(warnings)}')
     for w in warnings:
         print(f'  - {w.get(\"gate\", \"?\")}: {str(w.get(\"message\", \"\"))[:80]}')
-    
+
     assert len(translated) > 0
     print('✅ Quality gates enabled: translation with real LLM + real gates completed')
-    
+
 asyncio.run(test())
 "
 ```
@@ -2540,6 +3574,17 @@ asyncio.run(test())
 - ✅ Warnings list present (may be empty for good translations)
 - ✅ Each warning has `gate` name and `message` fields
 - ✅ Gates are advisory (do NOT block output)
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2578,7 +3623,7 @@ async def test():
     from ol_mcp.glossary import load_glossary
     glossary = await load_glossary('/tmp/test-ol-real-api/glossary.json')
     print(f'Glossary loaded: {len(glossary)} entries')
-    
+
     params = TranslateInput(
         content='The API uses machine translation to process user requests.',
         source_lang='en',
@@ -2587,17 +3632,17 @@ async def test():
     result = json.loads(await translate_md_text(params))
     translated = result.get('content', {}).get('translated', '')
     print(f'Translated: {translated}')
-    
+
     # Check glossary terms appeared
     glossary_terms_used = '应用程序编程接口' in translated or '机器翻译' in translated
     print(f'Glossary terms used: {glossary_terms_used}')
-    
+
     if not glossary_terms_used:
         print('⚠️ Note: glossary terms may not appear if LLM chose different wording')
         print('   This is expected behavior — glossary injection is advisory')
-    
+
     print('✅ Real LLM translation with glossary loaded completed')
-    
+
 asyncio.run(test())
 "
 ```
@@ -2606,6 +3651,17 @@ asyncio.run(test())
 - ✅ Glossary loads successfully
 - ✅ Translation completes with glossary context available
 - ✅ Glossary terms may or may not appear (LLM discretion — glossary injection is advisory)
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2650,7 +3706,7 @@ async def test():
     )
     result = json.loads(await translate_xliff(params))
     print(f'XLIFF result keys: {list(result.keys())}')
-    
+
     output_path = result.get('output_path', '')
     if output_path:
         # Check output has target text
@@ -2665,7 +3721,7 @@ async def test():
         print(f'✅ XLIFF real LLM translation: structure preserved, targets filled')
     else:
         print(f'Output path not in result, full result: {json.dumps(result, indent=2)[:500]}')
-    
+
 asyncio.run(test())
 "
 ```
@@ -2674,6 +3730,17 @@ asyncio.run(test())
 - ✅ XLIFF structure preserved: all `<source>` elements present
 - ✅ `<target>` elements populated with real Chinese translation
 - ✅ File structure valid XML (no broken tags)
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2689,6 +3756,13 @@ asyncio.run(test())
 | 15.4 XLIFF real LLM translation | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -2735,7 +3809,7 @@ from ol_mcp.tools import TranslateInput
 async def test():
     with open('/tmp/test-ol-e2e-real/opp_output/Meridian_Robotics_Product_Overview_E2E.md', 'r') as f:
         md_content = f.read()[:3000]  # First 3K chars for speed
-    
+
     params = TranslateInput(
         content=md_content,
         source_lang='en',
@@ -2744,12 +3818,12 @@ async def test():
     result = json.loads(await translate_md_text(params))
     translated = result.get('content', {}).get('translated', '')
     warnings = result.get('warnings', [])
-    
+
     print(f'Translated: {len(translated)} chars')
     print(f'Warnings: {len(warnings)}')
     for w in warnings:
         print(f'  Gate {w.get(\"gate\", \"?\")}: {str(w.get(\"message\", \"\"))[:80]}')
-    
+
     assert len(translated) > 0
     # Check for Chinese content
     import re
@@ -2757,7 +3831,7 @@ async def test():
     print(f'Chinese characters: {len(chinese_chars)}')
     assert len(chinese_chars) > 10, 'Translation should contain substantial Chinese content'
     print('✅ OL real LLM translation OK')
-    
+
 asyncio.run(test())
 "
 
@@ -2782,6 +3856,17 @@ print('✅ ORF backfill OK')
 - ✅ Phase 2: Quality gates fire (warnings list present, may be empty if perfect)
 - ✅ Phase 3: ORF produces valid HTML file
 - ✅ Full pipeline completes without FAKE_LLM
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2821,7 +3906,7 @@ async def test():
     xlf_files = glob.glob('/tmp/test-ol-e2e-xliff-real/opp_output/*.xlf')
     assert len(xlf_files) > 0, 'No XLIFF file found'
     xlf_path = xlf_files[0]
-    
+
     params = XliffInput(
         input_path=xlf_path,
         source_lang='en',
@@ -2832,7 +3917,7 @@ async def test():
     assert result.get('success', False) or result.get('output_path', ''), 'XLIFF translation should succeed'
     print(f'Output: {result.get(\"output_path\", \"unknown\")}')
     print('✅ OL real LLM XLIFF translation OK')
-    
+
 asyncio.run(test())
 "
 
@@ -2879,6 +3964,17 @@ unset OMNI_TEST_FAKE_PANDOC
 - ✅ Phase 4: ORF apply-xliff backfills into DOCX
 - ✅ Full XLIFF pipeline completes without FAKE_LLM
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 16.3 🟢 Batch translate multiple texts with real LLM (parallel)
@@ -2902,7 +3998,7 @@ async def test():
     ]
     result = await batch_translate_texts(texts, 'en', 'zh')
     print(f'Batch result type: {type(result).__name__}')
-    
+
     if isinstance(result, dict):
         translations = result.get('translations', [])
         print(f'Translations count: {len(translations)}')
@@ -2912,9 +4008,9 @@ async def test():
     else:
         translations = result if isinstance(result, list) else [result]
         print(f'Raw result: {str(result)[:200]}')
-    
+
     print('✅ Batch real LLM translation completed')
-    
+
 asyncio.run(test())
 "
 ```
@@ -2923,6 +4019,17 @@ asyncio.run(test())
 - ✅ All 3 texts translated to Chinese in parallel
 - ✅ Each translation has Chinese content
 - ✅ Batch processing does not crash under concurrent real LLM calls
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -2937,6 +4044,13 @@ asyncio.run(test())
 | 16.3 Batch translate with real LLM | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -2970,7 +4084,7 @@ os.environ['OL_CONFIG_PATH'] = '$OL_ROOT/config/default.yaml'
 try:
     from ol_mcp.translate_md import translate_md_text
     from ol_mcp.tools import TranslateInput
-    
+
     async def test():
         params = TranslateInput(
             content='Test with no API keys.',
@@ -2979,7 +4093,7 @@ try:
         )
         result = json.loads(await translate_md_text(params))
         print(f'Result: {json.dumps(result, indent=2, ensure_ascii=False)[:500]}')
-        
+
         # Check for error or graceful handling
         if result.get('success') == False:
             error = result.get('error', result.get('message', 'Unknown error'))
@@ -2988,7 +4102,7 @@ try:
             print(f'❌ Error in result: {result[\"error\"][:200]}')
         else:
             print('⚠️ Unexpected: translation succeeded without keys?')
-    
+
     asyncio.run(test())
 except Exception as e:
     print(f'❌ Exception type: {type(e).__name__}')
@@ -3003,6 +4117,17 @@ except Exception as e:
 - ✅ No Python traceback in agent-facing output
 - ✅ Error message identifies WHICH key is missing
 - ✅ System does NOT hang or timeout waiting for nonexistent keys
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -3024,7 +4149,7 @@ os.environ['OL_CONFIG_PATH'] = '$OL_ROOT/config/default.yaml'
 try:
     from ol_mcp.translate_md import translate_md_text
     from ol_mcp.tools import TranslateInput
-    
+
     async def test():
         params = TranslateInput(
             content='Test with invalid API key.',
@@ -3033,7 +4158,7 @@ try:
         )
         result = json.loads(await translate_md_text(params))
         print(f'Result: {json.dumps(result, indent=2, ensure_ascii=False)[:500]}')
-        
+
         if result.get('success') == False:
             error = result.get('error', result.get('message', ''))
             print(f'❌ Error: {str(error)[:200]}')
@@ -3045,7 +4170,7 @@ try:
                 print('⚠️ Error does not clearly indicate auth failure')
         else:
             print('⚠️ Translation succeeded (unexpected with invalid key)')
-    
+
     asyncio.run(test())
 except Exception as e:
     print(f'❌ Exception: {type(e).__name__}: {str(e)[:300]}')
@@ -3058,6 +4183,17 @@ except Exception as e:
 - ✅ Error message is user-friendly (not raw HTTP response)
 - ✅ System does NOT hang for extended period
 - ✅ Output makes clear the issue is with the API key, not other components
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -3101,7 +4237,7 @@ async def test():
     )
     result = json.loads(await translate_md_text(params))
     print(f'Result: {json.dumps(result, indent=2, ensure_ascii=False)[:500]}')
-    
+
     if result.get('success') == False:
         error = result.get('error', result.get('message', ''))
         error_lower = str(error).lower()
@@ -3112,7 +4248,7 @@ async def test():
             print('⚠️ Error does not clearly indicate connectivity failure')
     else:
         print('⚠️ Unexpected: translation succeeded with bad URL?')
-    
+
 asyncio.run(test())
 "
 ```
@@ -3122,6 +4258,17 @@ asyncio.run(test())
 - ✅ Error distinguishes between "bad URL" and "bad key"
 - ✅ No crash — translate returns gracefully with error
 - ✅ Short timeout (5s) respected — doesn't hang indefinitely
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -3149,7 +4296,7 @@ async def diagnose():
     from ol_mcp.inspect_config import inspect_config
     result = json.loads(await inspect_config())
     llm_pool = result.get('llm_pool', {})
-    
+
     issues = []
     for role, models in llm_pool.items():
         for m in models:
@@ -3158,15 +4305,15 @@ async def diagnose():
                 env_name = key_var[2:-1]
                 if not os.environ.get(env_name):
                     issues.append(f'Missing env var: {env_name} (needed by {m.get(\"model\")})')
-    
+
     for issue in issues:
         print(f'❌ {issue}')
-    
+
     if issues:
         print(f'🔧 Diagnosed {len(issues)} configuration issue(s)')
     else:
         print('✅ All keys configured')
-    
+
     return issues
 
 issues = asyncio.run(diagnose())
@@ -3188,7 +4335,7 @@ async def verify():
     from ol_mcp.inspect_config import inspect_config
     result = json.loads(await inspect_config())
     llm_pool = result.get('llm_pool', {})
-    
+
     issues = []
     for role, models in llm_pool.items():
         for m in models:
@@ -3197,18 +4344,18 @@ async def verify():
                 env_name = key_var[2:-1]
                 if not os.environ.get(env_name):
                     issues.append(f'Missing env var: {env_name}')
-    
+
     if issues:
         print(f'❌ Still {len(issues)} unresolved issue(s)')
         for i in issues:
             print(f'  - {i}')
     else:
         print('✅ All keys configured after fix')
-    
+
     # Now actually try a translation
     from ol_mcp.translate_md import translate_md_text
     from ol_mcp.tools import TranslateInput
-    
+
     params = TranslateInput(
         content='Self-healing test: this should work after fixing the API key.',
         source_lang='en',
@@ -3233,6 +4380,17 @@ asyncio.run(verify())
 - ✅ Phase 3: After fix, inspect_config shows all keys configured
 - ✅ Phase 3: Translation succeeds with real LLM (verification)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -3247,6 +4405,13 @@ asyncio.run(verify())
 | 17.4 Self-heal cycle (diagnose → fix → verify) | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -3319,4 +4484,4 @@ asyncio.run(verify())
 ---
 
 *Plan generated: 2026-07-22*
-*Based on: OL v0.7.0 codebase — 21 MCP tools, 8 quality gates, 4-layer repair pipeline, ModelPool failover, LQA*
+*Based on: OL v0.7.1 codebase — 21 MCP tools, 8 quality gates, 4-layer repair pipeline, ModelPool failover, LQA*

@@ -5,7 +5,7 @@
 **For:** OpenCode, Claude Code, Cline, Hermes Agent — any AI agent validating ORF
 **Date:** 2026-07-22
 **Strategy:** Every section asks a user question → executes scenarios → reports a binary verdict
-**Current Baseline:** v0.4.16 — 16 MD output formats, 5 XLIFF backfill formats, 7 MCP tools, Foreman/Specialist, HITL approval
+**Current Baseline:** v0.4.17 — 16 MD output formats, 5 XLIFF backfill formats, 7 MCP tools, Foreman/Specialist, HITL approval
 
 ---
 
@@ -23,6 +23,18 @@
 The plan is designed so that any AI agent can execute it independently and report: **"✅ All PASS"** or **"❌ These N items FAILED"**.
 
 ---
+## ⏱ Execution Priority
+
+| Priority | Questions | Reason |
+|----------|-----------|--------|
+| P0 | Q1-ORF, Q2-ORF, Q4-ORF | Core functionality — if these fail, nothing else matters |
+| P1 | Q3-ORF, Q5-ORF, Q8-ORF | Important but depend on P0 passing |
+| P2 | Q6-ORF, Q7-ORF, Q9-ORF | Can be deferred if P0/P1 fail — run after core is verified |
+| P3 | Q10-ORF, Q11-ORF | Cost-incurring — run last and only if P0-P2 pass |
+
+**Execution rule:** Run P0 first. If any P0 FAIL, fix before continuing to P1.
+If P1 FAIL, fix before P2. P3 requires real API keys — skip if not configured.
+
 
 ## Verdict Legend
 
@@ -147,6 +159,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format docx -o /tmp/orf-test-md
 - ✅ File is a valid ZIP containing `word/document.xml` (DOCX = ZIP)
 - ✅ JSON output with `--json` flag shows `"success": true`
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.2 🟢 Happy Path — ODT (pandoc engine)
@@ -157,6 +180,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format odt -o /tmp/orf-test-md/
 - ✅ Exit code 0
 - ✅ File exists, > 1 KB, valid ZIP containing `content.xml`
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.3 🟢 Happy Path — EPUB (pandoc engine)
@@ -166,6 +200,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format epub -o /tmp/orf-test-md
 **Expected Result:**
 - ✅ Exit code 0
 - ✅ File exists, valid EPUB (ZIP containing `OEBPS/` or `META-INF/`)
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -178,6 +223,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format html -o /tmp/orf-test-md
 - ✅ File exists, valid HTML with `<html>`, `<body>`, heading tags
 - ✅ Works even with `OMNI_TEST_FAKE_PANDOC=1` (no pandoc needed)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.5 🟢 Happy Path — RTF (pandoc engine)
@@ -188,6 +244,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format rtf -o /tmp/orf-test-md/
 - ✅ Exit code 0
 - ✅ File exists, starts with `{\rtf`
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.6 🟢 Happy Path — PDF (weasyprint engine)
@@ -197,6 +264,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format pdf -o /tmp/orf-test-md/
 **Expected Result:**
 - ✅ Exit code 0
 - ✅ File exists, starts with `%PDF`
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -209,6 +287,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format pptx -o /tmp/orf-test-md
 - ✅ File exists, valid PPTX (ZIP containing `ppt/slides/`)
 - ✅ ORF falls back gracefully if `md2pptx` CLI is missing (uses pandoc)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.8 🟢 Happy Path — ICML (pandoc engine)
@@ -218,6 +307,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format icml -o /tmp/orf-test-md
 **Expected Result:**
 - ✅ Exit code 0
 - ✅ File exists, contains `<ParagraphStyleRange` elements
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -229,6 +329,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format srt -o /tmp/orf-test-md/
 - ✅ Exit code 0
 - ✅ File exists, contains subtitle numbering and timestamps
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.10 🟢 Happy Path — CSV (pandas engine)
@@ -238,6 +349,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format csv -o /tmp/orf-test-md/
 **Expected Result:**
 - ✅ Exit code 0
 - ✅ File exists, comma-separated values, first row is header
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -249,6 +371,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format xlsx -o /tmp/orf-test-md
 - ✅ Exit code 0
 - ✅ File exists, valid XLSX (ZIP containing `xl/workbook.xml`)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.12 🟢 Happy Path — JSON
@@ -258,6 +391,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format json -o /tmp/orf-test-md
 **Expected Result:**
 - ✅ Exit code 0
 - ✅ File exists, valid JSON parseable by `python3 -c "import json; json.load(open('/tmp/orf-test-md/sample.json'))"`
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -269,6 +413,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format xml -o /tmp/orf-test-md/
 - ✅ Exit code 0
 - ✅ File exists, valid XML parseable by `python3 -c "import xml.etree.ElementTree; xml.etree.ElementTree.parse('/tmp/orf-test-md/sample.xml')"`
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.14 🟢 Happy Path — IPYNB (nbformat engine)
@@ -279,6 +434,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format ipynb -o /tmp/orf-test-m
 - ✅ Exit code 0
 - ✅ File exists, valid notebook parseable by `python3 -c "import nbformat; nbformat.read('/tmp/orf-test-md/sample.ipynb', as_version=4)"`
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.15 🟢 Happy Path — EML (email stdlib)
@@ -288,6 +454,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format eml -o /tmp/orf-test-md/
 **Expected Result:**
 - ✅ Exit code 0
 - ✅ File exists, contains `From:`, `To:`, `Subject:`, `Content-Type:` headers
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -300,6 +477,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format msg -o /tmp/orf-test-md/
 - ✅ ORF recommends `.eml` instead if MSG fails; clear error message mentions aspose-email-foss
 - ➖ SKIP if aspose-email-foss not installed (document reason)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.17 🔴 Unknown format returns clear error
@@ -311,6 +499,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format unknown -o /tmp/orf-test
 - ❌ Error message mentions unsupported format and lists available formats
 - ❌ No Python traceback
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 1.18 🔴 Missing input file returns clear error
@@ -321,6 +520,17 @@ orf apply-md /tmp/orf-test-md/nonexistent.md --target-format docx -o /tmp/orf-te
 - ❌ Exit code != 0
 - ❌ Error message mentions missing file
 - ❌ No Python traceback
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -350,6 +560,13 @@ orf apply-md /tmp/orf-test-md/nonexistent.md --target-format docx -o /tmp/orf-te
 | 1.18 Missing input | ⬜ |
 
 **OVERALL: ⬜** (✅ if all pass, ❌ if any fail)
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -418,6 +635,17 @@ with zipfile.ZipFile('/tmp/orf-test-md/docx-test.docx') as z:
 - ✅ `word/_rels/document.xml.rels` exists
 - ✅ Total structure is a valid OPC package
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 2.2 🟢 DOCX document.xml contains correct content
@@ -452,6 +680,17 @@ with zipfile.ZipFile('/tmp/orf-test-md/docx-test.docx') as z:
 - ✅ Blockquote content present
 - ✅ Link text present
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 2.3 🟢 DOCX with `--separate-images` (default) extracts images.json
@@ -463,6 +702,17 @@ orf apply-md /tmp/orf-test-md/docx-test.md --target-format docx -o /tmp/orf-test
 - ✅ Images extracted as images.json + images.zip alongside output
 - ✅ `--json` output contains `"success": true`, `"output_path"`, and `"images"` key
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 2.4 🟢 DOCX with `--embed-images` inlines images
@@ -473,6 +723,17 @@ orf apply-md /tmp/orf-test-md/docx-test.md --target-format docx -o /tmp/orf-test
 - ✅ Exit code 0
 - ✅ Output file exists and is openable
 - ✅ Images are base64-encoded in the DOCX (no separate images.json)
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -486,6 +747,17 @@ orf apply-md /tmp/orf-test-md/docx-test.md --target-format docx -o /tmp/orf-test
 - ✅ `--reference-doc` flag accepted without error
 - ✅ Output generated (may use default styles if reference doc missing)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 2.6 🔴 Empty Markdown produces minimal valid DOCX
@@ -496,6 +768,17 @@ orf apply-md /tmp/orf-test-md/empty.md --target-format docx -o /tmp/orf-test-md/
 **Expected Result:**
 - ✅ Exit code 0 (empty doc is still valid)
 - ✅ Produces a valid DOCX with at least `[Content_Types].xml` and empty body
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -513,6 +796,13 @@ orf apply-md /tmp/orf-test-md/empty.md --target-format docx -o /tmp/orf-test-md/
 | 2.6 Empty MD | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -562,6 +852,17 @@ orf apply-md /tmp/orf-test-md/pptx-test.md --target-format pptx -o /tmp/orf-test
 - ✅ At least one `ppt/slides/slide*.xml` file
 - ✅ `[Content_Types].xml` present
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 3.2 🟢 PPTX slides contain expected content
@@ -582,6 +883,17 @@ with zipfile.ZipFile('/tmp/orf-test-md/pptx-test.pptx') as z:
 **Expected Result:**
 - ✅ At least 1 slide XML file
 - ✅ Each slide is valid XML
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -604,6 +916,17 @@ elif not md2pptx_available and not pandoc_available:
 - ✅ If md2pptx missing + pandoc available: conversion succeeds via pandoc
 - ✅ If both missing: clear error message with install instructions for md2pptx
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 3.4 🟢 PPTX with images separated
@@ -613,6 +936,17 @@ orf apply-md /tmp/orf-test-md/pptx-test.md --target-format pptx -o /tmp/orf-test
 **Expected Result:**
 - ✅ Exit code 0
 - ✅ JSON output includes `"success": true`
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -628,6 +962,13 @@ orf apply-md /tmp/orf-test-md/pptx-test.md --target-format pptx -o /tmp/orf-test
 | 3.4 PPTX with images | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -705,6 +1046,17 @@ orf apply-xliff /tmp/orf-test-xliff/source.docx \
 - ✅ Translated text "你好世界" present in document.xml
 - ✅ Original structure preserved (styles, rels, content types)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 4.2 🟢 Backfilled DOCX contains translated text
@@ -727,6 +1079,17 @@ with zipfile.ZipFile('/tmp/orf-test-xliff/backfilled.docx') as z:
 - ✅ "你好世界" found in document.xml
 - ✅ Source text "Hello World" may or may not be present (test both outcomes)
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 4.3 🟢 JSON output works
@@ -738,6 +1101,17 @@ orf apply-xliff /tmp/orf-test-xliff/source.docx \
 **Expected Result:**
 - ✅ Exit code 0
 - ✅ JSON output on stdout with `"success": true`, `"output_path"`, `"units_processed"`
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -754,6 +1128,17 @@ orf apply-xliff /tmp/orf-test-xliff/noskel/source.docx \
 - ❌ Exit code != 0 (or output without skeleton)
 - ❌ Error message mentions missing skeleton.zip
 - ❌ No Python traceback
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -781,6 +1166,17 @@ orf apply-xliff /tmp/orf-test-xliff/source.docx \
 - ✅ ORF handles fuzzy match or reports unmatched units
 - ✅ No crash — either backfill succeeds (fuzzy match) or reports SKIPPED units
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -796,6 +1192,13 @@ orf apply-xliff /tmp/orf-test-xliff/source.docx \
 | 4.5 Mismatched XLIFF | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -856,6 +1259,17 @@ orf apply-xliff /tmp/orf-test-xliff/source.pptx \
 - ✅ Output file exists, valid PPTX (ZIP with `ppt/slides/`)
 - ✅ Translated text present in slide XML
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 5.2 🟢 Translated text appears in PPTX slides
@@ -873,6 +1287,17 @@ with zipfile.ZipFile('/tmp/orf-test-xliff/backfilled.pptx') as z:
 - ✅ "你好PPTX" found in slide XML
 - ✅ Slide structure preserved
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -885,6 +1310,13 @@ with zipfile.ZipFile('/tmp/orf-test-xliff/backfilled.pptx') as z:
 | 5.2 Translated content | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -927,6 +1359,17 @@ print('✅ Source DOCX with inline image created')
 - ✅ No duplicate images injected (E2E-07 dedup)
 - ✅ `<wp:inline>` or `<wp:anchor>` elements preserved at the correct count
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 6.2 🟢 Floating images (wp:anchor) preserved
@@ -957,6 +1400,17 @@ with zipfile.ZipFile('/tmp/orf-test-xliff/img_source.docx') as z:
 - ✅ No floating images are silently dropped
 - ✅ ORF dedup does not remove legitimate floating images
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 6.3 🟢 Image manifest (images.json) correctly tracks placement
@@ -984,6 +1438,17 @@ except FileNotFoundError:
 - ✅ images.json (if produced) follows OPP schema with file_path/data_base64 and placement
 - ✅ Each entry has `is_floating` flag when applicable
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -997,6 +1462,13 @@ except FileNotFoundError:
 | 6.3 Image manifest | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -1027,6 +1499,17 @@ orf apply-xliff /tmp/orf-test-xliff/source.docx \
 - ✅ Output PPTX file exists and is valid ZIP
 - ✅ Translated text "你好世界" present in output
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 7.2 🟢 Cross-format without --force warns and rejects
@@ -1039,6 +1522,17 @@ orf apply-xliff /tmp/orf-test-xliff/source.docx \
 - ❌ Error message: format mismatch detected
 - ❌ Message recommends `--force` to proceed
 - ❌ No corruption of input files
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1053,6 +1547,17 @@ orf apply-xliff /tmp/orf-test-xliff/source.docx \
 - ✅ Exit code 0
 - ✅ JSON output with `"success": true`, `"warning"` about cross-format
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -1066,6 +1571,13 @@ orf apply-xliff /tmp/orf-test-xliff/source.docx \
 | 7.3 Cross-format JSON output | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -1104,6 +1616,17 @@ print("✅ ALL 7 TOOLS PRESENT")
 ```
 **Expected Result:** ✅ 7 tools registered: `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `ping`, `get_capabilities`
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 8.2 🟢 ping — health check
@@ -1117,6 +1640,17 @@ assert "module" in result
 print("✅ ping OK")
 ```
 **Expected Result:** ✅ Returns `{"success": true, "version": "0.4.16", "module": "orf"}`
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1134,6 +1668,17 @@ assert len(result["xliff_backfill_formats"]) >= 5
 print("✅ get_capabilities OK")
 ```
 **Expected Result:** ✅ Returns 16 MD formats, 5 XLIFF formats, 7 MCP tool names
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1153,6 +1698,17 @@ print("✅ apply_md via MCP OK")
 ```
 **Expected Result:** ✅ Returns `{"success": true, "output_path": "...", "format": "docx"}`
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 8.5 🟢 apply_xliff — XLIFF backfill via MCP
@@ -1170,6 +1726,17 @@ assert result.get("success") is True
 print("✅ apply_xliff via MCP OK")
 ```
 **Expected Result:** ✅ Returns `{"success": true, "output_path": "...", "units_processed": N}`
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1189,6 +1756,17 @@ print("✅ batch_convert via MCP OK")
 ```
 **Expected Result:** ✅ Returns `{"success": true, "files_processed": N}` or similar
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 8.7 🟢 detect_format — format detection via MCP
@@ -1204,6 +1782,17 @@ assert "format" in result
 print("✅ detect_format via MCP OK")
 ```
 **Expected Result:** ✅ Returns `{"success": true, "format": "markdown"}` or similar detected format
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1222,6 +1811,17 @@ print("✅ info via MCP OK")
 ```
 **Expected Result:** ✅ Returns `{"success": true, "format": "markdown", "size": N, "file_size_bytes": N}`
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 8.9 🟢 apply_md with inline content (E2E-76 path)
@@ -1238,6 +1838,17 @@ assert "content" in result  # text-in/text-out returns content
 print("✅ apply_md inline content via MCP OK")
 ```
 **Expected Result:** ✅ Returns `{"success": true, "content": "<h1>Inline Content</h1>..."}` (text-in/text-out returns content, not file path)
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1260,6 +1871,17 @@ except Exception as e:
 - ❌ Error response has `error_code`, `message`, `actionable` fields
 - ❌ No raw Python traceback leaked
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 8.11 🔴 MCP error — unknown tool name
@@ -1276,6 +1898,17 @@ except Exception as e:
 **Expected Result:**
 - ❌ Does NOT crash the server
 - ❌ Returns error or raises ValueError with "Unknown tool" message
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1295,6 +1928,17 @@ os.environ.pop("MCP_SHARED_SECRET", None)
 - ✅ With wrong token: auth fails (returns error response)
 - ✅ With correct token: auth passes
 - ✅ Without MCP_SHARED_SECRET set: auth is disabled (passes)
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1318,6 +1962,13 @@ os.environ.pop("MCP_SHARED_SECRET", None)
 | 8.12 Auth handling | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -1378,6 +2029,17 @@ print("✅ ForemanAgent assesses complexity correctly")
 - ✅ `assess_complexity()` returns `MODERATE` for batch jobs
 - ✅ Specialists are initialized without error
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 9.2 🟢 ForemanAgent conversion run
@@ -1394,6 +2056,17 @@ print(f"Success: {result}")
 - ✅ `run()` completes without exception
 - ✅ Conversion produces output files
 - ✅ Errors (if any) are captured in result, not raised
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1418,6 +2091,17 @@ print("✅ All specialists initialized")
 - ✅ All 4 specialist types initialize without error
 - ✅ Each specialist advertises its supported formats
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 9.4 🟢 HITL approval — files >100MB trigger human review
@@ -1438,6 +2122,17 @@ print(f"Low-risk approval: {approval}")
 - ✅ Cloud uploads: require approval
 - ✅ File > 500MB: rejected as UNACCEPTABLE
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -1452,6 +2147,13 @@ print(f"Low-risk approval: {approval}")
 | 9.4 HITL approval | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -1472,6 +2174,17 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 - ✅ Responds to JSON-RPC initialize with server capabilities
 - ✅ Response includes `orf-mcp` server name
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 10.2 🟢 MCP ping over stdio
@@ -1481,6 +2194,17 @@ printf '{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}\n' | timeout 5 pyth
 **Expected Result:**
 - ✅ Server responds with `{"jsonrpc":"2.0","id":1,"result":{}}`
 - ✅ Exit code 0 after timeout
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1493,6 +2217,17 @@ echo 'not json at all' | timeout 5 python3 -m orf.mcp.server 2>/dev/null; echo "
 - ❌ Returns JSON-RPC error response (parse error)
 - ❌ No Python traceback leaked
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 10.4 🟢 MCP server module structure
@@ -1503,6 +2238,17 @@ python3 -c "from orf.mcp.server import main, get_server; print('✅ Server entry
 - ✅ `python -m orf.mcp.server` works from anywhere
 - ✅ `main()` function is the entry point (used by `orf mcp` CLI)
 - ✅ `get_server()` returns the `Server` instance
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1518,6 +2264,13 @@ python3 -c "from orf.mcp.server import main, get_server; print('✅ Server entry
 | 10.4 Module structure | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -1540,6 +2293,17 @@ unset OMNI_TEST_FAKE_PANDOC
 - ✅ Valid HTML generated without pandoc
 - ✅ Pure Python `markdown` lib used as engine
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 11.2 🟢 PDF works without pandoc (weasyprint engine)
@@ -1552,6 +2316,17 @@ unset OMNI_TEST_FAKE_PANDOC
 - ✅ Exit code 0
 - ✅ Valid PDF generated (weasyprint engine)
 - ✅ File starts with `%PDF`
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1566,6 +2341,17 @@ unset OMNI_TEST_FAKE_PANDOC
 - ❌ Error message mentions pandoc dependency
 - ❌ Message includes installation hint (pypandoc-binary or pandoc)
 - ❌ No raw traceback
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1583,6 +2369,17 @@ unset OMNI_TEST_FAKE_PANDOC
 - ❌ Suggests `dotnet tool install --global md2pptx`
 - ❌ No raw Python traceback
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 #### 11.5 🟢 MSG without aspose-email-foss — clear recommendation
@@ -1594,6 +2391,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format msg -o /tmp/orf-test-md/
 - ❌ Error mentions aspose-email-foss dependency
 - ❌ Message recommends using `.eml` instead
 - ❌ No crash
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1609,6 +2417,17 @@ orf apply-md /tmp/orf-test-md/sample.md --target-format html -o /tmp/orf-test-md
 - ✅ Second run with same input + config: cache hit
 - ✅ Second run completes faster (cache copy vs full conversion)
 - ✅ `--no-cache` flag skips cache
+
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
 
 **Actual Result:** _________ **PASS / FAIL:** _________
 
@@ -1646,6 +2465,17 @@ except Exception as e:
 - ✅ Executable extensions (.exe, .bat, .sh): blocked
 - ✅ Symlink pointing outside allowlist: blocked
 
+**Indicator Checks:**
+| What to Check | Pass Condition | Fail Action |
+|---------------|----------------|-------------|
+| Exit code | `echo $?` must be 0 | Re-run with `-v` flag, check file permissions |
+| Output file | `ls -la` shows output file exists | Check parent directory path and filename |
+| File size | `stat` shows > 0 bytes | Verify source file has content and output dir is writable |
+
+**Test File Cross-Reference:**
+- 🧪 **Automated test**: `tests/path/to/test_file.py::test_function` (if automated test exists — update this path)
+- 📋 **Manual only**: No automated test for this specific scenario (manual execution only)
+
 **Actual Result:** _________ **PASS / FAIL:** _________
 
 ---
@@ -1663,6 +2493,13 @@ except Exception as e:
 | 11.7 PathValidator security | ⬜ |
 
 **OVERALL: ⬜**
+
+### 🧹 Cleanup
+
+```bash
+rm -rf /tmp/[test-directory]
+# Kill any background processes started during this section
+```
 
 ---
 
@@ -1721,4 +2558,4 @@ except Exception as e:
 ---
 
 *Plan generated: 2026-07-22*
-*Based on: ORF v0.4.16 codebase — 16 MD formats, 5 XLIFF formats, 7 MCP tools, Foreman/Specialist, HITL approval, PathValidator security*
+*Based on: ORF v0.4.17 codebase — 16 MD formats, 5 XLIFF formats, 7 MCP tools, Foreman/Specialist, HITL approval, PathValidator security*
