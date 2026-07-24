@@ -37,8 +37,8 @@ def test_xliff_backfill_odt_not_odf():
 
 
 def test_project_status_version():
-    """Project Status section must reflect v0.4.16."""
+    """Project Status section must reflect current ORF version."""
     text = README.read_text(encoding="utf-8")
-    assert "Project Status (v0.4.16)" in text, (
-        "Expected 'Project Status (v0.4.16)' in ORF README"
+    assert "Project Status (v0.4.17)" in text, (
+        "Expected 'Project Status (v0.4.17)' in ORF README"
     )

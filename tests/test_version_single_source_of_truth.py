@@ -78,7 +78,7 @@ class TestP1T3VersionSSOT:
         )
 
     def test_compatibility_md_orf_version_matches_pyproject(self):
-        """COMPATIBILITY.md latest row should show current ORF version (0.4.16)."""
+        """COMPATIBILITY.md latest row should show current ORF version."""
         orf_version = _read_pyproject_version(
             REPO_ROOT / "Omni_Re_Formatter" / "pyproject.toml"
         )

@@ -6,10 +6,10 @@
 ## Current versions (2026-06-29)
 
 | Component | Version | Status | Path | Git State |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | OPP | **0.9.1** | Active | `Omni_Pre_Processor/` | own `.git/`, branch `main` |
-| OL | **0.5.9** | Active | `Omni_Localizer/` | own `.git/`, branch `main` |
-| ORF | **0.4.16** | Active | `Omni_Re_Formatter/` | own `.git/`, branch `main` |
+| OL | **0.7.1** | Active | `Omni_Localizer/` | own `.git/`, branch `main` |
+| ORF | **0.4.17** | Active | `Omni_Re_Formatter/` | own `.git/`, branch `main` |
 | Suite | **0.4.0** | Active | `./` | branch `main` |
 
 Sub-repos were demoted from git submodules to regular directories on 2026-06-24.
