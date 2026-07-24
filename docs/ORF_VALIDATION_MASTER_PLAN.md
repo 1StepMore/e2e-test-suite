@@ -1639,7 +1639,7 @@ assert "version" in result
 assert "module" in result
 print("✅ ping OK")
 ```
-**Expected Result:** ✅ Returns `{"success": true, "version": "0.4.16", "module": "orf"}`
+**Expected Result:** ✅ Returns `{"success": true, "version": "0.4.17", "module": "orf"}`
 
 **Indicator Checks:**
 | What to Check | Pass Condition | Fail Action |

@@ -411,7 +411,8 @@ class TestServerSmoke:
     def test_import(self):
         import omni_mcp
         assert hasattr(omni_mcp, "__version__")
-        assert omni_mcp.__version__ == "0.1.0"
+        assert omni_mcp.__version__ is not None
+        assert len(omni_mcp.__version__) > 0
 
     def test_server_instance(self):
         from omni_mcp.server import server

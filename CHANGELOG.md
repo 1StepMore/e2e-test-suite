@@ -199,14 +199,66 @@
 
 - `COMPATIBILITY.md` and `VERSION_COMPATIBILITY.md` matrices
 
-## 0.3.0 — 2026-06-XX
+## 0.3.0 — 2026-06-27
 
-### Unknown
+### Changed
 
-- Version bumped in `pyproject.toml` to `0.3.0` but release notes were not retroactively written. Tracking the change to call out that this version exists.
+- **Suite version bumped 0.2.9 → 0.3.0** (pyproject.toml, VERSION, COMPATIBILITY.md)
+- **OPP bumped to v0.8.2** — OPP#26 zero body margin/padding + `<p>` margin in DEFAULT_PDF2HTML_CSS (eliminates +12pt Y image offset)
+- **OL v0.5.9, ORF v0.4.16** — unchanged from 0.2.9
 
-## 0.4.0 — 2026-06-XX
+### Added
 
-### Unknown
+- **`make doctor` CI gate** — 7-check health gate (Python ≥3.13, keys, pandoc, WeasyPrint, md2pptx, MCP, sub-repos) runs on every PR with `continue-on-error: true`
+- **`scripts/sync_version_docs.py`** — version sync tool with `--dry-run` and `--validate` flags; syncs version tables from pyproject.toml into README, AGENTS, COMPATIBILITY
+- **Multi-language E2E test scenes** — scene-07 covering 3 language pairs × 4 formats
 
-- Version bumped in `pyproject.toml` to `0.4.0` (current) but release notes were not retroactively written. Tracking the change to call out that this version exists.
+### Fixed
+
+- **setup_dev.sh Python version check** — enforces Python >= 3.13 (was wrongly allowing 3.12)
+- **.venv/ deprecation warning** — old Python 3.12-era `.venv/` gets a clear warning
+- **sync_version_docs.py regex backreference bug** — `\g<N>` corruption in version tables fixed
+- **check_deps.sh sub-repo structure check** — updated for submodule→regular directory transition
+- **Matrix regression false-positive rate** — 48/200 (24%) → 0/200 via quality_checks.py overhaul
+
+### Documentation
+
+- **AGENTS.md version table** — corruption fix and manual correction (PR #33)
+- **Agent bootstrap docs refresh** — SKILL.md, .cursorrules, PROJECT_STATUS.md
+- **COMPATIBILITY.md unified** — removed stale duplicate rows
+
+## 0.4.0 — 2026-06-28
+
+### Changed
+
+- **Suite version bumped 0.3.0 → 0.4.0** (pyproject.toml, VERSION, COMPATIBILITY.md)
+- **OPP bumped to v0.9.0 → v0.9.1** — OPP#28 CRITICAL: correct PDF text + image positions for top-left page space (552pt offset resolved); OPP#10 MCP server `atexit` cleanup; OPP#36 HTML tag regex with attributes
+- **OL bumped to v0.7.0 → v0.7.1** — 21 MCP tools (was 8), 4-layer repair pipeline, StyleGuide injection, `--polish` pass, 8 quality gates
+- **ORF bumped to v0.4.16 → v0.4.17** — 16 backfill formats, Foreman/Specialist orchestration, XLIFF cross-format `--force`
+- **README.md directory tree** — updated for submodule removal (OPP/OL/ORF now top-level dirs)
+
+### Added
+
+- **TranslationDocument Pydantic contract** — `omni_suite/contract/models.py` defines the OPP→OL→ORF handoff contract with structured metadata
+- **CONTRACT.md** — full handoff contract documentation covering artifact formats, metadata schemas, and failure modes
+- **`MCP_ALLOWED_DIRECTORIES` unified env var** — documented as cross-module shared env var (OPP/OL/ORF)
+- **Validation master plans** — 4 plans (OPP/OL/ORF/Suite) with 15-17 user questions each, added to `docs/`
+- **`omni-suite translate` alias** — CLI now accepts `translate` as synonym for `pipeline`
+- **OL MCP quality gates** — 8 configurable gates with length ratio thresholds and locale checks
+
+### Fixed
+
+- **CI workflow typos and missing checks** — 3 workflow fixes (suite#P7-T2-T3)
+- **Contract test fixtures** — CLI `--help` fixtures refreshed for OPP/OL/ORF CLI changes
+- **OL SIGINT test timing** — adjusted for 6s cold-start import (OL#75)
+- **OL images.json forwarding** — `translate-md` MD path now forwards images.json (OL#73)
+- **Dead branches in `_check_skip()`** — added missing skip rules (e2e#36)
+- **`_clean_env()` OPENCODE_GO_KEY removal** — added to suite conftest (e2e#37)
+- **Pre-commit hook trailing-whitespace + end-of-file-fixer** — applied repo-wide
+
+### Documentation
+
+- **AGENTS.md version table** — updated for OL v0.7.0 quality gates and OPP v0.9.1
+- **AGENTS.md OL tool count** — corrected from 8→21 across 6 occurrences (suite#78)
+- **Floating image E2E validation** — test added for OPP→OL→ORF floating-image pipeline (e2e#73)
+- **Validation master plans** — suite#79: added per-module plan files to docs/

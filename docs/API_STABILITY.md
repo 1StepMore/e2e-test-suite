@@ -28,10 +28,10 @@ three is recorded in `VERSION_COMPATIBILITY.md` and verified by
 
 | Module | Current version | Package name | Import name | Bumped by |
 |--------|-----------------|--------------|-------------|-----------|
-| OPP | 0.6.1 | `omni-pre-processor` (PyPI) | `opp` | `scripts/bumpversion.py` |
-| OL | 0.4.4 | `omni-localizer` | `ol` | `scripts/bumpversion.py` |
-| ORF | 0.4.3 | `omni-re-formatter` | `orf` | `scripts/bumpversion.py` |
-| omni-suite | 0.2.0 | (root workspace) | `omni_suite` | manual, per release |
+| OPP | 0.9.1 | `omni-pre-processor` (PyPI) | `opp` | `scripts/bumpversion.py` |
+| OL | 0.7.1 | `omni-localizer` | `ol` | `scripts/bumpversion.py` |
+| ORF | 0.4.17 | `omni-re-formatter` | `orf` | `scripts/bumpversion.py` |
+| omni-suite | 0.4.0 | (root workspace) | `omni_suite` | manual, per release |
 
 ### 2.1 What bumps each level
 
