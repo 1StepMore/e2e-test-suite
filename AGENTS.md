@@ -512,7 +512,7 @@ orf apply-md /tmp/test_ol/sample.md --target-format docx -o /tmp/result.docx
 - Tests live under `tests/` at suite root and within each `Omni_*/tests/` sub-repo.
 - For end-to-end orchestration, chain per-module MCPs in sequence, passing `output_dir` from each step as input to the next.
 - OPP MCP provides 7 tools: `extract_document`, `batch_extract`, `detect_format_tool`, `generate_markdown`, `generate_xliff`, `save_skeleton`, `ping`.
-- OL MCP provides 21 tools: `translate_md_text`, `judge_text`, `load_glossary`, `get_relevant_terms`, `search_tm`, `batch_translate_texts`, `translate_xliff`, `ping`.
+- OL MCP provides 21 tools (8 listed here): `translate_md_text`, `judge_text`, `load_glossary`, `get_relevant_terms`, `search_tm`, `batch_translate_texts`, `translate_xliff`, `ping`, + 13 more — full table in the OL MCP Tool Reference section above.
 - ORF MCP provides 6 tools: `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `ping`.
 - Use `uvx` for quick MCP server execution without manual install. For pip-installed variants, use `opp mcp`, `ol mcp`, and `orf mcp` as the command.
 - Set `OMNI_TEST_FAKE_LLM=1` in the MCP server environment for zero-cost testing without real API keys.

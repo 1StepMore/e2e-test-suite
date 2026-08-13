@@ -109,7 +109,7 @@ suite-level `AGENTS.md` (MCP Tool Reference section) or `docs/API.md`.
 | Server | Tool Count | CLI Start Command | MCP Name |
 |--------|-----------|-------------------|----------|
 | OPP MCP | 7 | `opp mcp` or `uvx opp-mcp` | `opp-mcp-server` |
-| OL MCP | 8 | `ol mcp` or `uvx ol-mcp` | `ol-mcp` |
+| OL MCP | 21 | `ol mcp` or `uvx ol-mcp` | `ol-mcp` |
 | ORF MCP | 6 | `orf mcp` or `uvx orf-mcp` | `orf-mcp-server` |
 | Omni MCP | N/A (aggregator) | `omni-suite mcp` (print only) | `omni-mcp` |
 
@@ -122,6 +122,7 @@ suite-level `AGENTS.md` (MCP Tool Reference section) or `docs/API.md`.
 **OL MCP (21 tools):**
 `translate_md_text`, `translate_xliff`, `judge_text`, `load_glossary`,
 `get_relevant_terms`, `search_tm`, `batch_translate_texts`, `ping`
+Full 21-tool registry: see the OL MCP Tool Reference table in `AGENTS.md`.
 
 **ORF MCP (6 tools):**
 `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `ping`
