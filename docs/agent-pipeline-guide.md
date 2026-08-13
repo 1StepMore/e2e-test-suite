@@ -119,7 +119,7 @@ suite-level `AGENTS.md` (MCP Tool Reference section) or `docs/API.md`.
 `extract_document`, `batch_extract`, `detect_format_tool`,
 `generate_markdown`, `generate_xliff`, `save_skeleton`, `ping`
 
-**OL MCP (8 tools):**
+**OL MCP (21 tools):**
 `translate_md_text`, `translate_xliff`, `judge_text`, `load_glossary`,
 `get_relevant_terms`, `search_tm`, `batch_translate_texts`, `ping`
 

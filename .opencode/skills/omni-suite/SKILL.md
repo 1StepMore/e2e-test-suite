@@ -1,6 +1,6 @@
 ---
 name: omni-suite
-description: Orchestrate the 3-stage Omni Suite document localization pipeline (OPP extract → OL translate → ORF backfill). Current versions: opp 0.9.1, ol 0.5.9, orf 0.4.16, suite 0.4.0.
+description: Orchestrate the 3-stage Omni Suite document localization pipeline (OPP extract → OL translate → ORF backfill). Current versions: opp 0.9.1, ol 0.7.1, orf 0.4.17, suite 0.4.0.
 ---
 
 # Omni Suite — Document Localization Pipeline
@@ -22,8 +22,8 @@ If `make doctor` fails, the pipeline won't work. Fix those issues first.
 | Component | Version | Path | CLI Framework |
 |---|---|---|---|
 | OPP | **0.9.1** | `Omni_Pre_Processor/` | argparse |
-| OL | **0.5.9** | `Omni_Localizer/` | typer |
-| ORF | **0.4.16** | `Omni_Re_Formatter/` | click |
+| OL | **0.7.1** | `Omni_Localizer/` | typer |
+| ORF | **0.4.17** | `Omni_Re_Formatter/` | click |
 | Suite | **0.4.0** | `./` | — |
 
 Test matrix status: **131 PASS, 64 SKIP, 0 FAIL** across 195 cells (verified 2026-06-29).
@@ -109,7 +109,7 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 | **CLI** | Ad-hoc one-off conversions, scripts, debugging, manual pipelines |
 | **MCP server** | Inside an MCP-compatible agent (Claude, Cursor, OpenCode), want text-in/text-out, want tool-level validation |
 
-**MCP tool counts**: OPP 7, OL 8, ORF 6 (21 total). Names + signatures in "MCP tool quick reference" below.
+**MCP tool counts**: OPP 7 / OL 21 / ORF 6 (34 total). Names + signatures in "MCP tool quick reference" below.
 
 > **⚠️ FastMCP stdio bug**: If MCP servers fail to respond to stdio (silent, no JSON-RPC handshake), use the `scripts/mcp_bridge.py` workaround (raw JSON-RPC over stdin/stdout, no `mcp` library needed). See `../ACCEPTED_GAPS.md` line 18.
 
@@ -148,7 +148,7 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 4. **OL real LLM timeout** → Set `OMNI_TEST_FAKE_LLM=1` for testing, or set API keys in `.env`.
 5. **"MCP server not responding to stdio"** → Use `scripts/mcp_bridge.py` (FastMCP 3.4.2 stdio bug). See `../ACCEPTED_GAPS.md`.
 
-## MCP tool quick reference (21 total)
+## MCP tool quick reference (34 total across modules)
 
 ### OPP — `opp-mcp-server` (7 tools)
 - `extract_document` — Extract single file (13 input formats)
@@ -159,7 +159,7 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 - `save_skeleton` — Save skeleton.zip (required by ORF `apply-xliff`)
 - `ping` — Health check
 
-### OL — `ol-mcp` (8 tools, **no `-server` suffix**)
+### OL — `ol-mcp` (21 tools, **no `-server` suffix**)
 - `translate_md_text` — Translate MD (text-in/text-out, primary agent tool)
 - `translate_xliff` — Translate XLIFF
 - `judge_text` — LQA quality scoring (0-100)
@@ -168,6 +168,8 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 - `search_tm` — Search TMX translation memory
 - `batch_translate_texts` — Parallel batch translate
 - `ping` — Health check
+
+> Full 21-tool registry: see the OL MCP tool table in `Omni_Localizer/AGENTS.md` (21 tools total).
 
 ### ORF — `orf-mcp-server` (6 tools)
 - `apply_md` — MD → 16 formats (accepts inline `content` OR path `input_md`)
@@ -224,7 +226,7 @@ use the short `references/<name>.md` form; otherwise use the full path.
 | Doc | Path (if no symlinks) | Purpose | Size |
 |---|---|---|---|
 | Comprehensive agent guide | `../AGENTS.md` | Per-module cheat sheet, MCP config, env vars | 17KB |
-| MCP tool full reference | `../docs/agent-pipeline-guide.md` | All 21 MCP tool signatures | 9KB |
+| MCP tool full reference | `../docs/agent-pipeline-guide.md` | All 34 MCP tool signatures | 9KB |
 | Cross-module architecture | `../docs/ARCHITECTURE.md` | 3-stage pipeline internals | 25KB |
 | ADRs | `../docs/DECISIONS.md` | CLI framework divergence, etc. | 3KB |
 | Cross-repo release notes | `../docs/RELEASE_NOTES.md` | Monthly aggregated changes | 1KB |
