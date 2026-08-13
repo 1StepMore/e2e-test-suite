@@ -499,6 +499,7 @@ orf apply-md /tmp/test_ol/sample.md --target-format docx -o /tmp/result.docx
 ## Agent Tips
 
 - Use the FAKE_LLM seam for zero-cost testing — no API keys needed.
+- **Glossary**: see [CONTEXT.md](CONTEXT.md) — shared pipeline terminology (Ubiquitous Language).
 - ORF `apply-md` supports 16 formats; check the table before assuming availability.
 - `omni_suite/cli.py` is print-only — use per-module CLIs for real work.
 - For end-to-end orchestration, chain per-module MCPs in sequence.
