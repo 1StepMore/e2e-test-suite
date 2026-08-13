@@ -20,7 +20,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          # Full history (fetch-depth 0): the diff-base steps below need the
+          # PR base sha / push `before` sha / HEAD~1 objects present locally.
+          # fetch-depth 1 would leave the base object absent, so
+          # `git diff <base>...HEAD` would fail with "unknown revision".
+          fetch-depth: 0
+
+      # ── Changed-file scoping (review fix F1/F2) ───────────────────────────
+      # The blocking lint steps below must NOT be whole-tree gates: this tree
+      # carries pre-existing violations (task-8-lint-baseline.md) that the
+      # plan guardrails forbid fixing, so a whole-tree gate would be red on
+      # day one. Instead we resolve a diff base per event and gate only the
+      # files changed by this PR/push. The ${{ }} expressions expand to empty
+      # strings on events that lack the key; the [ -n ... ] guards handle it.
+      #   - pull_request:   github.event.pull_request.base.sha (PR base HEAD)
+      #   - push (to main): github.event.before (commit the push replaced)
+      #   - otherwise:      HEAD~1 (e.g. workflow_dispatch, when it exists)
+      #   - else:           empty -> changed-file list is empty -> gate no-ops
+      - name: Resolve diff base (PR base sha, else push before, else HEAD~1)
+        id: resolve-diff-base
+        run: |
+          diff_base=""
+          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
+            diff_base="${{ github.event.pull_request.base.sha }}"
+          elif [ -n "${{ github.event.before }}" ]; then
+            diff_base="${{ github.event.before }}"
+          elif git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            diff_base="$(git rev-parse HEAD~1)"
+          fi
+          echo "diff_base=${diff_base}" >> "$GITHUB_OUTPUT"
+
+      - name: List changed files (diff_base...HEAD)
+        run: |
+          diff_base="${{ steps.resolve-diff-base.outputs.diff_base }}"
+          if [ -n "$diff_base" ]; then
+            git diff --name-only "$diff_base"...HEAD | sort -u > changed_files.txt
+          else
+            : > changed_files.txt
+          fi
+          echo "changed_file_count=$(wc -l < changed_files.txt)" >> "$GITHUB_OUTPUT"
+          cat changed_files.txt
 
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
@@ -55,12 +94,18 @@ jobs:
       # ═══════════════════════════════════════════════════════════════════════
       # EXPLICIT BLOCKING STEPS — GitHub Actions steps fail by default (nothing
       # here is exempted or allowed to be non-blocking; no shell bypass).
+      # Each gate is scoped to changed_files.txt (produced by the diff-base
+      # steps above): empty changed sets no-op with exit 0, non-empty sets run
+      # the real blocking gate. All exit codes are truthful (no shell bypass).
       # ═══════════════════════════════════════════════════════════════════════
 
-      - name: "Blocking: pre-commit run --all-files"
+      - name: "Blocking: pre-commit on changed files"
         env:
           OMNI_TEST_FAKE_LLM: "1"
-        run: pre-commit run --all-files
+        run: |
+          if [ -s changed_files.txt ]; then
+            xargs -r pre-commit run --files < changed_files.txt
+          fi
         # Runs the repo's OWN declared hook set (.pre-commit-config.yaml):
         # gitleaks, check-added-large-files, check-merge-conflict,
         # detect-private-key, end-of-file-fixer, trailing-whitespace,
@@ -69,25 +114,40 @@ jobs:
         # omni-version-alignment, omni-no-hardcoded-keys,
         # omni-version-docs-sync.
         #
-        # NOTE: pre-existing violations on this tree (e.g. ruff F-class) are
+        # SCOPING: runs on CHANGED files only (changed_files.txt from the
+        # diff-base steps above), NOT --all-files — a whole-tree run would be
+        # red on day one from pre-existing violations (ruff F-class x116, plus
+        # 5 EOF/trailing-whitespace violations in out-of-scope files), all
         # recorded in .omo/evidence/doc-framework-improvements/
-        # task-8-lint-baseline.md. The follow-up is to narrow the scope to
-        # plan-touched files (docs/CI only — all .md/.yml/.yaml, zero .py),
-        # NOT to fix pre-existing errors (plan guardrail).
+        # task-8-lint-baseline.md (5-file EOF list: F2-quality.md:148). Per
+        # the plan guardrail, pre-existing errors are NOT fixed; this is a
+        # "no NEW violations on changed files" gate. Note the ruff-pre-commit
+        # hook in this set itself runs v0.6.0 --select F --fix on the changed
+        # .py files only, so it too is a changed-file gate (mirroring the
+        # dedicated ruff step below).
 
-      - name: "Blocking: ruff F-class check (pinned 0.6.0)"
+      - name: "Blocking: ruff F-class check (pinned 0.6.0, changed .py files only)"
         env:
           OMNI_TEST_FAKE_LLM: "1"
-        run: python -m ruff check . --select F
-        # Pinned ruff==0.6.0 (installed above). The whole-tree F-check is
-        # expected to report pre-existing violations on day one: 116 F-class
-        # errors under the environment's ruff 0.15.15 (F541 x42, F841 x40,
-        # F401 x32, F821 x2) — baseline recorded in
-        # .omo/evidence/doc-framework-improvements/task-8-lint-baseline.md.
-        # The plan forbids fixing pre-existing errors, so this step stays at
-        # the repo's own pinned standard (matches .pre-commit-config.yaml
-        # ruff v0.6.0 --select F) and the follow-up is to narrow the scope to
-        # plan-touched files (all .md/.yml/.yaml, zero .py).
+        run: |
+          if [ -s changed_files.txt ]; then
+            grep '\.py$' changed_files.txt | sort -u > changed_py.txt
+            if [ -s changed_py.txt ]; then
+              xargs -r python -m ruff check --select F < changed_py.txt
+            fi
+          fi
+        # Pinned ruff==0.6.0 (installed above — `pip install pre-commit
+        # ruff==0.6.0 mypy`) to mirror the repo's OWN declared standard
+        # (.pre-commit-config.yaml ruff-pre-commit rev v0.6.0, args
+        # --select F --fix). SCOPING: this step now only gate-keeps CHANGED
+        # .py files (filtered from changed_files.txt). The whole-tree
+        # `ruff check . --select F` baseline of 116 pre-existing F-class
+        # errors (F541 x42, F841 x40, F401 x32, F821 x2 under ruff 0.15.15)
+        # is kept in .omo/evidence/doc-framework-improvements/
+        # task-8-lint-baseline.md and NOT fixed (plan guardrail). Note: the
+        # grep|sort pipeline above ends with `sort` (exit 0) even when grep
+        # matches nothing, so an empty changed-.py set is a no-op — the step
+        # does NOT fail, so no shell bypass is needed.
 
       - name: "Blocking: mypy (scoped to verified-clean subset)"
         env:
