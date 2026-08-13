@@ -27,10 +27,10 @@ repos:
     hooks:
       - id: omni-contract-smoke
         name: Omni Suite pipeline contract smoke
-        entry: bash -c '.venv_ol/bin/python -m pytest tests/test_pipeline_contract_smoke.py --tb=short -q --no-header 2>&1 | tail -10'
+        entry: "bash -c 'if [ -x .venv_ol/bin/python ]; then set -o pipefail; .venv_ol/bin/python -m pytest tests/test_pipeline_contract_smoke.py --tb=short -q --no-header 2>&1 | tail -10; else echo \"skip: .venv_ol not built\"; exit 0; fi'"
         language: system
         pass_filenames: false
-        stages: [manual]
+        stages: [commit, manual]
 
   # ── Invariant Convergence: Layer 1 invariants ─────────────────────
   # Every known gap category must have an automated invariant that
