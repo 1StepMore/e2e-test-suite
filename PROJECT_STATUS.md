@@ -74,6 +74,8 @@ If `make doctor` fails, the pipeline won't work. Fix those issues before any tra
 
 | Doc | Purpose | Size |
 |---|---|---|
+| `CONTEXT.md` | Shared glossary / Ubiquitous Language of pipeline terms (suites, modules, channels, artifacts, MCP) | ~292 lines |
+| `docs/PRD.md` | Retrospective baseline PRD — single source of truth for requirements (vision, user stories, scope, acceptance criteria) | ~61 lines |
 | `AGENTS.md` | Comprehensive agent guide (per-module cheat sheet, MCP config, env vars) | 17KB |
 | `docs/agent-pipeline-guide.md` | MCP tool full parameter reference | 9KB |
 | `docs/ARCHITECTURE.md` | Cross-module architecture (3-stage pipeline internals) | 25KB |
