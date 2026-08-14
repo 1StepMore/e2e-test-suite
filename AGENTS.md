@@ -522,3 +522,97 @@ orf apply-md /tmp/test_ol/sample.md --target-format docx -o /tmp/result.docx
 - **OL quality gates**: Post-translation quality gates are configurable via `quality_gates:` in OL config. When enabled, `translate_md_text` returns quality warnings in its output and `translate_xliff` inserts them into the XLIFF. Tune length ratio thresholds with `OL_LENGTH_RATIO_MIN` / `OL_LENGTH_RATIO_MAX` env vars. Set `OL_TARGET_LOCALE` to enforce locale-specific checks.
 - **OPP E2E-15 (orphan image filter)**: `extract_document` with `--target-format both` will not double-embed images that were already output inline. The image `images.json` manifest reflects this.
 - **ORF E2E-07 (fuzzy match)**: `apply_xliff` to DOCX now tolerates small text mismatches between XLIFF source and DOCX paragraphs (up to 5-char length diff, 0.85 ratio). If you previously got `SKIPPED units`, retry — they should now backfill.
+
+## How to validate (Codex)
+
+Codex-specific entry point to the validation framework — same engine as
+every other agent, driven purely from the CLI:
+
+```bash
+source .venv_ol/bin/activate
+
+# Enumerate the library — no execution
+python scripts/validation/run_validation.py --list
+
+# Run one hermetic scenario (tier 1 = no LLM keys needed)
+python scripts/validation/run_validation.py --scenario <name> --tier 1
+
+# Contract-lint the library itself
+python scripts/validation/run_validation.py --check
+```
+
+Only these scripts exist — do not invent other commands:
+`scripts/validation/{run_validation.py, coverage_audit.py, validation_report.py, validation_diff.py}`.
+
+**Reading results**: `validation-runs/latest.txt` points at the newest
+run (`validation-runs/<ts>/scenarios.json`). Generate the director
+report with
+`python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json`
+→ `report.md` in the same dir, with TWO verdict families side by side:
+**agent-user conformance** (tool-* scenarios + AGENT-SURFACE standards:
+contract, JSON shape, error clarity, path security, exit codes) and
+**human-quality conformance** (pipeline-* scenarios + HUMAN-QUALITY
+standards: LQA ≥ 4.0/5, paragraph ratio ±5%, CJK density < 5%, zero
+foreign punctuation, drawing count, opens in python-docx). `unconfigured`
+(missing env, e.g. no LLM keys) is never a pass and never a silent skip.
+
+**Standards**: `scenarios/STANDARDS.md` — the single citable bar, two
+families, exact anchors per step (`standard: STANDARDS.md#<anchor>`).
+Read it before judging a verdict.
+
+**Director checklist**: a human director completes the 10-minute loop
+per run — see `docs/dev/validation-director-loop.md` (agent validator +
+human director roles, per-run standards conformance pass).
+
+## How to validate (any agent)
+
+Generic instructions — applies to Hermes, Claude, Cursor, Codex,
+opencode, or any agent that can run shell commands. The validation
+framework is agent-agnostic: every scenario dispatches through the REAL
+shipped surface (no mocks, no FAKE_LLM as evidence); tier-1 scenarios
+are hermetic and need no LLM keys.
+
+```bash
+source .venv_ol/bin/activate
+
+# 1. See what exists (no execution, no LLM)
+python scripts/validation/run_validation.py --list
+
+# 2. Run one hermetic scenario (tier 1 = no LLM keys needed)
+python scripts/validation/run_validation.py --scenario <name> --tier 1
+
+# 3. Lint the library itself (falsifiable expects, standard anchors)
+python scripts/validation/run_validation.py --check
+
+# 4. Coverage audit — every live MCP tool must be exercised by a scenario
+python scripts/validation/coverage_audit.py
+
+# 5. Diff two runs (verdict changes + regression detection)
+python scripts/validation/validation_diff.py <runs-dir>/<ts1> <runs-dir>/<ts2>
+```
+
+**Reading results**:
+1. `validation-runs/latest.txt` → path of the newest run
+   (`validation-runs/<ts>/scenarios.json`).
+2. Generate the director report:
+   `python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json`
+   → `report.md` + `report.json` in the same run dir.
+
+`report.md` renders TWO verdict families side by side — judge both:
+
+| Family | What it proves |
+|---|---|
+| **agent-user conformance** | every agent-facing tool/CLI works as an agent would use it (tool-* scenarios + AGENT-SURFACE anchors: `#tool-contract`, `#json-parseable`, `#error-clarity`, `#path-security`, `#exit-codes`) |
+| **human-quality conformance** | pipeline output satisfies human end-users (pipeline-* scenarios + HUMAN-QUALITY anchors: `#lqa-threshold`, `#para-ratio`, `#cjk-density`, `#punct-hygiene`, `#drawing-count`, `#opens-docx`) |
+
+`unconfigured` (missing env, e.g. no LLM keys) is a distinct status —
+never a pass, never a silent skip.
+
+**Standards**: `scenarios/STANDARDS.md` is the single citable bar —
+every step's `expect` cites `standard: STANDARDS.md#<anchor>` naming its
+family. Read it before judging a verdict; never invent thresholds.
+
+**Director checklist**: a human director completes the 10-minute loop
+per run — `docs/dev/validation-director-loop.md` (two-role model: agent
+validator + human director; per-run standards conformance pass ticking
+both families).
