@@ -49,6 +49,12 @@ pytest tests/security/ -q        # 63 security tests
 pytest tests/test_e2e_real_llm.py -v -k test_md_channel
 ```
 
+The agent-agnostic validation framework is also part of the test surface:
+`python scripts/validation/run_validation.py --list` / `--check`, tier-1
+scenarios (`--scenario <name> --tier 1`, hermetic — no keys), and
+`python scripts/validation/coverage_audit.py` (exit 0 = every live MCP
+tool scenario-used). Full instructions: suite `AGENTS.md` → "How to validate".
+
 ### Test Requirements
 
 - All new features need at least one test case.

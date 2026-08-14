@@ -187,3 +187,23 @@ def test_my_new_feature(self, opp_pipeline, sample_docx_path, tmp_path):
     assert result is not None
     assert len(result.errors) == 0
 ```
+
+## Validation Framework
+
+Alongside this pytest suite, the suite ships an agent-agnostic validation
+framework that runs real scenarios against the shipped surface (no mocks,
+no FAKE_LLM as evidence):
+
+- `scripts/validation/run_validation.py` — scenario library runner
+  (`--list`, `--check`, `--scenario <name> --tier 1`; tier 1 is hermetic,
+  no LLM keys needed)
+- `scripts/validation/coverage_audit.py` — every live MCP tool must be
+  exercised by a scenario (exit 0 = 0 missing)
+- `scripts/validation/validation_report.py` / `validation_diff.py` —
+  director report generation + run diffing
+- `scenarios/STANDARDS.md` — the citable bar (AGENT-SURFACE +
+  HUMAN-QUALITY families)
+- `docs/dev/validation-director-loop.md` — two-role model + 10-minute
+  human director checklist
+
+Full instructions: suite `AGENTS.md` → "Run validation" / "How to validate".
