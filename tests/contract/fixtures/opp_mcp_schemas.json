@@ -206,6 +206,18 @@
     "name": "generate_xliff"
   },
   {
+    "description": "Return OPP module capabilities: supported input formats (16), output formats (md/xliff), and the list of available MCP tools. Use this to discover what the server can do at runtime.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "get_capabilities"
+  },
+  {
     "description": "Health check endpoint.",
     "inputSchema": {
       "properties": {
@@ -241,5 +253,25 @@
       "type": "object"
     },
     "name": "save_skeleton"
+  },
+  {
+    "description": "Validate an XLIFF 1.2 file against the OASIS XSD schema and the trans-unit content rules (non-empty source, unique IDs, valid lang codes). Pass either xliff_content (inline string) or file_path.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "type": "string"
+        },
+        "file_path": {
+          "description": "Path to .xlf/.xliff file. Used only if xliff_content is not provided.",
+          "type": "string"
+        },
+        "xliff_content": {
+          "description": "Inline XLIFF XML. Takes precedence over file_path if both provided.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "validate_xliff"
   }
 ]
