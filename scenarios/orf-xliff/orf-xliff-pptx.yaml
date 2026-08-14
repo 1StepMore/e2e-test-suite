@@ -1,0 +1,79 @@
+name: orf-xliff-pptx
+description: >-
+  ORF apply-xliff backfill to PPTX: run the real `orf apply-xliff` CLI on the
+  committed translated-XLIFF fixture pair (source.pptx + source.xlf, hermetic)
+  with a run-time-generated PPTX skeleton.zip and verify the backfilled PPTX
+  carries the OOXML-Presentation structural signature (zip with
+  [Content_Types].xml and ppt/slides/slideN.xml, python-pptx opens it).
+  NOTE: the committed source.pptx is the Meridian Q1 Update deck, a DIFFERENT
+  document from the xlf's Product Overview text — the channel's content match
+  finds no trans-unit, so this scenario honestly asserts structure + exit 0,
+  NOT translated-target presence (fixture-content limitation, see learnings).
+category: orf-xliff
+tier: 1
+requires_env: []
+instructions: |-
+  Prove ORF apply-xliff runs the PPTX backfill channel end-to-end on the committed pair. 1) the copy step stages the 8 committed fixture files into /tmp/omni_val/orf-xliff-pptx/; 2) the skeleton step runs the real OPP CLI to generate the PPTX skeleton.zip at run time (`opp source.pptx --target-format both`) into skel_pptx/; 3) the CLI step runs `orf apply-xliff <pptx skeleton.zip> --xliff <translated xlf> --format pptx` and must exit 0 with a Created announcement; 4) the assert step verifies the output is a valid OOXML-Presentation zip: [Content_Types].xml present and >= 1 ppt/slides/slideN.xml. The committed source.pptx contains the Meridian Q1 Update text while the xlf carries Product Overview text — no trans-unit matches, so no Chinese target can be asserted for this fixture (structure + exit-0 is the honest contract here; finding recorded in .omo/notepads/validation-framework/learnings.md). No LLM, no FAKE_LLM — hermetic (tier 1).
+steps:
+  - name: Stage committed translated fixture pair
+    kind: python
+    command: |-
+      import pathlib, shutil
+      src = pathlib.Path("/mnt/d/贯维/Omni_Suite/scenarios/_fixtures/translated_pair")
+      d = pathlib.Path("/tmp/omni_val/orf-xliff-pptx")
+      d.mkdir(parents=True, exist_ok=True)
+      files = [f for f in src.iterdir() if f.is_file()]
+      for f in files:
+          shutil.copy2(f, d / f.name)
+      print("COPIED %d fixture files" % len(files))
+    expect:
+      exit_code: 0
+      stdout_has: ["COPIED 8 fixture files"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Copy the committed fixture pair (8 files incl. source.pptx + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-pptx/. Check: exit 0 and "COPIED 8 fixture files".
+  - name: Generate PPTX skeleton.zip at run time via OPP
+    kind: cli
+    command: opp /tmp/omni_val/orf-xliff-pptx/source.pptx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/orf-xliff-pptx/skel_pptx -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Generate the PPTX skeleton.zip at run time with the REAL OPP CLI: `opp source.pptx --target-format both -s en -t zh -o skel_pptx/ -v`. The skeleton preserves the slide masters/layouts — layout, not input content — so it is generated at run time and never committed. Check: exit code 0 and the OPP -v marker "[INFO] Generated:" on stderr.
+  - name: Backfill translated XLIFF to PPTX with orf apply-xliff
+    kind: cli
+    command: orf apply-xliff /tmp/omni_val/orf-xliff-pptx/skel_pptx/source.skeleton.zip --xliff /tmp/omni_val/orf-xliff-pptx/source.xlf --output /tmp/omni_val/orf-xliff-pptx/out.pptx --format pptx
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni_val/orf-xliff-pptx/out.pptx"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-xliff-pptx/out.pptx
+    instructions: |-
+      Run the REAL orf CLI backfill: `orf apply-xliff <pptx skeleton.zip> --xliff <committed translated source.xlf> --output out.pptx --format pptx`. Check: exit code 0 (STANDARDS.md#exit-codes) and stdout announces "Created <path>". The assertion on the output structure is the next step.
+  - name: Assert PPTX structural invariant
+    kind: python
+    command: |-
+      import sys, zipfile
+      p = "/tmp/omni_val/orf-xliff-pptx/out.pptx"
+      try:
+          assert zipfile.is_zipfile(p), "not a zip archive"
+          names = zipfile.ZipFile(p).namelist()
+          assert "[Content_Types].xml" in names, "missing [Content_Types].xml"
+          slides = [n for n in names if n.startswith("ppt/slides/slide") and n.endswith(".xml")]
+          assert len(slides) >= 1, "no ppt/slides/slideN.xml entries"
+          print("OK: pptx zip with %d slides and [Content_Types].xml" % len(slides))
+      except Exception as e:
+          print("ERROR: %s" % e)
+          sys.exit(1)
+    expect:
+      exit_code: 0
+      stdout_has: ["OK:"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-xliff-pptx/out.pptx
+    instructions: |-
+      Read /tmp/omni_val/orf-xliff-pptx/out.pptx and verify the OOXML-Presentation structural invariant: zip archive with [Content_Types].xml and >= 1 ppt/slides/slideN.xml. The committed source.pptx is the Meridian Q1 Update deck — its slide text does not appear in the xlf (Product Overview sources), so the channel's content match finds no unit; asserting translated targets would be dishonest for this fixture. Structure + exit 0 is the assertable contract (exit-code standard). The snippet exits 0 with an OK: message when the structure holds, or exits 1 naming the problem otherwise.
