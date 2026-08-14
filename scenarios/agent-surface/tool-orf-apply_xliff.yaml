@@ -1,0 +1,79 @@
+name: tool-orf-apply_xliff
+description: "ORF apply_xliff backfills the translated XLIFF fixture into the DOCX fixture and denies bad XLIFF paths cleanly."
+category: agent-surface
+tier: 1
+requires_env: [ORF_MCP_ALLOWED_DIRS]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'Provision fixtures'
+    kind: python
+    command: |
+      import os, shutil, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      FIXT = "/tmp/omni-agent-surface"
+      os.makedirs(FIXT, exist_ok=True)
+      import json as _json
+      from docx import Document
+      if not os.path.exists(os.path.join(FIXT, "sample.docx")):
+          d = Document()
+          d.add_heading("Meridian Robotics — Product Overview", level=1)
+          d.add_paragraph("Meridian Robotics is a global manufacturer of industrial automation systems.")
+          d.save(os.path.join(FIXT, "sample.docx"))
+      if not os.path.exists(os.path.join(FIXT, "sample.md")):
+          open(os.path.join(FIXT, "sample.md"), "w").write("# Hello World\n\nThis is a test document.\n")
+      if not os.path.exists(os.path.join(FIXT, "sample_fm.md")):
+          open(os.path.join(FIXT, "sample_fm.md"), "w").write("---\nsource_lang: en\ntarget_lang: zh\n---\n# Frontmatter Doc\n\nBody text here.\n")
+      if not os.path.exists(os.path.join(FIXT, "glossary.json")):
+          _json.dump({"API endpoint": {"translation": "API 端点", "confidence": 0.95}}, open(os.path.join(FIXT, "glossary.json"), "w"))
+      if not os.path.exists(os.path.join(FIXT, "memory.tmx")):
+          open(os.path.join(FIXT, "memory.tmx"), "w").write('<?xml version="1.0"?><tmx version="1.4"><body><tu><tuv xml:lang="en"><seg>Click the button</seg></tuv><tuv xml:lang="zh"><seg>点击按钮</seg></tuv></tu></body></tmx>')
+      if not os.path.exists(os.path.join(FIXT, "sample.xlf")):
+          open(os.path.join(FIXT, "sample.xlf"), "w").write('<?xml version="1.0" encoding="utf-8"?><xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2"><file original="sample.md" source-language="en" target-language="zh"><body><trans-unit id="1"><source>Hello World</source><target>你好世界</target></trans-unit></body></file></xliff>')
+      if not os.path.exists(os.path.join(FIXT, "warn.md")):
+          open(os.path.join(FIXT, "warn.md"), "w").write("# Hi\n<!-- OL_WARN:missing_shields key1 -->\nbody\n")
+      if not os.path.exists(os.path.join(FIXT, "default.yaml")):
+          shutil.copy("Omni_Localizer/config/default.yaml", os.path.join(FIXT, "default.yaml"))
+      print("fixtures provisioned")
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Write the hermetic fixture set (sample.docx, sample.xlf, ...) under /tmp/omni-agent-surface.'
+  - name: 'apply_xliff backfills the XLIFF fixture into the DOCX'
+    kind: mcp
+    tool: orf.mcp.server.apply_xliff
+    arguments:
+      input_file: /tmp/omni-agent-surface/sample.docx
+      xliff_path: /tmp/omni-agent-surface/sample.xlf
+      output_path: /tmp/omni-agent-surface/backfilled.docx
+      format: docx
+    timeout_seconds: 120
+    expect:
+      success: true
+      data_has: ['"success": true', 'output_path']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Call apply_xliff with the DOCX fixture and the translated XLIFF fixture; expect success with output_path.'
+    collect_artifacts:
+      - path: '/tmp/omni-agent-surface/backfilled.docx'
+  - name: 'apply_xliff denies a nonexistent XLIFF path'
+    kind: mcp
+    tool: orf.mcp.server.apply_xliff
+    arguments:
+      input_file: /tmp/omni-agent-surface/sample.docx
+      xliff_path: /nonexistent/x.xlf
+      output_path: /tmp/omni-agent-surface/bad.docx
+      format: docx
+    timeout_seconds: 120
+    expect:
+      success: false
+      data_has: ['PATH_NOT_ALLOWED']
+    standard: STANDARDS.md#path-security
+    instructions: 'Call with an out-of-allowlist XLIFF path; the ORF PathValidator must deny it with a clean PATH_NOT_ALLOWED error, no traceback.'

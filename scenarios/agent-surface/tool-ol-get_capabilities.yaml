@@ -1,0 +1,33 @@
+name: tool-ol-get_capabilities
+description: "OL get_capabilities reports module capabilities; wrong-shaped call arguments produce a clean error."
+category: agent-surface
+tier: 1
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'get_capabilities returns the module surface'
+    kind: mcp
+    tool: ol_mcp.tools.get_capabilities
+    arguments:
+    timeout_seconds: 120
+    expect:
+      success: true
+      data_has: ['"module": "ol"', 'roles', 'language_pairs', 'tools']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Call the real get_capabilities tool function directly; expect success with module, roles, language_pairs and tools keys.'
+  - name: 'get_capabilities rejects an unexpected argument cleanly'
+    kind: mcp
+    tool: ol_mcp.tools.get_capabilities
+    arguments:
+      bogus: 1
+    timeout_seconds: 120
+    expect:
+      success: false
+    standard: STANDARDS.md#error-clarity
+    instructions: 'Call with an undeclared argument; the call must fail with a clean agent-readable error.'

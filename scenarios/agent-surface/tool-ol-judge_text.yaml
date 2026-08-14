@@ -1,0 +1,45 @@
+name: tool-ol-judge_text
+description: "OL judge_text scores translation quality (requires real LLM keys) and rejects same-language pairs cleanly."
+category: agent-surface
+tier: 1
+requires_env: [OPENAI_API_KEY, ZHIPU_API_KEY, AGNES_API_KEY, NVIDIA_NIM_API_KEY, OL_CONFIG_PATH]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'judge_text scores a translation pair'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import JudgeInput, judge_text
+      r = asyncio.run(judge_text(params=JudgeInput(source="Click the button to continue", target="点击按钮继续", source_lang="en", target_lang="zh")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": true', '"scores"', 'adequacy']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Real LLM judging: runs only with a provider key (requires_env; the judge channel resolves its config via OL_CONFIG_PATH, so that var is declared too). Expect success with a scores map including adequacy.'
+  - name: 'judge_text rejects a same-language pair cleanly'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import JudgeInput, judge_text
+      r = asyncio.run(judge_text(params=JudgeInput(source="hello", target="hello", source_lang="en", target_lang="en")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['OL_INVALID_INPUT', 'must be different']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#error-clarity
+    instructions: 'Call with identical source and target languages; the tool must reject the pair with a clean OL_INVALID_INPUT error naming the constraint, no traceback.'

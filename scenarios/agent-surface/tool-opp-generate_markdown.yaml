@@ -1,0 +1,62 @@
+name: tool-opp-generate_markdown
+description: "OPP generate_markdown converts a DOCX fixture to markdown via the real tool function and denies out-of-allowlist paths cleanly."
+category: agent-surface
+tier: 1
+requires_env: [OPP_MCP_ALLOWED_DIRS]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'Provision fixtures and generate markdown from the DOCX via the real tool'
+    kind: python
+    command: |
+      import asyncio, json, os, sys
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      FIXT = "/tmp/omni-agent-surface"
+      os.makedirs(FIXT, exist_ok=True)
+      from docx import Document
+      p = os.path.join(FIXT, "sample.docx")
+      if not os.path.exists(p):
+          d = Document()
+          d.add_heading("Meridian Robotics — Product Overview", level=1)
+          d.add_paragraph("Meridian Robotics is a global manufacturer of industrial automation systems.")
+          d.save(p)
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import generate_markdown
+      r = asyncio.run(generate_markdown(file_path=p, output_path=os.path.join(FIXT, "gen.md")))
+      print(json.dumps(r, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": true', 'markdown_content', 'Meridian Robotics']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Drive the real generate_markdown after _init_server; expect a success payload carrying markdown_content with the document text.'
+    collect_artifacts:
+      - path: '/tmp/omni-agent-surface/gen.md'
+  - name: 'generate_markdown denies a path outside the allowlist'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import generate_markdown
+      r = asyncio.run(generate_markdown(file_path="/etc/hosts"))
+      print(json.dumps(r, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: 'Call with a system-directory path; the call MUST be denied cleanly, no traceback in the payload.'

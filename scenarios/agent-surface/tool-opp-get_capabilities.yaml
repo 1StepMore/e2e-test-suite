@@ -1,0 +1,34 @@
+name: tool-opp-get_capabilities
+description: "OPP get_capabilities reports module capabilities; wrong-shaped call arguments produce a clean error."
+category: agent-surface
+tier: 1
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'get_capabilities returns the module surface'
+    kind: mcp
+    tool: opp.mcp.server.get_capabilities
+    arguments:
+    timeout_seconds: 120
+    expect:
+      success: true
+      data_has: ['module', 'version', 'input_formats', 'output_formats', 'tools']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Call the real get_capabilities tool with no arguments; expect success with module, version, input_formats, output_formats and tools keys.'
+  - name: 'get_capabilities rejects an unexpected argument cleanly'
+    kind: mcp
+    tool: opp.mcp.server.get_capabilities
+    arguments:
+      bogus: 1
+    timeout_seconds: 120
+    expect:
+      success: false
+      data_has: ['OPP_INTERNAL_ERROR']
+    standard: STANDARDS.md#error-clarity
+    instructions: 'Call with an undeclared argument; the error boundary must return a clean structured error, never a raw traceback payload.'

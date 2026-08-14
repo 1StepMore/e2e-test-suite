@@ -1,0 +1,41 @@
+name: tool-omni_mcp-translate_file
+description: "Suite omni_mcp translate_file rejects bad and empty paths with clean errors (the full keyed pipeline is a nightly scenario)."
+category: agent-surface
+tier: 1
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'translate_file rejects a nonexistent source path cleanly'
+    kind: mcp
+    tool: omni_mcp.server.translate_file
+    arguments:
+      file_path: /nonexistent/nope.docx
+      source_lang: en
+      target_lang: zh
+      output_format: docx
+    timeout_seconds: 120
+    expect:
+      success: false
+      data_has: ['FILE_NOT_FOUND', 'Source file does not exist']
+    standard: STANDARDS.md#error-clarity
+    instructions: 'Call translate_file with a nonexistent source path; the orchestrator must return a clean FILE_NOT_FOUND error naming the path, no traceback.'
+  - name: 'translate_file rejects an empty path cleanly'
+    kind: mcp
+    tool: omni_mcp.server.translate_file
+    arguments:
+      file_path:
+      source_lang: en
+      target_lang: zh
+      output_format: docx
+    timeout_seconds: 120
+    expect:
+      success: false
+      data_has: ['OMNI_INVALID_INPUT', 'file_path is required']
+    standard: STANDARDS.md#error-clarity
+    instructions: "Call translate_file with an empty file_path; the orchestrator must return a clean OMNI_INVALID_INPUT error naming the required parameter, no traceback. The tool's happy path (full OPP-OL-ORF E2E) requires real LLM keys and is exercised in the nightly keyed run."

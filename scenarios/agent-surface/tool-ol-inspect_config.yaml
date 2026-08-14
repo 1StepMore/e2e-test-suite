@@ -1,0 +1,53 @@
+name: tool-ol-inspect_config
+description: "OL inspect_config inspects the OL configuration fixture and returns a clean path error for a bad config path."
+category: agent-surface
+tier: 1
+requires_env: [MCP_ALLOWED_DIRECTORIES]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'inspect_config inspects the config fixture'
+    kind: python
+    command: |
+      import os, shutil, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      FIXT = "/tmp/omni-agent-surface"
+      os.makedirs(FIXT, exist_ok=True)
+      if not os.path.exists(os.path.join(FIXT, "default.yaml")):
+          shutil.copy("Omni_Localizer/config/default.yaml", os.path.join(FIXT, "default.yaml"))
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import InspectConfigInput, inspect_config
+      r = asyncio.run(inspect_config(params=InspectConfigInput(config_path="/tmp/omni-agent-surface/default.yaml")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": true', 'config_path', 'project_id']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Provision a copy of the OL config under /tmp, construct InspectConfigInput with that path and call the REAL inspect_config; expect success with config_path and project_id.'
+    collect_artifacts:
+      - path: '/tmp/omni-agent-surface/default.yaml'
+  - name: 'inspect_config returns a clean path denial for a bad config path'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import InspectConfigInput, inspect_config
+      r = asyncio.run(inspect_config(params=InspectConfigInput(config_path="/nonexistent/config.yaml")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['OL_PATH_NOT_ALLOWED']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: 'Call with a nonexistent config path; the validator must deny it cleanly with OL_PATH_NOT_ALLOWED, no traceback.'

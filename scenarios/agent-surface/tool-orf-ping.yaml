@@ -1,0 +1,35 @@
+name: tool-orf-ping
+description: "ORF ping reports module name and version; the MCP dispatch rejects unknown tools cleanly."
+category: agent-surface
+tier: 1
+requires_env: [ORF_MCP_ALLOWED_DIRS]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'ping returns module and version'
+    kind: mcp
+    tool: orf.mcp.server.ping
+    arguments:
+    timeout_seconds: 120
+    expect:
+      success: true
+      data_has: ['"module": "orf"', 'version']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Call the real ping tool function; expect success with module and version in the JSON payload.'
+  - name: 'MCP dispatch rejects an unknown tool name cleanly'
+    kind: mcp
+    tool: orf.mcp.server._call_tool
+    arguments:
+      name: no_such_tool
+      arguments: {}
+    timeout_seconds: 120
+    expect:
+      success: false
+    standard: STANDARDS.md#error-clarity
+    instructions: "Call the real MCP dispatch entry with a typo'd tool name; it must fail with a clean agent-readable error (the error text lands in the run record's actual.error), not a traceback payload."

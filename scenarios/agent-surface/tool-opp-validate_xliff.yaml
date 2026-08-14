@@ -1,0 +1,34 @@
+name: tool-opp-validate_xliff
+description: "OPP validate_xliff validates inline XLIFF content against the schema and rejects calls with neither content nor path."
+category: agent-surface
+tier: 1
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'validate_xliff accepts inline XLIFF content'
+    kind: mcp
+    tool: opp.mcp.server.validate_xliff
+    arguments:
+      xliff_content: <?xml version="1.0"?><xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2"><file original="a" source-language="en" target-language="zh"><body><trans-unit id="1"><source>Hi</source></trans-unit></body></file></xliff>
+    timeout_seconds: 120
+    expect:
+      success: true
+      data_has: ['is_valid', 'schema_valid', 'trans_units_valid']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Call validate_xliff with inline xliff_content (the agent-preferred path — no file I/O); expect success with is_valid and schema_valid keys.'
+  - name: 'validate_xliff rejects a call with no input'
+    kind: mcp
+    tool: opp.mcp.server.validate_xliff
+    arguments:
+    timeout_seconds: 120
+    expect:
+      success: false
+      data_has: ['OPP_INVALID_INPUT', 'Either xliff_content or file_path is required']
+    standard: STANDARDS.md#error-clarity
+    instructions: 'Call with neither xliff_content nor file_path; the tool must return a clean OPP_INVALID_INPUT error naming the contract, not a traceback.'

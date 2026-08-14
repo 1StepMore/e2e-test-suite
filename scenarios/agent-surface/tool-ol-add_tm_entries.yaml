@@ -1,0 +1,53 @@
+name: tool-ol-add_tm_entries
+description: "OL add_tm_entries appends entries to an existing TMX fixture and returns a clean path error for a nonexistent TMX."
+category: agent-surface
+tier: 1
+requires_env: [MCP_ALLOWED_DIRECTORIES]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'add_tm_entries appends to the TMX fixture'
+    kind: python
+    command: |
+      import os, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      FIXT = "/tmp/omni-agent-surface"
+      os.makedirs(FIXT, exist_ok=True)
+      if not os.path.exists(os.path.join(FIXT, "memory.tmx")):
+          open(os.path.join(FIXT, "memory.tmx"), "w").write('<?xml version="1.0"?><tmx version="1.4"><body><tu><tuv xml:lang="en"><seg>Click the button</seg></tuv><tuv xml:lang="zh"><seg>点击按钮</seg></tuv></tu></body></tmx>')
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import TMAddInput, add_tm_entries
+      r = asyncio.run(add_tm_entries(params=TMAddInput(tmx_path="/tmp/omni-agent-surface/memory.tmx", entries=[{"source": "Save", "target": "保存", "source_lang": "en", "target_lang": "zh"}])))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": true', 'entries_added']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Provision the TMX fixture under /tmp, construct TMAddInput (TMEntry list) and call the REAL add_tm_entries; expect success with entries_added.'
+    collect_artifacts:
+      - path: '/tmp/omni-agent-surface/memory.tmx'
+  - name: 'add_tm_entries returns a clean path denial for a nonexistent TMX'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import TMAddInput, add_tm_entries
+      r = asyncio.run(add_tm_entries(params=TMAddInput(tmx_path="/nonexistent/new.tmx", entries=[{"source": "Save", "target": "保存", "source_lang": "en", "target_lang": "zh"}])))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['OL_PATH_NOT_ALLOWED']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: 'Call with a nonexistent TMX path; the validator must deny it cleanly with OL_PATH_NOT_ALLOWED, no traceback.'

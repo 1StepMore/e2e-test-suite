@@ -1,0 +1,44 @@
+name: tool-ol-verify_terms
+description: "OL verify_terms verifies glossary term usage in translated text without an LLM and returns clean errors for bad input."
+category: agent-surface
+tier: 1
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'verify_terms verifies glossary term usage in translated text without an LLM'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import VerifyTermsInput, verify_terms
+      r = asyncio.run(verify_terms(params=VerifyTermsInput(source="use the API endpoint", target="使用 API 端点", glossary={"API endpoint": {"translation": "API 端点"}})))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": true', '"verified"', 'source_chars']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Construct the VerifyTermsInput params exactly as the OL MCP server does and call the REAL verify_terms function; expect a success JSON payload carrying the contract keys.'
+  - name: 'verify_terms returns a clean error for wrong-shaped params'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import verify_terms
+      r = asyncio.run(verify_terms(params={'content': 'x'}))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#error-clarity
+    instructions: "Call the real function with a plain dict instead of the pydantic params model (an agent passing raw JSON); the tool's error boundary must return a clean JSON error with no traceback in the payload."
