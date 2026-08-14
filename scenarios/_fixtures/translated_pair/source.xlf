@@ -1,0 +1,79 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<ns0:xliff xmlns:ns0="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+  <ns0:file original="NoName" source-language="en" datatype="plaintext" target-language="zh">
+    <ns0:body>
+      <ns0:trans-unit xml:space="preserve" id="1" resname="para_index_0">
+        <ns0:source xml:space="preserve">Meridian Robotics — Product Overview</ns0:source>
+        <ns0:target xml:space="preserve">水星机器人 — 产品概述</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="2" resname="para_index_1">
+        <ns0:source xml:space="preserve">Meridian Robotics is a global manufacturer of industrial automation systems. Founded in 2008, the company specializes in collaborative robotic arms, vision-guided assembly cells, and AI-driven quality inspection platforms. This document provides an overview of our flagship product line and the industries we serve.</ns0:source>
+        <ns0:target xml:space="preserve">水星机器人是一家全球性的工业自动化系统制造商。公司成立于2008年，专注于协作机械臂、视觉引导装配单元和AI驱动质量检测平台。本文档概述了我们的旗舰产品线及所服务的行业。</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="3" resname="para_index_2">
+        <ns0:source xml:space="preserve">1. Company Background</ns0:source>
+        <ns0:target xml:space="preserve">1. 公司背景</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="4" resname="para_index_3">
+        <ns0:source xml:space="preserve">Meridian Robotics employs over 2,400 engineers and technicians across research centers in Boston, Munich, Shenzhen, and Bangalore. Our annual revenue reached $1.8 billion in fiscal year 2025, with 62% of sales coming from international markets. The company is publicly traded on the NYSE under the symbol MRDN.</ns0:source>
+        <ns0:target xml:space="preserve">水星机器人在波士顿、慕尼黑、深圳和班加罗尔的研究中心拥有超过2400名工程师和技术人员。2025财年我们的年收入达到18亿美元，其中62%的销售额来自国际市场。公司股票在纽约证券交易所上市，代码为MRDN。</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="5" resname="para_index_4">
+        <ns0:source xml:space="preserve">2. Product Lineup</ns0:source>
+        <ns0:target xml:space="preserve">2. 产品系列</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="6" resname="para_index_5">
+        <ns0:source xml:space="preserve">Our product portfolio is organized into three families. The MR-Series collaborative arms are designed for safe human-robot interaction in shared workspaces. The VX-Series vision systems provide sub-millimeter inspection accuracy for electronics manufacturing. The AI-Quality platform uses deep learning to detect surface defects in real time.</ns0:source>
+        <ns0:target xml:space="preserve">我们的产品组合分为三大系列。MR系列协作机械臂专为共享工作空间中的安全人机交互而设计。VX系列视觉系统为电子制造提供亚毫米级检测精度。AI-Quality平台利用深度学习实时检测表面缺陷。</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="7" resname="para_index_6">
+        <ns0:source xml:space="preserve">2.1 MR-Series Collaborative Arms</ns0:source>
+        <ns0:target xml:space="preserve">2.1 MR系列协作机械臂</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="8" resname="para_index_7">
+        <ns0:source xml:space="preserve">The MR-Series includes four models ranging from the MR-3 with a 3 kg payload to the MR-25 with a 25 kg payload. All models feature integrated torque sensors in every joint, enabling force-limited operation that meets ISO/TS 15066 safety standards for collaborative robotics.</ns0:source>
+        <ns0:target xml:space="preserve">MR系列包含四款型号，从负载3公斤的MR-3到负载25公斤的MR-25。所有型号的每个关节均集成扭矩传感器，可实现符合ISO/TS 15066协作机器人安全标准的力限制操作。</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="9" resname="para_index_8">
+        <ns0:source xml:space="preserve">2.2 VX-Series Vision Systems</ns0:source>
+        <ns0:target xml:space="preserve">2.2 VX系列视觉系统</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="10" resname="para_index_9">
+        <ns0:source xml:space="preserve">The VX-Series vision platforms combine high-resolution CMOS sensors with onboard FPGA processing. The flagship VX-8K captures 8K resolution images at 120 frames per second, enabling inline inspection of fast-moving production lines. All VX models support the GigE Vision and USB3 Vision standards.</ns0:source>
+        <ns0:target xml:space="preserve">VX系列视觉平台将高分辨率CMOS传感器与板载FPGA处理相结合。旗舰型号VX-8K以每秒120帧的速度拍摄8K分辨率图像，可对高速生产线进行在线检测。所有VX型号均支持GigE Vision和USB3 Vision标准。</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="11" resname="para_index_10">
+        <ns0:source xml:space="preserve">2.3 AI-Quality Inspection Platform</ns0:source>
+        <ns0:target xml:space="preserve">2.3 AI-Quality检测平台</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="12" resname="para_index_11">
+        <ns0:source xml:space="preserve">AI-Quality is a cloud-connected inspection service that trains custom defect detection models using as few as 50 reference images. The platform integrates with the VX-Series cameras and provides real-time dashboards for production managers. Typical deployment achieves a 94% reduction in false-reject rates compared to manual visual inspection.</ns0:source>
+        <ns0:target xml:space="preserve">AI-Quality是一项云端检测服务，仅需50张参考图像即可训练定制缺陷检测模型。该平台与VX系列相机集成，为生产管理者提供实时仪表盘。与人工目视检测相比，典型部署可将误拒率降低94%。</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="13" resname="para_index_12">
+        <ns0:source xml:space="preserve">3. Target Industries</ns0:source>
+        <ns0:target xml:space="preserve">3. 目标行业</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="14" resname="para_index_13">
+        <ns0:source xml:space="preserve">Meridian Robotics serves five primary industries. In automotive manufacturing, our systems assemble instrument panels and door modules. In electronics, VX-Series cameras inspect PCB solder joints and semiconductor wafer patterns. Pharmaceutical companies use our cleanroom-rated MR-3 arms for vial handling. Food and beverage producers deploy AI-Quality for packaging integrity checks. Aerospace manufacturers rely on our precision assembly cells for turbine blade inspection.</ns0:source>
+        <ns0:target xml:space="preserve">水星机器人服务于五大主要行业。在汽车制造领域，我们的系统组装仪表板和车门模块。在电子领域，VX系列相机检测PCB焊点和半导体晶圆图案。制药公司使用我们的洁净室级MR-3机械臂处理药瓶。食品饮料生产商部署AI-Quality进行包装完整性检查。航空航天制造商依靠我们的精密装配单元进行涡轮叶片检测。</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="15" resname="para_index_14">
+        <ns0:source xml:space="preserve">4. Customer Support</ns0:source>
+        <ns0:target xml:space="preserve">4. 客户支持</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="16" resname="para_index_15">
+        <ns0:source xml:space="preserve">We provide 24/7 technical support through regional service centers. Standard warranty covers 24 months or 4,000 operating hours, whichever comes first. Extended warranty and preventive maintenance contracts are available. Training programs are offered at our Boston headquarters and through certified partner facilities worldwide.</ns0:source>
+        <ns0:target xml:space="preserve">我们通过区域服务中心提供全天候技术支持。标准保修期为24个月或4000运行小时，以先到者为准。我们提供延长保修和预防性维护合同。培训课程在波士顿总部及全球认证合作伙伴机构提供。</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="17" resname="para_index_16">
+        <ns0:source xml:space="preserve">5. Contact Information</ns0:source>
+        <ns0:target xml:space="preserve">5. 联系信息</ns0:target>
+      </ns0:trans-unit>
+      <ns0:trans-unit xml:space="preserve" id="18" resname="para_index_17">
+        <ns0:source xml:space="preserve">For sales inquiries, contact our regional offices. North America: sales-na@meridianrobotics.com, +1-617-555-0100. Europe: sales-eu@meridianrobotics.com, +49-89-5555-0200. Asia-Pacific: sales-ap@meridianrobotics.com, +86-755-5555-0300. Visit our website at https://www.meridianrobotics.com for product datasheets, case studies, and technical documentation.</ns0:source>
+        <ns0:target xml:space="preserve">如需销售咨询，请联系我们的区域办事处。北美：sales-na@meridianrobotics.com，+1-617-555-0100。欧洲：sales-eu@meridianrobotics.com，+49-89-5555-0200。亚太：sales-ap@meridianrobotics.com，+86-755-5555-0300。请访问我们的网站 https://www.meridianrobotics.com 获取产品数据表、案例研究和技术文档。</ns0:target>
+      </ns0:trans-unit>
+    </ns0:body>
+  </ns0:file>
+</ns0:xliff>
