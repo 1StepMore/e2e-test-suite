@@ -1,0 +1,55 @@
+name: opp-pdf-extract
+description: >
+  OPP extracts a real PDF to Markdown (MD path only — PDF to XLIFF is
+  intentionally blocked and covered by the regression seed
+  scenarios/regression/, NOT duplicated here): exit 0, manifest metadata
+  keys, declared format PDF, and the markdown output declared.
+category: opp-extraction
+instructions: |
+  What to do:
+  1. Run the real OPP CLI on the committed static PDF fixture with
+     --target-format md (never xlf — the PDF->XLIFF guard is the T2
+     regression seed, todo 15) into a fresh dir.
+  2. Parse the *_manifest.json — valid JSON, format PDF, markdown output
+     declared.
+  The fixture is the committed static
+  Omni_Pre_Processor/batch_test/phase0_office/normal.pdf (real %PDF-1.7,
+  produced by MuPDF — no reportlab dependency).  The fixture is a
+  text-light page so paragraph content may be empty; the asserted
+  contract is the pipeline-level success + manifest, NOT a content
+  minimum.  Extraction is deterministic: no LLM, no FAKE_LLM.
+steps:
+  - name: Extract PDF to Markdown via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Omni_Pre_Processor/batch_test/phase0_office/normal.pdf --target-format md --output-dir /tmp/omni_val/opp-pdf -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker.  A
+      nonzero exit here means the PDF path is broken.
+  - name: Manifest parses as JSON and declares the PDF format
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-pdf/normal_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("format=" + m["source"]["format"])
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "format=PDF"
+        - "md-path=normal.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), declared
+      format PDF and the markdown output path normal.md — proving the MD
+      path exists for PDF (the XLIFF path is the blocked regression case).

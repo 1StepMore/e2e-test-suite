@@ -1,0 +1,45 @@
+name: opp-msg-extract
+description: >
+  OPP extracts an Outlook .MSG email to Markdown.  GATED: no .msg
+  fixture is committed anywhere in the repo (verified 2026-08-14 — only
+  the EML path has a fixture, covered by opp-eml-extract), so this
+  scenario reports unconfigured unless the operator exports MSG_FIXTURE
+  pointing at a real .msg file.  It never asserts GREEN unconditionally
+  and never REDs for the missing fixture.
+category: opp-extraction
+requires_env: [MSG_FIXTURE]
+instructions: |
+  What to do:
+  1. This scenario is environment-gated on MSG_FIXTURE because no .msg
+     fixture is committed (the covered email path is EML — see
+     opp-eml-extract).  In default CI it reports unconfigured: that is
+     the expected, honest verdict, NOT a failure.
+  2. To run it for real: place a genuine Outlook .msg file anywhere,
+     export MSG_FIXTURE=<absolute path to that .msg>, and re-run.  The
+     step then drives the real OPP CLI on it with --target-format md.
+  3. The extraction must exit 0 and print the "[INFO] Generated:"
+     success marker.
+steps:
+  - name: Extract the operator-provided MSG fixture via the real OPP CLI
+    kind: python
+    command: |
+      import os, subprocess, sys
+      fixture = os.environ["MSG_FIXTURE"]
+      proc = subprocess.run(["/mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp", fixture,
+                             "--target-format", "md",
+                             "--output-dir", "/tmp/omni_val/opp-msg", "-v"],
+                            capture_output=True, text=True)
+      sys.stdout.write(proc.stdout)
+      sys.stdout.write(proc.stderr)
+      sys.exit(proc.returncode)
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and the
+      verbose stderr prints "[INFO] Generated:" — the real success
+      marker.  The command path comes from the MSG_FIXTURE env var; the
+      marker is asserted on the inner subprocess output re-echoed by the
+      snippet.

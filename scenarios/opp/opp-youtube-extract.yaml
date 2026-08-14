@@ -1,0 +1,59 @@
+name: opp-youtube-extract
+description: >
+  OPP extracts a .url (YouTube) shortcut to Markdown: committed fixture
+  -> exit 0, manifest metadata keys.  TIER 3 (network) and gated on
+  YOUTUBE_NETWORK: transcription requires live network access to YouTube
+  and a real video URL, so the scenario reports unconfigured in CI and
+  never REDs for the missing network.
+category: opp-extraction
+requires_env: [YOUTUBE_NETWORK]
+tier: 3
+instructions: |
+  What to do:
+  1. This scenario is tier 3 (external/network) and gated on
+     YOUTUBE_NETWORK: transcribing a YouTube URL requires live network
+     access.  In default CI it reports unconfigured: that is the
+     expected, honest verdict, NOT a failure (plan D10 note — no YouTube
+     transcription testing in CI).
+  2. The fixture is the committed
+     Omni_Pre_Processor/batch_test/phase8_media/short.url containing a
+     placeholder URL (youtu.be/abc123XYZ — not a real video).  To run
+     it for real, point the command at a .url file whose URL is a real,
+     network-reachable YouTube video, export YOUTUBE_NETWORK=1, and
+     re-run.
+  3. The extraction must exit 0, print "[INFO] Generated:", and the
+     manifest must declare the markdown output.
+steps:
+  - name: Extract the .url shortcut to Markdown via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Omni_Pre_Processor/batch_test/phase8_media/short.url --target-format md --output-dir /tmp/omni_val/opp-youtube -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 300
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker for
+      the YouTube transcription path.  This step is network-bound; it
+      only runs when the operator sets YOUTUBE_NETWORK and provides a
+      network-reachable video URL.
+  - name: Manifest parses as JSON and declares the markdown output
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-youtube/short_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "md-path=short.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), and the
+      markdown output path is declared for the .url input.

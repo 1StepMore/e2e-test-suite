@@ -1,0 +1,85 @@
+name: opp-csv-extract
+description: >
+  OPP extracts a CSV file to Markdown: runtime-generated synthetic CSV
+  (header + data rows) -> exit 0, manifest metadata keys, declared format
+  CSV, and the data rendered as a markdown table.
+category: opp-extraction
+instructions: |
+  What to do:
+  1. Generate a synthetic CSV at runtime with the csv stdlib module — no
+     fixture file is committed for this format.
+  2. Run the real OPP CLI on it with --target-format md into a fresh dir.
+  3. Parse the *_manifest.json — valid JSON, format CSV.
+  4. Read the .md — the header + rows must render as a markdown table.
+  Generator logic ported from tests/test_cross_format_e2e.py:169-183
+  (_create_synthetic_csv).  Deterministic: no LLM, no FAKE_LLM.
+steps:
+  - name: Generate the synthetic CSV at runtime
+    kind: python
+    command: |
+      import csv, pathlib
+      rows = [["Product", "Category", "Price", "Stock"],
+              ["Widget A", "Electronics", "19.99", "150"],
+              ["Widget B", "Household", "9.50", "300"],
+              ["Gadget X", "Electronics", "49.99", "75"]]
+      out = pathlib.Path("/tmp/omni_val/opp-csv/in.csv")
+      out.parent.mkdir(parents=True, exist_ok=True)
+      with open(out, "w", newline="", encoding="utf-8") as f:
+          csv.writer(f).writerows(rows)
+      print("written")
+    expect:
+      exit_code: 0
+      stdout_has: ["written"]
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the generator writes the CSV and prints "written";
+      a failure means the fixture could not be produced.
+  - name: Extract CSV to Markdown via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /tmp/omni_val/opp-csv/in.csv --target-format md --output-dir /tmp/omni_val/opp-csv -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker.
+  - name: Manifest parses as JSON and declares the CSV format
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-csv/in_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("format=" + m["source"]["format"])
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "format=CSV"
+        - "md-path=in.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), declared
+      format CSV and markdown path in.md.
+  - name: Markdown renders the CSV data as a table
+    kind: python
+    command: |
+      import pathlib
+      md = pathlib.Path("/tmp/omni_val/opp-csv/in.md").read_text(encoding="utf-8")
+      print("header-found" if "| Product | Category |" in md else "no-header")
+      print("row-found" if "Widget A" in md else "no-row")
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "header-found"
+        - "row-found"
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the extraction output carries the expected CSV
+      structure (tool-contract standard): the header row renders as a
+      markdown table and the data rows are present.
