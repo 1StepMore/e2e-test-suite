@@ -103,7 +103,7 @@ Tier semantics: 1 = hermetic (no keys), 2 = real LLM keys, 3 = paid/external/net
 
 跨项目通用规范见全局 skill `validation-framework-execution` → `references/validation-run-governance.md`。
 
-**开始前必读**：STANDARDS.md（判定基准）、坑清单（`docs/` 下 LOOP-LOG，如无则本循环创建）、上次 run（`validation-runs/latest`）。
+**开始前必读**：STANDARDS.md（判定基准）、坑清单（`docs/` 下 LOOP-LOG，如无则本循环创建）、上次 run（`validation-runs/latest.txt`）。
 
 **结束后必形成**：run 记录（`validation-runs/<ts>/`）、坑清单更新（新坑当天追加）、issue + PR（代码层 bug）、validation 报告、交付包（→ `04-Output/artifacts/deliverables/omni-suite/`）。
 
