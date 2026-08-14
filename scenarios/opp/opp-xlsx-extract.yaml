@@ -1,0 +1,97 @@
+name: opp-xlsx-extract
+description: >
+  OPP extracts an XLSX workbook to Markdown: runtime-generated synthetic
+  workbook (openpyxl, two sheets) -> exit 0, manifest metadata keys,
+  declared format XLSX, and sheet/table content preserved in markdown.
+category: opp-extraction
+instructions: |
+  What to do:
+  1. Generate a synthetic XLSX (Products + Summary sheets) at runtime with
+     openpyxl — no fixture file is committed for this format.
+  2. Run the real OPP CLI on it with --target-format md into a fresh dir.
+  3. Parse the *_manifest.json — valid JSON, format XLSX.
+  4. Read the .md — both sheets' tables must survive as markdown tables.
+  Generator logic ported from tests/test_cross_format_e2e.py:239-260
+  (_create_synthetic_xlsx).  Deterministic: no LLM, no FAKE_LLM.
+steps:
+  - name: Generate the synthetic XLSX workbook at runtime
+    kind: python
+    command: |
+      import openpyxl, pathlib
+      wb = openpyxl.Workbook()
+      ws = wb.active
+      ws.title = "Products"
+      ws.append(["Product", "Category", "Price", "Stock"])
+      ws.append(["Widget A", "Electronics", 19.99, 150])
+      ws.append(["Widget B", "Household", 9.50, 300])
+      ws2 = wb.create_sheet("Summary")
+      ws2.append(["Metric", "Value"])
+      ws2.append(["Total Products", 2])
+      out = pathlib.Path("/tmp/omni_val/opp-xlsx/in.xlsx")
+      out.parent.mkdir(parents=True, exist_ok=True)
+      wb.save(str(out))
+      print("written")
+    expect:
+      exit_code: 0
+      stdout_has: ["written"]
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the generator writes the workbook and prints
+      "written"; a failure here means openpyxl is missing or the fixture
+      could not be produced — the rest of the scenario would be
+      meaningless.
+  - name: Extract XLSX to Markdown via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /tmp/omni_val/opp-xlsx/in.xlsx --target-format md --output-dir /tmp/omni_val/opp-xlsx -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker.
+  - name: Manifest parses as JSON and declares the XLSX format
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-xlsx/in_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("format=" + m["source"]["format"])
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "format=XLSX"
+        - "md-path=in.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), declared
+      format XLSX and markdown path in.md.
+  - name: Markdown keeps both sheets' table content
+    kind: python
+    command: |
+      import pathlib
+      md = pathlib.Path("/tmp/omni_val/opp-xlsx/in.md").read_text(encoding="utf-8")
+      print("sheet-products" if "Sheet: Products" in md else "no-products-sheet")
+      print("sheet-summary" if "Sheet: Summary" in md else "no-summary-sheet")
+      print("header-found" if "Product | Category" in md else "no-header")
+      print("row-found" if "Widget A" in md else "no-row")
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "sheet-products"
+        - "sheet-summary"
+        - "header-found"
+        - "row-found"
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the extraction output carries the expected sheet
+      structure (tool-contract standard): both sheet headings and the
+      Products header row + a data row survive as markdown (the XLSX
+      extractor renders pipe-less table rows — "Product | Category",
+      not "| Product |", unlike the CSV extractor).

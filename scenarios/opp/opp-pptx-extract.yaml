@@ -1,0 +1,71 @@
+name: opp-pptx-extract
+description: >
+  OPP extracts a real PPTX to Markdown + XLIFF (--target-format both):
+  exit 0, manifest metadata keys, markdown content structure, and XLIFF
+  trans-units for the zh target language.
+category: opp-extraction
+instructions: |
+  What to do:
+  1. Run the real OPP CLI on the committed Meridian PPTX fixture with
+     --target-format both into a fresh dir.
+  2. Parse the *_manifest.json — valid JSON with standard metadata keys.
+  3. Read the .md — slide content must survive as markdown headings.
+     Read the .xlf — trans-units present, target-language="zh" declared.
+  The fixture is the committed suite-root Meridian_Q1_Update_E2E.pptx.
+  Extraction is deterministic: no LLM, no FAKE_LLM, no network.
+steps:
+  - name: Extract PPTX to Markdown and XLIFF via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Meridian_Q1_Update_E2E.pptx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-pptx -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker.
+  - name: Manifest parses as JSON and exposes the metadata keys
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-pptx/Meridian_Q1_Update_E2E_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("format=" + m["source"]["format"])
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "format=PPTX"
+        - "md-path=Meridian_Q1_Update_E2E.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), declared
+      format PPTX and markdown path matching the fixture stem.
+  - name: Markdown keeps slide content and XLIFF carries trans-units
+    kind: python
+    command: |
+      import pathlib, re
+      md = pathlib.Path("/tmp/omni_val/opp-pptx/Meridian_Q1_Update_E2E.md").read_text(encoding="utf-8")
+      xlf = pathlib.Path("/tmp/omni_val/opp-pptx/Meridian_Q1_Update_E2E.xlf").read_text(encoding="utf-8")
+      print("heading-found" if "# Meridian Robotics" in md else "no-heading")
+      print("content-found" if "Financial Highlights" in md else "no-content")
+      print("units-found" if len(re.findall(r"<trans-unit", xlf)) > 0 else "no-units")
+      print("target-zh" if 'target-language="zh"' in xlf else "no-target-zh")
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "heading-found"
+        - "content-found"
+        - "units-found"
+        - "target-zh"
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the extraction output carries the expected slide
+      content (tool-contract standard): the deck H1, the Financial
+      Highlights slide text, and an XLIFF with trans-units + zh
+      target-language declared (OPP prep).

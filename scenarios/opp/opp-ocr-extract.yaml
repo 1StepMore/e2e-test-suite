@@ -1,0 +1,60 @@
+name: opp-ocr-extract
+description: >
+  OPP extracts an image via OCR to Markdown: committed PNG fixture ->
+  exit 0, manifest metadata keys, markdown output declared.  GATED on
+  OCR_ENGINE: OCR is environment-dependent (tesseract or rapidocr), so
+  the scenario reports unconfigured unless the operator exports
+  OCR_ENGINE (e.g. OCR_ENGINE=tesseract) in an env where the engine is
+  installed.  Verified 2026-08-14: without an engine OPP degrades
+  gracefully (exit 0, empty markdown, warning in the manifest) — the
+  gate keeps the tier-1 acceptance from ever REDing on environment.
+category: opp-extraction
+requires_env: [OCR_ENGINE]
+instructions: |
+  What to do:
+  1. This scenario is environment-gated on OCR_ENGINE: image extraction
+     quality depends on a local OCR engine (tesseract or rapidocr).  In
+     default CI it reports unconfigured: that is the expected, honest
+     verdict, NOT a failure.
+  2. To run it for real: install an OCR engine, export OCR_ENGINE=1,
+     and re-run.  The steps drive the real OPP CLI on the committed
+     image fixture Omni_Pre_Processor/batch_test/phase7_email_image/
+     normal.png with --target-format md.
+  3. The extraction must exit 0, print "[INFO] Generated:", and the
+     manifest must declare the markdown output.
+steps:
+  - name: Extract the PNG image to Markdown via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Omni_Pre_Processor/batch_test/phase7_email_image/normal.png --target-format md --output-dir /tmp/omni_val/opp-ocr -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker for
+      the OCR path (OPP degrades gracefully to an empty markdown file
+      when no engine is installed, so the asserted contract here is the
+      pipeline-level success, not OCR text content).
+  - name: Manifest parses as JSON and declares the markdown output
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-ocr/normal_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "md-path=normal.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), and the
+      markdown output path is declared.  The manifest format field for
+      images is "UNKNOWN" (detection-by-magic-bytes does not name PNG),
+      so it is deliberately not asserted here.

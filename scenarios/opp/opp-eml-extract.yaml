@@ -1,0 +1,65 @@
+name: opp-eml-extract
+description: >
+  OPP extracts an EML email to Markdown: committed EML fixture -> exit 0,
+  manifest metadata keys, declared format EML, and the message body text
+  preserved.
+category: opp-extraction
+instructions: |
+  What to do:
+  1. Run the real OPP CLI on the committed EML fixture with
+     --target-format md into a fresh dir.
+  2. Parse the *_manifest.json — valid JSON, format EML.
+  3. Read the .md — the message body text must survive.
+  The fixture is the committed eval/reference/email_mixed/
+  email_mixed_01_source.eml (also copied to scenarios/_fixtures/ by
+  todo 16 — this scenario uses the original path).  EML is the covered
+  email path; MSG (opp-msg-extract) is gated on a fixture that does not
+  exist.  Deterministic: no LLM, no FAKE_LLM.
+steps:
+  - name: Extract EML to Markdown via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/eval/reference/email_mixed/email_mixed_01_source.eml --target-format md --output-dir /tmp/omni_val/opp-eml -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker.
+  - name: Manifest parses as JSON and declares the EML format
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-eml/email_mixed_01_source_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("format=" + m["source"]["format"])
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "format=EML"
+        - "md-path=email_mixed_01_source.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), declared
+      format EML and the markdown path matching the fixture stem.
+  - name: Markdown preserves the message body text
+    kind: python
+    command: |
+      import pathlib
+      md = pathlib.Path("/tmp/omni_val/opp-eml/email_mixed_01_source.md").read_text(encoding="utf-8")
+      print("body-found" if "Hi team" in md else "no-body")
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "body-found"
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the extraction output carries the expected email
+      structure (tool-contract standard): the message body text survives
+      as markdown content.

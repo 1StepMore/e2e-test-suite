@@ -1,0 +1,107 @@
+name: opp-epub-extract
+description: >
+  OPP extracts an EPUB to Markdown + XLIFF (--target-format both):
+  runtime-generated minimal EPUB (zip + container.xml + content.opf +
+  chapter) -> exit 0, manifest metadata keys, declared format EPUB,
+  chapter content preserved, and XLIFF trans-units for the zh target.
+category: opp-extraction
+instructions: |
+  What to do:
+  1. Generate a minimal valid EPUB at runtime with the zipfile stdlib
+     module (mimetype, META-INF/container.xml, OEBPS/content.opf,
+     OEBPS/chapter1.xhtml) — no fixture file is committed for this format.
+  2. Run the real OPP CLI on it with --target-format both
+     --source-lang en --target-lang zh into a fresh dir.
+  3. Parse the *_manifest.json — valid JSON, format EPUB.
+  4. Read the .md — the chapter title must survive; read the .xlf —
+     trans-units present with target-language="zh".
+  Generator logic ported from tests/test_e2e_opp_all_formats.py:603-650
+  (_create_minimal_epub).  Deterministic: no LLM, no FAKE_LLM.
+steps:
+  - name: Generate the minimal EPUB at runtime
+    kind: python
+    command: |
+      import pathlib, zipfile
+      container_xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+                       '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                       '<rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>'
+                       '</rootfiles></container>')
+      content_opf = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+                     '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
+                     'xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                     '<metadata><dc:identifier id="book-id">urn:uuid:test-epub-0000-0000-000000000000</dc:identifier>'
+                     '<dc:title>Test Document</dc:title><dc:language>en</dc:language>'
+                     '<dc:creator>Test Author</dc:creator></metadata>'
+                     '<manifest><item id="chapter1" href="chapter1.xhtml" media-type="application/xhtml+xml"/></manifest>'
+                     '<spine><itemref idref="chapter1"/></spine></package>')
+      chapter1 = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+                  '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter</title></head>'
+                  '<body><h1>Chapter Title</h1><p>Content.</p></body></html>')
+      out = pathlib.Path("/tmp/omni_val/opp-epub/book.epub")
+      out.parent.mkdir(parents=True, exist_ok=True)
+      with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+          zf.writestr("mimetype", "application/epub+zip")
+          zf.writestr("META-INF/container.xml", container_xml)
+          zf.writestr("OEBPS/content.opf", content_opf)
+          zf.writestr("OEBPS/chapter1.xhtml", chapter1)
+      print("written")
+    expect:
+      exit_code: 0
+      stdout_has: ["written"]
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the generator writes the EPUB and prints "written";
+      a failure means the fixture could not be produced.
+  - name: Extract EPUB to Markdown and XLIFF via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /tmp/omni_val/opp-epub/book.epub --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-epub -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker.
+  - name: Manifest parses as JSON and declares the EPUB format
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-epub/book_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("format=" + m["source"]["format"])
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "format=EPUB"
+        - "md-path=book.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), declared
+      format EPUB and markdown path book.md.
+  - name: Markdown keeps the chapter and XLIFF carries trans-units
+    kind: python
+    command: |
+      import pathlib, re
+      md = pathlib.Path("/tmp/omni_val/opp-epub/book.md").read_text(encoding="utf-8")
+      xlf = pathlib.Path("/tmp/omni_val/opp-epub/book.xlf").read_text(encoding="utf-8")
+      print("chapter-found" if "Chapter Title" in md else "no-chapter")
+      print("units-found" if len(re.findall(r"<trans-unit", xlf)) > 0 else "no-units")
+      print("target-zh" if 'target-language="zh"' in xlf else "no-target-zh")
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "chapter-found"
+        - "units-found"
+        - "target-zh"
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the extraction output carries the expected EPUB
+      structure (tool-contract standard): the chapter title survives in
+      markdown and the XLIFF carries trans-units with the zh
+      target-language declared (OPP prep).

@@ -1,0 +1,87 @@
+name: opp-xml-extract
+description: >
+  OPP extracts an XML document to Markdown: runtime-generated synthetic
+  XML catalog -> exit 0, manifest metadata keys, declared format XML, and
+  the element text content preserved in markdown.
+category: opp-extraction
+instructions: |
+  What to do:
+  1. Generate a synthetic XML catalog at runtime (plain string write) —
+     no fixture file is committed for this format.
+  2. Run the real OPP CLI on it with --target-format md into a fresh dir.
+  3. Parse the *_manifest.json — valid JSON, format XML.
+  4. Read the .md — the product element text must survive.
+  Generator logic ported from tests/test_cross_format_e2e.py:209-236
+  (_create_synthetic_xml).  Deterministic: no LLM, no FAKE_LLM.
+steps:
+  - name: Generate the synthetic XML at runtime
+    kind: python
+    command: |
+      import pathlib
+      xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+             '<catalog>\n'
+             '  <product id="P001"><name>Widget Pro</name><category>Electronics</category>'
+             '<price currency="USD">99.99</price></product>\n'
+             '  <product id="P002"><name>Widget Lite</name><category>Electronics</category>'
+             '<price currency="USD">49.99</price></product>\n'
+             '</catalog>')
+      out = pathlib.Path("/tmp/omni_val/opp-xml/in.xml")
+      out.parent.mkdir(parents=True, exist_ok=True)
+      out.write_text(xml, encoding="utf-8")
+      print("written")
+    expect:
+      exit_code: 0
+      stdout_has: ["written"]
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the generator writes the XML and prints "written";
+      a failure means the fixture could not be produced.
+  - name: Extract XML to Markdown via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /tmp/omni_val/opp-xml/in.xml --target-format md --output-dir /tmp/omni_val/opp-xml -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker.
+  - name: Manifest parses as JSON and declares the XML format
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-xml/in_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("format=" + m["source"]["format"])
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "format=XML"
+        - "md-path=in.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), declared
+      format XML and markdown path in.md.
+  - name: Markdown preserves the XML element text
+    kind: python
+    command: |
+      import pathlib
+      md = pathlib.Path("/tmp/omni_val/opp-xml/in.md").read_text(encoding="utf-8")
+      print("product-found" if "Widget Pro" in md else "no-product")
+      print("category-found" if "Electronics" in md else "no-category")
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "product-found"
+        - "category-found"
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the extraction output carries the expected XML
+      structure (tool-contract standard): the element text content
+      (product names, categories) survives as markdown text.

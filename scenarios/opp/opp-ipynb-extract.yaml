@@ -1,0 +1,64 @@
+name: opp-ipynb-extract
+description: >
+  OPP extracts an IPYNB notebook to Markdown: committed fixture -> exit
+  0, manifest metadata keys, markdown output declared.  GATED on
+  OPP_IPYNB_OK: the suite IPYNB test is xfail-marked for a KNOWN OPP
+  extractor compatibility issue (tests/test_cross_format_e2e.py:
+  1155-1157 — verified live 2026-08-14: the CLI exits 1 with
+  "Extraction failed: outputs"), so this scenario never asserts GREEN
+  unconditionally.  It reports unconfigured unless the operator exports
+  OPP_IPYNB_OK in an env where the known issue is resolved.
+category: opp-extraction
+requires_env: [OPP_IPYNB_OK]
+instructions: |
+  What to do:
+  1. This scenario is environment-gated on OPP_IPYNB_OK because of a
+     KNOWN OPP extractor compatibility issue with the IPYNB fixture
+     format (the suite test is xfail-marked,
+     tests/test_cross_format_e2e.py:1155-1157).  In default CI it
+     reports unconfigured: that is the expected, honest verdict, NOT a
+     failure — and the scenario never asserts extraction success
+     unconditionally.
+  2. The fixture EXISTS and is git-tracked at
+     Omni_Pre_Processor/tests/fixtures/ipynb/sample.ipynb (also copied
+     to scenarios/_fixtures/ by todo 16 — this scenario uses the
+     original path).
+  3. To run it for real: fix the extractor (or run in an env where the
+     issue is absent), export OPP_IPYNB_OK=1, and re-run.  The steps
+     drive the real OPP CLI with --target-format md.  If the steps go
+     RED here, that is the honest "defect present" verdict — the known
+     issue is still open.
+steps:
+  - name: Extract IPYNB to Markdown via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Omni_Pre_Processor/tests/fixtures/ipynb/sample.ipynb --target-format md --output-dir /tmp/omni_val/opp-ipynb -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker.
+      While the known extractor issue is open this step is RED, which is
+      why the scenario is gated: it only runs when the operator asserts
+      OPP_IPYNB_OK.
+  - name: Manifest parses as JSON and declares the markdown output
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-ipynb/sample_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "md-path=sample.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), and the
+      markdown output path is declared for the notebook.

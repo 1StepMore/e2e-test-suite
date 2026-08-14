@@ -1,0 +1,84 @@
+name: opp-json-extract
+description: >
+  OPP extracts a JSON document to Markdown: runtime-generated synthetic
+  JSON (nested object with arrays) -> exit 0, manifest metadata keys,
+  declared format JSON, and the payload preserved in a fenced code block.
+category: opp-extraction
+instructions: |
+  What to do:
+  1. Generate a synthetic JSON file at runtime with the json stdlib
+     module — no fixture file is committed for this format.
+  2. Run the real OPP CLI on it with --target-format md into a fresh dir.
+  3. Parse the *_manifest.json — valid JSON, format JSON.
+  4. Read the .md — the JSON payload must survive in a ```json code block.
+  Generator logic ported from tests/test_cross_format_e2e.py:186-206
+  (_create_synthetic_json).  Deterministic: no LLM, no FAKE_LLM.
+steps:
+  - name: Generate the synthetic JSON at runtime
+    kind: python
+    command: |
+      import json, pathlib
+      data = {"product": {"name": "Synthetic Widget", "version": "3.2.1",
+                          "features": [{"id": 1, "name": "Auto-save"},
+                                       {"id": 2, "name": "Cloud sync"}],
+                          "metadata": {"author": "Test Team", "license": "MIT"}}}
+      out = pathlib.Path("/tmp/omni_val/opp-json/in.json")
+      out.parent.mkdir(parents=True, exist_ok=True)
+      out.write_text(json.dumps(data, indent=2), encoding="utf-8")
+      print("written")
+    expect:
+      exit_code: 0
+      stdout_has: ["written"]
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the generator writes the JSON and prints "written";
+      a failure means the fixture could not be produced.
+  - name: Extract JSON to Markdown via the real OPP CLI
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /tmp/omni_val/opp-json/in.json --target-format md --output-dir /tmp/omni_val/opp-json -v
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    timeout_seconds: 180
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 0 (exit-codes standard) and verbose
+      stderr prints "[INFO] Generated:" — the real success marker.
+  - name: Manifest parses as JSON and declares the JSON format
+    kind: python
+    command: |
+      import json, pathlib
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-json/in_manifest.json").read_text(encoding="utf-8"))
+      print(",".join(sorted(m.keys())))
+      print("format=" + m["source"]["format"])
+      print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "manifest_version"
+        - "source"
+        - "extraction"
+        - "format=JSON"
+        - "md-path=in.md"
+    standard: STANDARDS.md#json-parseable
+    instructions: |
+      What to check: json.loads succeeds (json-parseable), metadata keys
+      manifest_version/source/extraction present (>= 4 keys), declared
+      format JSON and markdown path in.md.
+  - name: Markdown preserves the JSON payload in a code block
+    kind: python
+    command: |
+      import pathlib
+      md = pathlib.Path("/tmp/omni_val/opp-json/in.md").read_text(encoding="utf-8")
+      print("codeblock-found" if "```json" in md else "no-codeblock")
+      print("payload-found" if "Synthetic Widget" in md else "no-payload")
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "codeblock-found"
+        - "payload-found"
+    standard: STANDARDS.md#tool-contract
+    instructions: |
+      What to check: the extraction output carries the expected JSON
+      structure (tool-contract standard): the payload survives inside a
+      ```json fenced code block.
