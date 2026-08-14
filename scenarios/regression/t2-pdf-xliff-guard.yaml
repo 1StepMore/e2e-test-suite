@@ -1,0 +1,51 @@
+name: t2-pdf-xliff-guard
+description: >
+  Regression seed locking bug T2 (active-bugs.json): OPP MUST refuse to
+  generate XLIFF for PDF input.  The guard at
+  Omni_Pre_Processor/src/opp/pipeline.py:130-140 raises
+  ValueError("XLIFF not supported for PDF format") when
+  result.metadata.format_type == FormatType.PDF.value ("pdf"), and the CLI
+  surfaces it as exit code 1 with the message on stderr (logger.exception
+  in commands/extract.py:302-305 -> stats.errors -> main() returns 1).
+  A bare `--target-format xlf` without `--target-lang` dies in argparse
+  before the guard runs (cli.py:260), so the full language pair is part of
+  the command.  This scenario is the flywheel seed: if the guard is ever
+  bypassed or removed, this scenario turns RED (exit 0 -> expect exit_code
+  1 fails).
+category: regression
+regression: true
+regression_issue: "#T2"
+tier: 1
+instructions: |
+  What to do:
+  1. Run the real OPP CLI on the committed static PDF fixture
+     scenarios/_fixtures/normal.pdf (real %PDF-1.7, copied from
+     Omni_Pre_Processor/batch_test/phase0_office/normal.pdf, commit
+     0945f4e — no reportlab dependency) with --target-format xlf and the
+     FULL language pair (cli.py:260 requires --target-lang when
+     --target-format is xlf).
+  2. The expected behavior is a hard refusal: exit code 1 and the exact
+     guard message on stderr.  NO normal.xlf may be produced.
+  The literal word "blocked" never appears in OPP stderr — the REAL guard
+  message is "XLIFF not supported for PDF format" (pipeline.py:131).
+  Deterministic, LLM-free, hermetic (tier 1): no API keys, no network.
+steps:
+  - name: OPP refuses PDF->XLIFF with exit 1 and the guard message
+    kind: cli
+    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/scenarios/_fixtures/normal.pdf --target-format xlf --source-lang en --target-lang zh --output-dir /tmp/omni_val/t2
+    expect:
+      exit_code: 1
+      stderr_has: ["XLIFF not supported for PDF format"]
+    timeout_seconds: 120
+    standard: STANDARDS.md#exit-codes
+    instructions: |
+      What to check: the CLI exits 1 (exit-codes standard: nonzero on
+      failure, reason on stderr) and stderr contains the exact guard
+      message "XLIFF not supported for PDF format" (pipeline.py:131) —
+      surfaced via logger.exception by commands/extract.py:302-305.  A
+      zero exit (XLIFF silently written) means the guard is bypassed —
+      exactly the T2 regression class (active-bugs.json T2: a prior
+      uppercase "PDF" comparison never matched FormatType.PDF.value="pdf"
+      and silently let broken XLIFF through; verify test
+      Omni_Pre_Processor/tests/test_pipeline_pdf_xliff_guard.py::
+      TestPDFXliffGuard).
