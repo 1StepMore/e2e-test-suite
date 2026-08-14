@@ -1,0 +1,81 @@
+name: orf-xliff-epub
+description: >-
+  ORF apply-xliff backfill to EPUB: run the real `orf apply-xliff` CLI on the
+  committed translated-XLIFF fixture pair (source.epub + source.xlf, hermetic)
+  with a run-time-generated EPUB skeleton.zip and verify the backfilled EPUB
+  carries the EPUB structural signature (zip with mimetype as FIRST entry,
+  EPUB/content.opf present) AND the translated Chinese targets from the XLIFF
+  (水星机器人 in EPUB/text/ch001.xhtml).
+category: orf-xliff
+tier: 1
+requires_env: []
+instructions: |-
+  Prove ORF apply-xliff backfills the committed translated-XLIFF pair to EPUB with the real surface. 1) the copy step stages the 8 committed fixture files into /tmp/omni_val/orf-xliff-epub/; 2) the skeleton step runs the real OPP CLI to generate the EPUB skeleton.zip at run time (`opp source.epub --target-format both`) into skel_epub/; 3) the CLI step runs `orf apply-xliff <epub skeleton.zip> --xliff <translated xlf> --format epub` and must exit 0; 4) the assert step unzips the output and checks: mimetype is the FIRST zip entry, EPUB/content.opf exists, and the translated Chinese target 水星机器人 appears in the EPUB content (xlf unit id=1 target is 水星机器人 — 产品概述). No LLM, no FAKE_LLM — the fixture is pre-translated and hermetic (tier 1).
+steps:
+  - name: Stage committed translated fixture pair
+    kind: python
+    command: |-
+      import pathlib, shutil
+      src = pathlib.Path("/mnt/d/贯维/Omni_Suite/scenarios/_fixtures/translated_pair")
+      d = pathlib.Path("/tmp/omni_val/orf-xliff-epub")
+      d.mkdir(parents=True, exist_ok=True)
+      files = [f for f in src.iterdir() if f.is_file()]
+      for f in files:
+          shutil.copy2(f, d / f.name)
+      print("COPIED %d fixture files" % len(files))
+    expect:
+      exit_code: 0
+      stdout_has: ["COPIED 8 fixture files"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Copy the committed fixture pair (8 files incl. source.epub + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-epub/. Check: exit 0 and "COPIED 8 fixture files".
+  - name: Generate EPUB skeleton.zip at run time via OPP
+    kind: cli
+    command: opp /tmp/omni_val/orf-xliff-epub/source.epub --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/orf-xliff-epub/skel_epub -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Generate the EPUB skeleton.zip at run time with the REAL OPP CLI: `opp source.epub --target-format both -s en -t zh -o skel_epub/ -v`. The skeleton preserves the EPUB CSS/layout — layout, not input content — so it is generated at run time and never committed. Check: exit code 0 and the OPP -v marker "[INFO] Generated:" on stderr.
+  - name: Backfill translated XLIFF to EPUB with orf apply-xliff
+    kind: cli
+    command: orf apply-xliff /tmp/omni_val/orf-xliff-epub/skel_epub/source.skeleton.zip --xliff /tmp/omni_val/orf-xliff-epub/source.xlf --output /tmp/omni_val/orf-xliff-epub/out.epub --format epub
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni_val/orf-xliff-epub/out.epub"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-xliff-epub/out.epub
+    instructions: |-
+      Run the REAL orf CLI backfill: `orf apply-xliff <epub skeleton.zip> --xliff <committed translated source.xlf> --output out.epub --format epub`. Check: exit code 0 (STANDARDS.md#exit-codes) and stdout announces "Created <path>". The assertion on the output content is the next step.
+  - name: Assert EPUB structure and translated targets present
+    kind: python
+    command: |-
+      import sys, zipfile
+      p = "/tmp/omni_val/orf-xliff-epub/out.epub"
+      try:
+          assert zipfile.is_zipfile(p), "not a zip archive"
+          z = zipfile.ZipFile(p)
+          names = z.namelist()
+          assert names and names[0] == "mimetype", "mimetype must be the first zip entry"
+          assert "EPUB/content.opf" in names, "missing EPUB/content.opf"
+          blob = ""
+          ch = [n for n in names if n.endswith((".xhtml", ".html"))]
+          for n in ch:
+              blob += z.read(n).decode("utf-8", "ignore")
+          assert "水星机器人" in blob, "translated target 水星机器人 not present in EPUB content"
+          print("OK: epub zip with mimetype first + content.opf; translated target 水星机器人 present in %d content file(s)" % len(ch))
+      except Exception as e:
+          print("ERROR: %s" % e)
+          sys.exit(1)
+    expect:
+      exit_code: 0
+      stdout_has: ["OK:"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-xliff-epub/out.epub
+    instructions: |-
+      Read /tmp/omni_val/orf-xliff-epub/out.epub and verify: (1) zip archive whose FIRST entry is mimetype (the EPUB spec + suite acceptance require it); (2) EPUB/content.opf present; (3) the backfilled content carries the translated Chinese target 水星机器人 — the xlf target for unit id=1 is "水星机器人 — 产品概述", verified present in EPUB/text/ch001.xhtml empirically. The snippet exits 0 with an OK: message when all hold, or exits 1 naming the problem otherwise.

@@ -1,0 +1,112 @@
+name: orf-xliff-cross-format-force
+description: >-
+  ORF apply-xliff cross-format --force contract (36-path 34-35): drive the
+  real `orf apply-xliff` CLI with a DOCX skeleton.zip + the committed
+  translated-XLIFF pair and --force to produce PPTX and EPUB outputs. The
+  force contract (apply_xliff.py:198-253 + test_cross_format_e2e.py:1416-1494):
+  --force bypasses the skeleton-format validation, emits a FORCE MODE warning
+  on stderr, exits 0 and produces an output file — a warning + output, NOT an
+  error. The warning is only emitted on a fresh conversion, so both force
+  steps pass --no-cache (empirically verified: a cached re-run skips the
+  warning). The committed source.docx is the Meridian Product Overview doc
+  matching the xlf, and its run-time skeleton.zip carries the DOCX content
+  that --format pptx/epub rejects without --force (exit 2).
+category: orf-xliff
+tier: 1
+requires_env: []
+instructions: |-
+  Prove the cross-format --force contract of ORF apply-xliff (paths 34-35: DOCX XLIFF -> PPTX and DOCX XLIFF -> EPUB). 1) the copy step stages the 8 committed fixture files into /tmp/omni_val/orf-xliff-cross-format-force/; 2) the skeleton step runs the real OPP CLI to generate the DOCX skeleton.zip at run time (`opp source.docx --target-format both`) into skel/; 3) the first force step runs `orf apply-xliff <docx skeleton.zip> --xliff <translated xlf> --format pptx --force --no-cache` — WITHOUT --force this exits 2 (skeleton-format mismatch); WITH --force it must exit 0, print Created on stdout AND emit the "[WARNING] FORCE MODE: Skeleton ZIP contains 'DOCX' format, but --format is 'pptx'" warning on stderr (--no-cache guarantees the warning is emitted even on re-runs); 4) a python step asserts the pptx output exists and is non-empty; 5) the second force step does the same for --format epub; 6) a python step asserts the epub output exists and is non-empty. The output may be a repacked zip (the contract says "may produce broken output") — only existence + warning + exit 0 are asserted. No LLM, no FAKE_LLM — hermetic (tier 1).
+steps:
+  - name: Stage committed translated fixture pair
+    kind: python
+    command: |-
+      import pathlib, shutil
+      src = pathlib.Path("/mnt/d/贯维/Omni_Suite/scenarios/_fixtures/translated_pair")
+      d = pathlib.Path("/tmp/omni_val/orf-xliff-cross-format-force")
+      d.mkdir(parents=True, exist_ok=True)
+      files = [f for f in src.iterdir() if f.is_file()]
+      for f in files:
+          shutil.copy2(f, d / f.name)
+      print("COPIED %d fixture files" % len(files))
+    expect:
+      exit_code: 0
+      stdout_has: ["COPIED 8 fixture files"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Copy the committed fixture pair (8 files incl. source.docx + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-cross-format-force/. Check: exit 0 and "COPIED 8 fixture files".
+  - name: Generate DOCX skeleton.zip at run time via OPP
+    kind: cli
+    command: opp /tmp/omni_val/orf-xliff-cross-format-force/source.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/orf-xliff-cross-format-force/skel -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Generate the DOCX skeleton.zip at run time with the REAL OPP CLI: `opp source.docx --target-format both -s en -t zh -o skel/ -v`. The skeleton preserves the DOCX zip structure — layout, not input content — generated at run time, never committed. This is the cross-format INPUT: it carries DOCX content while the force steps target pptx/epub. Check: exit code 0 and the OPP -v marker "[INFO] Generated:" on stderr.
+  - name: Cross-format DOCX XLIFF to PPTX with --force
+    kind: cli
+    command: orf apply-xliff /tmp/omni_val/orf-xliff-cross-format-force/skel/source.skeleton.zip --xliff /tmp/omni_val/orf-xliff-cross-format-force/source.xlf --output /tmp/omni_val/orf-xliff-cross-format-force/cross.pptx --format pptx --force --no-cache
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni_val/orf-xliff-cross-format-force/cross.pptx"]
+      stderr_has: ["[WARNING] FORCE MODE: Skeleton ZIP contains 'DOCX' format, but --format is 'pptx'"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-xliff-cross-format-force/cross.pptx
+    instructions: |-
+      Run the REAL orf CLI cross-format backfill (36-path 34): `orf apply-xliff <docx skeleton.zip> --xliff <translated xlf> --output cross.pptx --format pptx --force --no-cache`. Without --force this exits 2 (skeleton-format mismatch: "Skeleton ZIP contains 'DOCX' format content, but --format is 'pptx'"); with --force the contract is warning + output, not an error: exit 0, stdout announces "Created <path>", and stderr carries the FORCE MODE warning "[WARNING] FORCE MODE: Skeleton ZIP contains 'DOCX' format, but --format is 'pptx'. Continuing with --force flag — output may be broken." (--no-cache guarantees the warning is emitted on every run — a cached re-run skips conversion and the warning). Check all three: exit 0, Created on stdout, warning on stderr.
+  - name: Assert cross-format PPTX output exists
+    kind: python
+    command: |-
+      import sys, pathlib
+      p = pathlib.Path("/tmp/omni_val/orf-xliff-cross-format-force/cross.pptx")
+      try:
+          assert p.exists(), "cross-format pptx output missing"
+          assert p.stat().st_size > 0, "cross-format pptx output empty"
+          print("OK: cross-format pptx output exists, %d bytes" % p.stat().st_size)
+      except Exception as e:
+          print("ERROR: %s" % e)
+          sys.exit(1)
+    expect:
+      exit_code: 0
+      stdout_has: ["OK:"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-xliff-cross-format-force/cross.pptx
+    instructions: |-
+      Verify the --force contract's output half for the pptx target: the cross-format output file exists and is non-empty. Per the force contract the output "may be incomplete or invalid" (empirically it is the DOCX zip repacked — that is EXPECTED for the experimental path), so only existence + non-empty size are asserted, never format validity. The snippet exits 0 with an OK: message when the file exists, or exits 1 naming the problem otherwise.
+  - name: Cross-format DOCX XLIFF to EPUB with --force
+    kind: cli
+    command: orf apply-xliff /tmp/omni_val/orf-xliff-cross-format-force/skel/source.skeleton.zip --xliff /tmp/omni_val/orf-xliff-cross-format-force/source.xlf --output /tmp/omni_val/orf-xliff-cross-format-force/cross.epub --format epub --force --no-cache
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni_val/orf-xliff-cross-format-force/cross.epub"]
+      stderr_has: ["[WARNING] FORCE MODE: Skeleton ZIP contains 'DOCX' format, but --format is 'epub'"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-xliff-cross-format-force/cross.epub
+    instructions: |-
+      Run the REAL orf CLI cross-format backfill (36-path 35): `orf apply-xliff <docx skeleton.zip> --xliff <translated xlf> --output cross.epub --format epub --force --no-cache`. Same force contract as the pptx step: without --force this exits 2; with --force it must exit 0 with "Created <path>" on stdout and the "[WARNING] FORCE MODE: Skeleton ZIP contains 'DOCX' format, but --format is 'epub'" warning on stderr (--no-cache guarantees the warning on every run). Check all three: exit 0, Created on stdout, warning on stderr.
+  - name: Assert cross-format EPUB output exists
+    kind: python
+    command: |-
+      import sys, pathlib
+      p = pathlib.Path("/tmp/omni_val/orf-xliff-cross-format-force/cross.epub")
+      try:
+          assert p.exists(), "cross-format epub output missing"
+          assert p.stat().st_size > 0, "cross-format epub output empty"
+          print("OK: cross-format epub output exists, %d bytes" % p.stat().st_size)
+      except Exception as e:
+          print("ERROR: %s" % e)
+          sys.exit(1)
+    expect:
+      exit_code: 0
+      stdout_has: ["OK:"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-xliff-cross-format-force/cross.epub
+    instructions: |-
+      Verify the --force contract's output half for the epub target: the cross-format output file exists and is non-empty. Per the force contract the output "may be incomplete or invalid" (empirically it is the DOCX zip repacked — EXPECTED for the experimental path), so only existence + non-empty size are asserted, never format validity. The snippet exits 0 with an OK: message when the file exists, or exits 1 naming the problem otherwise.
