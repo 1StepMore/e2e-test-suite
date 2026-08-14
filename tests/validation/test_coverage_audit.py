@@ -16,7 +16,8 @@ importlib — the same "thin wrapper around a real module" convention as
 RED-first discipline: every test here drives ``compute_coverage`` /
 ``main()`` with explicit tmp scenario/fixture dirs where a failure is
 simulated; the happy test runs against the REAL repo library (after
-todo 14 landed all 39 per-tool agent-surface scenarios).
+todo 14 landed all 39 per-tool agent-surface scenarios and todo 20
+added the two suite validation tools — 41 declared).
 """
 
 from __future__ import annotations
@@ -100,9 +101,9 @@ def full_scenario_dir(tmp_path: Path) -> Path:
 
 def test_live_surface_is_four_modules_and_nonempty():
     """The audit parses the LIVE registries: opp 9 / ol 21 / orf 7 /
-    omni_mcp 2 (39 total at baseline).  The count derives from the
+    omni_mcp 4 (41 total at acceptance).  The count derives from the
     registries — the test only pins per-module non-emptiness plus the
-    known module keys and the two suite tools."""
+    known module keys and the four suite tools."""
     surface = audit.load_live_surface()
     assert set(surface) == set(MODULES)
     for module in MODULES:
@@ -114,8 +115,9 @@ def test_live_surface_is_four_modules_and_nonempty():
 @pytest.mark.parametrize("module", MODULES)
 def test_real_repo_all_declared_tools_covered(module: str):
     """Happy: against the REAL scenario library (todo 14 landed all 39
-    agent-surface scenarios), every declared tool of every module is
-    scenario-used — zero ``missing``, zero ``phantom``."""
+    per-tool agent-surface scenarios, todo 20 the two suite validation
+    tools), every declared tool of every module is scenario-used — zero
+    ``missing``, zero ``phantom``."""
     report = audit.compute_coverage(SUITE_ROOT)
     assert report.missing[module] == [], (
         f"{module}: declared but never scenario-used: {report.missing[module]}"
@@ -213,7 +215,7 @@ def test_error_boundary_probe_is_allowlisted_not_phantom(tmp_path: Path):
 
 def test_drift_real_fixtures_underpin_live_surface():
     """Drift on the REAL frozen fixtures: opp 7 / ol 9 / orf 6 = 22 vs
-    live module surface 37 (+2 suite tools unpinned) = 39.  The under-pin
+    live module surface 37 (+4 suite tools unpinned) = 41.  The under-pin
     is a genuine first finding the report surfaces — the fixtures are NOT
     modified here (todo 21 reconciles them)."""
     report = audit.compute_coverage(SUITE_ROOT)
@@ -222,11 +224,11 @@ def test_drift_real_fixtures_underpin_live_surface():
     assert d["ol"]["frozen"] == 9 and d["ol"]["live"] == 21
     assert d["opp"]["frozen"] == 7 and d["opp"]["live"] == 9
     assert d["orf"]["frozen"] == 6 and d["orf"]["live"] == 7
-    # totals: frozen 22 vs live module-level 37, plus suite 2 unpinned
+    # totals: frozen 22 vs live module-level 37, plus suite 4 unpinned
     assert d["totals"]["frozen"] == 22
     assert d["totals"]["live_module"] == 37
-    assert d["totals"]["live_suite"] == 2
-    assert d["totals"]["live_total"] == 39
+    assert d["totals"]["live_suite"] == 4
+    assert d["totals"]["live_total"] == 41
 
 
 def test_drift_computed_from_files_not_hardcoded(tmp_path: Path):

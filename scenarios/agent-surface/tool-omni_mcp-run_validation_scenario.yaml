@@ -1,0 +1,35 @@
+name: tool-omni_mcp-run_validation_scenario
+description: "Suite omni_mcp run_validation_scenario runs the real validation engine on a scenario filter and returns per-step check text + standard citations; invalid params produce a clean error."
+category: agent-surface
+tier: 1
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'run_validation_scenario runs a hermetic tool scenario through the real engine'
+    kind: mcp
+    tool: omni_mcp.server.run_validation_scenario
+    arguments:
+      scenario: tool-omni_mcp-ping
+    timeout_seconds: 120
+    expect:
+      success: true
+      data_has: ['"run_id"', '"status": "passed"', 'STANDARDS.md#']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Run the real validation engine on the hermetic tool-omni_mcp-ping scenario (tier 1 — no LLM keys); expect a run record with run_id and a passed verdict whose steps carry per-step check text and STANDARDS.md# citations in-band (draft D12).'
+  - name: 'run_validation_scenario rejects invalid params cleanly'
+    kind: mcp
+    tool: omni_mcp.server.run_validation_scenario
+    arguments:
+      tier: 4
+    timeout_seconds: 120
+    expect:
+      success: false
+      data_has: ['OMNI_INVALID_INPUT']
+    standard: STANDARDS.md#error-clarity
+    instructions: "Call run_validation_scenario with tier 4 (outside the 1|2|3 tier model); the call must fail with a clean OMNI_INVALID_INPUT error naming the tier constraint, no traceback."
