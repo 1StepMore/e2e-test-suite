@@ -214,18 +214,19 @@ def test_error_boundary_probe_is_allowlisted_not_phantom(tmp_path: Path):
 
 
 def test_drift_real_fixtures_underpin_live_surface():
-    """Drift on the REAL frozen fixtures: opp 7 / ol 9 / orf 6 = 22 vs
-    live module surface 37 (+4 suite tools unpinned) = 41.  The under-pin
-    is a genuine first finding the report surfaces — the fixtures are NOT
-    modified here (todo 21 reconciles them)."""
+    """Drift on the REAL frozen fixtures: opp 9 / ol 21 / orf 7 = 37 vs
+    live module surface 37 (+4 suite tools unpinned) = 41.  Todo 21
+    reconciled the fixtures to the live surface, so module-level drift is
+    now 0 — the audit still reads the real files (not a constant) and
+    reports the suite unpinned tools as the remaining by-design gap."""
     report = audit.compute_coverage(SUITE_ROOT)
     d = report.drift
-    # per-module deltas (the acceptance numbers from plan todo 17)
-    assert d["ol"]["frozen"] == 9 and d["ol"]["live"] == 21
-    assert d["opp"]["frozen"] == 7 and d["opp"]["live"] == 9
-    assert d["orf"]["frozen"] == 6 and d["orf"]["live"] == 7
-    # totals: frozen 22 vs live module-level 37, plus suite 4 unpinned
-    assert d["totals"]["frozen"] == 22
+    # per-module deltas after todo 21 reconciliation (frozen == live)
+    assert d["ol"]["frozen"] == 21 and d["ol"]["live"] == 21
+    assert d["opp"]["frozen"] == 9 and d["opp"]["live"] == 9
+    assert d["orf"]["frozen"] == 7 and d["orf"]["live"] == 7
+    # totals: frozen 37 vs live module-level 37, plus suite 4 unpinned
+    assert d["totals"]["frozen"] == 37
     assert d["totals"]["live_module"] == 37
     assert d["totals"]["live_suite"] == 4
     assert d["totals"]["live_total"] == 41
@@ -253,8 +254,10 @@ def test_drift_computed_from_files_not_hardcoded(tmp_path: Path):
 
 def test_expected_counts_literal_parsed_from_test_file():
     """EXPECTED_COUNTS at tests/contract/test_mcp_schemas.py:49 is read
-    via a static AST parse (deterministic, no import of the test module)."""
+    via a static AST parse (deterministic, no import of the test module).
+    After todo 21's reconciliation the literal pins the live 37-tool
+    surface: opp 9 / orf 7 / ol 21."""
     counts = audit.parse_expected_counts(
         SUITE_ROOT / "tests" / "contract" / "test_mcp_schemas.py"
     )
-    assert counts == {"opp": 7, "orf": 6, "ol": 9}
+    assert counts == {"opp": 9, "orf": 7, "ol": 21}
