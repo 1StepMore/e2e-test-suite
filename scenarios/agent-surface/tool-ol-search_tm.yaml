@@ -1,0 +1,45 @@
+name: tool-ol-search_tm
+description: "OL search_tm searches the TMX fixture for similar translations (needs the hypomnema model stack online) and denies bad paths cleanly."
+category: agent-surface
+tier: 1
+requires_env: [OMNI_TM_NETWORK, MCP_ALLOWED_DIRECTORIES]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'search_tm searches the TMX fixture'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import SearchTMInput, search_tm
+      r = asyncio.run(search_tm(params=SearchTMInput(source_text="Click the button", tmx_path="/tmp/omni-agent-surface/memory.tmx")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": true', '"matches"', '"count"']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'search_tm loads embedding models through hypomnema on first use (HuggingFace download), so it only runs with network access — declared via requires_env OMNI_TM_NETWORK. With network, expect success with matches and count.'
+  - name: 'search_tm returns a clean path denial for a bad TMX path'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import SearchTMInput, search_tm
+      r = asyncio.run(search_tm(params=SearchTMInput(source_text="Click the button", tmx_path="/nonexistent/m.tmx")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['OL_PATH_NOT_ALLOWED']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: 'Call with a nonexistent TMX path; the validator must deny it cleanly, no traceback.'

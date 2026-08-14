@@ -1,0 +1,45 @@
+name: tool-ol-profile_doc
+description: "OL profile_doc profiles a document's writing style (requires real LLM keys) and rejects wrong-shaped params cleanly."
+category: agent-surface
+tier: 1
+requires_env: [OPENAI_API_KEY, ZHIPU_API_KEY, AGNES_API_KEY, NVIDIA_NIM_API_KEY]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'profile_doc profiles the document text'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import ProfileDocInput, profile_doc
+      r = asyncio.run(profile_doc(params=ProfileDocInput(content="# Hello World\n\nThis is a test.", source_lang="en", config_path="/tmp/omni-agent-surface/default.yaml")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": true', '"profile"']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Real LLM profiling: runs only with a provider key (requires_env). Expect success with a profile object.'
+  - name: 'profile_doc returns a clean error for wrong-shaped params'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import profile_doc
+      r = asyncio.run(profile_doc(params={'content': '# Hi'}))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#error-clarity
+    instructions: 'Call with a plain dict; the error boundary must return a clean JSON error, no traceback.'

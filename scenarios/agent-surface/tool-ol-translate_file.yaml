@@ -1,0 +1,63 @@
+name: tool-ol-translate_file
+description: "OL translate_file runs the OPP-OL-ORF pipeline on a document (requires real LLM keys) and returns the shipped clean ORF_INPUT_MISSING defect error."
+category: agent-surface
+tier: 1
+requires_env: [OPENAI_API_KEY, ZHIPU_API_KEY, AGNES_API_KEY, NVIDIA_NIM_API_KEY, OL_CONFIG_PATH, OPP_CONFIG_PATH, OPP_ALLOWED_DIRECTORIES]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+  translate_file shells out to the opp/ol/orf CLIs, so its happy contract only
+  runs in a fully configured env (real LLM keys plus the CLI config vars
+  declared in requires_env); key-less runs report unconfigured honestly.
+steps:
+  - name: "translate_file with valid args returns the shipped clean ORF_INPUT_MISSING defect error"
+    kind: python
+    command: |
+      import os, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      FIXT = "/tmp/omni-agent-surface"
+      os.makedirs(FIXT, exist_ok=True)
+      from docx import Document
+      p = os.path.join(FIXT, "sample.docx")
+      if not os.path.exists(p):
+          d = Document()
+          d.add_heading("Meridian Robotics — Product Overview", level=1)
+          d.add_paragraph("Meridian Robotics is a global manufacturer of industrial automation systems.")
+          d.save(p)
+      import asyncio
+      from ol_mcp.tools import TranslateFileInput, translate_file
+      r = asyncio.run(translate_file(params=TranslateFileInput(
+          file_path="/tmp/omni-agent-surface/sample.docx",
+          source_lang="en", target_lang="zh",
+          output_format="docx", pipeline="md")))
+      print(r)
+    timeout_seconds: 300
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["ORF_INPUT_MISSING", "does not exist"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#error-clarity
+    instructions: "KNOWN DEFECTS (findings, verified with a fully configured keyed env): (1) the md path expects the OL CLI output at <temp>/<stem>.translated.md but `ol translate-md` writes <temp>/<stem>.md, so ORF_INPUT_MISSING fires; (2) the xliff path passes --target-format to `orf apply-xliff`, whose real option is --format. This step pins the REAL shipped behavior of the md path: a clean ORF_INPUT_MISSING error naming the missing file, no traceback. Report both defects to the OL bug track."
+    collect_artifacts:
+      - path: "/tmp/omni-agent-surface/sample.docx"
+  - name: "translate_file returns a clean error for wrong-shaped params"
+    kind: python
+    command: |
+      import asyncio, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import translate_file
+      r = asyncio.run(translate_file(params={'file_path': '/tmp/x.docx'}))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false']
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#error-clarity
+    instructions: "Call with a plain dict; the error boundary must return a clean JSON error, no traceback."

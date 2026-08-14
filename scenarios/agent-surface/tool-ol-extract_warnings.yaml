@@ -1,0 +1,53 @@
+name: tool-ol-extract_warnings
+description: "OL extract_warnings scans a warning-marked MD fixture and returns a clean path error for a bad path."
+category: agent-surface
+tier: 1
+requires_env: [MCP_ALLOWED_DIRECTORIES]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'extract_warnings scans the warning-marked fixture'
+    kind: python
+    command: |
+      import os, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      FIXT = "/tmp/omni-agent-surface"
+      os.makedirs(FIXT, exist_ok=True)
+      if not os.path.exists(os.path.join(FIXT, "warn.md")):
+          open(os.path.join(FIXT, "warn.md"), "w").write("# Hi\n<!-- OL_WARN:missing_shields key1 -->\nbody\n")
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import ExtractWarningsInput, extract_warnings
+      r = asyncio.run(extract_warnings(params=ExtractWarningsInput(file_path="/tmp/omni-agent-surface/warn.md")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": true', '"warnings"']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Provision an MD file carrying an OL_WARN marker under /tmp, construct ExtractWarningsInput and call the REAL extract_warnings; expect success with a warnings list.'
+    collect_artifacts:
+      - path: '/tmp/omni-agent-surface/warn.md'
+  - name: 'extract_warnings returns a clean path denial for a bad path'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import ExtractWarningsInput, extract_warnings
+      r = asyncio.run(extract_warnings(params=ExtractWarningsInput(file_path="/nonexistent/warn.md")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['OL_PATH_NOT_ALLOWED']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: 'Call with a nonexistent path; the validator must deny it cleanly, no traceback.'

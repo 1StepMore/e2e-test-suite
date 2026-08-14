@@ -1,0 +1,62 @@
+name: tool-opp-batch_extract
+description: "OPP batch_extract extracts a DOCX fixture via the real tool function and denies out-of-allowlist paths cleanly."
+category: agent-surface
+tier: 1
+requires_env: [OPP_MCP_ALLOWED_DIRS]
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'Provision fixtures and batch-extract the DOCX via the real tool'
+    kind: python
+    command: |
+      import asyncio, json, os, sys
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      FIXT = "/tmp/omni-agent-surface"
+      os.makedirs(FIXT, exist_ok=True)
+      from docx import Document
+      p = os.path.join(FIXT, "sample.docx")
+      if not os.path.exists(p):
+          d = Document()
+          d.add_heading("Meridian Robotics — Product Overview", level=1)
+          d.add_paragraph("Meridian Robotics is a global manufacturer of industrial automation systems.")
+          d.save(p)
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import batch_extract
+      r = asyncio.run(batch_extract(file_paths=[p], output_formats="md"))
+      print(json.dumps(r, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": true', '"results"', 'Meridian Robotics']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Drive the real batch_extract function after _init_server; expect a success payload whose results list carries the extracted markdown.'
+    collect_artifacts:
+      - path: '/tmp/omni-agent-surface/sample.docx'
+  - name: 'batch_extract denies a path outside the allowlist'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import batch_extract
+      r = asyncio.run(batch_extract(file_paths=["/etc/hosts"], output_formats="md"))
+      print(json.dumps(r, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: 'Call with a system-directory path; the whole batch MUST be denied with a clean agent-readable error, no traceback in the payload.'
