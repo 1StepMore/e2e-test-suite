@@ -99,3 +99,44 @@ The `omni-contract-smoke` hook is manual-only (`stages: [manual]`), skipped on `
 
 ### orf-mcp-server (6 tools)
 `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `ping`
+
+## How to validate
+
+Run the agent-testing validation engine (83 scenarios; no mocks, no
+FAKE_LLM as evidence). All commands from the suite root with the venv:
+
+```bash
+source .venv_ol/bin/activate
+
+# Enumerate the library — no execution
+python scripts/validation/run_validation.py --list
+
+# Run one hermetic scenario (tier 1 = no LLM keys needed)
+python scripts/validation/run_validation.py --scenario <name> --tier 1
+
+# Contract-lint the library itself
+python scripts/validation/run_validation.py --check
+```
+
+Only these scripts exist — do not invent other commands:
+`scripts/validation/{run_validation.py, coverage_audit.py, validation_report.py, validation_diff.py}`.
+
+**Reading results**: `validation-runs/latest.txt` points at the newest
+run (`validation-runs/<ts>/scenarios.json`). Generate the director
+report with
+`python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json`
+→ `report.md` in the same dir, with TWO verdict families side by side:
+**agent-user conformance** (tool-* scenarios + AGENT-SURFACE standards:
+contract, JSON shape, error clarity, path security, exit codes) and
+**human-quality conformance** (pipeline-* scenarios + HUMAN-QUALITY
+standards: LQA ≥ 4.0/5, paragraph ratio ±5%, CJK density < 5%, zero
+foreign punctuation, drawing count, opens in python-docx). `unconfigured`
+(missing env, e.g. no LLM keys) is never a pass and never a silent skip.
+
+**Standards**: `scenarios/STANDARDS.md` — the single citable bar, two
+families, exact anchors per step (`standard: STANDARDS.md#<anchor>`).
+Read it before judging a verdict.
+
+**Director checklist**: a human director completes the 10-minute loop
+per run — see `docs/dev/validation-director-loop.md` (agent validator +
+human director roles, per-run standards conformance pass).
