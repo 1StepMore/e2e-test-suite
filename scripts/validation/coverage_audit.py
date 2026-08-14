@@ -18,10 +18,9 @@ agent-satisfaction metric: every live tool must be scenario-used, else
                         opp      ``opp.mcp.server._TOOL_SCHEMAS``      (9)
                         ol       ``ol_mcp.tools.TOOL_REGISTRY``       (21)
                         orf      ``orf.mcp.server._TOOL_DISPATCH``     (7)
-                        omni_mcp ``omni_mcp.server._TOOL_SCHEMAS``     (2)
-                      = 39 tools at baseline (41 after todo 20 adds the
-                      two validation tools — this script stays correct
-                      because it always reads the registries).
+                        omni_mcp ``omni_mcp.server._TOOL_SCHEMAS``     (4)
+                      = 41 tools — this script stays correct because it
+                      always reads the live registries.
 - ``scenario_used`` = tool names referenced by
                       ``scenarios/agent-surface/tool-<module>-<tool>.yaml``
                       filenames + every ``kind: mcp`` step's ``tool:``
@@ -34,12 +33,10 @@ agent-satisfaction metric: every live tool must be scenario-used, else
 
 DRIFT section (draft D11): the frozen contract fixtures
 ``tests/contract/fixtures/*_mcp_schemas.json`` (+ ``EXPECTED_COUNTS`` at
-``tests/contract/test_mcp_schemas.py:49``) pin 22 module-level tools
-(opp 7 + ol 9 + orf 6) against the live 39 (module-level 37 + suite
-``omni_mcp`` 2 unpinned).  The under-pin by 17 tools (OL +12, OPP +2,
-ORF +1, suite +2) is a genuine first finding the report surfaces — it is
-NOT fixed here (todo 21 reconciles the fixtures).  Drift never affects
-the exit code; only ``missing`` does.
+``tests/contract/test_mcp_schemas.py:49``) are reconciled to the live
+module-level surface (opp 9 + ol 21 + orf 7 = 37); the suite
+``omni_mcp`` tools (4) stay unpinned by design.  Drift never affects the
+exit code; only ``missing`` does.
 
 Only Python 3.13 stdlib + PyYAML (guide §3.6).  Deterministic: same
 commit, same sets.
@@ -159,6 +156,8 @@ def load_scenario_used(scenarios_dir: Path) -> tuple[set[str], int]:
         try:
             data = yaml.safe_load(yf.read_text(encoding="utf-8"))
         except Exception:
+            # A malformed scenario YAML must not sink the audit; the
+            # contract lint (--check) is the loud gate for bad YAML.
             continue
         if not isinstance(data, dict):
             continue
@@ -366,7 +365,7 @@ def render(report: CoverageReport) -> str:
     lines.append(
         f"  DRIFT finding: frozen fixtures pin {t['frozen']} module-level tools vs live "
         f"{t['live_module']} (+{t['live_suite']} suite tools unpinned) = {t['live_total']} "
-        f"live tools total; reconciliation is todo 21, not this audit."
+        f"live tools total; suite tools are unpinned by design."
     )
     return "\n".join(lines)
 

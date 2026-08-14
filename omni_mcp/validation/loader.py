@@ -260,7 +260,8 @@ def validate_scenario(scenario: dict[str, Any], path: str | Path) -> dict[str, A
             not isinstance(v, str) for v in requires_env
         ):
             raise ScenarioError(
-                path, "'requires_env' must be a list of strings, got " f"{requires_env!r}"
+                path,
+                f"'requires_env' must be a list of strings, got {requires_env!r}",
             )
     scenario.setdefault("requires_env", [])
 
