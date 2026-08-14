@@ -17,6 +17,7 @@ dev = [
 [project.scripts]
 omni-suite = "omni_suite.cli:main"
 omni-mcp = "omni_mcp.server:main"
+validation = "omni_mcp.validation.cli:main"
 
 [build-system]
 requires = ["hatchling"]

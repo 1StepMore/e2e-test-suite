@@ -650,3 +650,58 @@ def test_smoke_valid_three_step_scenario_loads_at_least_one(tmp_path):
     _write(tmp_path, "smoke.yaml", VALID_SCENARIO)
 
     assert len(load_scenarios(tmp_path)) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Tier model (plan todo 9): optional scenario-level 1|2|3, default 1
+# ---------------------------------------------------------------------------
+
+
+def test_tier_field_accepted_with_default_1(tmp_path):
+    """AutoInfo tier model: 1 = no keys hermetic, 2 = LLM key,
+    3 = paid/external/network; the field is optional, default 1."""
+    _write(tmp_path, "tiered.yaml", """
+    name: tiered
+    description: "tier 2 scenario"
+    tier: 2
+    steps:
+      - name: "one"
+        kind: cli
+        command: "true"
+        expect:
+          success: true
+    """)
+    _write(tmp_path, "plain.yaml", VALID_SCENARIO.replace("sample-e2e", "plain-tier"))
+
+    by_name = {s["name"]: s for s in load_scenarios(tmp_path)}
+
+    assert by_name["tiered"]["tier"] == 2
+    assert by_name["plain-tier"]["tier"] == 1  # default when omitted
+
+
+def test_tier_field_must_be_an_integer_in_1_2_3(tmp_path):
+    """Reject strings, out-of-range ints, floats, and bools (bool is an
+    int subclass — ``tier: true`` must not silently mean 1)."""
+    bad_values = [
+        ("string", '"2"'),
+        ("zero", 0),
+        ("four", 4),
+        ("float", 2.5),
+        ("bool", True),
+    ]
+    for case, bad in bad_values:
+        case_dir = tmp_path / f"case-{case}"
+        _write(case_dir, "bad.yaml", f"""
+        name: bad-tier
+        description: "tier must be an integer in 1|2|3"
+        tier: {bad}
+        steps:
+          - name: "one"
+            kind: cli
+            command: "true"
+            expect:
+              success: true
+        """)
+        with pytest.raises(ScenarioError) as ei:
+            load_scenarios(case_dir)
+        assert "tier" in str(ei.value)

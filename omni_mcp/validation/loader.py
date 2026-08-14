@@ -44,6 +44,9 @@ _SCENARIO_FIELDS = frozenset(
         "regression_issue",  # optional — bug reference pinned (required with regression)
         "instructions",      # optional (D12) — human-readable "what to do"
         "cleanup_steps",     # optional — steps run best-effort after the main steps
+        "tier",              # optional (plan todo 9) — AutoInfo tier model:
+                             # 1 = no keys hermetic, 2 = LLM key,
+                             # 3 = paid/external/network (default 1)
     }
 )
 
@@ -217,8 +220,8 @@ def validate_scenario(scenario: dict[str, Any], path: str | Path) -> dict[str, A
 
     Returns the scenario with defaults applied — the same dict the executor
     consumes (category ``general``, ``requires_env`` ``[]``,
-    ``requires_http`` ``False``, ``cleanup_steps`` ``[]``, per-step
-    ``arguments``/``recovery_steps`` ``{}``/``[]``).
+    ``requires_http`` ``False``, ``tier`` 1, ``cleanup_steps`` ``[]``,
+    per-step ``arguments``/``recovery_steps`` ``{}``/``[]``).
 
     Raises
     ------
@@ -276,6 +279,22 @@ def validate_scenario(scenario: dict[str, Any], path: str | Path) -> dict[str, A
     instructions = scenario.get("instructions")
     if instructions is not None and not isinstance(instructions, str):
         raise ScenarioError(path, f"'instructions' must be a string, got {instructions!r}")
+
+    # AutoInfo tier model (plan todo 9): 1 = no keys hermetic, 2 = LLM
+    # key, 3 = paid/external/network.  Optional with default 1 — the CLI
+    # ``--tier`` filter runs only scenarios whose tier matches.
+    tier = scenario.get("tier")
+    if tier is not None and (
+        isinstance(tier, bool)
+        or not isinstance(tier, int)
+        or tier not in (1, 2, 3)
+    ):
+        raise ScenarioError(
+            path,
+            f"'tier' must be an integer in 1|2|3 (1=no keys hermetic, "
+            f"2=LLM key, 3=paid/external/network), got {tier!r}",
+        )
+    scenario.setdefault("tier", 1)
 
     # Partial-pass policy (guide §2.7): validated at load time.
     min_passing = scenario.get("min_passing")
