@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog>
+  <product id="P001">
+    <name>Widget Pro</name>
+    <category>Electronics</category>
+    <price currency="USD">99.99</price>
+    <description>A professional-grade widget for enterprise use.</description>
+    <specs>
+      <weight unit="kg">1.5</weight>
+      <dimensions unit="cm">30x20x10</dimensions>
+    </specs>
+  </product>
+  <product id="P002">
+    <name>Widget Lite</name>
+    <category>Electronics</category>
+    <price currency="USD">49.99</price>
+    <description>A lightweight widget for everyday tasks.</description>
+    <specs>
+      <weight unit="kg">0.8</weight>
+      <dimensions unit="cm">20x15x8</dimensions>
+    </specs>
+  </product>
+</catalog>
