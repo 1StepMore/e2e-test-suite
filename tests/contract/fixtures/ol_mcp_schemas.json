@@ -1,5 +1,81 @@
 [
   {
+    "description": "Add translation entries to a TMX file. Creates the file if it doesn't exist. ML deps required for embedding-based features: pip install omni-localizer[ml].",
+    "inputSchema": {
+      "$defs": {
+        "TMEntry": {
+          "description": "Single entry for add_tm_entries.",
+          "properties": {
+            "source": {
+              "description": "Source text",
+              "title": "Source",
+              "type": "string"
+            },
+            "source_lang": {
+              "description": "Source language code (e.g. 'en')",
+              "title": "Source Lang",
+              "type": "string"
+            },
+            "target": {
+              "description": "Target translation",
+              "title": "Target",
+              "type": "string"
+            },
+            "target_lang": {
+              "description": "Target language code (e.g. 'zh')",
+              "title": "Target Lang",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source",
+            "target",
+            "source_lang",
+            "target_lang"
+          ],
+          "title": "TMEntry",
+          "type": "object"
+        }
+      },
+      "description": "Input for add_tm_entries.",
+      "properties": {
+        "entries": {
+          "description": "List of translation entries to add",
+          "items": {
+            "$ref": "#/$defs/TMEntry"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "tmx_path": {
+          "description": "Path to .tmx file (created if missing)",
+          "title": "Tmx Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tmx_path",
+        "entries"
+      ],
+      "title": "TMAddInput",
+      "type": "object"
+    },
+    "name": "add_tm_entries"
+  },
+  {
     "description": "Translate multiple texts in parallel.",
     "inputSchema": {
       "description": "Input for batch_translate_texts.",
@@ -64,6 +140,306 @@
       "type": "object"
     },
     "name": "batch_translate_texts"
+  },
+  {
+    "description": "Resolve polysemous terms in text using context-aware confidence-based selection from a glossary. Confidence-based only (no LLM); for LLM-based disambiguation, call the Python API directly with a model_pool.",
+    "inputSchema": {
+      "description": "Input for disambiguate.",
+      "properties": {
+        "glossary": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "description": "Glossary dict from load_glossary",
+          "title": "Glossary",
+          "type": "object"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "text": {
+          "description": "Source text containing terms to disambiguate",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "glossary"
+      ],
+      "title": "DisambiguateInput",
+      "type": "object"
+    },
+    "name": "disambiguate"
+  },
+  {
+    "description": "Extract key terms from source texts using YAKE. ML deps required: pip install omni-localizer[ml].",
+    "inputSchema": {
+      "description": "Input for extract_terms.",
+      "properties": {
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Language hint: auto (None, default), en, zh, ja. If None, the language is detected from the input text. Otherwise, the value is passed directly to YAKE.",
+          "title": "Language"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "texts": {
+          "description": "Source texts to extract terms from",
+          "items": {
+            "type": "string"
+          },
+          "title": "Texts",
+          "type": "array"
+        },
+        "top_n": {
+          "default": 20,
+          "description": "Max terms to return",
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Top N",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "texts"
+      ],
+      "title": "ExtractTermsInput",
+      "type": "object"
+    },
+    "name": "extract_terms"
+  },
+  {
+    "description": "Read a file (MD or XLIFF) and extract OL warning markers as structured WarningEntry objects. Use the result directly with generate_report.",
+    "inputSchema": {
+      "description": "Input for extract_warnings.",
+      "properties": {
+        "file_path": {
+          "description": "Path to file to scan for warning markers (MD or XLIFF)",
+          "title": "File Path",
+          "type": "string"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        }
+      },
+      "required": [
+        "file_path"
+      ],
+      "title": "ExtractWarningsInput",
+      "type": "object"
+    },
+    "name": "extract_warnings"
+  },
+  {
+    "description": "Generate HTML and CSV quality reports from translation warnings and model costs. Writes report.html and report.csv to output_dir/<job_id>_*. Set force=true to overwrite existing reports.",
+    "inputSchema": {
+      "$defs": {
+        "ModelCostEntryDict": {
+          "description": "Single model cost entry for generate_report.",
+          "properties": {
+            "completion_tokens": {
+              "default": 0,
+              "title": "Completion Tokens",
+              "type": "integer"
+            },
+            "cost_per_1k_tokens": {
+              "default": 0.0,
+              "title": "Cost Per 1K Tokens",
+              "type": "number"
+            },
+            "model_name": {
+              "title": "Model Name",
+              "type": "string"
+            },
+            "prompt_tokens": {
+              "default": 0,
+              "title": "Prompt Tokens",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "model_name"
+          ],
+          "title": "ModelCostEntryDict",
+          "type": "object"
+        },
+        "WarningEntryDict": {
+          "description": "Single warning entry for generate_report.",
+          "properties": {
+            "cost": {
+              "default": 0.0,
+              "title": "Cost",
+              "type": "number"
+            },
+            "file_path": {
+              "default": "",
+              "title": "File Path",
+              "type": "string"
+            },
+            "line_number": {
+              "default": 0,
+              "title": "Line Number",
+              "type": "integer"
+            },
+            "model": {
+              "default": "",
+              "title": "Model",
+              "type": "string"
+            },
+            "reference": {
+              "default": "",
+              "title": "Reference",
+              "type": "string"
+            },
+            "severity": {
+              "default": "medium",
+              "title": "Severity",
+              "type": "string"
+            },
+            "source_text": {
+              "default": "",
+              "title": "Source Text",
+              "type": "string"
+            },
+            "target_text": {
+              "default": "",
+              "title": "Target Text",
+              "type": "string"
+            },
+            "warning_type": {
+              "default": "",
+              "title": "Warning Type",
+              "type": "string"
+            }
+          },
+          "title": "WarningEntryDict",
+          "type": "object"
+        }
+      },
+      "description": "Input for generate_report.",
+      "properties": {
+        "config_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Base dir for relative paths",
+          "title": "Config Dir"
+        },
+        "force": {
+          "default": false,
+          "description": "Overwrite existing report files",
+          "title": "Force",
+          "type": "boolean"
+        },
+        "job_id": {
+          "description": "Job identifier (used in report filenames)",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "model_costs": {
+          "description": "Model cost entries",
+          "items": {
+            "$ref": "#/$defs/ModelCostEntryDict"
+          },
+          "title": "Model Costs",
+          "type": "array"
+        },
+        "output_dir": {
+          "description": "Directory to write report.html and report.csv into",
+          "title": "Output Dir",
+          "type": "string"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "warnings": {
+          "description": "Warning entries",
+          "items": {
+            "$ref": "#/$defs/WarningEntryDict"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "output_dir",
+        "job_id"
+      ],
+      "title": "GenerateReportInput",
+      "type": "object"
+    },
+    "name": "generate_report"
+  },
+  {
+    "description": "Return OL module capabilities: roles, language pairs, available tools. Use this to discover what the server can do at runtime.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "name": "get_capabilities"
   },
   {
     "description": "Extract relevant glossary terms for a given text.",
@@ -144,6 +520,43 @@
       "type": "object"
     },
     "name": "get_translation_status"
+  },
+  {
+    "description": "Inspect OL configuration: models, paths, LQA settings. All API keys and base_urls with hardcoded tokens are REDACTED. Use to discover what's configured without reading the file directly.",
+    "inputSchema": {
+      "description": "Input for inspect_config.",
+      "properties": {
+        "config_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to YAML config (defaults to OL_CONFIG_PATH or config/default.yaml)",
+          "title": "Config Path"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        }
+      },
+      "title": "InspectConfigInput",
+      "type": "object"
+    },
+    "name": "inspect_config"
   },
   {
     "description": "Evaluate translation quality using LLM judge.",
@@ -269,6 +682,63 @@
     "name": "ping"
   },
   {
+    "description": "Profile a document's writing style using an LLM. Returns a StyleGuide (tone, register, target_audience, key_conventions, vocabulary, avoid, summary). Uses an in-process cache for repeated calls.",
+    "inputSchema": {
+      "description": "Input for profile_doc.",
+      "properties": {
+        "config_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to OL YAML config (default: OL_CONFIG_PATH or config/default.yaml)",
+          "title": "Config Path"
+        },
+        "content": {
+          "description": "Document content to profile",
+          "title": "Content",
+          "type": "string"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth",
+          "title": "Shared Secret"
+        },
+        "source_lang": {
+          "default": "en",
+          "description": "Source language code (e.g. 'en', 'zh', 'ja')",
+          "title": "Source Lang",
+          "type": "string"
+        },
+        "use_cache": {
+          "default": true,
+          "description": "Use the in-process profile cache (default: True)",
+          "title": "Use Cache",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "title": "ProfileDocInput",
+      "type": "object"
+    },
+    "name": "profile_doc"
+  },
+  {
     "description": "Search translation memory for similar past translations.",
     "inputSchema": {
       "description": "Input for search_tm.",
@@ -323,6 +793,167 @@
       "type": "object"
     },
     "name": "search_tm"
+  },
+  {
+    "description": "Replace code/links/math/HTML/images in markdown with [OL:TYPE:NNNN] placeholders. Use before any LLM call to protect content from translation. Returns shielded_text and a shield_map for restoration.",
+    "inputSchema": {
+      "description": "Input for shield_md_text.",
+      "properties": {
+        "content": {
+          "description": "Markdown text to shield",
+          "title": "Content",
+          "type": "string"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "title": "ShieldMdInput",
+      "type": "object"
+    },
+    "name": "shield_md_text"
+  },
+  {
+    "description": "Translate a document file end-to-end (OPP → OL → ORF). Shells out to opp, ol, and orf CLIs. Manages a tempdir for intermediate files. On success, the tempdir is cleaned up (unless keep_temp=True). On failure, the tempdir is preserved for debugging. Responds with the final output path and pipeline metadata.",
+    "inputSchema": {
+      "description": "Input for translate_file (Issue #37: file-based OPP→OL→ORF end-to-end).",
+      "properties": {
+        "config_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to OL config YAML file",
+          "title": "Config Path"
+        },
+        "file_path": {
+          "description": "Path to source document file (DOCX, PPTX, etc.)",
+          "title": "File Path",
+          "type": "string"
+        },
+        "glossary_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to glossary JSON file",
+          "title": "Glossary Path"
+        },
+        "keep_temp": {
+          "default": false,
+          "description": "Keep temp files on success for debugging",
+          "title": "Keep Temp",
+          "type": "boolean"
+        },
+        "output_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Output directory (default: input file parent)",
+          "title": "Output Dir"
+        },
+        "output_format": {
+          "default": "docx",
+          "description": "Target output format for ORF backfill (e.g. docx, pptx, html)",
+          "title": "Output Format",
+          "type": "string"
+        },
+        "pipeline": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Force pipeline: 'md' or 'xliff' (default: auto-detect)",
+          "title": "Pipeline"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth",
+          "title": "Shared Secret"
+        },
+        "source_lang": {
+          "description": "Source language code (e.g. en, zh, ja)",
+          "title": "Source Lang",
+          "type": "string"
+        },
+        "target_lang": {
+          "description": "Target language code",
+          "title": "Target Lang",
+          "type": "string"
+        },
+        "timeout": {
+          "default": 300,
+          "description": "Subprocess timeout in seconds for each pipeline step (opp, ol, orf). Default 300s (5 min). Max 3600s (1 hour).",
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Timeout",
+          "type": "integer"
+        },
+        "traceparent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "W3C Trace Context traceparent",
+          "title": "Traceparent"
+        }
+      },
+      "required": [
+        "file_path",
+        "source_lang",
+        "target_lang"
+      ],
+      "title": "TranslateFileInput",
+      "type": "object"
+    },
+    "name": "translate_file"
   },
   {
     "description": "Translate markdown text directly without file I/O.",
@@ -392,6 +1023,18 @@
           "title": "No Restoration",
           "type": "boolean"
         },
+        "no_styleguide": {
+          "default": false,
+          "description": "Skip StyleGuide injection even if styleguide_path is set.",
+          "title": "No Styleguide",
+          "type": "boolean"
+        },
+        "polish": {
+          "default": false,
+          "description": "After translation, run a lightweight consistency pass to fix cross-unit inconsistencies.",
+          "title": "Polish",
+          "type": "boolean"
+        },
         "shared_secret": {
           "anyOf": [
             {
@@ -409,6 +1052,19 @@
           "description": "Source language code (e.g. en, zh, ja)",
           "title": "Source Lang",
           "type": "string"
+        },
+        "styleguide_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to a StyleGuide JSON file (output of ol profile-doc). Style rules are injected into the translation prompt.",
+          "title": "Styleguide Path"
         },
         "target_lang": {
           "description": "Target language code",
@@ -494,6 +1150,12 @@
           "description": "Path to output XLIFF file. None = overwrite source (with warning)",
           "title": "Output Path"
         },
+        "polish": {
+          "default": false,
+          "description": "After translation, run a lightweight consistency pass to fix cross-unit inconsistencies.",
+          "title": "Polish",
+          "type": "boolean"
+        },
         "shared_secret": {
           "anyOf": [
             {
@@ -512,6 +1174,19 @@
           "description": "Source language code",
           "title": "Source Lang",
           "type": "string"
+        },
+        "styleguide_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to a StyleGuide JSON file (output of ol profile-doc). Style rules are injected into the translation prompt.",
+          "title": "Styleguide Path"
         },
         "target_lang": {
           "default": "en",
@@ -540,5 +1215,134 @@
       "type": "object"
     },
     "name": "translate_xliff"
+  },
+  {
+    "description": "Restore [OL:TYPE:NNNN] placeholders in markdown text using the shield_map from a prior shield_md_text call.",
+    "inputSchema": {
+      "description": "Input for unshield_md_text.",
+      "properties": {
+        "content": {
+          "description": "Translated markdown containing [OL:...] markers",
+          "title": "Content",
+          "type": "string"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth (required if MCP_SHARED_SECRET env var is set)",
+          "title": "Shared Secret"
+        },
+        "shield_map": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "shield_map from prior shield_md_text call",
+          "title": "Shield Map",
+          "type": "object"
+        }
+      },
+      "required": [
+        "content",
+        "shield_map"
+      ],
+      "title": "UnshieldMdInput",
+      "type": "object"
+    },
+    "name": "unshield_md_text"
+  },
+  {
+    "description": "Verify glossary term usage in translated content. With glossary: checks each term's verified translation appears in target. Without glossary: detects inconsistent translations across sentences. Returns a JSON report with verified/mismatches/absent/inconsistencies/low_confidence lists.",
+    "inputSchema": {
+      "description": "Input for verify_terms.",
+      "properties": {
+        "confidence_threshold": {
+          "default": 0.7,
+          "description": "Minimum glossary term confidence to include in main checks (0-1)",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence Threshold",
+          "type": "number"
+        },
+        "glossary": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inline glossary dict (e.g. from load_glossary). Mutually exclusive with glossary_path.",
+          "title": "Glossary"
+        },
+        "glossary_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to JSON glossary file. If both glossary and glossary_path are given, glossary takes precedence.",
+          "title": "Glossary Path"
+        },
+        "shared_secret": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shared secret for MCP auth",
+          "title": "Shared Secret"
+        },
+        "source": {
+          "description": "Original source text",
+          "title": "Source",
+          "type": "string"
+        },
+        "source_lang": {
+          "default": "en",
+          "description": "Source language code",
+          "title": "Source Lang",
+          "type": "string"
+        },
+        "target": {
+          "description": "Translated target text to verify",
+          "title": "Target",
+          "type": "string"
+        },
+        "target_lang": {
+          "default": "zh",
+          "description": "Target language code",
+          "title": "Target Lang",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target"
+      ],
+      "title": "VerifyTermsInput",
+      "type": "object"
+    },
+    "name": "verify_terms"
   }
 ]

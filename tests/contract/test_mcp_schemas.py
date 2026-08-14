@@ -1,6 +1,6 @@
 """MCP schema contract tests (Phase 4.7).
 
-Per API_STABILITY.md the 21 MCP tool schemas (7 OPP + 6 ORF + 8 OL) are
+Per API_STABILITY.md the 37 MCP tool schemas (9 OPP + 7 ORF + 21 OL) are
 frozen public surface. Any change to a tool's name, description, or
 inputSchema requires a major version bump. The fixtures in
 ``tests/contract/fixtures/{opp,orf,ol}_mcp_schemas.json`` are the
@@ -46,7 +46,7 @@ OPP_FIXTURE = FIXTURES_DIR / "opp_mcp_schemas.json"
 ORF_FIXTURE = FIXTURES_DIR / "orf_mcp_schemas.json"
 OL_FIXTURE = FIXTURES_DIR / "ol_mcp_schemas.json"
 
-EXPECTED_COUNTS = {"opp": 7, "orf": 6, "ol": 9}
+EXPECTED_COUNTS = {"opp": 9, "orf": 7, "ol": 21}
 
 EXPECTED_TOOLS = {
     "opp": frozenset({
@@ -57,6 +57,8 @@ EXPECTED_TOOLS = {
         "generate_markdown",
         "save_skeleton",
         "ping",
+        "validate_xliff",
+        "get_capabilities",
     }),
     "orf": frozenset({
         "apply_md",
@@ -65,6 +67,7 @@ EXPECTED_TOOLS = {
         "detect_format",
         "info",
         "ping",
+        "get_capabilities",
     }),
     "ol": frozenset({
         "translate_md_text",
@@ -76,6 +79,18 @@ EXPECTED_TOOLS = {
         "translate_xliff",
         "get_translation_status",
         "ping",
+        "add_tm_entries",
+        "disambiguate",
+        "extract_terms",
+        "extract_warnings",
+        "generate_report",
+        "get_capabilities",
+        "inspect_config",
+        "profile_doc",
+        "shield_md_text",
+        "translate_file",
+        "unshield_md_text",
+        "verify_terms",
     }),
 }
 
@@ -191,24 +206,24 @@ def _check(module: str, fixture_path: Path) -> None:
 
 
 def test_opp_mcp_schemas_frozen():
-    """OPP MCP must expose exactly 7 tools whose schemas match the frozen baseline."""
+    """OPP MCP must expose exactly 9 tools whose schemas match the frozen baseline."""
     _check("opp", OPP_FIXTURE)
 
 
 def test_orf_mcp_schemas_frozen():
-    """ORF MCP must expose exactly 6 tools whose schemas match the frozen baseline."""
+    """ORF MCP must expose exactly 7 tools whose schemas match the frozen baseline."""
     _check("orf", ORF_FIXTURE)
 
 
 def test_ol_mcp_schemas_frozen():
-    """OL MCP must expose exactly 8 tools whose schemas match the frozen baseline."""
+    """OL MCP must expose exactly 21 tools whose schemas match the frozen baseline."""
     _check("ol", OL_FIXTURE)
 
 
-def test_total_mcp_tool_count_is_22():
-    """Sanity: 7 OPP + 6 ORF + 9 OL = 22 MCP tools. Sum is part of the contract."""
-    assert sum(EXPECTED_COUNTS.values()) == 22
+def test_total_mcp_tool_count_is_37():
+    """Sanity: 9 OPP + 7 ORF + 21 OL = 37 MCP tools. Sum is part of the contract."""
+    assert sum(EXPECTED_COUNTS.values()) == 37
     actual_total = sum(
         len(EXPECTED_TOOLS[m]) for m in ("opp", "orf", "ol")
     )
-    assert actual_total == 22
+    assert actual_total == 37

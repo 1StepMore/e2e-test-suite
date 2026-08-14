@@ -24,6 +24,10 @@
           "description": "Inline markdown content (text-in/text-out agent flow). Mutually exclusive with ``input_md``.",
           "type": "string"
         },
+        "context_dir": {
+          "description": "Optional base directory for resolving relative paths (reference_doc, template, output_path). If omitted, absolute paths are required.",
+          "type": "string"
+        },
         "embed_images": {
           "default": false,
           "type": "boolean"
@@ -51,6 +55,10 @@
         },
         "reference_doc": {
           "description": "Pandoc reference DOCX for style template.",
+          "type": "string"
+        },
+        "reference_doc_content": {
+          "description": "Inline base64-encoded DOCX bytes (alternative to reference_doc). Mutually exclusive with reference_doc.",
           "type": "string"
         },
         "separate_images": {
@@ -181,6 +189,18 @@
       "type": "object"
     },
     "name": "detect_format"
+  },
+  {
+    "description": "Return ORF module capabilities: supported MD output formats (16), XLIFF backfill formats (5), input formats, and the list of available MCP tools. Use this to discover what the server can do at runtime.",
+    "inputSchema": {
+      "properties": {
+        "auth_token": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "get_capabilities"
   },
   {
     "description": "Get document information (format, size, resource count, manifest status).",
