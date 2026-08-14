@@ -16,11 +16,14 @@
 #   lint          — Run ruff + mypy on parent + submodules
 #   matrix        — Run full MD matrix via real MCP (165 cells)
 #   matrix-subset — Run MD matrix on a single input format
+#   validate      — Hermetic validation: tier-1 scenarios + coverage audit
+#   validate-nightly — Full validation library (all tiers; needs LLM keys)
+#   validate-coverage — Coverage audit only (every live MCP tool scenario-used)
 #   clean         — Remove __pycache__, .pytest_cache, build artifacts
 #
 # =============================================================================
 
-.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset clean clean-artifacts doctor help e2e e2e-help
+.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset validate validate-nightly validate-coverage clean clean-artifacts doctor help e2e e2e-help
 
 PYTHON := .venv_ol/bin/python
 PYTEST := $(PYTHON) -m pytest
@@ -57,6 +60,9 @@ help:
 	@echo "  lint          — ruff check + mypy on parent + submodules"
 	@echo "  matrix        — Run full MD matrix (165 cells, ~3min, real MCP)"
 	@echo "  matrix-subset FMT=<fmt> — Run MD matrix on one input format (e.g. FMT=docx)"
+	@echo "  validate      — Hermetic validation: tier-1 scenarios + coverage audit (0 missing)"
+	@echo "  validate-nightly — Full validation library (all tiers; requires real LLM keys)"
+	@echo "  validate-coverage — Coverage audit only (exit 1 while any MCP tool is missing)"
 	@echo "  clean         — Remove __pycache__, .pytest_cache, build artifacts"
 
 setup:
@@ -196,6 +202,24 @@ matrix:
 matrix-subset:
 	@test -n "$(FMT)" || (echo "Usage: make matrix-subset FMT=docx"; exit 1)
 	$(FAKE_ENV) $(PYTHON) scripts/mcp_matrix_verifier.py --out-dir /tmp/mcp-matrix-$(FMT) --path-filter md --subset $(FMT) --corpus minimal
+
+# ---------------------------------------------------------------------------
+# Validation framework (plan todo 25, D7/D11) — agent-agnostic scenarios.
+# Strict no-mocks: NEVER set OMNI_TEST_FAKE_LLM here (D4). OMNI_RATE_LIMIT_RPM=0
+# disables the shared OPP/OL/ORF token bucket for full runs (infra, not a mock).
+# ---------------------------------------------------------------------------
+validate:
+	OMNI_RATE_LIMIT_RPM=0 $(PYTHON) scripts/validation/run_validation.py --tier 1
+	$(PYTHON) scripts/validation/coverage_audit.py
+
+validate-nightly:
+	@echo "validate-nightly: full library (all tiers) — requires real LLM keys;"
+	@echo "keyed scenarios report 'unconfigured' (never fake-green) without them."
+	OMNI_RATE_LIMIT_RPM=0 $(PYTHON) scripts/validation/run_validation.py
+	$(PYTHON) scripts/validation/validation_report.py
+
+validate-coverage:
+	$(PYTHON) scripts/validation/coverage_audit.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
