@@ -1,0 +1,34 @@
+name: tool-omni_mcp-list_validation_scenarios
+description: "Suite omni_mcp list_validation_scenarios enumerates the validation scenario library (name, category, tier, requires_env, description) from the real loader; an invalid tier filter produces a clean error."
+category: agent-surface
+tier: 1
+instructions: |
+  Agent-user conformance (draft D13, mission axis 1): this scenario proves the
+  live tool responds as an agent-user expects — schema-shaped arguments accepted,
+  structured JSON returned, and clear parseable errors on bad input, never raw
+  stack-trace soup. What to check per step is written in each step's
+  instructions block; the expect block is the machine-readable half and the
+  standard citation names the bar from scenarios/STANDARDS.md it enforces.
+
+steps:
+  - name: 'list_validation_scenarios returns the scenario library'
+    kind: mcp
+    tool: omni_mcp.server.list_validation_scenarios
+    arguments:
+    timeout_seconds: 120
+    expect:
+      success: true
+      data_has: ['"count"', 'tool-omni_mcp-list_validation_scenarios']
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Call the real suite list tool with no arguments; expect success carrying a scenarios array with count, and the library includes this scenario itself (name, category, tier, requires_env, description per scenario).'
+  - name: 'list_validation_scenarios rejects an invalid tier cleanly'
+    kind: mcp
+    tool: omni_mcp.server.list_validation_scenarios
+    arguments:
+      tier: 4
+    timeout_seconds: 120
+    expect:
+      success: false
+      data_has: ['OMNI_INVALID_INPUT']
+    standard: STANDARDS.md#error-clarity
+    instructions: "Call list_validation_scenarios with tier 4 (outside the 1|2|3 tier model); the call must fail with a clean OMNI_INVALID_INPUT error naming the tier constraint, no traceback."
