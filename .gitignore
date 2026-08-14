@@ -78,6 +78,10 @@ mcp_resources/
 resources/
 test_artifacts/
 
+# ---- Validation framework engine run persistence (never commit run output;
+#      only the deliberate coverage-snapshot.json is tracked via -f) ----
+validation-runs/
+
 # ---- Heavy DOCX fixtures / binary outputs ----
 # The （slim）* DOCX at suite root is a 14MB validation target for the
 # slim-output-fixes post-mortem. Tracked test (tests/test_slim_e2e_regression.py)

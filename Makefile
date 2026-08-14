@@ -203,4 +203,4 @@ clean:
 	rm -rf build/ dist/ *.egg-info
 
 clean-artifacts:
-	rm -rf mcp_resources/ resources/ logs/ final-out/ test_artifacts/
+	rm -rf mcp_resources/ resources/ logs/ final-out/ test_artifacts/ validation-runs/
