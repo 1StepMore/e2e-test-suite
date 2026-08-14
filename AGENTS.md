@@ -51,6 +51,7 @@ omni-suite --version
 | **OPP** | Extract documents → MD + XLIFF + skeleton | `opp <file> --target-format both --output-dir <dir>` | 7 tools (`extract_document`, `batch_extract`…) | `Omni_Pre_Processor/src/` |
 | **OL** | Translate MD/XLIFF between languages | `ol translate-md <file> -s <src> -t <tgt> -o <dir>` | 21 tools (`translate_md_text`, `judge_text`…) | `Omni_Localizer/src/` |
 | **ORF** | Backfill translated content → target format | `orf apply-md <file> --target-format <fmt> -o <out>` | 6 tools (`apply_md`, `apply_xliff`…) | `Omni_Re_Formatter/src/` |
+| **Validation** | Agent-agnostic validation — scenario library + standards + director loop | `python scripts/validation/run_validation.py --list` (full walkthroughs in "How to validate" below) | 2 tools (`list_validation_scenarios`, `run_validation_scenario`) | `scripts/validation/` + `omni_mcp/validation/` |
 
 ## Common Tasks
 
@@ -69,6 +70,34 @@ ol translate-md /tmp/opp/document.md -s en -t zh -o /tmp/ol
 # 3. Backfill
 orf apply-md /tmp/ol/document.md --target-format docx -o result.docx
 ```
+
+### Run validation
+
+The agent-agnostic validation framework runs real scenarios against the shipped surface (no mocks, no FAKE_LLM as evidence). Tier-1 scenarios are hermetic — no LLM keys needed.
+
+```bash
+source .venv_ol/bin/activate
+
+# Enumerate the library — no execution, no LLM
+python scripts/validation/run_validation.py --list
+
+# Run one hermetic scenario (tier 1 = no LLM keys needed; --scenario is a
+# case-insensitive substring match on the file stem: tool-, opp, orf-md,
+# orf-xliff, pipeline, regression)
+python scripts/validation/run_validation.py --scenario regression --tier 1
+
+# Contract-lint the library itself (falsifiable expects, STANDARDS.md anchors)
+python scripts/validation/run_validation.py --check
+
+# Coverage audit — every live MCP tool must be exercised by a scenario
+python scripts/validation/coverage_audit.py
+
+# Read the newest run and generate the director report (two verdict families)
+cat validation-runs/latest.txt
+python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json
+```
+
+Tier semantics: 1 = hermetic (no keys), 2 = real LLM keys, 3 = paid/external/network. A tier-2/3 scenario without its keys reports `unconfigured` — never a fake green. The citable bar is `scenarios/STANDARDS.md` (two families: AGENT-SURFACE + HUMAN-QUALITY); the human director loop is `docs/dev/validation-director-loop.md`. Full per-agent walkthroughs (incl. reading `latest.txt` + `report.md`, and the 10-minute director checklist): [How to validate (Codex)](#how-to-validate-codex) and [How to validate (any agent)](#how-to-validate-any-agent) below.
 
 ### Use MCP servers (for Claude / Cursor / Hermes)
 
@@ -495,6 +524,10 @@ orf apply-md /tmp/test_ol/sample.md --target-format docx -o /tmp/result.docx
 | `OPP_ALLOWED_DIRECTORIES` | Comma-separated allowed paths for OPP MCP |
 | `OL_CONFIG_PATH` | Override OL LLM config path |
 | `MCP_SHARED_SECRET` | Enable shared-secret auth (omit for dev testing) |
+| `MCP_ALLOWED_DIRECTORIES` | Allowed paths for MCP module tools — required by several validation scenarios (coverage audit defaults it to `/tmp`) |
+| `OMNI_RATE_LIMIT_RPM` | Shared OPP/OL/ORF MCP token bucket (default 60, 0 = disabled). Set `0` for full validation runs — a 39-scenario agent-surface run exceeds the default |
+
+Tier/key semantics for validation runs (tier 1 = hermetic, 2 = real LLM keys, 3 = paid/external/network; `unconfigured` on missing keys, never fake green) are in `scenarios/STANDARDS.md`. No validation scenario uses `OMNI_TEST_FAKE_LLM` as evidence.
 
 ## Agent Tips
 

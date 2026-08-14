@@ -336,6 +336,28 @@ make doctor  # verify all dependencies first
 
 ---
 
+## Validation
+
+Beyond the master plans above, the suite ships an executable, agent-agnostic
+validation framework: real scenarios against the shipped surface (no mocks,
+no FAKE_LLM as evidence), with the two families of standards defined in
+`scenarios/STANDARDS.md` (AGENT-SURFACE + HUMAN-QUALITY). Tier-1 scenarios
+are hermetic — no LLM keys needed.
+
+```bash
+source .venv_ol/bin/activate
+python scripts/validation/run_validation.py --scenario tool- --tier 1   # 39 per-tool agent-surface scenarios
+```
+
+Key pointers:
+
+- **Standards**: `scenarios/STANDARDS.md` — the single citable bar, exact thresholds per anchor
+- **Engine + tooling**: `scripts/validation/` (`run_validation.py`, `coverage_audit.py`, `validation_report.py`, `validation_diff.py`) + `omni_mcp/validation/`
+- **Human director loop**: `docs/dev/validation-director-loop.md` — 10-minute per-run checklist, two-role model
+- **Framework plan**: `.omo/plans/validation-framework.md` — the original work plan (scope, waves, verification)
+
+---
+
 ## Plans
 
 The `.omo/plans/` directory contains work plans generated during development. See the plan file for current tasks.

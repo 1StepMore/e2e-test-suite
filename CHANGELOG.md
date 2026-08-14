@@ -8,6 +8,8 @@
 
 ### Added
 
+- **Validation framework suite docs**: `AGENTS.md` — Validation row in the per-module cheat sheet, "Run validation" block in Common Tasks (`run_validation.py --list/--check/--scenario --tier 1`, `coverage_audit.py`, `validation_report.py`), env var entries (`MCP_ALLOWED_DIRECTORIES`, `OMNI_RATE_LIMIT_RPM`); `README.md` — Validation section (STANDARDS.md, scripts, director loop, plan); `TESTS.md` / `PROJECT_STATUS.md` / `CONTRIBUTING.md` — pointers to the agent-agnostic validation framework
+
 - **`feat(check_deps.sh + doctor.yml)`: add `make doctor` + CI gate (7-check health)** — `make doctor` runs Python/keys/pandoc/WeasyPrint/md2pptx/MCP/submodule checks; CI runs on every PR with `continue-on-error: true` initially
 
 - **Multi-language E2E test scenes** (`tests/scenes/scene-07-multi-lang/`, `tests/test_scene_07_multi_lang.py`): 12 cells across 3 language pairs (en→fr, en→ja, en→ru) × 4 formats (DOCX, PDF, HTML, JSON). Uses the FAKE_LLM seam to verify pipeline non-crash and output structure (openable, parseable). Declaratively parametrized via `@pytest.mark.parametrize`. Fixtures generated synthetically via python-docx, PyMuPDF, and inline string literals. Runs via `pytest -m scene07 -v`.

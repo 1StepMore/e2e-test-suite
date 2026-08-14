@@ -30,6 +30,13 @@ False-positive rate after 2026-06-29 `tests/quality_checks.py` fix: **0/200** (w
 
 Reproduce with: `OMNI_TEST_FAKE_LLM=1 OMNI_TEST_FAKE_PANDOC=1 .venv_ol/bin/python scripts/format_matrix_verifier.py --out-dir test_artifacts/matrix --path-filter both --parallel 8 --timeout 120`
 
+**Validation framework**: alongside the matrix, the agent-agnostic validation
+framework (`scripts/validation/`, scenario library in `scenarios/` with
+`scenarios/STANDARDS.md`, director loop in
+`docs/dev/validation-director-loop.md`) runs real scenarios against the
+shipped surface — see suite `AGENTS.md` → "How to validate". Latest run:
+`validation-runs/latest.txt`.
+
 ## Working tree state
 
 Last verified clean: 2026-06-29. Use `git status` in each sub-repo to confirm before any work.
