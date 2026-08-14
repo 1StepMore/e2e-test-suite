@@ -1,0 +1,106 @@
+name: orf-md-msg
+description: >-
+  ORF apply-md backfill to MSG: run the real `orf apply-md` CLI on a
+  synthetic translated MD and verify the output carries the MSG
+  structural signature (OLE compound document (.msg signature D0 CF 11 E0 A1 B1 1A E1) written by aspose MapiMessage.save). Requires aspose-email-foss; gated on ASPOSE_EMAIL (the un-gated run falls back to .eml).
+category: orf-md
+tier: 1
+requires_env: [ASPOSE_EMAIL]
+instructions: |-
+  Prove ORF apply-md backfills a translated MD to MSG with the real surface ('orf apply-md ... --target-format msg'). 1) the write step creates the synthetic translated MD at /tmp/omni_val/orf-md-msg/in.md; 2) the CLI step runs the real backfill to /tmp/omni_val/orf-md-msg/out.msg and must exit 0; 3) the assert step reads the output and checks the MSG signature: OLE compound document (.msg signature D0 CF 11 E0 A1 B1 1A E1) written by aspose MapiMessage.save. No LLM, no FAKE_LLM, no fixtures — hermetic and deterministic (tier 1).
+steps:
+  - name: Write synthetic translated MD
+    kind: python
+    command: |-
+      import pathlib
+      d = pathlib.Path("/tmp/omni_val/orf-md-msg")
+      d.mkdir(parents=True, exist_ok=True)
+      md = """---
+      source_lang: en
+      target_lang: zh
+      original_file: synthetic_test.md
+      processor: "FAKE_LLM"
+      version: "0.0.1"
+      translated_at: 2026-06-19T00:00:00Z
+      ---
+
+      # Synthetic Document
+
+      ## Introduction
+
+      This is a **synthetic markdown** file used for ORF conversion testing. It contains various
+      elements to exercise format converters.
+
+      ## Features
+
+      - Feature 1: Multi-format support
+      - Feature 2: High performance
+      - Feature 3: Easy integration
+
+      ## Data Table
+
+      | Name | Value | Status |
+      |------|-------|--------|
+      | Alpha | 100 | Active |
+      | Beta | 200 | Pending |
+      | Gamma | 300 | Active |
+
+      ## JSON Data
+
+      ```json
+      {"products": [{"name": "Alpha", "value": 100}, {"name": "Beta", "value": 200}]}
+      ```
+
+      ## Code Example
+
+      ```
+      print("Hello, World!")
+      for i in range(3):
+          print(f"Item {i}")
+      ```
+
+      ## Contact
+
+      For more information, please contact support@example.com.
+      """
+      (d / "in.md").write_text(md, encoding="utf-8")
+      print("WROTE /tmp/omni_val/orf-md-msg/in.md")
+    expect:
+      exit_code: 0
+      stdout_has: ["WROTE /tmp/omni_val/orf-md-msg/in.md"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Generate the translated-MD input for this scenario at run time (no committed fixture). The file must carry a YAML frontmatter with the 6 metadata keys (source_lang, target_lang, original_file, processor, version, translated_at) and a body with a heading, a list, a table, a JSON code fence and a code fence — the same shape the suite's _create_synthetic_md fixture uses (tests/test_cross_format_e2e.py:282-334). Check: the snippet exits 0 and prints the WROTE marker naming /tmp/omni_val/orf-md-msg/in.md.
+  - name: Backfill to MSG with orf apply-md
+    kind: cli
+    command: orf apply-md /tmp/omni_val/orf-md-msg/in.md --target-format msg -o /tmp/omni_val/orf-md-msg/out.msg
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni_val/orf-md-msg/out.msg"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-md-msg/out.msg
+    instructions: |-
+      Run the REAL orf CLI backfill: `orf apply-md /tmp/omni_val/orf-md-msg/in.md --target-format msg -o /tmp/omni_val/orf-md-msg/out.msg`. Engine: aspose-email-foss (GPLv3; ORF recommends .eml). Check: exit code 0 (STANDARDS.md#exit-codes) and stdout announces the created file (both fresh conversions and cached ones print `Created <path>`). The assertion on the output file is the next step.
+  - name: Assert MSG structural invariant
+    kind: python
+    command: |-
+      import sys
+      p = "/tmp/omni_val/orf-md-msg/out.msg"
+      try:
+          with open(p, "rb") as fh:
+              magic = fh.read(8)
+          assert magic == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", "not an OLE compound document (.msg signature)"
+          print("OK: msg is an OLE compound document (aspose MapiMessage.save output)")
+      except Exception as e:
+          print("ERROR: %s" % e)
+          sys.exit(1)
+    expect:
+      exit_code: 0
+      stdout_has: ["OK:"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-md-msg/out.msg
+    instructions: |-
+      Read /tmp/omni_val/orf-md-msg/out.msg and verify the MSG structural invariant: OLE compound document (.msg signature D0 CF 11 E0 A1 B1 1A E1) written by aspose MapiMessage.save. The snippet exits 0 with an OK: message when the invariant holds, or exits 1 naming the problem otherwise (per-step instructions; exit-code contract).

@@ -1,0 +1,107 @@
+name: orf-md-pptx
+description: >-
+  ORF apply-md backfill to PPTX: run the real `orf apply-md` CLI on a
+  synthetic translated MD and verify the output carries the PPTX
+  structural signature (zip archive > 10KB with ppt/slides/ entries (pandoc fallback on this machine — md2pptx not installed)). Works via the pandoc fallback when the md2pptx CLI is absent — no gate needed (verified on this machine).
+category: orf-md
+tier: 1
+requires_env: []
+instructions: |-
+  Prove ORF apply-md backfills a translated MD to PPTX with the real surface ('orf apply-md ... --target-format pptx'). 1) the write step creates the synthetic translated MD at /tmp/omni_val/orf-md-pptx/in.md; 2) the CLI step runs the real backfill to /tmp/omni_val/orf-md-pptx/out.pptx and must exit 0; 3) the assert step reads the output and checks the PPTX signature: zip archive > 10KB with ppt/slides/ entries (pandoc fallback on this machine — md2pptx not installed). No LLM, no FAKE_LLM, no fixtures — hermetic and deterministic (tier 1).
+steps:
+  - name: Write synthetic translated MD
+    kind: python
+    command: |-
+      import pathlib
+      d = pathlib.Path("/tmp/omni_val/orf-md-pptx")
+      d.mkdir(parents=True, exist_ok=True)
+      md = """---
+      source_lang: en
+      target_lang: zh
+      original_file: synthetic_test.md
+      processor: "FAKE_LLM"
+      version: "0.0.1"
+      translated_at: 2026-06-19T00:00:00Z
+      ---
+
+      # Synthetic Document
+
+      ## Introduction
+
+      This is a **synthetic markdown** file used for ORF conversion testing. It contains various
+      elements to exercise format converters.
+
+      ## Features
+
+      - Feature 1: Multi-format support
+      - Feature 2: High performance
+      - Feature 3: Easy integration
+
+      ## Data Table
+
+      | Name | Value | Status |
+      |------|-------|--------|
+      | Alpha | 100 | Active |
+      | Beta | 200 | Pending |
+      | Gamma | 300 | Active |
+
+      ## JSON Data
+
+      ```json
+      {"products": [{"name": "Alpha", "value": 100}, {"name": "Beta", "value": 200}]}
+      ```
+
+      ## Code Example
+
+      ```
+      print("Hello, World!")
+      for i in range(3):
+          print(f"Item {i}")
+      ```
+
+      ## Contact
+
+      For more information, please contact support@example.com.
+      """
+      (d / "in.md").write_text(md, encoding="utf-8")
+      print("WROTE /tmp/omni_val/orf-md-pptx/in.md")
+    expect:
+      exit_code: 0
+      stdout_has: ["WROTE /tmp/omni_val/orf-md-pptx/in.md"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Generate the translated-MD input for this scenario at run time (no committed fixture). The file must carry a YAML frontmatter with the 6 metadata keys (source_lang, target_lang, original_file, processor, version, translated_at) and a body with a heading, a list, a table, a JSON code fence and a code fence — the same shape the suite's _create_synthetic_md fixture uses (tests/test_cross_format_e2e.py:282-334). Check: the snippet exits 0 and prints the WROTE marker naming /tmp/omni_val/orf-md-pptx/in.md.
+  - name: Backfill to PPTX with orf apply-md
+    kind: cli
+    command: orf apply-md /tmp/omni_val/orf-md-pptx/in.md --target-format pptx -o /tmp/omni_val/orf-md-pptx/out.pptx
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni_val/orf-md-pptx/out.pptx"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-md-pptx/out.pptx
+    instructions: |-
+      Run the REAL orf CLI backfill: `orf apply-md /tmp/omni_val/orf-md-pptx/in.md --target-format pptx -o /tmp/omni_val/orf-md-pptx/out.pptx`. Engine: md2pptx CLI; pandoc fallback when md2pptx is missing. Check: exit code 0 (STANDARDS.md#exit-codes) and stdout announces the created file (both fresh conversions and cached ones print `Created <path>`). The assertion on the output file is the next step.
+  - name: Assert PPTX structural invariant
+    kind: python
+    command: |-
+      import sys, os, zipfile
+      p = "/tmp/omni_val/orf-md-pptx/out.pptx"
+      try:
+          assert zipfile.is_zipfile(p), "not a zip archive"
+          assert os.path.getsize(p) > 10240, "pptx smaller than the 10KB floor"
+          names = zipfile.ZipFile(p).namelist()
+          assert any(n.startswith("ppt/slides/") for n in names), "missing ppt/slides/ entries"
+          print("OK: pptx is a zip >10KB with ppt/slides/ entries (md2pptx absent, pandoc fallback)")
+      except Exception as e:
+          print("ERROR: %s" % e)
+          sys.exit(1)
+    expect:
+      exit_code: 0
+      stdout_has: ["OK:"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-md-pptx/out.pptx
+    instructions: |-
+      Read /tmp/omni_val/orf-md-pptx/out.pptx and verify the PPTX structural invariant: zip archive > 10KB with ppt/slides/ entries (pandoc fallback on this machine — md2pptx not installed). The snippet exits 0 with an OK: message when the invariant holds, or exits 1 naming the problem otherwise (per-step instructions; exit-code contract).
