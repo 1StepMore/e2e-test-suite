@@ -151,12 +151,14 @@ async def run_validation_scenario(
     scenario: str | None = None,
     tier: int | None = None,
     verbose: bool = False,
+    module: str | None = None,
 ) -> dict[str, Any]:
     """Run the real validation engine (orchestrator) on matching scenarios.
 
     Params mirror the validation CLI: ``scenario`` is a case-insensitive
     substring of the scenario FILENAME (AutoInfo semantics), ``tier``
-    restricts by tier, ``verbose`` adds the full per-step trace.  The
+    restricts by tier, ``module`` restricts to one module's scenarios
+    (opp/ol/orf/suite), ``verbose`` adds the full per-step trace.  The
     engine's step records already carry the per-step check text (``name``)
     and ``standard:`` citations (D12) — both are echoed into the response.
     The run is persisted to ``validation-runs/`` like a CLI run.
@@ -167,6 +169,11 @@ async def run_validation_scenario(
             "scenario must be a string (case-insensitive substring of the "
             "scenario filename)",
         )
+    if module is not None and not isinstance(module, str):
+        return _error_response(
+            "OMNI_INVALID_INPUT",
+            "module must be a string (opp, ol, orf, or suite)",
+        )
     err = _validate_tier(tier)
     if err is not None:
         return err
@@ -175,14 +182,10 @@ async def run_validation_scenario(
     except ScenarioError as exc:
         return _error_response("OMNI_VALIDATION_LOAD_ERROR", str(exc))
 
-    names, tier_empty, stem_empty = _select_names(
-        loaded, _SCENARIOS_DIR, scenario, tier
+    names, empty_filters = _select_names(
+        loaded, _SCENARIOS_DIR, scenario, tier, module=module
     )
-    warnings: list[str] = []
-    if tier_empty:
-        warnings.append(f"no scenarios at tier {tier}")
-    if stem_empty:
-        warnings.append(f"no scenarios match scenario filter {scenario!r}")
+    warnings = [f"no scenarios match {f}" for f in empty_filters]
     if not names:
         return _success_response({
             "run_id": None,
@@ -190,12 +193,17 @@ async def run_validation_scenario(
             "runs_dir": None,
             "scenario": scenario,
             "tier": tier,
+            "module": module,
             "verbose": verbose,
             "warnings": warnings,
             "results": [],
         })
 
-    filters = None if (scenario is None and tier is None) else names
+    filters = (
+        None
+        if (scenario is None and tier is None and module is None)
+        else names
+    )
     run = await asyncio.to_thread(
         run_scenarios, _SCENARIOS_DIR, filters=filters, runs_dir=_RUNS_DIR
     )
@@ -233,6 +241,7 @@ async def run_validation_scenario(
         "runs_dir": run.run_dir,
         "scenario": scenario,
         "tier": tier,
+        "module": module,
         "verbose": verbose,
         "warnings": warnings,
         "results": results,
@@ -321,9 +330,10 @@ _TOOL_SCHEMAS: list[dict[str, Any]] = [
             "Run the real validation engine (load -> dispatch -> grade -> "
             "aggregate -> persist) on matching scenarios. 'scenario' is a "
             "case-insensitive substring of the scenario filename; 'tier' "
-            "restricts by tier; 'verbose' adds the full per-step trace. "
-            "Results carry per-step check text and STANDARDS.md "
-            "citations in-band."
+            "restricts by tier; 'module' restricts to one module's "
+            "scenarios (opp/ol/orf/suite); 'verbose' adds the full "
+            "per-step trace. Results carry per-step check text and "
+            "STANDARDS.md citations in-band."
         ),
         "inputSchema": {
             "type": "object",
@@ -333,7 +343,7 @@ _TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "description": (
                         "Case-insensitive substring of the scenario "
                         "filename to run (e.g. 'tool-omni_mcp-ping'). "
-                        "Omit to run all scenarios (respecting 'tier')."
+                        "Omit to run all scenarios (respecting 'tier'/'module')."
                     ),
                 },
                 "tier": {
@@ -343,6 +353,16 @@ _TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "Only scenarios at this tier "
                         "(1=no keys hermetic, 2=LLM key, "
                         "3=paid/external/network). Omit for all."
+                    ),
+                },
+                "module": {
+                    "type": "string",
+                    "enum": ["opp", "ol", "orf", "suite"],
+                    "description": (
+                        "Per-module validation: run only this module's "
+                        "scenarios (its categories plus its "
+                        "tool-<module>-* agent-surface scenarios). "
+                        "Omit for all modules."
                     ),
                 },
                 "verbose": {

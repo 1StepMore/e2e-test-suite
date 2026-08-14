@@ -129,6 +129,41 @@ async def test_run_validation_scenario_happy_hermetic():
 
 
 @pytest.mark.asyncio
+async def test_run_validation_scenario_module_filter():
+    """Per-module validation (extend-don't-multiply): ``module: ol`` runs
+    only OL scenarios — the result set must not include opp/orf tools and
+    must carry the module param in the response."""
+    payload = _parse(
+        await _call_tool("run_validation_scenario", {"module": "ol", "scenario": "tool-ol-ping"})
+    )
+    assert payload["success"] is True
+    content = payload["content"]
+    assert content["module"] == "ol"
+    results = content["results"]
+    assert len(results) == 1
+    assert results[0]["name"] == "tool-ol-ping"
+
+
+@pytest.mark.asyncio
+async def test_run_validation_scenario_module_invalid():
+    """Error path: a non-string module is rejected with a structured error."""
+    payload = _parse(await _call_tool("run_validation_scenario", {"module": 42}))
+    assert payload["success"] is False
+    assert payload.get("error_code") == "OMNI_INVALID_INPUT"
+
+
+@pytest.mark.asyncio
+async def test_run_validation_scenario_module_no_match_warns():
+    """Unknown module value: no scenarios match -> warning, no failure."""
+    payload = _parse(
+        await _call_tool("run_validation_scenario", {"module": "nope"})
+    )
+    assert payload["success"] is True
+    assert payload["content"]["warnings"]
+    assert payload["content"]["results"] == []
+
+
+@pytest.mark.asyncio
 async def test_run_validation_scenario_invalid_tier():
     """Error path (#error-clarity): bad params return a structured error."""
     payload = _parse(await _call_tool("run_validation_scenario", {"tier": 4}))

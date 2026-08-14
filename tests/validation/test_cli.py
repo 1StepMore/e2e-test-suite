@@ -355,6 +355,118 @@ def test_main_tier_and_scenario_filters_intersect(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
+# --category / --module filters (per-module validation, "extend don't multiply")
+# ---------------------------------------------------------------------------
+
+
+CATEGORIZED = """
+name: {name}
+description: "scenario in a category"
+tier: 1
+category: {category}
+requires_env: []
+steps:
+  - name: "one"
+    kind: cli
+    command: "true"
+    expect:
+      success: true
+"""
+
+
+def test_main_category_filter_selects_exact_category(tmp_path, capsys):
+    _write(tmp_path, "opp-a.yaml", CATEGORIZED.format(name="opp-a", category="opp-extraction"))
+    _write(tmp_path, "orf-b.yaml", CATEGORIZED.format(name="orf-b", category="orf-md"))
+
+    rc = main(
+        ["--category", "opp-extraction", "--scenarios-dir", str(tmp_path),
+         "--runs-dir", str(tmp_path / "runs")]
+    )
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "opp-a" in out
+    assert "orf-b" not in out
+
+
+def test_main_category_filter_intersects_with_tier(tmp_path, capsys):
+    _write(tmp_path, "opp-t1.yaml", CATEGORIZED.format(name="opp-t1", category="opp-extraction"))
+    _write(tmp_path, "opp-t2.yaml", CATEGORIZED.format(name="opp-t2", category="opp-extraction").replace("tier: 1", "tier: 2"))
+    _write(tmp_path, "orf-t1.yaml", CATEGORIZED.format(name="orf-t1", category="orf-md"))
+
+    rc = main(
+        ["--category", "opp-extraction", "--tier", "1", "--scenarios-dir", str(tmp_path),
+         "--runs-dir", str(tmp_path / "runs")]
+    )
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "opp-t1" in out
+    assert "opp-t2" not in out
+    assert "orf-t1" not in out
+
+
+def test_main_module_opp_selects_own_category_and_tool_prefix(tmp_path, capsys):
+    # OPP module = category opp-extraction + tool-opp-* agent-surface scenarios
+    _write(tmp_path, "opp-a.yaml", CATEGORIZED.format(name="opp-a", category="opp-extraction"))
+    _write(tmp_path, "tool-opp-extract.yaml", CATEGORIZED.format(name="tool-opp-extract_document", category="agent-surface"))
+    _write(tmp_path, "tool-ol-judge.yaml", CATEGORIZED.format(name="tool-ol-judge_text", category="agent-surface"))
+
+    rc = main(
+        ["--module", "opp", "--scenarios-dir", str(tmp_path),
+         "--runs-dir", str(tmp_path / "runs")]
+    )
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "opp-a" in out
+    assert "tool-opp-extract_document" in out
+    assert "tool-ol-judge_text" not in out
+
+
+def test_main_module_orf_selects_both_categories(tmp_path, capsys):
+    _write(tmp_path, "orf-md-x.yaml", CATEGORIZED.format(name="orf-md-x", category="orf-md"))
+    _write(tmp_path, "orf-xliff-y.yaml", CATEGORIZED.format(name="orf-xliff-y", category="orf-xliff"))
+    _write(tmp_path, "opp-a.yaml", CATEGORIZED.format(name="opp-a", category="opp-extraction"))
+
+    rc = main(
+        ["--module", "orf", "--scenarios-dir", str(tmp_path),
+         "--runs-dir", str(tmp_path / "runs")]
+    )
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "orf-md-x" in out
+    assert "orf-xliff-y" in out
+    assert "opp-a" not in out
+
+
+def test_main_unknown_module_warns_and_exits_zero(tmp_path, capsys):
+    _write(tmp_path, "opp-a.yaml", CATEGORIZED.format(name="opp-a", category="opp-extraction"))
+
+    rc = main(
+        ["--module", "nope", "--scenarios-dir", str(tmp_path),
+         "--runs-dir", str(tmp_path / "runs")]
+    )
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "WARNING" in out.upper()
+
+
+def test_main_category_filter_also_applies_to_list(tmp_path, capsys):
+    _write(tmp_path, "opp-a.yaml", CATEGORIZED.format(name="opp-a", category="opp-extraction"))
+    _write(tmp_path, "orf-b.yaml", CATEGORIZED.format(name="orf-b", category="orf-md"))
+
+    rc = main(["--list", "--category", "orf-md", "--scenarios-dir", str(tmp_path)])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "orf-b" in out
+    assert "opp-a" not in out
+
+
+# ---------------------------------------------------------------------------
 # Run mode: verdicts + exit-code mapping
 # ---------------------------------------------------------------------------
 

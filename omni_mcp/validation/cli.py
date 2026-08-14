@@ -251,36 +251,78 @@ def _select_names(
     scenarios_dir: str | Path,
     scenario_substr: str | None,
     tier: int | None,
-) -> tuple[list[str], bool, bool]:
-    """The scenario names that survive both CLI-side filters.
+    category: str | None = None,
+    module: str | None = None,
+) -> tuple[list[str], list[str]]:
+    """The scenario names that survive all CLI-side filters.
 
-    Returns ``(names, tier_empty, stem_empty)`` so the caller can warn
-    which filter emptied the selection.  ``--scenario`` is a
-    case-insensitive substring on the FILENAME stem (AutoInfo semantics);
-    ``--tier`` pre-filters the loaded scenarios by their ``tier`` field.
-    Selection order follows load order (the engine keeps it).
+    Returns ``(names, empty_filters)`` so the caller can warn which filter
+    emptied the selection.  ``--scenario`` is a case-insensitive substring
+    on the FILENAME stem (AutoInfo semantics); ``--tier`` pre-filters by
+    the ``tier`` field; ``--category`` matches the scenario ``category:``
+    field exactly; ``--module`` is the per-module convenience selector
+    (``opp``/``ol``/``orf``/``suite``) that expands to the module's
+    scenario categories plus its ``tool-<module>-*`` agent-surface
+    scenarios.  Selection order follows load order (the engine keeps it).
     """
     tier_names: set[str] | None = None
     stem_names: set[str] | None = None
-    tier_empty = False
-    stem_empty = False
+    category_names: set[str] | None = None
+    module_names: set[str] | None = None
+    empty_filters: list[str] = []
     if tier is not None:
         tier_names = {s["name"] for s in loaded if s.get("tier") == tier}
-        tier_empty = not tier_names
+        if not tier_names:
+            empty_filters.append(f"tier {tier}")
     if scenario_substr is not None:
         stem_names = {
             _name_of(p)
             for p in _discover_files(scenarios_dir)
             if scenario_substr.lower() in p.stem.lower()
         }
-        stem_empty = not stem_names
+        if not stem_names:
+            empty_filters.append(f"--scenario {scenario_substr!r}")
+    if category is not None:
+        category_names = {s["name"] for s in loaded if s.get("category") == category}
+        if not category_names:
+            empty_filters.append(f"--category {category!r}")
+    if module is not None:
+        module_names = _module_scenario_names(loaded, module)
+        if not module_names:
+            empty_filters.append(f"--module {module!r}")
     names = [
         s["name"]
         for s in loaded
         if (tier_names is None or s["name"] in tier_names)
         and (stem_names is None or s["name"] in stem_names)
+        and (category_names is None or s["name"] in category_names)
+        and (module_names is None or s["name"] in module_names)
     ]
-    return names, tier_empty, stem_empty
+    return names, empty_filters
+
+
+_MODULE_CATEGORIES: dict[str, set[str]] = {
+    "opp": {"opp-extraction"},
+    "orf": {"orf-md", "orf-xliff"},
+    "ol": set(),
+    "suite": {"pipeline", "regression"},
+}
+
+#: The suite's own agent-surface tool prefix (its 4 MCP tools).
+_SUITE_TOOL_PREFIX = "tool-omni_mcp-"
+
+
+def _module_scenario_names(loaded: list[dict[str, Any]], module: str) -> set[str]:
+    """The scenario names belonging to a module: its own categories plus
+    the ``tool-<module>-*`` agent-surface scenarios (the suite module's
+    tools are the ``tool-omni_mcp-*`` prefix)."""
+    cats = _MODULE_CATEGORIES.get(module)
+    if cats is None:
+        return set()
+    names = {s["name"] for s in loaded if s.get("category") in cats}
+    prefix = _SUITE_TOOL_PREFIX if module == "suite" else f"tool-{module}-"
+    names |= {s["name"] for s in loaded if s["name"].startswith(prefix)}
+    return names
 
 
 # ---------------------------------------------------------------------------
@@ -343,6 +385,21 @@ def main(argv: list[str] | None = None) -> int:
         help="run only scenarios whose FILENAME contains SUBSTR (case-insensitive)",
     )
     parser.add_argument(
+        "--category",
+        metavar="CATEGORY",
+        default=None,
+        help="run only scenarios whose ``category:`` field equals CATEGORY "
+        "(e.g. opp-extraction, orf-md, orf-xliff, agent-surface, pipeline, regression)",
+    )
+    parser.add_argument(
+        "--module",
+        metavar="MODULE",
+        default=None,
+        help="per-module validation: run only that module's scenarios "
+        "(its categories plus its tool-<module>-* agent-surface scenarios); "
+        "known modules: opp, ol, orf, suite",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="load + validate + print the plan; dispatch nothing"
     )
     parser.add_argument(
@@ -383,8 +440,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.list:
-        print(f"Available Scenarios ({len(loaded)}):")
-        for s in loaded:
+        names, _empty = _select_names(
+            loaded, args.scenarios_dir, args.scenario, args.tier, args.category, args.module
+        )
+        selected = [s for s in loaded if s["name"] in names] if names else loaded
+        print(f"Available Scenarios ({len(selected)}):")
+        for s in selected:
             env = ", ".join(s["requires_env"]) or "-"
             print(
                 f"  {s['name']:<30s}  tier={s['tier']}  steps={len(s['steps'])}  "
@@ -392,14 +453,12 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 0
 
-    names, tier_empty, stem_empty = _select_names(
-        loaded, args.scenarios_dir, args.scenario, args.tier
+    names, empty_filters = _select_names(
+        loaded, args.scenarios_dir, args.scenario, args.tier, args.category, args.module
     )
-    if tier_empty:
-        print(f"WARNING: no scenarios at tier {args.tier}")
-    if stem_empty:
-        print(f"WARNING: no scenarios match --scenario {args.scenario!r}")
-    if tier_empty or stem_empty:
+    for f in empty_filters:
+        print(f"WARNING: no scenarios match {f}")
+    if empty_filters:
         return 0
 
     if not names:
@@ -414,7 +473,11 @@ def main(argv: list[str] | None = None) -> int:
         _print_plan(loaded, names)
         return 0
 
-    filters = None if (args.scenario is None and args.tier is None) else names
+    filters = (
+        None
+        if (args.scenario is None and args.tier is None and args.category is None and args.module is None)
+        else names
+    )
     try:
         run = run_scenarios(args.scenarios_dir, filters=filters, runs_dir=args.runs_dir)
     except ScenarioError as exc:
