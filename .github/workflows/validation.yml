@@ -1,0 +1,231 @@
+name: Validation Framework
+
+# Two jobs (plan todo 25, draft D7 + D11):
+#   structural — hermetic tier-1 scenarios + coverage audit + regression
+#                check + contract tests. Runs on every PR/push to main.
+#                NO LLM keys, and the FAKE_LLM seam is never set (D4 strict
+#                no-mocks — deliberately NOT copied from e2e-tests.yml's
+#                FAKE_LLM env).
+#   nightly    — schedule + manual dispatch only (never blocking on PR).
+#                Real LLM keys from secrets (missing keys -> pipeline
+#                scenarios report `unconfigured`, never fake-green), runs
+#                the FULL library incl. the D9 human-quality pipeline bar,
+#                produces the director report, uploads validation-runs/.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # 02:00 UTC daily — real-LLM full suite (D11 nightly real).
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same branch when a new commit is pushed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Job 1: Structural validation (hermetic, no LLM keys).
+  # Boilerplate mirrors e2e-tests.yml `ci-suite` EXACTLY (checkout ->
+  # clone_subrepos.sh -> setup-python 3.13 -> uv -> pandoc -> install);
+  # sub-repos are gitignored in the suite repo and cloned fresh from
+  # GitHub, so this job exercises the SHIPPED surface, not local commits.
+  # -------------------------------------------------------------------------
+  structural:
+    name: Structural (hermetic, no keys)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # schedule runs the full library in the nightly job — no duplicate.
+    if: github.event_name != 'schedule'
+
+    env:
+      # Infra token bucket: disabled for full scenario runs (a 39+-scenario
+      # run exceeds the default 60 RPM). NOT a mock — the FAKE_LLM seam is
+      # never set in this job (D4 strict no-mocks).
+      OMNI_RATE_LIMIT_RPM: "0"
+      # Path allowlists that hermetic scenarios declare via requires_env
+      # (OPP/OL/ORF MCP fail-closed security model).
+      OPP_MCP_ALLOWED_DIRS: /tmp
+      ORF_MCP_ALLOWED_DIRS: /tmp
+      MCP_ALLOWED_DIRECTORIES: /tmp
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Clone 3 sub-repos (parent .gitignore excludes them)
+        run: bash scripts/clone_subrepos.sh
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install system deps (pandoc for ORF MD conversions)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+
+      - name: Install weasyprint C libs (real PDF render in orf-md scenarios)
+        run: |
+          # orf-md pdf scenarios render a REAL PDF via weasyprint
+          # (STANDARDS.md#json-parseable / exit-codes structure checks) —
+          # same C libs the e2e ci-suite installs.
+          sudo apt-get install -y \
+            libpango-1.0-0 libpangoft2-1.0-0 libpangocairo-1.0-0 \
+            libcairo2 libcairo-gobject2 libgdk-pixbuf2.0-0 \
+            shared-mime-info fontconfig
+
+      - name: uv sync (root workspace installs all 3 submodules via [tool.uv.workspace])
+        run: uv sync --frozen
+
+      - name: Install test deps (pytest + docx/pptx/pandoc + weasyprint for real PDF render)
+        run: uv pip install --python .venv/bin/python pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout weasyprint nbformat markdownify chardet openpyxl lxml
+
+      - name: Create .venv_ol symlink for legacy paths
+        run: ln -s .venv .venv_ol
+
+      - name: Ensure .venv/bin/python exists (uv creates python3, not python)
+        run: cd .venv/bin && [ ! -e python ] && [ -e python3 ] && ln -s python3 python; cd -
+
+      - name: Install 3 sub-repos as editable packages
+        run: |
+          uv pip install --python .venv/bin/python -e ./Omni_Pre_Processor
+          uv pip install --python .venv/bin/python -e "./Omni_Localizer[mcp]"
+          uv pip install --python .venv/bin/python -e ./Omni_Re_Formatter
+
+      # ------------------------------------------------------------------
+      # The four validation gates (hermetic, no keys, no mocks).
+      # ------------------------------------------------------------------
+
+      - name: 'Gate 1 — Run validation scenarios (tier 1, hermetic)'
+        run: .venv_ol/bin/python scripts/validation/run_validation.py --tier 1
+
+      - name: 'Gate 2 — Coverage audit (must be 0 missing: exit 0)'
+        # Every live MCP tool must be exercised by a scenario; exit 1
+        # while any tool is `missing` (plan todo 17 / draft D13).
+        run: .venv_ol/bin/python scripts/validation/coverage_audit.py
+
+      - name: 'Gate 3 — T2 regression check (PDF -> XLIFF guard)'
+        # CAVEAT (delivery note, NOT a weakened gate): the OPP guard fix
+        # (commit c21bce6 in 1StepMore/Omni_Pre_Processor, 2026-08-14) is
+        # committed but NOT pushed. CI clones OPP fresh from GitHub main,
+        # so this gate stays RED until that commit is pushed upstream.
+        # The check runs AS-IS on purpose: it is the flywheel's regression
+        # lock for bug T2 (`--scenario regression` matches nothing — the
+        # mandated stem is t2-pdf-xliff-guard).
+        run: .venv_ol/bin/python scripts/validation/run_validation.py --scenario t2-pdf-xliff-guard
+
+      - name: 'Gate 4 — Contract + validation engine tests'
+        run: .venv_ol/bin/python -m pytest tests/contract tests/validation -q
+
+  # -------------------------------------------------------------------------
+  # Job 2: Nightly validation with REAL LLM keys (D11).
+  # Schedule + manual dispatch only — never blocks PRs. Missing secrets
+  # fall back to '' (honest: keyed scenarios report `unconfigured` instead
+  # of fake-green). Runs the FULL library (all tiers), generates the
+  # director report from the newest run, uploads validation-runs/.
+  # -------------------------------------------------------------------------
+  nightly:
+    name: Nightly (real LLM)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    env:
+      OMNI_RATE_LIMIT_RPM: "0"
+      OPP_MCP_ALLOWED_DIRS: /tmp
+      ORF_MCP_ALLOWED_DIRS: /tmp
+      MCP_ALLOWED_DIRECTORIES: /tmp
+      # OPP/OL CLI config resolution for keyed scenarios
+      # (requires_env: OL_CONFIG_PATH / OPP_CONFIG_PATH /
+      #  OPP_ALLOWED_DIRECTORIES on pipeline + translate_file scenarios).
+      OPP_ALLOWED_DIRECTORIES: /tmp
+      OPP_CONFIG_PATH: Omni_Pre_Processor/config/default.yaml
+      OL_CONFIG_PATH: Omni_Localizer/config/local.yaml
+      # Real LLM keys. `|| ''` is HONEST: a missing secret leaves the
+      # keyed scenarios `unconfigured` (never a pass, never a silent skip,
+      # never FAKE_LLM — D4).
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+      ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY || '' }}
+      AGNES_API_KEY: ${{ secrets.AGNES_API_KEY || '' }}
+      NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY || '' }}
+      OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY || '' }}
+      OPENCODE_GO_BASE_URL: ${{ secrets.OPENCODE_GO_BASE_URL || '' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Clone 3 sub-repos (parent .gitignore excludes them)
+        run: bash scripts/clone_subrepos.sh
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install system deps (pandoc for ORF MD conversions)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+
+      - name: Install weasyprint C libs (real PDF render in orf-md + pipeline scenarios)
+        run: |
+          sudo apt-get install -y \
+            libpango-1.0-0 libpangoft2-1.0-0 libpangocairo-1.0-0 \
+            libcairo2 libcairo-gobject2 libgdk-pixbuf2.0-0 \
+            shared-mime-info fontconfig
+
+      - name: uv sync (root workspace installs all 3 submodules via [tool.uv.workspace])
+        run: uv sync --frozen
+
+      - name: Install test deps (pytest + docx/pptx/pandoc + weasyprint for real PDF render)
+        run: uv pip install --python .venv/bin/python pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout weasyprint nbformat markdownify chardet openpyxl lxml
+
+      - name: Create .venv_ol symlink for legacy paths
+        run: ln -s .venv .venv_ol
+
+      - name: Ensure .venv/bin/python exists (uv creates python3, not python)
+        run: cd .venv/bin && [ ! -e python ] && [ -e python3 ] && ln -s python3 python; cd -
+
+      - name: Install 3 sub-repos as editable packages
+        run: |
+          uv pip install --python .venv/bin/python -e ./Omni_Pre_Processor
+          uv pip install --python .venv/bin/python -e "./Omni_Localizer[mcp]"
+          uv pip install --python .venv/bin/python -e ./Omni_Re_Formatter
+
+      - name: Configure OL local config (OL_CONFIG_PATH target for keyed scenarios)
+        run: cp Omni_Localizer/config/default.yaml Omni_Localizer/config/local.yaml
+
+      - name: Run full validation library (all tiers, real keys)
+        run: .venv_ol/bin/python scripts/validation/run_validation.py
+
+      - name: Generate director report (newest run via latest.txt)
+        run: |
+          LATEST=$(cat validation-runs/latest.txt)
+          .venv_ol/bin/python scripts/validation/validation_report.py "validation-runs/$LATEST/scenarios.json"
+
+      - name: Upload validation runs (scenarios.json + report.md)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-runs
+          path: validation-runs/
+          if-no-files-found: ignore
