@@ -2,7 +2,7 @@ name: tool-ol-extract_warnings
 description: "OL extract_warnings scans a warning-marked MD fixture and returns a clean path error for a bad path."
 category: agent-surface
 tier: 1
-requires_env: [MCP_ALLOWED_DIRECTORIES]
+requires_env: [OL_MCP_ALLOWED_DIRS]
 instructions: |
   Agent-user conformance (draft D13, mission axis 1): this scenario proves the
   live tool responds as an agent-user expects — schema-shaped arguments accepted,
