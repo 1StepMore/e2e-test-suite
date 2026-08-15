@@ -38,7 +38,7 @@ steps:
       a failure means the fixture could not be produced.
   - name: Extract XML to Markdown via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /tmp/omni_val/opp-xml/in.xml --target-format md --output-dir /tmp/omni_val/opp-xml -v
+    command: opp /tmp/omni_val/opp-xml/in.xml --target-format md --output-dir /tmp/omni_val/opp-xml -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

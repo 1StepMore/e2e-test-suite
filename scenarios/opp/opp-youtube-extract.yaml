@@ -26,7 +26,7 @@ instructions: |
 steps:
   - name: Extract the .url shortcut to Markdown via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Omni_Pre_Processor/batch_test/phase8_media/short.url --target-format md --output-dir /tmp/omni_val/opp-youtube -v
+    command: opp Omni_Pre_Processor/batch_test/phase8_media/short.url --target-format md --output-dir /tmp/omni_val/opp-youtube -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

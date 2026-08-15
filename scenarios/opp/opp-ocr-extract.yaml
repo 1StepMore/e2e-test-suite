@@ -25,7 +25,7 @@ instructions: |
 steps:
   - name: Extract the PNG image to Markdown via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Omni_Pre_Processor/batch_test/phase7_email_image/normal.png --target-format md --output-dir /tmp/omni_val/opp-ocr -v
+    command: opp Omni_Pre_Processor/batch_test/phase7_email_image/normal.png --target-format md --output-dir /tmp/omni_val/opp-ocr -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

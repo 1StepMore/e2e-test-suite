@@ -16,7 +16,7 @@ instructions: |
 steps:
   - name: Extract PPTX to Markdown and XLIFF via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Meridian_Q1_Update_E2E.pptx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-pptx -v
+    command: opp Meridian_Q1_Update_E2E.pptx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-pptx -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

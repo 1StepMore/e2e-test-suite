@@ -32,7 +32,7 @@ instructions: |
 steps:
   - name: OPP refuses PDF->XLIFF with exit 1 and the guard message
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/scenarios/_fixtures/normal.pdf --target-format xlf --source-lang en --target-lang zh --output-dir /tmp/omni_val/t2
+    command: opp scenarios/_fixtures/normal.pdf --target-format xlf --source-lang en --target-lang zh --output-dir /tmp/omni_val/t2
     expect:
       exit_code: 1
       stderr_has: ["XLIFF not supported for PDF format"]

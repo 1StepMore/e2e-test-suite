@@ -54,7 +54,7 @@ steps:
       a failure means the fixture could not be produced.
   - name: Extract EPUB to Markdown and XLIFF via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /tmp/omni_val/opp-epub/book.epub --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-epub -v
+    command: opp /tmp/omni_val/opp-epub/book.epub --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-epub -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

@@ -22,7 +22,7 @@ instructions: |
 steps:
   - name: Extract DOCX to Markdown and XLIFF via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Meridian_Robotics_Product_Overview_E2E.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-docx -v
+    command: opp Meridian_Robotics_Product_Overview_E2E.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-docx -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

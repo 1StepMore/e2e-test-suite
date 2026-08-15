@@ -40,10 +40,14 @@ _INIT_FALLBACK_RE = re.compile(r'__version__\s*=\s*"([^"]+)"')
 
 
 def _read_version_from_file(path: Path) -> str | None:
-    """Read a plain version string from a file (e.g. VERSION)."""
+    """Read a version string from a file, skipping comment/blank lines."""
     if not path.exists():
         return None
-    return path.read_text(encoding="utf-8").strip()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            return stripped
+    return None
 
 
 def _parse_toml_version(path: Path) -> str | None:
