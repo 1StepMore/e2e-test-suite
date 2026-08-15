@@ -36,7 +36,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install pytest
-        run: pip install pytest
+        run: pip install pytest python-docx
       - name: Run contract documentation tests
         run: python -m pytest tests/contract/test_contract_documentation.py -v --tb=short
 
