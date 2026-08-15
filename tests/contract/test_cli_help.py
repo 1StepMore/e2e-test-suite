@@ -34,6 +34,9 @@ _LOG_NOISE_PATTERNS = [
     re.compile(r"^\[DEBUG\] .+$", re.MULTILINE),
     re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} .+$", re.MULTILINE),
     re.compile(r"\x1b\[[0-9;]*[A-Za-z]"),
+    # PyMuPDF emits a one-line fitz deprecation warning on import (version
+    # dependent); strip it — it is env noise, not CLI help content.
+    re.compile(r"^warning: The `fitz` API is deprecated[^\n]*\n", re.MULTILINE),
 ]
 
 
