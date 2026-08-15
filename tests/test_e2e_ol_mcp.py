@@ -21,7 +21,7 @@ class TestOLMCP:
     @pytest.mark.requires_ol
     def test_translate_md_text_basic(self, tmp_path):
         """Test translate_md_text tool with basic markdown."""
-        with patch("ol_mcp.tools.ModelPool") as mock_pool:
+        with patch("ol_mcp.translate_md.ModelPool") as mock_pool:
             # Mock the translate method
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(return_value="# Hello [→zh]\n\nThis is Chinese content.")
@@ -41,19 +41,23 @@ class TestOLMCP:
 
             assert parsed["success"] is True
             assert "translated" in parsed
-            assert parsed["source_lang"] == "en"
-            assert parsed["target_lang"] == "zh"
+            assert parsed["content"]["source_lang"] == "en"
+            assert parsed["content"]["target_lang"] == "zh"
 
     @pytest.mark.requires_ol
     def test_translate_md_text_with_glossary(self, tmp_path):
         """Test translate_md_text tool with glossary path."""
+        import json as _json
+
         glossary_data = {
             "hello": {"translation": "你好", "definition": "greeting"},
             "world": {"translation": "世界", "definition": "planet"},
         }
+        glossary_path = tmp_path / "glossary.json"
+        glossary_path.write_text(_json.dumps(glossary_data), encoding="utf-8")
 
-        with patch("ol_mcp.tools.ModelPool") as mock_pool, \
-             patch("ol_mcp.tools.load_glossary_from_path") as mock_glossary:
+        with patch("ol_mcp.translate_md.ModelPool") as mock_pool, \
+             patch("ol_mcp.translate_md.load_glossary_from_path") as mock_glossary:
 
             mock_glossary.return_value = glossary_data
             mock_instance = MagicMock()
@@ -67,7 +71,7 @@ class TestOLMCP:
                 content="# Hello World\n\nThis is a test.",
                 source_lang="en",
                 target_lang="zh",
-                glossary_path=str(tmp_path / "glossary.json"),
+                glossary_path=str(glossary_path),
             )
 
             result = asyncio.run(translate_md_text(params))
@@ -78,7 +82,7 @@ class TestOLMCP:
     @pytest.mark.requires_ol
     def test_translate_md_text_add_frontmatter(self, tmp_path):
         """Test translate_md_text with add_frontmatter=True."""
-        with patch("ol_mcp.tools.ModelPool") as mock_pool:
+        with patch("ol_mcp.translate_md.ModelPool") as mock_pool:
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(return_value="# Test\n\nTranslated content.")
             mock_pool.return_value = mock_instance
@@ -101,7 +105,7 @@ class TestOLMCP:
     @pytest.mark.requires_ol
     def test_translate_md_text_error_handling(self, tmp_path):
         """Test translate_md_text handles errors gracefully."""
-        with patch("ol_mcp.tools.ModelPool") as mock_pool:
+        with patch("ol_mcp.translate_md.ModelPool") as mock_pool:
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(side_effect=Exception("LLM error"))
             mock_pool.return_value = mock_instance
@@ -119,12 +123,12 @@ class TestOLMCP:
             parsed = json.loads(result)
 
             assert parsed["success"] is False
-            assert len(parsed["warnings"]) > 0
+            assert parsed["error"]["code"] == "OL_TRANSLATE_FAILED"
 
     @pytest.mark.requires_ol
     def test_judge_text_basic(self, tmp_path):
         """Test judge_text tool evaluates translation quality."""
-        with patch("ol_mcp.tools.ModelPool") as mock_pool:
+        with patch("ol_mcp.judge.ModelPool") as mock_pool:
             mock_instance = MagicMock()
             mock_instance.judge = AsyncMock(return_value={
                 "score": 85,
@@ -150,14 +154,14 @@ class TestOLMCP:
             parsed = json.loads(result)
 
             assert parsed["success"] is True
-            assert "score" in parsed
-            assert parsed["score"] == 85
-            assert "judge_scores" in parsed
+            assert "score" in parsed["content"]
+            assert parsed["content"]["score"] == 85
+            assert "judge_scores" in parsed["content"]
 
     @pytest.mark.requires_ol
     def test_judge_text_with_glossary(self, tmp_path):
         """Test judge_text tool with glossary parameter."""
-        with patch("ol_mcp.tools.ModelPool") as mock_pool:
+        with patch("ol_mcp.judge.ModelPool") as mock_pool:
             mock_instance = MagicMock()
             mock_instance.judge = AsyncMock(return_value={
                 "score": 90,
@@ -184,12 +188,12 @@ class TestOLMCP:
             parsed = json.loads(result)
 
             assert parsed["success"] is True
-            assert parsed["score"] == 90
+            assert parsed["content"]["score"] == 90
 
     @pytest.mark.requires_ol
     def test_judge_text_error_handling(self, tmp_path):
         """Test judge_text handles errors gracefully."""
-        with patch("ol_mcp.tools.ModelPool") as mock_pool:
+        with patch("ol_mcp.judge.ModelPool") as mock_pool:
             mock_instance = MagicMock()
             mock_instance.judge = AsyncMock(side_effect=Exception("Judge unavailable"))
             mock_pool.return_value = mock_instance
@@ -208,14 +212,14 @@ class TestOLMCP:
             parsed = json.loads(result)
 
             assert parsed["success"] is False
-            assert parsed["score"] == 0
+            assert parsed["error"]["code"] == "OL_JUDGE_FAILED"
 
     @pytest.mark.requires_ol
     def test_batch_translate_texts_basic(self, tmp_path):
         """Test batch_translate_texts tool translates multiple texts."""
-        with patch("ol_mcp.tools.ModelPool") as mock_pool, \
-             patch("ol_mcp.tools.MDRepairPipeline") as mock_repair, \
-             patch("ol_mcp.tools.ConcurrencyLimiter", create=True) as mock_limiter:
+        with patch("ol_mcp.batch_translate.ModelPool") as mock_pool, \
+             patch("ol_mcp.batch_translate.MDRepairPipeline") as mock_repair, \
+             patch("ol_mcp.batch_translate.ConcurrencyLimiter", create=True) as mock_limiter:
 
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(side_effect=[
@@ -243,18 +247,18 @@ class TestOLMCP:
                 target_lang="zh",
             )
 
-            result = batch_translate_texts(params)
+            result = asyncio.run(batch_translate_texts(params))
             parsed = json.loads(result)
 
-            assert "results" in parsed
-            assert parsed["total"] == 2
+            assert "results" in parsed["content"]
+            assert parsed["content"]["total"] == 2
 
     @pytest.mark.requires_ol
     def test_batch_translate_texts_with_concurrency(self, tmp_path):
         """Test batch_translate_texts respects concurrency limit."""
-        with patch("ol_mcp.tools.ModelPool") as mock_pool, \
-             patch("ol_mcp.tools.MDRepairPipeline") as mock_repair, \
-             patch("ol_mcp.tools.ConcurrencyLimiter", create=True) as mock_limiter:
+        with patch("ol_mcp.batch_translate.ModelPool") as mock_pool, \
+             patch("ol_mcp.batch_translate.MDRepairPipeline") as mock_repair, \
+             patch("ol_mcp.batch_translate.ConcurrencyLimiter", create=True) as mock_limiter:
 
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(return_value="# Translated")
@@ -278,17 +282,17 @@ class TestOLMCP:
                 concurrency=2,
             )
 
-            result = batch_translate_texts(params)
+            result = asyncio.run(batch_translate_texts(params))
             parsed = json.loads(result)
 
-            assert "results" in parsed
+            assert "results" in parsed["content"]
 
     @pytest.mark.requires_ol
     def test_batch_translate_texts_partial_failure(self, tmp_path):
         """Test batch_translate_texts handles partial failures."""
-        with patch("ol_mcp.tools.ModelPool") as mock_pool, \
-             patch("ol_mcp.tools.MDRepairPipeline") as mock_repair, \
-             patch("ol_mcp.tools.ConcurrencyLimiter", create=True) as mock_limiter:
+        with patch("ol_mcp.batch_translate.ModelPool") as mock_pool, \
+             patch("ol_mcp.batch_translate.MDRepairPipeline") as mock_repair, \
+             patch("ol_mcp.batch_translate.ConcurrencyLimiter", create=True) as mock_limiter:
 
             mock_instance = MagicMock()
             # First succeeds, second fails
@@ -315,10 +319,10 @@ class TestOLMCP:
                 target_lang="zh",
             )
 
-            result = batch_translate_texts(params)
+            result = asyncio.run(batch_translate_texts(params))
             parsed = json.loads(result)
 
-            assert "failed" in parsed or parsed["failed"] >= 0
+            assert "failed" in parsed["content"] or parsed["content"]["failed"] >= 0
 
     @pytest.mark.requires_ol
     def test_translate_md_text_preserves_markdown_structure(self, tmp_path):
@@ -339,7 +343,7 @@ def hello():
 
 Another paragraph.
 """
-        with patch("ol_mcp.tools.ModelPool") as mock_pool:
+        with patch("ol_mcp.translate_md.ModelPool") as mock_pool:
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(return_value=md_with_code)
             mock_pool.return_value = mock_instance

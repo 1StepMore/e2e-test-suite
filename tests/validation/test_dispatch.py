@@ -172,7 +172,9 @@ def test_cli_env_never_injects_fake_llm():
     OMNI_TEST_FAKE_LLM (or OPP_ALLOWED_DIRECTORIES) unless the parent
     process set them.  The adapter inherits the parent env and adds
     nothing."""
-    env = build_cli_env()
+    # Explicit clean parent env: verifies the adapter never ADDS these
+    # vars, independent of whatever the pytest process inherited.
+    env = build_cli_env(env={"PATH": "/usr/bin"})
 
     assert "OMNI_TEST_FAKE_LLM" not in env
     assert "OPP_ALLOWED_DIRECTORIES" not in env
