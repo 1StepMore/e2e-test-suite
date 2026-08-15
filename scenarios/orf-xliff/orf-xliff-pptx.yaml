@@ -28,10 +28,10 @@ steps:
       print("COPIED %d fixture files" % len(files))
     expect:
       exit_code: 0
-      stdout_has: ["COPIED 7 fixture files"]
+      stdout_has: ["COPIED 8 fixture files"]
     standard: STANDARDS.md#exit-codes
     instructions: |-
-      Copy the committed fixture pair (7 files incl. source.pptx + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-pptx/. Check: exit 0 and "COPIED 7 fixture files".
+      Copy the committed fixture pair (8 files incl. source.pptx + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-pptx/. Check: exit 0 and "COPIED 8 fixture files".
   - name: Generate PPTX skeleton.zip at run time via OPP
     kind: cli
     command: opp /tmp/omni_val/orf-xliff-pptx/source.pptx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/orf-xliff-pptx/skel_pptx -v
