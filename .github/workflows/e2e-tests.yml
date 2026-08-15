@@ -70,7 +70,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Install test deps (pytest + docx/pptx/pandoc + structlog/otel + psutil + pytest-timeout + weasyprint for CI-G3)
-        run: uv pip install --python .venv/bin/python pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout weasyprint nbformat markdownify chardet openpyxl lxml boto3 azure-storage-blob moto yake
+        run: uv pip install --python .venv/bin/python pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout weasyprint nbformat markdownify chardet openpyxl lxml boto3 azure-storage-blob moto yake fastmcp
 
       - name: Create .venv_ol symlink for legacy paths
         run: ln -s .venv .venv_ol
@@ -139,6 +139,11 @@ jobs:
           AGNES_API_KEY: "sk-dummy"
           NVIDIA_NIM_API_KEY: "nvapi-dummy"
           ORF_MCP_ALLOWED_DIRS: "/tmp:/home/runner/work/Omni_Suite"
+          # MCP smoke tests fire many tool calls in quick succession; a
+          # token-bucket RPM cap (default 60) trips them. Disable like
+          # the validation workflow does (AGENTS.md: "Set 0 for full
+          # validation runs").
+          OMNI_RATE_LIMIT_RPM: "0"
 
       - name: Run MCP verifier
         run: .venv_ol/bin/python scripts/verify_mcp.py
@@ -149,6 +154,7 @@ jobs:
           AGNES_API_KEY: "sk-dummy"
           NVIDIA_NIM_API_KEY: "nvapi-dummy"
           ORF_MCP_ALLOWED_DIRS: "/tmp:/home/runner/work/Omni_Suite"
+          OMNI_RATE_LIMIT_RPM: "0"
 
       - name: Clean up test artifacts
         run: rm -rf mcp_resources/ resources/ logs/ final-out/ test_artifacts/
