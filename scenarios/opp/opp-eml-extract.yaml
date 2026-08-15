@@ -18,7 +18,7 @@ instructions: |
 steps:
   - name: Extract EML to Markdown via the real OPP CLI
     kind: cli
-    command: opp scenarios/_fixtures/email_mixed_01_source.eml --target-format md --output-dir /tmp/omni_val/opp-eml -v
+    command: opp eval/reference/email_mixed/email_mixed_01_source.eml --target-format md --output-dir /tmp/omni_val/opp-eml -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

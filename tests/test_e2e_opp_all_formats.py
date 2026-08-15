@@ -149,8 +149,17 @@ class TestOPPPdfFormat:
 
         result = opp_pipeline.process_file(pdf_path)
         assert result is not None
-        assert result.format_type.value == "pdf"
-        assert len(result.content) > 0
+        # OPP processes PDF through the PDF→HTML→MD pipeline, so the
+        # ProcessingResult reports HTML (historical contract locked by
+        # Omni_Pre_Processor/tests/test_pipeline_pdf2html_integration.py).
+        assert result.format_type.value == "html"
+        # PDF text lands in the HTML skeleton; the page text must be present.
+        skeleton_html = (
+            result.extraction_result.skeleton_html
+            if result.extraction_result is not None
+            else ""
+        )
+        assert "PDF Content" in skeleton_html
 
     @pytest.mark.requires_opp
     def test_pdf_generates_markdown(self, opp_pipeline, tmp_path):
