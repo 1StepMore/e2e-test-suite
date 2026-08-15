@@ -22,6 +22,11 @@
 - [ ] **套件环境装配清单(全量跑前必配,缺一即 failed 非 unconfigured)**——(a) `OPP_MCP_ALLOWED_DIRS` 必须含场景 fixture 目录 `/tmp/omni-agent-surface`(Hermes 环境注入值只有 `/mnt/d/Hermes-Workspace:/home/renanzai`,OPP 拒绝 /tmp → tool-opp-* 全 failed);(b) `markdownify` + `readability-lxml`(OPP HTML 提取,缺则 opp-html-extract 标题丢失 no-h1/no-h2);(c) `yake` + `jieba`(OL ol[ml] extra,缺则 tool-ol-extract_terms YAKE 失败);(d) `weasyprint`(ORF PDF 引擎,缺则 orf-md-pdf / orf-xliff-pdf 转 PDF 失败;weasyprint 是首选,不需要装 pdflatex);(e) 三模块内嵌副本与 HEAD 一致。跑前一次性核对,别等 failed 了才逐个装。
 - [ ] **`pip install` 在 WSL 默认源会慢/卡(do_sys_poll 挂起)**——连接 ESTABLISHED 但传输慢;`pip index versions` 查版本快,清华镜像缺包(如 markdownify)时换官方源;安装放后台 + notify_on_complete,别前台等。
 - [ ] **unconfigured 里有一批是可配 env 不是缺 LLM key**——`ORF_MCP_ALLOWED_DIRS`/`MCP_ALLOWED_DIRECTORIES` 补上后 tool-orf-* 等 11 个可转绿;真正缺 key 的是 OPENAI/ZHIPU/AGNES/NVIDIA(OL translate/judge/pipeline)。区分"可配未配"与"客观缺 key"。
+- [ ] **OL 模型池在 Omni_Localizer/config/local.yaml + default.yaml(两份镜像)**——translation/judging/restoration 三组,key 全部 `${ENV_VAR}` 引用。场景 requires_env 要求 4 个 LLM key 全有(含 OPENAI_API_KEY),但**代码只读池内 provider**,把 `OPENAI_API_KEY` 指向任一 openai-compat provider(如 Agnes)即可过门控。2026-08-15 实测:NVIDIA `deepseek-ai/deepseek-v4-flash` 已 EOL(2026-08-07)→ 换成 `z-ai/glm-5.2` + `minimaxai/minimax-m3`(新 key 实测可用);Zhipu `glm-4.7-flash` 是 reasoning 模型(max_tokens 太小会空返回,≥1024 正常);Mistral `api.mistral.ai` WSL 网络不可达。
+- [ ] **NVIDIA NIM key 分两档**:能 `GET /v1/models`(列 102 个)≠ 能调用;免费 key 需在 build.nvidia.com 模型页逐个授权,未授权模型调用 403 "Authorization failed"。
+- [ ] **三个模块的 allowlist env 分隔符不同**——OL `MCP_ALLOWED_DIRECTORIES` 用**逗号**(`security.py:276 split(",")`),ORF `ORF_MCP_ALLOWED_DIRS` / OPP `OPP_MCP_ALLOWED_DIRS` 用**冒号**。配错分隔符 → 整个字符串被当成一个目录,任何路径都 OL_PATH_NOT_ALLOWED(failed 而非 unconfigured)。
+- [ ] **Hermes 会话注入 PYTHONPATH 含 `~/.hermes/hermes-agent` → OL `from cli import *` 裸导入会命中 hermes-agent 的 cli.py**——表现为 ModuleNotFoundError: prompt_toolkit(其实是 import 错了文件)。跑 OL/OPP/ORF 的 CLI 子进程前 `unset PYTHONPATH`。同坑:`.venv_ol` editable .pth 若指向 `src/Omni_*` 旧副本(被 gitignore),手动改 .pth 指向 `Omni_*/src`,别指望 pip 重装自动修(pip 有 editable 路径缓存)。
+- [ ] **NVIDIA NIM key 分两档**:能 `GET /v1/models`(列 102 个)≠ 能调用;免费 key 需在 build.nvidia.com 模型页逐个授权,未授权模型调用 403 "Authorization failed"。
 
 ## 循环事件（major events，newest on top）
 

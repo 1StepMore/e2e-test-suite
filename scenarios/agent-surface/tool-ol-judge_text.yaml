@@ -24,7 +24,7 @@ steps:
     expect:
       success: true
       exit_code: 0
-      stdout_has: ['"success": true', '"scores"', 'adequacy']
+      stdout_has: ['"success": true', '"judge_scores"', 'adequacy']
     standard: STANDARDS.md#tool-contract
     instructions: 'Real LLM judging: runs only with a provider key (requires_env; the judge channel resolves its config via OL_CONFIG_PATH, so that var is declared too). Expect success with a scores map including adequacy.'
   - name: 'judge_text rejects a same-language pair cleanly'
