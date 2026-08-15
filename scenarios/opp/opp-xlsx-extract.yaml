@@ -42,7 +42,7 @@ steps:
       meaningless.
   - name: Extract XLSX to Markdown via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /tmp/omni_val/opp-xlsx/in.xlsx --target-format md --output-dir /tmp/omni_val/opp-xlsx -v
+    command: opp /tmp/omni_val/opp-xlsx/in.xlsx --target-format md --output-dir /tmp/omni_val/opp-xlsx -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

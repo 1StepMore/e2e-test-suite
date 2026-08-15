@@ -97,16 +97,16 @@ def extract_payload(call_result) -> dict[str, Any]:
 
     data = call_result.data
     if isinstance(data, dict):
-        return data
+        return _unwrap_content(data)
     if data is not None and hasattr(data, "result"):
         inner = data.result
         if isinstance(inner, str):
             try:
-                return json.loads(inner)
+                return _unwrap_content(json.loads(inner))
             except json.JSONDecodeError:
                 return {"raw": inner}
         if isinstance(inner, dict):
-            return inner
+            return _unwrap_content(inner)
         return {"raw": str(inner)}
 
     # Fallback: parse content text
@@ -116,10 +116,25 @@ def extract_payload(call_result) -> dict[str, Any]:
         except (AttributeError, IndexError):
             return {"raw": str(call_result.content)}
         try:
-            return json.loads(text)
+            return _unwrap_content(json.loads(text))
         except json.JSONDecodeError:
             return {"raw": text}
     return {}
+
+
+def _unwrap_content(payload: dict[str, Any]) -> dict[str, Any]:
+    """Flatten the standardized ``{success, content: {…}}`` response shape.
+
+    All three modules standardized on ``{success: true, content: {…}}``
+    (OPP/OL/ORF ``_success_response``).  Unwrap ``content`` into the
+    payload so assertion sites can keep checking the payload keys directly.
+    """
+    if isinstance(payload.get("content"), dict):
+        merged = dict(payload)
+        merged.pop("content")
+        merged.update(payload["content"])
+        return merged
+    return payload
 
 
 def assert_no_traceback_leak(call_result, context: str = "") -> None:
@@ -238,7 +253,7 @@ def ol_mcp_server():
     TOOL_REGISTRY) and registers them in a fresh FastMCP instance.
     Mirrors how the OPP fixture (above) works.
 
-    Compatibility with fake-pool patches: ``patch("ol_mcp.tools.ModelPool")``
+    Compatibility with fake-pool patches: ``_patch_ol_modelpool``
     (used by ``fake_ol_async_pool`` / ``fake_ol_sync_pool`` fixtures
     below) still works because the imported tool functions look up
     ``ModelPool`` at call time in their own module globals, not at import
@@ -305,6 +320,28 @@ os.environ.setdefault("ORF_MCP_ALLOWED_DIRS", "/tmp:/mnt/d/贯维/Omni_Suite")
 # =============================================================================
 # OL: fake ModelPool for tools that hit the LLM
 # =============================================================================
+
+# The OL tool functions live in submodules (ol_mcp.translate_md /
+# ol_mcp.judge / ol_mcp.batch_translate / ol_mcp.translate_xliff) and each
+# resolves ModelPool from its own module globals at call time, so the fake
+# must patch every consumer module.
+_OL_MODELPOOL_MODULES = (
+    "ol_mcp.translate_md",
+    "ol_mcp.judge",
+    "ol_mcp.batch_translate",
+    "ol_mcp.translate_xliff",
+)
+
+
+def _patch_ol_modelpool(*, mock_pool_get_instance):
+    """Context manager patching ``ModelPool`` in every OL tool module."""
+    from contextlib import ExitStack
+
+    stack = ExitStack()
+    for mod in _OL_MODELPOOL_MODULES:
+        mock_pool = stack.enter_context(patch(f"{mod}.ModelPool"))
+        mock_pool.get_instance.return_value = mock_pool_get_instance
+    return stack
 
 
 class _FakeAsyncModelPool:
@@ -399,8 +436,7 @@ class _FakeSyncModelPool:
 def fake_ol_async_pool():
     """Async pool: for ``translate_md_text`` and ``judge_text`` (async tools)."""
     fake = _FakeAsyncModelPool()
-    with patch("ol_mcp.tools.ModelPool") as mock_pool:
-        mock_pool.get_instance.return_value = fake
+    with _patch_ol_modelpool(mock_pool_get_instance=fake):
         yield fake
 
 
@@ -408,8 +444,7 @@ def fake_ol_async_pool():
 def fake_ol_async_pool_failing_translate():
     """Async pool where ``translate`` raises → ``translate_md_text`` error path."""
     fake = _FakeAsyncModelPool(raise_on_translate=True)
-    with patch("ol_mcp.tools.ModelPool") as mock_pool:
-        mock_pool.get_instance.return_value = fake
+    with _patch_ol_modelpool(mock_pool_get_instance=fake):
         yield fake
 
 
@@ -417,8 +452,7 @@ def fake_ol_async_pool_failing_translate():
 def fake_ol_async_pool_failing_judge():
     """Async pool where ``judge`` raises → ``judge_text`` error path."""
     fake = _FakeAsyncModelPool(raise_on_judge=True)
-    with patch("ol_mcp.tools.ModelPool") as mock_pool:
-        mock_pool.get_instance.return_value = fake
+    with _patch_ol_modelpool(mock_pool_get_instance=fake):
         yield fake
 
 
@@ -426,8 +460,7 @@ def fake_ol_async_pool_failing_judge():
 def fake_ol_sync_pool():
     """Sync pool: for ``batch_translate_texts`` and ``translate_xliff`` (sync tools)."""
     fake = _FakeSyncModelPool()
-    with patch("ol_mcp.tools.ModelPool") as mock_pool:
-        mock_pool.get_instance.return_value = fake
+    with _patch_ol_modelpool(mock_pool_get_instance=fake):
         yield fake
 
 
@@ -435,8 +468,7 @@ def fake_ol_sync_pool():
 def fake_ol_sync_pool_failing_translate():
     """Sync pool where ``translate`` raises → ``batch_translate_texts`` error path."""
     fake = _FakeSyncModelPool(raise_on_translate=True)
-    with patch("ol_mcp.tools.ModelPool") as mock_pool:
-        mock_pool.get_instance.return_value = fake
+    with _patch_ol_modelpool(mock_pool_get_instance=fake):
         yield fake
 
 
@@ -469,14 +501,14 @@ class _FakeTMService:
             _FakeTMMatch("Open settings", "打开设置", 0.90, "en-zh"),
         ]
 
-    def search(self, source_text: str, threshold: float = 0.85) -> list:
+    def search(self, source_text: str, threshold: float = 0.85, **kwargs) -> list:
         return [m for m in self._entries if m.similarity >= threshold]
 
 
 @pytest.fixture
 def fake_ol_tm_service():
-    """Patch ``ol_mcp.tools.TMService`` so ``search_tm`` works without an embedding model."""
-    with patch("ol_mcp.tools.TMService", _FakeTMService):
+    """Patch ``ol_mcp.tm.TMService`` so ``search_tm`` works without an embedding model."""
+    with patch("ol_mcp.tm.TMService", _FakeTMService):
         yield _FakeTMService
 
 
@@ -583,7 +615,7 @@ class TestMCPSmokeOPP:
         assert_no_traceback_leak(r, "extract_document (bad format)")
         payload = extract_payload(r)
         assert_graceful_error(payload, context="extract_document (bad format)")
-        assert "Invalid output format" in payload.get("error", ""), payload
+        assert payload["error"]["code"] == "OPP_INVALID_INPUT", payload
 
     @pytest.mark.asyncio
     async def test_batch_extract(self, opp_mcp_server, tmp_path):
@@ -846,10 +878,7 @@ class TestMCPSmokeOL:
         assert_no_traceback_leak(r, "translate_md_text (LLM error)")
         payload = extract_payload(r)
         assert_graceful_error(payload, context="translate_md_text (LLM error)")
-        # Tool returns the error in warnings
-        assert "warnings" in payload and any(
-            "simulated LLM outage" in w for w in payload["warnings"]
-        )
+        assert payload.get("error", {}).get("code") == "OL_TRANSLATE_FAILED"
 
     @pytest.mark.asyncio
     async def test_judge_text(self, ol_mcp_server, fake_ol_async_pool):
@@ -902,10 +931,7 @@ class TestMCPSmokeOL:
         assert_no_traceback_leak(r, "judge_text (judge error)")
         payload = extract_payload(r)
         assert_graceful_error(payload, context="judge_text (judge error)")
-        assert payload.get("score") == 0
-        assert "warnings" in payload and any(
-            "simulated judge outage" in w for w in payload["warnings"]
-        )
+        assert payload.get("error", {}).get("code") == "OL_JUDGE_FAILED"
 
     @pytest.mark.asyncio
     async def test_load_glossary(self, ol_mcp_server, tmp_path):
@@ -952,7 +978,6 @@ class TestMCPSmokeOL:
         assert_no_traceback_leak(r, "load_glossary (missing)")
         payload = extract_payload(r)
         assert_graceful_error(payload, context="load_glossary (missing)")
-        assert payload.get("term_count") == 0
 
     @pytest.mark.asyncio
     async def test_get_relevant_terms(self, ol_mcp_server):
@@ -1090,13 +1115,12 @@ class TestMCPSmokeOL:
             )
         assert_no_traceback_leak(r, "search_tm (missing)")
         payload = extract_payload(r)
-        # Tool returns success=True with empty matches (graceful on miss).
+        # Tool rejects the missing TMX via path validation (fail-closed).
         assert payload.get("leaked") is not True
-        assert payload.get("count") == 0
-        assert payload.get("matches") == []
+        assert payload.get("success") is False
 
     @pytest.mark.asyncio
-    async def test_batch_translate_texts(self, ol_mcp_server, fake_ol_sync_pool):
+    async def test_batch_translate_texts(self, ol_mcp_server, fake_ol_async_pool):
         """Happy: batch_translate_texts returns per-item results (sync pool)."""
         from fastmcp import Client
 
@@ -1128,7 +1152,7 @@ class TestMCPSmokeOL:
 
     @pytest.mark.asyncio
     async def test_batch_translate_texts_error(
-        self, ol_mcp_server, fake_ol_sync_pool_failing_translate
+        self, ol_mcp_server, fake_ol_async_pool_failing_translate
     ):
         """Error: batch_translate_texts catches pool.translate per item.
 
