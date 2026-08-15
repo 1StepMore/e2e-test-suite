@@ -21,8 +21,15 @@
 - [ ] **`gh pr create` body 含 `&` 会触发安全拦截**——body 里避免 `&` 字符(如 "A & B");或 body 写文件用 `--body-file`。
 - [ ] **套件环境装配清单(全量跑前必配,缺一即 failed 非 unconfigured)**——(a) `OPP_MCP_ALLOWED_DIRS` 必须含场景 fixture 目录 `/tmp/omni-agent-surface`(Hermes 环境注入值只有 `/mnt/d/Hermes-Workspace:/home/renanzai`,OPP 拒绝 /tmp → tool-opp-* 全 failed);(b) `markdownify` + `readability-lxml`(OPP HTML 提取,缺则 opp-html-extract 标题丢失 no-h1/no-h2);(c) `yake` + `jieba`(OL ol[ml] extra,缺则 tool-ol-extract_terms YAKE 失败);(d) `weasyprint`(ORF PDF 引擎,缺则 orf-md-pdf / orf-xliff-pdf 转 PDF 失败;weasyprint 是首选,不需要装 pdflatex);(e) 三模块内嵌副本与 HEAD 一致。跑前一次性核对,别等 failed 了才逐个装。
 - [ ] **`pip install` 在 WSL 默认源会慢/卡(do_sys_poll 挂起)**——连接 ESTABLISHED 但传输慢;`pip index versions` 查版本快,清华镜像缺包(如 markdownify)时换官方源;安装放后台 + notify_on_complete,别前台等。
+- [ ] **unconfigured 里有一批是可配 env 不是缺 LLM key**——`ORF_MCP_ALLOWED_DIRS`/`MCP_ALLOWED_DIRECTORIES` 补上后 tool-orf-* 等 11 个可转绿;真正缺 key 的是 OPENAI/ZHIPU/AGNES/NVIDIA(OL translate/judge/pipeline)。区分"可配未配"与"客观缺 key"。
 
 ## 循环事件（major events，newest on top）
+
+### 2026-08-15 第三轮全量 57/0/26（首循环达成 0 failed）
+- 前两轮修复生效:硬编码路径(PR #41)、副本同步、fixture 恢复 source.pptx、环境装配(markdownify/yake/weasyprint/allowlist)。
+- 第三轮 `20260815-131627`:57 passed / 0 failed / 26 unconfigured(11 个可配 env 未配,15 个缺 LLM key)。
+- PR #41 两个 commit 已 push:场景库可移植性 + source.pptx fixture/LOOP-LOG。
+- 产物/交付包归档:见 validation-runs/20260815-131627/。
 
 ### 2026-08-15 首循环启动
 - 用户指令:omni suite validation 完整跑完,按规矩来。
