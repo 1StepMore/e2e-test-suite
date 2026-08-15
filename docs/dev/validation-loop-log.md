@@ -30,6 +30,20 @@
 
 ## 循环事件（major events，newest on top）
 
+### 2026-08-15 最终全量 77/0/6（首循环完整收尾 ✅）
+- 最终 run `20260815-161347`:83 场景 = 77 passed / 0 failed / 6 unconfigured。
+- 6 个 unconfigured 全为客观缺 env:ASpose 许可证(orf-md-msg)、OMNI_TM_NETWORK(tool-ol-search_tm)、OPP_IPYNB_OK/OCR_ENGINE/YOUTUBE_NETWORK/MSG_FIXTURE(opp 特殊格式)。非可配项。
+- env 终极方案:三模块各用专用 allowlist 变量(OPP/ORF 冒号 + OL 逗号),共享 MCP_ALLOWED_DIRECTORIES 不设——避免 OPP/ORF 冒号解析被 OL 逗号值污染。OL 场景 requires_env 改为 OL_MCP_ALLOWED_DIRS(commit 627bf5e)。
+- 交付包:`04-Output/artifacts/deliverables/omni-suite/omni-suite-validation-20260815-161347.zip`(135KB,report.md/scenarios.json/report.json/LOOP-LOG)。
+- 产物审查:report.md 2621 行;orf-xliff-docx out.docx 18 段全中文(水星机器人 — 产品概述);pipeline-docx zh→en 方向中文 0 段为正确行为。
+
+### 2026-08-15 第四轮（LLM 场景点亮 + 最终全量）
+- 用户提供 4 组免费 key(NVIDIA 新版 + Agnes + Mistral + Zhipu),写入 ~/.hermes/.env。
+- OL 模型池更新:EOL deepseek-v4-flash → z-ai/glm-5.2;kimi-k2.6 → minimaxai/minimax-m3。
+- 点亮过程连环坑(全部落 LOOP-LOG):allowlist 分隔符(OL 逗号 vs ORF/OPP 冒号)、Hermes PYTHONPATH 污染(ol_cli 裸 `from cli import *` 命中 hermes-agent)、editable .pth 指向 src/ 旧副本且 pip 重装不修(手动改)、误删 _editable_impl_omni_suite.pth(omni_mcp 丢失,手动重建)。
+- 修复后转绿:tool-ol-translate_md_text / translate_xliff / profile_doc / batch_translate_texts / translate_file / judge_text / add_tm_entries / extract_warnings / inspect_config / load_glossary = 10 个 LLM/工具场景。
+- judge_text 场景断言漂移修复(expect "scores" → "judge_scores"),commit 679e15e。
+
 ### 2026-08-15 第三轮全量 57/0/26（首循环达成 0 failed）
 - 前两轮修复生效:硬编码路径(PR #41)、副本同步、fixture 恢复 source.pptx、环境装配(markdownify/yake/weasyprint/allowlist)。
 - 第三轮 `20260815-131627`:57 passed / 0 failed / 26 unconfigured(11 个可配 env 未配,15 个缺 LLM key)。
