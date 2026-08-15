@@ -68,6 +68,14 @@ def _run_group(name: str, test_files: list[str]) -> tuple[int, int, int, bool]:
         output = proc.stdout + "\n" + proc.stderr
         counts = _parse_summary(output)
         if counts is not None:
+            # Surface per-test failures so CI logs identify the culprit
+            # instead of only the group summary.
+            failed_lines = [
+                ln.strip() for ln in output.splitlines()
+                if "FAILED" in ln or "ERROR" in ln
+            ]
+            for ln in failed_lines[:10]:
+                print(f"  {name} detail: {ln}")
             return counts["passed"], counts["failed"], counts["skipped"], False
 
         # Fallback: when output has no parseable summary (e.g. import errors)
