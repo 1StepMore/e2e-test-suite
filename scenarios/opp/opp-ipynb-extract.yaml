@@ -31,7 +31,7 @@ instructions: |
 steps:
   - name: Extract IPYNB to Markdown via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Omni_Pre_Processor/tests/fixtures/ipynb/sample.ipynb --target-format md --output-dir /tmp/omni_val/opp-ipynb -v
+    command: opp scenarios/_fixtures/sample.ipynb --target-format md --output-dir /tmp/omni_val/opp-ipynb -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

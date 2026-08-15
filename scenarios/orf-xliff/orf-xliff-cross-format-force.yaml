@@ -21,7 +21,7 @@ steps:
     kind: python
     command: |-
       import pathlib, shutil
-      src = pathlib.Path("/mnt/d/贯维/Omni_Suite/scenarios/_fixtures/translated_pair")
+      src = pathlib.Path("scenarios/_fixtures/translated_pair")
       d = pathlib.Path("/tmp/omni_val/orf-xliff-cross-format-force")
       d.mkdir(parents=True, exist_ok=True)
       files = [f for f in src.iterdir() if f.is_file()]
@@ -30,10 +30,10 @@ steps:
       print("COPIED %d fixture files" % len(files))
     expect:
       exit_code: 0
-      stdout_has: ["COPIED 8 fixture files"]
+      stdout_has: ["COPIED 7 fixture files"]
     standard: STANDARDS.md#exit-codes
     instructions: |-
-      Copy the committed fixture pair (8 files incl. source.docx + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-cross-format-force/. Check: exit 0 and "COPIED 8 fixture files".
+      Copy the committed fixture pair (7 files incl. source.docx + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-cross-format-force/. Check: exit 0 and "COPIED 7 fixture files".
   - name: Generate DOCX skeleton.zip at run time via OPP
     kind: cli
     command: opp /tmp/omni_val/orf-xliff-cross-format-force/source.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/orf-xliff-cross-format-force/skel -v

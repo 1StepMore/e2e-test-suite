@@ -103,7 +103,7 @@ steps:
       -v stderr marker is the success signal, STANDARDS.md#exit-codes).
   - name: Translate MD with real LLM (ol translate-md)
     kind: cli
-    command: ol translate-md /tmp/omni_val/pipeline-pptx/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-pptx/ol_out -c /mnt/d/贯维/Omni_Suite/Omni_Localizer/config/default.yaml
+    command: ol translate-md /tmp/omni_val/pipeline-pptx/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-pptx/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 600
     expect:
       exit_code: 0
@@ -118,7 +118,7 @@ steps:
       contain "Translated").
   - name: Translate XLIFF with real LLM (LQA evidence)
     kind: cli
-    command: ol translate-xliff /tmp/omni_val/pipeline-pptx/opp_out/source.xlf -s zh -t en -o /tmp/omni_val/pipeline-pptx/ol_out -c /mnt/d/贯维/Omni_Suite/Omni_Localizer/config/default.yaml
+    command: ol translate-xliff /tmp/omni_val/pipeline-pptx/opp_out/source.xlf -s zh -t en -o /tmp/omni_val/pipeline-pptx/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 600
     expect:
       exit_code: 0
@@ -275,7 +275,7 @@ steps:
       from ol_lqa.judge import JudgeService
       from ol_pool.router import ModelPool
       from ol_config.loader import load_config
-      cfg = os.environ.get("OL_CONFIG_PATH", "/mnt/d/贯维/Omni_Suite/Omni_Localizer/config/default.yaml")
+      cfg = os.environ.get("OL_CONFIG_PATH", "Omni_Localizer/config/default.yaml")
       load_config(cfg)
       pool = ModelPool.get_instance(cfg)
       judge = JudgeService(pass_threshold=4.0, model_pool=pool)
