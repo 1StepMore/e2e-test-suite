@@ -21,7 +21,7 @@ instructions: |
 steps:
   - name: Extract PDF to Markdown via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /mnt/d/贯维/Omni_Suite/Omni_Pre_Processor/batch_test/phase0_office/normal.pdf --target-format md --output-dir /tmp/omni_val/opp-pdf -v
+    command: opp Omni_Pre_Processor/batch_test/phase0_office/normal.pdf --target-format md --output-dir /tmp/omni_val/opp-pdf -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

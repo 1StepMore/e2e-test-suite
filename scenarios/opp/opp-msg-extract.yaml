@@ -25,7 +25,7 @@ steps:
     command: |
       import os, subprocess, sys
       fixture = os.environ["MSG_FIXTURE"]
-      proc = subprocess.run(["/mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp", fixture,
+      proc = subprocess.run(["opp", fixture,
                              "--target-format", "md",
                              "--output-dir", "/tmp/omni_val/opp-msg", "-v"],
                             capture_output=True, text=True)

@@ -82,7 +82,7 @@ steps:
                 "公司的愿景是通过智能制造技术，帮助全球制造业客户实现数字化转型。",
                 "我们相信，技术创新是企业持续发展的根本动力。"]:
           doc.add_paragraph(t)
-      media = zipfile.ZipFile("/mnt/d/贯维/Omni_Suite/test_corpus/complex.docx")
+      media = zipfile.ZipFile("test_corpus/complex.docx")
       img = media.read("word/media/image1.png")
       for _ in range(2):
           doc.add_picture(io.BytesIO(img), width=Inches(2.0))
@@ -137,7 +137,7 @@ steps:
       Check: exit 0 + OK marker.
   - name: Translate MD with real LLM (ol translate-md)
     kind: cli
-    command: ol translate-md /tmp/omni_val/pipeline-docx/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-docx/ol_out -c /mnt/d/贯维/Omni_Suite/Omni_Localizer/config/default.yaml
+    command: ol translate-md /tmp/omni_val/pipeline-docx/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-docx/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 600
     expect:
       exit_code: 0
@@ -191,7 +191,7 @@ steps:
       refs normalized".
   - name: Translate XLIFF with real LLM (LQA evidence)
     kind: cli
-    command: ol translate-xliff /tmp/omni_val/pipeline-docx/opp_out/source.xlf -s zh -t en -o /tmp/omni_val/pipeline-docx/ol_out -c /mnt/d/贯维/Omni_Suite/Omni_Localizer/config/default.yaml
+    command: ol translate-xliff /tmp/omni_val/pipeline-docx/opp_out/source.xlf -s zh -t en -o /tmp/omni_val/pipeline-docx/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 600
     expect:
       exit_code: 0
@@ -373,7 +373,7 @@ steps:
       from ol_lqa.judge import JudgeService
       from ol_pool.router import ModelPool
       from ol_config.loader import load_config
-      cfg = os.environ.get("OL_CONFIG_PATH", "/mnt/d/贯维/Omni_Suite/Omni_Localizer/config/default.yaml")
+      cfg = os.environ.get("OL_CONFIG_PATH", "Omni_Localizer/config/default.yaml")
       load_config(cfg)
       pool = ModelPool.get_instance(cfg)
       judge = JudgeService(pass_threshold=4.0, model_pool=pool)

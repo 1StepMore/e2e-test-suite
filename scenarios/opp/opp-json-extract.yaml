@@ -35,7 +35,7 @@ steps:
       a failure means the fixture could not be produced.
   - name: Extract JSON to Markdown via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /tmp/omni_val/opp-json/in.json --target-format md --output-dir /tmp/omni_val/opp-json -v
+    command: opp /tmp/omni_val/opp-json/in.json --target-format md --output-dir /tmp/omni_val/opp-json -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]

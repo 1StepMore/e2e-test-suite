@@ -36,7 +36,7 @@ steps:
       a failure means the fixture could not be produced.
   - name: Extract CSV to Markdown via the real OPP CLI
     kind: cli
-    command: /mnt/d/贯维/Omni_Suite/.venv_ol/bin/opp /tmp/omni_val/opp-csv/in.csv --target-format md --output-dir /tmp/omni_val/opp-csv -v
+    command: opp /tmp/omni_val/opp-csv/in.csv --target-format md --output-dir /tmp/omni_val/opp-csv -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
