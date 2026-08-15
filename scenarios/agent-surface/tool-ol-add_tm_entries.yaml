@@ -2,7 +2,7 @@ name: tool-ol-add_tm_entries
 description: "OL add_tm_entries appends entries to an existing TMX fixture and returns a clean path error for a nonexistent TMX."
 category: agent-surface
 tier: 1
-requires_env: [MCP_ALLOWED_DIRECTORIES]
+requires_env: [OL_MCP_ALLOWED_DIRS]
 instructions: |
   Agent-user conformance (draft D13, mission axis 1): this scenario proves the
   live tool responds as an agent-user expects — schema-shaped arguments accepted,
