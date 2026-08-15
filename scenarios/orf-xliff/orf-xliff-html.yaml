@@ -29,10 +29,10 @@ steps:
       print("COPIED %d fixture files" % len(files))
     expect:
       exit_code: 0
-      stdout_has: ["COPIED 7 fixture files"]
+      stdout_has: ["COPIED 8 fixture files"]
     standard: STANDARDS.md#exit-codes
     instructions: |-
-      Copy the committed fixture pair (7 files incl. source.html + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-html/. Check: exit 0 and "COPIED 7 fixture files".
+      Copy the committed fixture pair (8 files incl. source.html + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-html/. Check: exit 0 and "COPIED 8 fixture files".
   - name: Backfill translated XLIFF to HTML with orf apply-xliff
     kind: cli
     command: orf apply-xliff /tmp/omni_val/orf-xliff-html/source.html --xliff /tmp/omni_val/orf-xliff-html/source.xlf --output /tmp/omni_val/orf-xliff-html/out.html --format html
