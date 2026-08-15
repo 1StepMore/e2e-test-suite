@@ -168,7 +168,10 @@ class TestOLGracefulDegradation:
         """
         batch_dir = tmp_path / "batch"
         batch_dir.mkdir()
-        for i in range(3):
+        # Enough files that the FAKE_LLM batch is still mid-run when SIGINT
+        # arrives (~6s): the batch must NOT finish before the signal lands,
+        # or the process exits 0 and the interrupt contract is untested.
+        for i in range(30):
             p = batch_dir / f"ch{i}.md"
             p.write_text(
                 "# Chapter {0}\n\n"
@@ -201,25 +204,36 @@ class TestOLGracefulDegradation:
             cwd=str(SUITE_ROOT / "Omni_Localizer"),
         )
 
-        # Cold-start import takes ~6s. During import the Python-level
-        # signal handler cannot run (CPython is in C-level import code),
-        # so we wait for import to complete before sending SIGINT.
-        # The batch then has a ~0.6s processing window for 5 small files.
+        # Marker-driven SIGINT: wall-clock timing is racy (import duration
+        # varies), so wait for the batch's stdout to show the run has
+        # actually started ("Found N files to process" prints after the
+        # heavy imports complete), then SIGINT lands mid-batch — proving
+        # the handler runs and the process exits INTERRUPTED (3).
         t0 = time.monotonic()
         rc = None
-        while time.monotonic() - t0 < 15:
+        sigint_sent = False
+        start_marker = f"Found {len(list(batch_dir.glob('*.md')))} files to process"
+        while time.monotonic() - t0 < 20:
             if proc.poll() is not None:
                 rc = proc.returncode
                 break
-            # Start sending SIGINT after 6s (import should be done)
-            if time.monotonic() - t0 > 6.0:
-                proc.send_signal(signal.SIGINT)
-            time.sleep(0.25)
+            if not sigint_sent:
+                # Non-blocking read of whatever stdout has so far.
+                chunk = proc.stdout.readline().decode(errors="replace")
+                if start_marker in chunk:
+                    proc.send_signal(signal.SIGINT)
+                    sigint_sent = True
+                    continue
+            time.sleep(0.1)
 
+        if rc is None and not sigint_sent:
+            proc.kill()
+            proc.wait(timeout=2)
+            pytest.fail("Batch never printed the start marker; SIGINT never sent")
         if rc is None:
             proc.kill()
             proc.wait(timeout=2)
-            pytest.fail("Process did not exit within 15s after SIGINT")
+            pytest.fail("Process did not exit within 20s after SIGINT")
 
         stdout_text = proc.stdout.read().decode() if proc.stdout else ""
         stderr_text = proc.stderr.read().decode() if proc.stderr else ""
