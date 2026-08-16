@@ -30,6 +30,22 @@
 
 ## 循环事件（major events，newest on top）
 
+### 2026-08-16 套件更新后重跑（PR #41/#42 后首轮）
+
+- 前置：同步 main 到 9085aed（PR #41 场景可移植性 + PR #42 hardening CI）；launcher 用 `run_with_env.py`（99-Tools/validation-scratch/omni-suite/）注入 env。
+- 首跑 67/6/10：6 个 failed 全为 tool-opp-*（`Path not in allowed directories: /tmp/omni-agent-surface`），4 个新增 unconfigured（tool-ol-translate_file + 3 pipeline）。
+- **根因 1（failed 类）**：Hermes 会话预注入 `OPP_MCP_ALLOWED_DIRS=/mnt/d/Hermes-Workspace:/home/renanzai`（**缺 /tmp fixture 目录**），launcher 用 `setdefault` 不会覆盖已存在的值 → OPP 拒绝 /tmp → tool-opp-* 第一步全 failed、第二步（allowlist 拒绝）passed。修法：launcher 对三个 allowlist 变量用**强制赋值**（`os.environ[...] =`），不用 setdefault。坑清单原有条目只说"Hermes 环境注入值只有 /mnt/d/Hermes-Workspace:/home/renanzai"，但没点明**注入的是 OPP_MCP_ALLOWED_DIRS 这个变量本身**且 setdefault 覆盖不掉。
+- **根因 2（unconfigured 类）**：launcher 漏注入 `OPENCODE_GO_KEY`/`OPENCODE_GO_BASE_URL`（pipeline 场景 requires_env 用这两个**独立变量名**，与 AutoInfo 用的 OPENCODE_GO_API_KEY 不同）+ `OPP_CONFIG_PATH`/`OPP_ALLOWED_DIRECTORIES`（tool-ol-translate_file requires_env）。补注入后转绿。
+- **单跑验证**：6 tool-opp-* + tool-ol-translate_file + 3 pipeline 全部单跑 passed。注意 pipeline 场景是 tier 2——`--scenario X --tier 1` 会"no scenarios found"（被 tier 过滤掉），单跑 pipeline 必须不带 --tier 或带 --tier 2。
+- 全量重跑（修正 launcher）后台执行中。
+
+### 2026-08-16 最终全量 77/0/6（回归确认 ✅）
+- 修正 launcher 后全量 `20260816-154223`：83 场景 = **77 passed / 0 failed / 6 unconfigured**，与基线 20260815-161347 完全一致 → PR #41/#42 更新零破坏。
+- 6 unconfigured 与基线相同（ASpose/OMNI_TM_NETWORK/OPP_IPYNB_OK/OCR_ENGINE/YOUTUBE_NETWORK/MSG_FIXTURE），客观缺 env 非回归。
+- 产物审查：orf-xliff-docx/out.docx 18 段全中文（水星机器人 — 产品概述）；pipeline-pptx/out.pptx 3 slides 全英文（zh→en，公司背景/核心产品/发展愿景）；ol_out/source.md 翻译正确。非空、相关、无 VAGUE。
+- 教训落地：坑清单 + skill（Hermes 预注入 allowlist 必须强制覆盖）。
+
+
 ### 2026-08-15 最终全量 77/0/6（首循环完整收尾 ✅）
 - 最终 run `20260815-161347`:83 场景 = 77 passed / 0 failed / 6 unconfigured。
 - 6 个 unconfigured 全为客观缺 env:ASpose 许可证(orf-md-msg)、OMNI_TM_NETWORK(tool-ol-search_tm)、OPP_IPYNB_OK/OCR_ENGINE/YOUTUBE_NETWORK/MSG_FIXTURE(opp 特殊格式)。非可配项。
