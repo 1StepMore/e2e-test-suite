@@ -31,6 +31,9 @@ Exit codes: 0 = no failures (``unconfigured`` / ``partial-pass`` /
 ``recovered`` / ``passed`` are NOT failures), 1 = any ``failed``
 scenario, lint finding, or load error.
 
+- ``--repo {opp,ol,orf,suite,all}`` — select scenario source directory(ies)
+  by component.  ``all`` merges from all four dirs.
+
 Default stdout is the summary + verdict table only; the per-step detail
 and full trace live in the persisted run record (``validation-runs/``).
 
@@ -248,7 +251,7 @@ def _name_of(path: Path) -> str:
 
 def _select_names(
     loaded: list[dict[str, Any]],
-    scenarios_dir: str | Path,
+    scenarios_dirs: str | Path | list[str | Path],
     scenario_substr: str | None,
     tier: int | None,
     category: str | None = None,
@@ -275,11 +278,17 @@ def _select_names(
         if not tier_names:
             empty_filters.append(f"tier {tier}")
     if scenario_substr is not None:
-        stem_names = {
-            _name_of(p)
-            for p in _discover_files(scenarios_dir)
-            if scenario_substr.lower() in p.stem.lower()
-        }
+        dirs_list = (
+            list(scenarios_dirs)
+            if isinstance(scenarios_dirs, list)
+            else [scenarios_dirs]
+        )
+        all_stems: set[str] = set()
+        for d in dirs_list:
+            for p in _discover_files(d):
+                if scenario_substr.lower() in p.stem.lower():
+                    all_stems.add(_name_of(p))
+        stem_names = all_stems
         if not stem_names:
             empty_filters.append(f"--scenario {scenario_substr!r}")
     if category is not None:
@@ -366,6 +375,22 @@ def _print_plan(loaded: list[dict[str, Any]], names: list[str]) -> None:
 # ---------------------------------------------------------------------------
 
 
+_REPO_DIR_MAP: dict[str, list[str]] = {
+    "suite": ["scenarios"],
+    "opp": ["Omni_Pre_Processor/scenarios"],
+    "ol": ["Omni_Localizer/scenarios"],
+    "orf": ["Omni_Re_Formatter/scenarios"],
+    "all": [
+        "scenarios",
+        "Omni_Pre_Processor/scenarios",
+        "Omni_Localizer/scenarios",
+        "Omni_Re_Formatter/scenarios",
+    ],
+}
+
+REPO_HELP = "scenario source repo(s): suite (default), opp, ol, orf, or all"
+
+
 def main(argv: list[str] | None = None) -> int:
     """The validation CLI.  Returns the exit code (0 = no failures)."""
     parser = argparse.ArgumentParser(
@@ -410,6 +435,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--tier", type=int, choices=[1, 2, 3], default=None, help=TIER_HELP)
     parser.add_argument(
+        "--repo",
+        choices=["opp", "ol", "orf", "suite", "all"],
+        default=None,
+        help=REPO_HELP,
+    )
+    parser.add_argument(
         "--scenarios-dir", default="scenarios", help="scenario library directory (default: scenarios)"
     )
     parser.add_argument(
@@ -420,11 +451,18 @@ def main(argv: list[str] | None = None) -> int:
     except SystemExit as exc:  # --help (0) / usage error (2): keep main() pure
         return exc.code if isinstance(exc.code, int) else 0
 
+    if args.repo is not None:
+        dirs = _REPO_DIR_MAP[args.repo]
+    else:
+        dirs = [args.scenarios_dir]
+
     if args.check:
-        findings = lint_scenarios(args.scenarios_dir)
-        if findings:
-            print(f"Contract check: {len(findings)} finding(s)")
-            for f in findings:
+        all_findings: list[LintFinding] = []
+        for d in dirs:
+            all_findings.extend(lint_scenarios(d))
+        if all_findings:
+            print(f"Contract check: {len(all_findings)} finding(s)")
+            for f in all_findings:
                 print(f"  [x] {f.file}: step {f.step} [{f.rule}] {f.detail}")
             return 1
         print(
@@ -434,14 +472,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        loaded = load_scenarios(args.scenarios_dir)
+        loaded: list[dict[str, Any]] = []
+        for d in dirs:
+            loaded.extend(load_scenarios(d))
     except ScenarioError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
     if args.list:
         names, _empty = _select_names(
-            loaded, args.scenarios_dir, args.scenario, args.tier, args.category, args.module
+            loaded, dirs, args.scenario, args.tier, args.category, args.module
         )
         selected = [s for s in loaded if s["name"] in names] if names else loaded
         print(f"Available Scenarios ({len(selected)}):")
@@ -454,7 +494,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     names, empty_filters = _select_names(
-        loaded, args.scenarios_dir, args.scenario, args.tier, args.category, args.module
+        loaded, dirs, args.scenario, args.tier, args.category, args.module
     )
     for f in empty_filters:
         print(f"WARNING: no scenarios match {f}")
@@ -462,7 +502,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if not names:
-        print(f"no scenarios found in {args.scenarios_dir} (nothing to run)")
+        dir_label = ", ".join(dirs) if len(dirs) > 1 else dirs[0]
+        print(f"no scenarios found in {dir_label} (nothing to run)")
         return 0
 
     if args.dry_run:
@@ -479,7 +520,7 @@ def main(argv: list[str] | None = None) -> int:
         else names
     )
     try:
-        run = run_scenarios(args.scenarios_dir, filters=filters, runs_dir=args.runs_dir)
+        run = run_scenarios(dirs, filters=filters, runs_dir=args.runs_dir)
     except ScenarioError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

@@ -38,6 +38,11 @@ module-level surface (opp 9 + ol 21 + orf 7 = 37); the suite
 ``omni_mcp`` tools (4) stay unpinned by design.  Drift never affects the
 exit code; only ``missing`` does.
 
+``--out PATH`` additionally writes a nested, diff-friendly snapshot
+``{generated_at, suite_sha, declared, covered, missing, phantom,
+totals}`` (todo 26 — ``validation_diff.py`` consumes it when BOTH runs
+in a diff carry one).  Exit-code logic is UNCHANGED by ``--out``.
+
 Only Python 3.13 stdlib + PyYAML (guide §3.6).  Deterministic: same
 commit, same sets.
 """
@@ -47,8 +52,10 @@ from __future__ import annotations
 import argparse
 import ast
 import dataclasses
+import datetime
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -370,6 +377,59 @@ def render(report: CoverageReport) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Snapshot (todo 26) — the nested, diff-friendly coverage.json
+# ---------------------------------------------------------------------------
+
+
+def _suite_git_sha(root: Path) -> str:
+    """The suite git HEAD sha (``git rev-parse`` at the suite root);
+    ``"unknown"`` when git is unavailable — never raises."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def build_snapshot(report: CoverageReport) -> dict[str, Any]:
+    """The persisted coverage snapshot (``--out`` shape, diff-friendly):
+    ``{generated_at, suite_sha, declared, covered, missing, phantom,
+    totals}`` — per-module lists under the first four, ``phantom`` a flat
+    list, ``totals`` the declared/covered/missing counts."""
+    totals = {
+        "declared": sum(len(t) for t in report.declared.values()),
+        "covered": sum(len(t) for t in report.covered.values()),
+        "missing": sum(len(t) for t in report.missing.values()),
+    }
+    return {
+        "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "suite_sha": _suite_git_sha(SUITE_ROOT),
+        "declared": {k: list(v) for k, v in report.declared.items()},
+        "covered": {k: list(v) for k, v in report.covered.items()},
+        "missing": {k: list(v) for k, v in report.missing.items()},
+        "phantom": list(report.phantom),
+        "totals": totals,
+    }
+
+
+def write_snapshot(report: CoverageReport, out_path: str | Path) -> Path:
+    """Write the coverage snapshot as pretty JSON to *out_path*, creating
+    parent directories as needed.  Returns the written path."""
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        json.dumps(build_snapshot(report), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry: print the audit table; exit 1 while any ``missing``."""
     parser = argparse.ArgumentParser(
@@ -382,6 +442,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="contract fixture dir (default: <repo>/tests/contract/fixtures)")
     parser.add_argument("--expected-counts-file", type=Path, default=None,
                         help="test_mcp_schemas.py to read EXPECTED_COUNTS from (default: repo path)")
+    parser.add_argument("--out", type=Path, default=None,
+                        help="write the coverage snapshot (todo 26 shape) to this path "
+                        "after printing the table; exit-code logic unchanged")
     args = parser.parse_args(argv)
 
     report = compute_coverage(
@@ -391,6 +454,9 @@ def main(argv: list[str] | None = None) -> int:
         expected_counts_file=args.expected_counts_file,
     )
     print(render(report))
+    if args.out is not None:
+        snapshot = write_snapshot(report, args.out)
+        print(f"SNAPSHOT: {snapshot}")
     missing_total = sum(len(m) for m in report.missing.values())
     return 1 if missing_total > 0 else 0
 

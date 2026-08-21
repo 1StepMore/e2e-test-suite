@@ -45,6 +45,7 @@ import dataclasses
 import datetime
 import json
 import os
+import subprocess
 import time
 import uuid
 from pathlib import Path
@@ -101,9 +102,95 @@ class RunResult:
     run_id: str | None = None
     #: Absolute/relative path of the run directory once persisted (else None).
     run_dir: str | None = None
+    #: Component versions + git SHAs for the run (populated by collect_run_meta).
+    run_meta: dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
+
+
+# ---------------------------------------------------------------------------
+# run_meta: component versions + git SHAs
+# ---------------------------------------------------------------------------
+
+_SUITE_ROOT = Path(__file__).resolve().parents[2]  # Omni_Suite/
+
+_COMPONENT_DIRS: dict[str, Path] = {
+    "opp": _SUITE_ROOT / "Omni_Pre_Processor",
+    "ol": _SUITE_ROOT / "Omni_Localizer",
+    "orf": _SUITE_ROOT / "Omni_Re_Formatter",
+}
+
+
+def _read_version_file(path: Path) -> str:
+    try:
+        raw = path.read_text(encoding="utf-8").strip()
+        for line in raw.splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                return line
+    except Exception:
+        pass
+    return "unknown"
+
+
+def _read_toml_version(path: Path) -> str:
+    try:
+        text = path.read_text(encoding="utf-8")
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("version") and "=" in stripped:
+                val = stripped.split("=", 1)[1].strip().strip('"').strip("'")
+                return val
+    except Exception:
+        pass
+    return "unknown"
+
+
+def _git_sha(repo_dir: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_dir), "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def collect_run_meta(repos: list[str]) -> dict[str, Any]:
+    meta: dict[str, Any] = {}
+    try:
+        meta["suite_version"] = _read_version_file(_SUITE_ROOT / "VERSION")
+        meta["suite_sha"] = _git_sha(_SUITE_ROOT)
+    except Exception:
+        pass
+
+    for repo in repos:
+        if repo == "suite":
+            continue
+        comp_dir = _COMPONENT_DIRS.get(repo)
+        if comp_dir is None:
+            continue
+        entry: dict[str, Any] = {}
+        try:
+            entry["version"] = _read_toml_version(comp_dir / "pyproject.toml")
+        except Exception:
+            entry["version"] = "unknown"
+        try:
+            entry["sha"] = _git_sha(comp_dir)
+        except Exception:
+            entry["sha"] = "unknown"
+        meta[repo] = entry
+
+    if "suite_version" not in meta:
+        meta["suite_version"] = "unknown"
+    if "suite_sha" not in meta:
+        meta["suite_sha"] = "unknown"
+    meta["repos"] = [r for r in repos if r != "suite"]
+    return meta
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +412,7 @@ def persist_run(run: RunResult, runs_dir: str | Path = "validation-runs") -> Pat
         "timestamp": run.timestamp,
         "trace_id": run.trace_id,
         "scenarios": [s.to_dict() for s in run.scenarios],
+        "run_meta": run.run_meta,
     }
     (run_dir / "scenarios.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -351,13 +439,28 @@ def _select(
     return [s for s in loaded if s["name"] in wanted]
 
 
+def _dirs_to_repo_keys(dirs: list[str | Path]) -> list[str]:
+    keys: list[str] = ["suite"]
+    dir_strs = [str(Path(d)) for d in dirs]
+    repo_map = {
+        "opp": "Omni_Pre_Processor/scenarios",
+        "ol": "Omni_Localizer/scenarios",
+        "orf": "Omni_Re_Formatter/scenarios",
+    }
+    for key, expected in repo_map.items():
+        if any(expected in d for d in dir_strs):
+            keys.append(key)
+    return keys
+
+
 def run_scenarios(
-    scenarios_dir: str | Path = "scenarios",
+    scenarios_dir: str | Path | list[str | Path] = "scenarios",
     filters: list[str] | str | None = None,
     env: dict[str, str] | None = None,
     *,
     runs_dir: str | Path = "validation-runs",
     persist: bool = True,
+    run_meta: dict[str, Any] | None = None,
 ) -> RunResult:
     """Run every (filtered) scenario: load -> dispatch -> grade ->
     aggregate -> trace -> persist (guide §3.1 six phases).
@@ -365,8 +468,9 @@ def run_scenarios(
     Parameters
     ----------
     scenarios_dir
-        Scenario library directory; recursively globbed for ``*.yaml``
-        (phase 1, loader.py).
+        Scenario library directory (or list of directories); recursively
+        globbed for ``*.yaml`` (phase 1, loader.py).  When a list is given,
+        scenarios from each directory are concatenated in order.
     filters
         Optional scenario-name filter: a single name string or a list of
         names; None runs everything.
@@ -380,6 +484,9 @@ def run_scenarios(
     persist
         When True (default), persist the run record and refresh
         ``latest.txt`` before returning.
+    run_meta
+        Optional explicit run metadata dict.  When None, auto-collected
+        from component versions and git SHAs.
 
     Returns
     -------
@@ -393,7 +500,12 @@ def run_scenarios(
         For the first malformed scenario file, before any step runs —
         load-time rejection is loud by design (loader.py, guide §2.4).
     """
-    loaded = load_scenarios(scenarios_dir)
+    dirs: list[str | Path] = (
+        list(scenarios_dir) if isinstance(scenarios_dir, list) else [scenarios_dir]
+    )
+    loaded: list[dict[str, Any]] = []
+    for d in dirs:
+        loaded.extend(load_scenarios(d))
     selected = _select(loaded, filters)
     trace_id = str(uuid.uuid4())  # one UUID per run, threaded everywhere
     results = [_run_one(s, env, trace_id) for s in selected]
@@ -402,6 +514,14 @@ def run_scenarios(
         timestamp=datetime.datetime.now().isoformat(timespec="seconds"),
         scenarios=results,
     )
+    if run_meta is not None:
+        run.run_meta = run_meta
+    else:
+        try:
+            repo_keys = _dirs_to_repo_keys(dirs)
+            run.run_meta = collect_run_meta(repo_keys)
+        except Exception:
+            run.run_meta = {}
     if persist:
         persist_run(run, runs_dir)
     return run

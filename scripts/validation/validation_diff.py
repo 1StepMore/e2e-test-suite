@@ -34,6 +34,24 @@ unconfigured | recovered | partial-pass, omni_mcp/validation/engine.py):
 - changed     = any other verdict change (e.g. passed -> unconfigured:
   never a failure per guide §4.2, so never a regression).
 
+Four-class VERSION REGRESSION mode (OPP#58): ``--against-version
+VERSION`` or ``--base-sha SHA`` selects the base run by its ``run_meta``
+(suite/component version or git sha; run-id/timestamp prefix counts for
+the version selector) and classifies every scenario into
+``new`` / ``regressed`` / ``fixed`` / ``existing-failing``:
+
+- new             = scenario present only in the newer (head) run.
+- regressed       = passed-like -> failed.
+- fixed           = failed -> passed-like.
+- existing-failing = failed -> failed.
+
+``missing`` (present only in the base) is reported separately as a
+``missing-from-head`` note — never one of the four classes.  Exit code
+contract: 1 when ``regressed > 0`` OR ``existing-failing > 0``, else 0.
+The two selectors are mutually exclusive (exit 2 when both given), and
+each picks the NEWEST matching run OLDER than the head (exit 2 when
+none).
+
 Coverage delta: read from ``<run>/coverage.json`` when the run carries
 one (todo 26 commits the snapshot; the engine persists only
 ``scenarios.json`` today).  Compared only when BOTH runs carry it,
@@ -79,6 +97,10 @@ class RunRecord:
     #: scenario name -> verdict (passed | failed | unconfigured |
     #: recovered | partial-pass).
     verdicts: dict[str, str]
+    #: The persisted ``run_meta`` block (suite/component versions + git
+    #: SHAs + the ``repos`` list) — the four-class version-regression
+    #: base selector matches against it.
+    run_meta: dict[str, Any] = dataclasses.field(default_factory=dict)
 
     @property
     def totals(self) -> dict[str, int]:
@@ -150,10 +172,14 @@ def load_run(run_dir: Path) -> RunRecord:
         if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
             raise ValueError(f"malformed scenario entry in {record}: {entry!r}")
         verdicts[entry["name"]] = str(entry.get("status") or "unknown")
+    run_meta = payload.get("run_meta")
+    if not isinstance(run_meta, dict):
+        run_meta = {}
     return RunRecord(
         run_id=str(payload.get("run_id") or Path(run_dir).name),
         timestamp=str(payload.get("timestamp") or ""),
         verdicts=verdicts,
+        run_meta=run_meta,
     )
 
 
@@ -245,6 +271,112 @@ def _classify(old: str | None, new: str | None) -> str | None:
     if old == "unconfigured" and new in _PASS_LIKE:
         return "improvement"
     return "changed"
+
+
+def classify_four_class(old: str | None, new: str | None) -> str | None:
+    """The four-class VERSION REGRESSION class for one scenario.
+
+    ``new`` when the scenario only exists in the head run; ``missing``
+    (reported separately, never a class) when only in the base;
+    ``regressed`` passed-like -> failed; ``fixed`` failed -> passed-like;
+    ``existing-failing`` failed -> failed; else None.
+    """
+    if old is None:
+        return "new"
+    if new is None:
+        return "missing"
+    if old in _PASS_LIKE and new == "failed":
+        return "regressed"
+    if old == "failed" and new in _PASS_LIKE:
+        return "fixed"
+    if old == "failed" and new == "failed":
+        return "existing-failing"
+    return None
+
+
+#: The four classes, in render order.
+_FOUR_CLASSES = ("new", "regressed", "fixed", "existing-failing")
+
+
+def _run_meta_strings(run: RunRecord) -> list[str]:
+    """Every string value in the run's ``run_meta`` (suite/component
+    versions, shas, ``repos`` entries)."""
+    values: list[str] = []
+    for value in run.run_meta.values():
+        if isinstance(value, str):
+            values.append(value)
+        elif isinstance(value, dict):
+            for v in value.values():
+                if isinstance(v, str):
+                    values.append(v)
+    return values
+
+
+def _run_meta_shas(run: RunRecord) -> list[str]:
+    """The sha values in the run's ``run_meta`` (``suite_sha`` and each
+    component's ``sha``)."""
+    shas: list[str] = []
+    for key, value in run.run_meta.items():
+        if key == "suite_sha" and isinstance(value, str):
+            shas.append(value)
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                if k == "sha" and isinstance(v, str):
+                    shas.append(v)
+    return shas
+
+
+def find_base_by_version(runs_dir: Path, head_dir: Path, version: str) -> Path:
+    """The NEWEST run dir under *runs_dir* strictly OLDER than *head_dir*
+    whose ``run_meta`` ANY string value equals *version* (a component
+    version, the suite version), OR whose run_id/timestamp startswith
+    *version*.
+
+    Raises FileNotFoundError with a clear message when no run matches.
+    """
+    head_name = Path(head_dir).name
+    candidates = sorted(
+        p for p in Path(runs_dir).iterdir()
+        if p.is_dir() and p.name < head_name and p != Path(head_dir)
+    )
+    for candidate in reversed(candidates):
+        try:
+            run = load_run(candidate)
+        except (FileNotFoundError, ValueError):
+            continue
+        if (
+            version in _run_meta_strings(run)
+            or run.run_id.startswith(version)
+            or run.timestamp.startswith(version)
+        ):
+            return candidate
+    raise FileNotFoundError(
+        f"no run older than {head_name!r} matches --against-version "
+        f"{version!r} (no run_meta value equals it, no run_id/timestamp prefix)"
+    )
+
+
+def find_base_by_sha(runs_dir: Path, head_dir: Path, sha: str) -> Path:
+    """The NEWEST run dir strictly OLDER than *head_dir* whose ``run_meta``
+    ANY sha value startswith *sha*.
+
+    Raises FileNotFoundError with a clear message when no run matches.
+    """
+    head_name = Path(head_dir).name
+    candidates = sorted(
+        p for p in Path(runs_dir).iterdir()
+        if p.is_dir() and p.name < head_name and p != Path(head_dir)
+    )
+    for candidate in reversed(candidates):
+        try:
+            run = load_run(candidate)
+        except (FileNotFoundError, ValueError):
+            continue
+        if any(v.startswith(sha) for v in _run_meta_shas(run)):
+            return candidate
+    raise FileNotFoundError(
+        f"no run older than {head_name!r} matches --base-sha {sha!r}"
+    )
 
 
 def _flatten(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -399,6 +531,80 @@ def render(diff_result: RunDiff, base_note: str = "", head_note: str = "") -> st
     return "\n".join(lines)
 
 
+def _run_version(run: RunRecord) -> str:
+    """A short ``repo=version`` summary of the run's run_meta for the
+    four-class header (base/head versions from run_meta)."""
+    parts: list[str] = []
+    if run.run_meta:
+        for key in ("suite", *sorted(run.run_meta.get("repos") or [])):
+            if key == "suite":
+                version = run.run_meta.get("suite_version")
+                if version:
+                    parts.append(f"suite={version}")
+            else:
+                entry = run.run_meta.get(key)
+                if isinstance(entry, dict) and entry.get("version"):
+                    parts.append(f"{key}={entry['version']}")
+    return ", ".join(parts) if parts else "(no run_meta versions)"
+
+
+def render_version_regression(
+    base: RunRecord, head: RunRecord, selector: str
+) -> tuple[str, int]:
+    """The four-class VERSION REGRESSION section.
+
+    Returns ``(text, exit_code)`` — exit 1 when ``regressed > 0`` OR
+    ``existing-failing > 0``, else 0.  ``selector`` names the base-selection
+    rule for the header (e.g. ``against-version 0.4.0``).
+    """
+    classes: dict[str, list[tuple[str, str | None, str | None]]] = {
+        c: [] for c in _FOUR_CLASSES
+    }
+    missing_from_head: list[str] = []
+    for name in sorted(set(base.verdicts) | set(head.verdicts)):
+        old = base.verdicts.get(name)
+        new = head.verdicts.get(name)
+        cls = classify_four_class(old, new)
+        if cls == "missing":
+            missing_from_head.append(name)
+        elif cls is not None:
+            classes[cls].append((name, old, new))
+
+    lines: list[str] = []
+    lines.append("VERSION REGRESSION (four-class) — base -> head")
+    lines.append(f"  base:  {base.run_id}  ({_run_version(base)})")
+    lines.append(f"  head:  {head.run_id}  ({_run_version(head)})")
+    lines.append(f"  base selection: {selector}")
+    lines.append("")
+    lines.append("  class                          count")
+    lines.append("  ------------------------------  -----")
+    for cls in _FOUR_CLASSES:
+        rows = classes[cls]
+        lines.append(f"  {cls:<30} {len(rows)}")
+        for name, old, new in rows:
+            lines.append(f"    {name}: {old or '-'} -> {new or '-'} ({cls})")
+    lines.append("")
+    if missing_from_head:
+        lines.append(
+            f"  missing-from-head ({len(missing_from_head)}) — present in the base "
+            "run only (not one of the four classes):"
+        )
+        for name in missing_from_head:
+            lines.append(f"    {name}")
+    lines.append("")
+    regressed = len(classes["regressed"])
+    existing_failing = len(classes["existing-failing"])
+    if regressed or existing_failing:
+        lines.append(
+            f"VERDICT: {regressed} regressed, {existing_failing} existing-failing "
+            "-> FAIL (exit 1)"
+        )
+    else:
+        lines.append("VERDICT: no regressions, no existing-failings -> PASS (exit 0)")
+    lines.append("")
+    return "\n".join(lines), 1 if (regressed or existing_failing) else 0
+
+
 # ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
@@ -429,6 +635,16 @@ def main(argv: list[str] | None = None) -> int:
         "--runs-dir", type=Path, default=RUNS_DIR,
         help="run records directory (default: <repo>/validation-runs)",
     )
+    parser.add_argument(
+        "--against-version", metavar="VERSION", default=None,
+        help="four-class VERSION REGRESSION mode: select the base run by "
+        "run_meta version / run-id prefix (mutually exclusive with --base-sha)",
+    )
+    parser.add_argument(
+        "--base-sha", metavar="SHA", default=None,
+        help="four-class VERSION REGRESSION mode: select the base run by a "
+        "run_meta sha prefix (mutually exclusive with --against-version)",
+    )
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:  # --help (0) / usage error (2): keep main() pure
@@ -442,12 +658,25 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.newer is None:
         args.newer, args.older = args.older, None
+    if args.against_version is not None and args.base_sha is not None:
+        print("ERROR: --against-version and --base-sha are mutually exclusive "
+              "(pass one base selector)", file=sys.stderr)
+        return 2
 
     runs_dir = args.runs_dir
     try:
         head_dir = resolve_run_dir(args.newer, runs_dir)
         base_note = ""
-        if args.older is None:
+        selector = ""
+        if args.against_version is not None:
+            base_dir = find_base_by_version(runs_dir, head_dir, args.against_version)
+            base_note = f"base selected by --against-version {args.against_version}"
+            selector = f"--against-version {args.against_version}"
+        elif args.base_sha is not None:
+            base_dir = find_base_by_sha(runs_dir, head_dir, args.base_sha)
+            base_note = f"base selected by --base-sha {args.base_sha}"
+            selector = f"--base-sha {args.base_sha}"
+        elif args.older is None:
             anchor = latest_anchor(runs_dir)
             if anchor.resolve() == head_dir.resolve():
                 base_dir = next_older_run(runs_dir, head_dir)
@@ -465,6 +694,11 @@ def main(argv: list[str] | None = None) -> int:
     except (FileNotFoundError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+
+    if selector:
+        text, exit_code = render_version_regression(base, head, selector)
+        print(text)
+        return exit_code
 
     result = compute_diff(base, head)
     result.coverage_delta, result.coverage_note = compute_coverage_delta(base_dir, head_dir)

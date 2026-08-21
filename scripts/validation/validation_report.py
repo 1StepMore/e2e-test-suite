@@ -25,6 +25,13 @@ family has zero scenarios in the run.
 
 Other report rules:
 
+- The report also carries a per-repo **report card** (AutoInfo matrix
+  style): a matrix keyed by ``run_meta.repos`` plus always ``suite``,
+  each cell holding version + sha + per-scenario verdicts.  Scenario
+  names map to a repo by prefix (``tool-opp-*`` → opp, …); anything
+  else lands in the ``suite`` cell.  ``report.json`` carries it as
+  ``report_card`` and ``report.md`` renders it as a ``## Report card``
+  section.
 - ``unconfigured`` scenarios (no LLM keys) render as a DISTINCT status —
   never GREEN, never RED-as-failure, never in blockers — with
   ``missing_env`` shown.
@@ -71,6 +78,17 @@ HUMAN_QUALITY_ANCHORS = {
 
 GREEN_STATUSES = {"passed", "recovered"}
 
+#: Repo name → the scenario-name prefixes that route a scenario to that
+#: repo's report-card cell (per-repo validation delivery, OPP#58).  The
+#: suite cell catches ``pipeline-``/``regression-``/``tool-omni_mcp-``
+#: and everything else.
+_REPO_PREFIXES: dict[str, tuple[str, ...]] = {
+    "opp": ("tool-opp-", "opp-"),
+    "ol": ("tool-ol-", "ol-"),
+    "orf": ("tool-orf-", "orf-"),
+    "suite": ("pipeline-", "regression-", "tool-omni_mcp-"),
+}
+
 
 # ---------------------------------------------------------------------------
 # Family derivation (D13) — name prefix first, then standard anchors
@@ -85,6 +103,22 @@ def _anchor_of(standard: Any) -> str | None:
     if "#" in s:
         return s.split("#", 1)[1].strip()
     return s.strip() or None
+
+
+def _repo_of_scenario(name: str) -> tuple[str, str]:
+    """The report-card repo for a scenario name, plus its derivation.
+
+    ``tool-opp-*`` / ``tool-ol-*`` / ``tool-orf-*`` and ``opp-`` /
+    ``ol-`` / ``orf-`` prefixed names route to that repo (``prefix``);
+    ``pipeline-`` / ``regression-`` / ``tool-omni_mcp-`` and anything
+    else route to ``suite`` (``prefix`` / ``default``).  Never errors.
+    """
+    name = name if isinstance(name, str) else ""
+    for repo, prefixes in _REPO_PREFIXES.items():
+        for prefix in prefixes:
+            if name.startswith(prefix):
+                return repo, "prefix"
+    return "suite", "default"
 
 
 def family_of(name: str, steps: list[dict[str, Any]]) -> tuple[str, str]:
@@ -298,7 +332,98 @@ def _build_report(
         "verdict_counts": verdict_counts,
         "blockers": blockers,
         "regression_failures": regression_failures,
+        "report_card": _build_report_card(payload, rendered),
     }
+
+
+def _render_report_card_md(report_card: dict[str, Any]) -> str:
+    """The ``## Report card`` markdown section: one table row per repo
+    cell with version, 8-char sha, scenario count and the
+    passed/failed/unconfigured verdict counts."""
+    lines: list[str] = []
+    lines.append("## Report card")
+    lines.append("")
+    lines.append("| Repo | Version | SHA | Scenarios | Passed | Failed | Unconfigured |")
+    lines.append("|------|---------|-----|-----------|--------|--------|--------------|")
+    matrix = report_card.get("matrix", {})
+    for repo in sorted(matrix):
+        cell = matrix[repo]
+        counts = cell.get("verdicts", {})
+        lines.append(
+            f"| {repo} | {cell.get('version', 'unknown')} | "
+            f"{(cell.get('sha', 'unknown') or 'unknown')[:8]} | "
+            f"{cell.get('scenarios', 0)} | "
+            f"{counts.get('passed', 0)} | {counts.get('failed', 0)} | "
+            f"{counts.get('unconfigured', 0)} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _build_report_card(
+    payload: dict[str, Any], rendered_scenarios: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """The per-repo report card (AutoInfo matrix style): one cell per repo
+    in ``run_meta.repos`` plus ALWAYS ``suite``.
+
+    Each cell carries ``version``/``sha`` (from run_meta —
+    ``suite_version``/``suite_sha`` for suite, ``run_meta[repo]``
+    ``version``/``sha`` for components; ``"unknown"`` fallback, never
+    errors), ``scenarios`` (count), ``verdicts`` (status → count) and
+    ``scenarios_list`` (one entry per scenario in the cell).
+    """
+    run_meta = payload.get("run_meta") or {}
+    repos = list(run_meta.get("repos") or [])
+    if "suite" not in repos:
+        repos.append("suite")
+
+    cells: dict[str, dict[str, Any]] = {}
+    for repo in repos:
+        if repo == "suite":
+            version = run_meta.get("suite_version", "unknown")
+            sha = run_meta.get("suite_sha", "unknown")
+        else:
+            entry = run_meta.get(repo) or {}
+            version = entry.get("version", "unknown")
+            sha = entry.get("sha", "unknown")
+        cells[repo] = {
+            "version": version,
+            "sha": sha,
+            "scenarios": 0,
+            "verdicts": {},
+            "scenarios_list": [],
+        }
+
+    for sc in rendered_scenarios:
+        repo, derivation = _repo_of_scenario(sc["name"])
+        cell = cells.setdefault(
+            repo,
+            {
+                "version": (run_meta.get(repo) or {}).get("version", "unknown")
+                if repo != "suite"
+                else run_meta.get("suite_version", "unknown"),
+                "sha": (run_meta.get(repo) or {}).get("sha", "unknown")
+                if repo != "suite"
+                else run_meta.get("suite_sha", "unknown"),
+                "scenarios": 0,
+                "verdicts": {},
+                "scenarios_list": [],
+            },
+        )
+        cell["scenarios"] += 1
+        status = sc["status"]
+        cell["verdicts"][status] = cell["verdicts"].get(status, 0) + 1
+        cell["scenarios_list"].append(
+            {
+                "name": sc["name"],
+                "status": status,
+                "family": sc["family"],
+                "repo": repo,
+                "repo_derivation": derivation,
+            }
+        )
+
+    return {"repos": repos, "matrix": cells}
 
 
 def _render_markdown(report_data: dict[str, Any]) -> str:
@@ -330,6 +455,10 @@ def _render_markdown(report_data: dict[str, Any]) -> str:
             lines.append(f"| {status} | {counts[status]} |")
     for status in sorted(set(counts) - {"passed", "recovered", "partial-pass", "failed", "unconfigured"}):
         lines.append(f"| {status} | {counts[status]} |")
+    lines.append("")
+
+    # --- Report card (per-repo matrix, OPP#58) --------------------------
+    lines.append(_render_report_card_md(report_data["report_card"]))
     lines.append("")
 
     for family in (AGENT_USER, HUMAN_QUALITY):
