@@ -47,7 +47,9 @@ def _load_diff():
 diff = _load_diff()
 
 
-def _write_run(runs_dir: Path, ts: str, verdicts: dict[str, str]) -> Path:
+def _write_run(
+    runs_dir: Path, ts: str, verdicts: dict[str, str], *, run_meta: dict | None = None
+) -> Path:
     """A minimal persisted run: <runs_dir>/<ts>/scenarios.json with the
     engine's payload shape (run_id/timestamp/trace_id/scenarios[].status)."""
     d = runs_dir / ts
@@ -69,6 +71,8 @@ def _write_run(runs_dir: Path, ts: str, verdicts: dict[str, str]) -> Path:
             for name, status in verdicts.items()
         ],
     }
+    if run_meta is not None:
+        payload["run_meta"] = run_meta
     (d / "scenarios.json").write_text(json.dumps(payload), encoding="utf-8")
     return d
 
@@ -305,3 +309,120 @@ def test_bare_run_id_resolved_against_runs_dir(runs):
 def test_no_run_dir_argument_errors(tmp_path: Path):
     """No run dirs at all -> usage error, nonzero exit."""
     assert diff.main(["--runs-dir", str(tmp_path)]) != 0
+
+
+# ---------------------------------------------------------------------------
+# Four-class VERSION REGRESSION (OPP#58) — new/regressed/fixed/existing-failing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "old,new,expected",
+    [
+        (None, "passed", "new"),
+        ("passed", None, "missing"),
+        ("passed", "failed", "regressed"),
+        ("failed", "passed", "fixed"),
+        ("failed", "failed", "existing-failing"),
+        ("passed", "passed", None),
+        ("unconfigured", "passed", None),  # not one of the four classes
+    ],
+)
+def test_classify_four_class(old, new, expected):
+    """classify_four_class buckets a (old, new) verdict pair into the
+    four-class scheme; unchanged pairs classify None."""
+    assert diff.classify_four_class(old, new) == expected
+
+
+def test_compute_four_class_missing_goes_to_missing_list(tmp_path: Path):
+    """A scenario present only in the base run is NOT one of the four
+    classes — render_version_regression lists it under missing-from-head."""
+    base = _write_run(tmp_path, "20260814-100000", {"a": "passed", "gone": "passed"})
+    head = _write_run(tmp_path, "20260814-200000", {"a": "passed"})
+    base_rec = diff.load_run(base)
+    head_rec = diff.load_run(head)
+    text, exit_code = diff.render_version_regression(base_rec, head_rec, "test")
+    assert exit_code == 0
+    assert "missing-from-head (1)" in text
+    assert "gone" in text
+
+
+def _version_runs(tmp_path: Path, base_ver: str = "0.4.0", head_ver: str = "0.5.0"):
+    """Three runs: a suite-versioned base, a component-versioned newer
+    base, and a head — for --against-version base selection."""
+    base_meta = {"suite_version": base_ver, "suite_sha": "abcd1234", "repos": ["suite"]}
+    opp_meta = {"suite_version": "0.4.1", "opp": {"version": "0.9.0", "sha": "beef0001"}, "repos": ["opp"]}
+    head_meta = {"suite_version": head_ver, "suite_sha": "deadbeef", "repos": ["suite"]}
+    base = _write_run(tmp_path, "20260814-100000", {"a": "passed"}, run_meta=base_meta)
+    opp = _write_run(tmp_path, "20260814-110000", {"a": "passed"}, run_meta=opp_meta)
+    head = _write_run(tmp_path, "20260814-200000", {"a": "failed"}, run_meta=head_meta)
+    return base, opp, head
+
+
+def test_against_version_selects_newest_matching_base(tmp_path: Path):
+    """find_base_by_version picks the NEWEST run older than the head whose
+    run_meta any-string equals the version — a component version counts."""
+    base, opp, head = _version_runs(tmp_path)
+    assert diff.find_base_by_version(tmp_path, head, "0.4.1") == opp
+    assert diff.find_base_by_version(tmp_path, head, "0.4.0") == base
+
+
+def test_against_version_exit_1_on_regression(tmp_path: Path):
+    """--against-version with a regressed head exits 1 (regressed > 0)."""
+    base, _, head = _version_runs(tmp_path)
+    assert diff.main(
+        [str(head), "--against-version", "0.4.0", "--runs-dir", str(tmp_path)]
+    ) == 1
+
+
+def test_against_version_exit_1_on_existing_failing(tmp_path: Path):
+    """A failed->failed scenario counts as existing-failing -> exit 1."""
+    base = _write_run(
+        tmp_path, "20260814-100000", {"a": "failed"},
+        run_meta={"suite_version": "0.4.0", "repos": ["suite"]},
+    )
+    head = _write_run(
+        tmp_path, "20260814-200000", {"a": "failed"},
+        run_meta={"suite_version": "0.5.0", "repos": ["suite"]},
+    )
+    text, exit_code = diff.render_version_regression(
+        diff.load_run(base), diff.load_run(head), "--against-version 0.4.0"
+    )
+    assert exit_code == 1
+    assert "existing-failing" in text
+    assert diff.main(
+        [str(head), "--against-version", "0.4.0", "--runs-dir", str(tmp_path)]
+    ) == 1
+
+
+def test_against_version_no_match_exits_2(tmp_path: Path):
+    """--against-version matching no older run -> FileNotFoundError,
+    exit 2 (clear error)."""
+    head = _write_run(
+        tmp_path, "20260814-200000", {"a": "passed"},
+        run_meta={"suite_version": "9.9.9", "repos": ["suite"]},
+    )
+    assert diff.main(
+        [str(head), "--against-version", "0.4.0", "--runs-dir", str(tmp_path)]
+    ) == 2
+
+
+def test_base_sha_selects_by_sha_prefix(tmp_path: Path):
+    """--base-sha matches any run_meta sha value by prefix — the newest
+    older run whose suite/component sha startswith the given prefix."""
+    base = _write_run(
+        tmp_path, "20260814-100000", {"a": "passed"},
+        run_meta={"suite_version": "0.4.0", "suite_sha": "abcd1234", "repos": ["suite"]},
+    )
+    newer = _write_run(
+        tmp_path, "20260814-110000", {"a": "passed"},
+        run_meta={"suite_version": "0.4.0", "suite_sha": "abcd5678", "repos": ["suite"]},
+    )
+    head = _write_run(
+        tmp_path, "20260814-200000", {"a": "passed"},
+        run_meta={"suite_version": "0.5.0", "suite_sha": "deadbeef", "repos": ["suite"]},
+    )
+    assert diff.find_base_by_sha(tmp_path, head, "abcd56") == newer
+    assert diff.main(
+        [str(head), "--base-sha", "abcd56", "--runs-dir", str(tmp_path)]
+    ) == 0

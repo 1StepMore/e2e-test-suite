@@ -261,3 +261,89 @@ def test_expected_counts_literal_parsed_from_test_file():
         SUITE_ROOT / "tests" / "contract" / "test_mcp_schemas.py"
     )
     assert counts == {"opp": 9, "orf": 7, "ol": 21}
+
+
+# ---------------------------------------------------------------------------
+# Coverage snapshot (todo 26, OPP#58) — --out, shape, parent-dir creation,
+# and the delta the diff tool consumes
+# ---------------------------------------------------------------------------
+
+
+def test_main_out_writes_snapshot_json(tmp_path: Path):
+    """main(['--out', path]) writes a snapshot JSON that parses and has a
+    totals block; exit code follows the normal missing logic (0 on the
+    real repo library)."""
+    import json as _json
+
+    out = tmp_path / "coverage.json"
+    rc = audit.main(["--out", str(out)])
+
+    assert rc == 0
+    assert out.is_file()
+    data = _json.loads(out.read_text(encoding="utf-8"))
+    assert "totals" in data
+    assert data["totals"]["declared"] > 0
+
+
+def test_build_snapshot_shape(tmp_path: Path):
+    """build_snapshot nests the declared/covered/missing per-module sets,
+    phantom as a flat list, plus totals — the diff-friendly shape."""
+    report = audit.compute_coverage(SUITE_ROOT)
+    snap = audit.build_snapshot(report)
+
+    assert set(snap) == {"generated_at", "suite_sha", "declared", "covered", "missing", "phantom", "totals"}
+    for key in ("declared", "covered", "missing"):
+        assert set(snap[key]) == set(MODULES)
+        assert isinstance(snap[key]["opp"], list)
+    assert isinstance(snap["phantom"], list)
+    assert set(snap["totals"]) == {"declared", "covered", "missing"}
+    assert snap["totals"]["declared"] == snap["totals"]["covered"]  # real repo: full coverage
+    assert snap["suite_sha"] != "unknown"
+
+
+def test_write_snapshot_creates_parent_dirs(tmp_path: Path):
+    """write_snapshot creates nested parent dirs and returns the path."""
+    report = audit.compute_coverage(SUITE_ROOT)
+    deep = tmp_path / "a" / "b" / "c" / "coverage.json"
+
+    written = audit.write_snapshot(report, deep)
+
+    assert written == deep
+    assert deep.is_file()
+
+
+def test_coverage_delta_diffs_snapshots(tmp_path: Path):
+    """compute_coverage_delta between two snapshot-carrying runs returns
+    the delta — numeric counts diff arithmetically, list membership by
+    added/removed (validation_diff consumes this)."""
+    import importlib.util
+    import sys as _sys
+
+    diff_spec = importlib.util.spec_from_file_location(
+        "validation_diff", SUITE_ROOT / "scripts" / "validation" / "validation_diff.py"
+    )
+    diff_mod = importlib.util.module_from_spec(diff_spec)
+    assert diff_spec.loader is not None
+    _sys.modules["validation_diff"] = diff_mod
+    diff_spec.loader.exec_module(diff_mod)
+
+    older = tmp_path / "20260814-100000"
+    newer = tmp_path / "20260814-200000"
+    older.mkdir(parents=True)
+    newer.mkdir(parents=True)
+    (older / "coverage.json").write_text(
+        '{"declared": {"opp": 9}, "covered": {"opp": 9}, "missing": {"opp": []}, '
+        '"phantom": [], "totals": {"declared": 9, "covered": 9, "missing": 0}}',
+        encoding="utf-8",
+    )
+    (newer / "coverage.json").write_text(
+        '{"declared": {"opp": 9}, "covered": {"opp": 8}, "missing": {"opp": ["extract_document"]}, '
+        '"phantom": [], "totals": {"declared": 9, "covered": 8, "missing": 1}}',
+        encoding="utf-8",
+    )
+
+    delta, note = diff_mod.compute_coverage_delta(older, newer)
+
+    assert delta is not None
+    assert delta["totals.covered"] == {"older": 9, "newer": 8, "delta": -1}
+    assert delta["missing.opp"]["added"] == ["extract_document"]

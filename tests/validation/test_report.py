@@ -106,13 +106,16 @@ def _scenario(
     }
 
 
-def _run_payload(scenarios: list[dict]) -> dict:
-    return {
+def _run_payload(scenarios: list[dict], *, run_meta: dict | None = None) -> dict:
+    payload = {
         "run_id": "20260101-000000",
         "timestamp": "2026-01-01T00:00:00",
         "trace_id": "trace-1",
         "scenarios": scenarios,
     }
+    if run_meta is not None:
+        payload["run_meta"] = run_meta
+    return payload
 
 
 def _write_run(tmp_path: Path, payload: dict) -> Path:
@@ -394,3 +397,92 @@ def test_unparseable_input_raises_clear_error(tmp_path: Path):
     with pytest.raises(SystemExit) as exc:
         report.generate(bad)
     assert str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# Per-repo report card (OPP#58) — matrix keyed by run_meta.repos + suite
+# ---------------------------------------------------------------------------
+
+
+def _report_card_payload() -> dict:
+    """A synthetic run with run_meta repos ['opp'] and scenarios that map
+    to opp (tool-opp-*) and suite (pipeline-*)."""
+    return _run_payload(
+        [
+            _scenario("tool-opp-extract_document", "passed"),
+            _scenario("pipeline-docx-md-docx", "unconfigured"),
+        ],
+        run_meta={
+            "suite_version": "0.4.0",
+            "suite_sha": "abcd1234",
+            "opp": {"version": "0.9.1", "sha": "beef0001"},
+            "repos": ["opp"],
+        },
+    )
+
+
+def test_repo_of_prefix_mappings():
+    """_repo_of_scenario routes by name prefix: tool-opp-*/opp-* → opp,
+    tool-ol-*/ol-* → ol, tool-orf-*/orf-* → orf, and pipeline-* /
+    tool-omni_mcp-* → suite.  Anything else defaults to suite."""
+    cases = {
+        "tool-opp-extract_document": ("opp", "prefix"),
+        "opp-csv-extract": ("opp", "prefix"),
+        "tool-ol-judge_text": ("ol", "prefix"),
+        "ol-edge-empty-input": ("ol", "prefix"),
+        "tool-orf-apply_md": ("orf", "prefix"),
+        "orf-backfill-html": ("orf", "prefix"),
+        "pipeline-docx-md-docx": ("suite", "prefix"),
+        "tool-omni_mcp-ping": ("suite", "prefix"),
+    }
+    for name, expected in cases.items():
+        assert report._repo_of_scenario(name) == expected, name
+
+
+def test_repo_of_unmapped_name_defaults_to_suite():
+    """A name with no known prefix (e.g. nightly-lqa) lands in the suite
+    cell with the 'default' derivation — never an error."""
+    assert report._repo_of_scenario("nightly-lqa") == ("suite", "default")
+
+
+def test_report_card_matrix_keyed_by_suite_and_run_meta_repos(tmp_path: Path):
+    """report.json's report_card.matrix has a cell per run_meta repo PLUS
+    always suite, each with version/sha/scenarios/verdicts/scenarios_list."""
+    _, data = report.generate(_write_run(tmp_path, _report_card_payload()))
+
+    rc = data["report_card"]
+    assert set(rc["matrix"]) == {"opp", "suite"}
+    opp = rc["matrix"]["opp"]
+    assert opp["version"] == "0.9.1" and opp["sha"] == "beef0001"
+    assert opp["scenarios"] == 1
+    assert opp["verdicts"] == {"passed": 1}
+    assert opp["scenarios_list"][0]["name"] == "tool-opp-extract_document"
+    assert opp["scenarios_list"][0]["repo"] == "opp"
+    assert opp["scenarios_list"][0]["repo_derivation"] == "prefix"
+    suite = rc["matrix"]["suite"]
+    assert suite["version"] == "0.4.0" and suite["sha"] == "abcd1234"
+    assert suite["scenarios"] == 1
+    assert suite["verdicts"] == {"unconfigured": 1}
+
+
+def test_report_card_matrix_repo_unknown_version_fallback(tmp_path: Path):
+    """A run_meta missing a repo key still yields the matrix with an
+    'unknown' version/sha — never an error."""
+    payload = _run_payload(
+        [_scenario("tool-opp-extract_document", "passed")],
+        run_meta={"repos": ["opp"], "suite_version": "0.4.0"},
+    )
+    _, data = report.generate(_write_run(tmp_path, payload))
+    opp = data["report_card"]["matrix"]["opp"]
+    assert opp["version"] == "unknown" and opp["sha"] == "unknown"
+    assert opp["scenarios"] == 1
+
+
+def test_report_markdown_has_report_card_section(tmp_path: Path):
+    """report.md renders a ``## Report card`` section with one table row
+    per repo cell."""
+    md, _ = report.generate(_write_run(tmp_path, _report_card_payload()))
+    assert "## Report card" in md
+    assert "| Repo | Version | SHA | Scenarios |" in md
+    assert "| opp | 0.9.1 |" in md
+    assert "| suite | 0.4.0 |" in md

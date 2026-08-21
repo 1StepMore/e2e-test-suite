@@ -556,3 +556,116 @@ def test_main_help_exits_zero(capsys):
     assert rc == 0
     for flag in ("--list", "--scenario", "--dry-run", "--verbose", "--check", "--tier"):
         assert flag in out
+
+
+# ---------------------------------------------------------------------------
+# --repo {suite,opp,ol,orf,all} — per-repo scenario sources (OPP#58)
+# ---------------------------------------------------------------------------
+
+
+def _repo_layout(tmp_path):
+    """A synthetic per-repo scenario layout: one scenario per repo dir.
+    Returns the tmp_path with ``scenarios/`` (suite) and the three
+    ``Omni_*/scenarios/`` component dirs."""
+    body = """
+name: {name}
+description: "synthetic per-repo scenario"
+tier: 1
+requires_env: []
+steps:
+  - name: "one"
+    kind: cli
+    command: "true"
+    expect:
+      success: true
+"""
+    layout = {
+        "scenarios": "suite-a",
+        "Omni_Pre_Processor/scenarios": "opp-a",
+        "Omni_Localizer/scenarios": "ol-a",
+        "Omni_Re_Formatter/scenarios": "orf-a",
+    }
+    for rel, name in layout.items():
+        _write(tmp_path, f"{rel}/{name}.yaml", body.format(name=name))
+    return tmp_path
+
+
+def test_main_repo_default_is_suite_dir(tmp_path, capsys, monkeypatch):
+    """No --repo -> the default ``scenarios`` dir (suite library) is the
+    only source; component scenarios are NOT listed."""
+    _repo_layout(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["--list"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "suite-a" in out
+    assert "opp-a" not in out
+
+
+def test_main_repo_opp_selects_only_opp_scenarios(tmp_path, capsys, monkeypatch):
+    """--repo opp lists only the OPP component scenarios — no suite/ol/orf."""
+    _repo_layout(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["--repo", "opp", "--list"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "opp-a" in out
+    assert "suite-a" not in out
+    assert "ol-a" not in out
+    assert "orf-a" not in out
+
+
+def test_main_repo_all_merges_four_dirs_in_order(tmp_path, capsys, monkeypatch):
+    """--repo all merges suite + opp + ol + orf scenario dirs in the
+    documented order (suite first, then the three components)."""
+    _repo_layout(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["--repo", "all", "--list"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    for name in ("suite-a", "opp-a", "ol-a", "orf-a"):
+        assert name in out
+    assert out.index("suite-a") < out.index("opp-a")
+    assert out.index("opp-a") < out.index("ol-a")
+    assert out.index("ol-a") < out.index("orf-a")
+
+
+def test_main_repo_all_dry_run_exits_zero(tmp_path, capsys, monkeypatch):
+    """--repo all --dry-run loads + prints the merged plan, dispatches
+    nothing, exits 0."""
+    _repo_layout(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["--repo", "all", "--dry-run", "--runs-dir", str(tmp_path / "runs")])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "suite-a" in out and "orf-a" in out
+    assert "dry" in out.lower()
+    assert not (tmp_path / "runs").exists()  # nothing persisted
+
+
+def test_main_repo_merge_then_run_persists(tmp_path, capsys, monkeypatch):
+    """--repo all then a real run persists the merged library with a
+    run_meta listing every repo that fed it."""
+    import json
+
+    _repo_layout(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["--repo", "all", "--runs-dir", str(tmp_path / "runs")])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert (tmp_path / "runs" / "latest.txt").exists()
+    latest = (tmp_path / "runs" / "latest.txt").read_text(encoding="utf-8").strip()
+    payload = json.loads((tmp_path / "runs" / latest / "scenarios.json").read_text(encoding="utf-8"))
+    names = {s["name"] for s in payload["scenarios"]}
+    assert names == {"suite-a", "opp-a", "ol-a", "orf-a"}
+    assert set(payload["run_meta"]["repos"]) == {"opp", "ol", "orf"}

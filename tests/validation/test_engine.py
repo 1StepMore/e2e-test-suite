@@ -545,3 +545,83 @@ def test_malformed_scenario_raises_scenario_error(tmp_path):
     _write(tmp_path, "bad.yaml", "name: nope\nsteps: []\n")
     with pytest.raises(ScenarioError):
         run_scenarios(tmp_path, persist=False)
+
+
+# ---------------------------------------------------------------------------
+# run_meta — component versions + git SHAs (OPP#58 per-repo delivery)
+# ---------------------------------------------------------------------------
+
+
+def test_collect_run_meta_has_suite_keys_and_repo_entries():
+    """collect_run_meta(['suite','opp','ol','orf']) returns the suite
+    version/sha, a per-component {version, sha} entry for every repo, and
+    the ``repos`` list — the block the diff/report tools consume."""
+    from omni_mcp.validation.engine import collect_run_meta
+
+    meta = collect_run_meta(["suite", "opp", "ol", "orf"])
+
+    assert "suite_version" in meta and meta["suite_version"] != "unknown"
+    assert "suite_sha" in meta and meta["suite_sha"] != "unknown"
+    for repo in ("opp", "ol", "orf"):
+        assert repo in meta
+        assert meta[repo]["version"] != "unknown"
+        assert meta[repo]["sha"] != "unknown"
+    assert meta["repos"] == ["opp", "ol", "orf"]  # suite is not re-listed
+
+
+def test_persist_run_payload_includes_run_meta(tmp_path):
+    """persist_run writes the run_meta block into scenarios.json — the
+    per-repo delivery and the version base-selector read it from there."""
+    runs = tmp_path / "runs"
+    _write(tmp_path, "p.yaml", _scenario("p", steps=_cli_steps("true")))
+    run = run_scenarios(tmp_path, runs_dir=runs, persist=True)
+    payload = json.loads((runs / run.run_id / "scenarios.json").read_text(encoding="utf-8"))
+    assert "run_meta" in payload
+    assert payload["run_meta"]["suite_version"] != "unknown"
+    assert "repos" in payload["run_meta"]
+
+
+def test_run_scenarios_run_meta_auto_collected_single_dir(tmp_path):
+    """run_scenarios('scenarios') auto-populates run_meta — the suite
+    version/sha are present without any explicit run_meta argument."""
+    _write(tmp_path, "a.yaml", _scenario("a", steps=_cli_steps("true")))
+    run = run_scenarios(str(tmp_path), persist=False)
+    assert run.run_meta["suite_version"] != "unknown"
+    assert run.run_meta["suite_sha"] != "unknown"
+    assert run.run_meta["repos"] == []
+
+
+def test_run_scenarios_run_meta_auto_collected_component_dir(tmp_path):
+    """With a component scenario dir, run_meta carries the repo key —
+    ``_dirs_to_repo_keys`` maps the path shape to the component."""
+    scn = tmp_path / "Omni_Pre_Processor" / "scenarios"
+    scn.mkdir(parents=True)
+    _write(scn, "opp-a.yaml", _scenario("opp-a", steps=_cli_steps("true")))
+    run = run_scenarios(str(scn), persist=False)
+    assert "opp" in run.run_meta
+    assert run.run_meta["opp"]["version"] != "unknown"
+    assert run.run_meta["repos"] == ["opp"]
+
+
+def test_collect_run_meta_never_raises_on_missing_repo_dir(monkeypatch):
+    """A component dir that does not exist must never raise — the version
+    falls back to 'unknown' (guarded never-raises contract, OPP#58)."""
+    from omni_mcp.validation import engine
+
+    monkeypatch.setattr(engine, "_COMPONENT_DIRS", {"opp": engine._SUITE_ROOT / "Definitely_Missing_Component"})
+    meta = engine.collect_run_meta(["opp"])
+    assert meta["opp"] == {"version": "unknown", "sha": "unknown"}
+    assert meta["suite_version"] != "unknown"  # suite part still collected
+
+
+def test_run_scenarios_accepts_list_of_dirs(tmp_path):
+    """A list of scenario dirs concatenates the loaded scenarios in order
+    — dir1's scenarios before dir2's (per-repo merge, OPP#58)."""
+    d1 = tmp_path / "one"
+    d2 = tmp_path / "two"
+    d1.mkdir()
+    d2.mkdir()
+    _write(d1, "a.yaml", _scenario("alpha", steps=_cli_steps("true")))
+    _write(d2, "b.yaml", _scenario("beta", steps=_cli_steps("true")))
+    run = run_scenarios([str(d1), str(d2)], persist=False)
+    assert [s.name for s in run.scenarios] == ["alpha", "beta"]
