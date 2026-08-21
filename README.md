@@ -349,6 +349,16 @@ source .venv_ol/bin/activate
 python scripts/validation/run_validation.py --scenario tool- --tier 1   # 39 per-tool agent-surface scenarios
 ```
 
+Each module also ships its own in-repo scenario library, runnable via
+`--repo {opp,ol,orf,suite,all}` (OPP 6 tier-1 extraction, OL 5 tier-2
+translation, ORF 6 tier-1 backfill). Runs persist a `run_meta` block
+(component versions + git SHAs); `--matrix` builds the per-repo report
+card, `--deliver` builds a human-review zip under
+`04-Output/artifacts/deliverables/omni-suite/`, and
+`validation_diff.py --against-version` gates four-class version
+regressions. Full reference:
+[docs/dev/per-repo-validation-delivery.md](docs/dev/per-repo-validation-delivery.md).
+
 Key pointers:
 
 - **Standards**: `scenarios/STANDARDS.md` — the single citable bar, exact thresholds per anchor

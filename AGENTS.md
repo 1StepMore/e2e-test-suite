@@ -95,7 +95,31 @@ python scripts/validation/coverage_audit.py
 # Read the newest run and generate the director report (two verdict families)
 cat validation-runs/latest.txt
 python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json
+
+# Per-repo scenario libraries (OPP#58): each module ships its own
+# scenarios/ dir, runnable via --repo:
+#   --repo opp -> Omni_Pre_Processor/scenarios  (6 tier-1 extraction)
+#   --repo ol  -> Omni_Localizer/scenarios      (5 tier-2 translation, LLM keys)
+#   --repo orf -> Omni_Re_Formatter/scenarios   (6 tier-1 backfill, needs
+#                 MCP_ALLOWED_DIRECTORIES — ORF is fail-closed on the allowlist)
+#   --repo all -> merges all four dirs
+MCP_ALLOWED_DIRECTORIES=/tmp python scripts/validation/run_validation.py --repo orf --tier 1
+
+# Run everything, then build the report card + delivery package
+python scripts/validation/run_validation.py --repo all --dry-run            # plan only
+python scripts/validation/run_validation.py --repo orf --tier 1 --matrix --deliver
+#   --matrix  -> report.md + report.json (with report_card per-repo matrix) in the run dir
+#   --deliver -> zip at 04-Output/artifacts/deliverables/omni-suite/ (01-RAW/ real
+#                artifacts, 02-PROCESSED/ reports, manifest.json)
+
+# Four-class version regression (new/regressed/fixed/existing-failing); exit 1
+# when regressed>0 or existing-failing>0; coverage snapshot via --out
+python scripts/validation/validation_diff.py <newer> --against-version 0.4.0
+python scripts/validation/validation_diff.py <newer> --base-sha <sha-prefix>
+python scripts/validation/coverage_audit.py --out validation-runs/<ts>/coverage.json
 ```
+
+Every run persists `run_meta` (suite/opp/ol/orf versions + git SHAs). Full reference: [docs/dev/per-repo-validation-delivery.md](docs/dev/per-repo-validation-delivery.md).
 
 Tier semantics: 1 = hermetic (no keys), 2 = real LLM keys, 3 = paid/external/network. A tier-2/3 scenario without its keys reports `unconfigured` — never a fake green. The citable bar is `scenarios/STANDARDS.md` (two families: AGENT-SURFACE + HUMAN-QUALITY); the human director loop is `docs/dev/validation-director-loop.md`. Full per-agent walkthroughs (incl. reading `latest.txt` + `report.md`, and the 10-minute director checklist): [How to validate (Codex)](#how-to-validate-codex) and [How to validate (any agent)](#how-to-validate-any-agent) below.
 
@@ -629,9 +653,15 @@ python scripts/validation/run_validation.py --check
 
 # 4. Coverage audit — every live MCP tool must be exercised by a scenario
 python scripts/validation/coverage_audit.py
+#    ...and snapshot it per run for version diffs:
+python scripts/validation/coverage_audit.py --out validation-runs/<ts>/coverage.json
 
 # 5. Diff two runs (verdict changes + regression detection)
 python scripts/validation/validation_diff.py <runs-dir>/<ts1> <runs-dir>/<ts2>
+#    Four-class version regression (new/regressed/fixed/existing-failing);
+#    exit 1 when regressed>0 or existing-failing>0:
+python scripts/validation/validation_diff.py <newer> --against-version 0.4.0
+python scripts/validation/validation_diff.py <newer> --base-sha <sha-prefix>
 ```
 
 **Reading results**:

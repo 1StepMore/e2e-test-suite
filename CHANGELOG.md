@@ -8,6 +8,8 @@
 
 ### Added
 
+- **OPP#58 — AutoInfo-style validation system (per-repo libraries + delivery)**: each module now ships its own scenario library (`Omni_Pre_Processor/scenarios/` 6 tier-1, `Omni_Localizer/scenarios/` 5 tier-2, `Omni_Re_Formatter/scenarios/` 6 tier-1), runnable via the unified `run_validation.py --repo {opp,ol,orf,suite,all}` selector. Persisted runs carry `run_meta` (suite/opp/ol/orf versions + git SHAs). `--matrix` builds the director report with a per-repo `report_card`; `--deliver` zips REAL artifacts + processed reports to `04-Output/artifacts/deliverables/omni-suite/`; `validation_diff.py --against-version/--base-sha` adds the four-class version regression gate (new/regressed/fixed/existing-failing, exit 1 on regressed>0 or existing-failing>0); `coverage_audit.py --out` writes the coverage.json snapshot. Reference: `docs/dev/per-repo-validation-delivery.md`.
+
 - **Validation framework suite docs**: `AGENTS.md` — Validation row in the per-module cheat sheet, "Run validation" block in Common Tasks (`run_validation.py --list/--check/--scenario --tier 1`, `coverage_audit.py`, `validation_report.py`), env var entries (`MCP_ALLOWED_DIRECTORIES`, `OMNI_RATE_LIMIT_RPM`); `README.md` — Validation section (STANDARDS.md, scripts, director loop, plan); `TESTS.md` / `PROJECT_STATUS.md` / `CONTRIBUTING.md` — pointers to the agent-agnostic validation framework
 
 - **`feat(check_deps.sh + doctor.yml)`: add `make doctor` + CI gate (7-check health)** — `make doctor` runs Python/keys/pandoc/WeasyPrint/md2pptx/MCP/submodule checks; CI runs on every PR with `continue-on-error: true` initially
