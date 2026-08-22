@@ -10,6 +10,32 @@
 
 title = "Omni_Suite custom secret patterns"
 
+# 2026-08-22 round 9 (SEC-LEAK-1): Baidu Qianfan + MiniMax rules added after
+# real keys were found re-published in docs/SECURITY.md and
+# reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md. The Baidu format
+# (bce-v3/ALTAK-...) was NOT covered by any previous rule because of the '/'
+# characters, which are excluded from the default [A-Za-z0-9_\-] classes.
+
+[[rules]]
+id = "baidu-qianfan-key"
+description = "Baidu Qianfan (ERNIE) API key — bce-v3/ALTAK-*"
+regex = '''\bbce-v3/ALTAK-[A-Za-z0-9]{20,}(?:/[A-Za-z0-9]{20,})?\b'''
+[rules.allowlist]
+regexes = [
+  '''bce-v3/ALTAK-\.\.\.''',
+  '''REDACTED_BAIDU_KEY''',
+]
+
+[[rules]]
+id = "minimax-sk-cp-key"
+description = "MiniMax API key — sk-cp-* (Long-context / ABAB style)"
+regex = '''\bsk-cp-[A-Za-z0-9_-]{16,}\b'''
+[rules.allowlist]
+regexes = [
+  '''REDACTED_MINIMAX_KEY''',
+  '''REDACTED_MINIMAX_KEY''',
+]
+
 # Custom rules — each rule needs a unique id and a regex.
 [[rules]]
 id = "zhipu-minimax-hex"

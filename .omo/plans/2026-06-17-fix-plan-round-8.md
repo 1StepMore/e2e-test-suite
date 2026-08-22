@@ -9,9 +9,9 @@ Hardcoded literals in the tracked template (current state):
 
 | Provider | Model | Value (truncated) |
 |---|---|---|
-| Zhipu (BigModel) | glm-4-flash | `REDACTED_ZHIPU_KEY` |
+| Zhipu (BigModel) | glm-4-flash | `<REDACTED_ZHIPU_KEY>` |
 | Agnes | agnes-2.0-flash | `${AGNES_API_KEY}` |
-| NVIDIA NIM | deepseek-v4-flash | `REDACTED_NVIDIA_NIM_KEY...` |
+| NVIDIA NIM | deepseek-v4-flash | `<REDACTED_NVIDIA_NIM_KEY>` |
 | NVIDIA NIM | kimi-k2.6 | (same as above) |
 
 These appear in **9 `api_key` fields** across `translation`,
