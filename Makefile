@@ -23,7 +23,7 @@
 #
 # =============================================================================
 
-.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset validate validate-nightly validate-coverage clean clean-artifacts doctor help e2e e2e-help
+.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset validate validate-nightly validate-coverage clean clean-artifacts doctor help e2e e2e-help doc-inventory doc-inventory-check
 
 PYTHON := .venv_ol/bin/python
 PYTEST := $(PYTHON) -m pytest
@@ -63,6 +63,8 @@ help:
 	@echo "  validate      — Hermetic validation: tier-1 scenarios + coverage audit (0 missing)"
 	@echo "  validate-nightly — Full validation library (all tiers; requires real LLM keys)"
 	@echo "  validate-coverage — Coverage audit only (exit 1 while any MCP tool is missing)"
+	@echo "  doc-inventory          Regenerate docs/dev/doc-inventory.md"
+	@echo "  doc-inventory-check    Verify doc freshness (exit 0 = clean)"
 	@echo "  clean         — Remove __pycache__, .pytest_cache, build artifacts"
 
 setup:
@@ -220,6 +222,12 @@ validate-nightly:
 
 validate-coverage:
 	$(PYTHON) scripts/validation/coverage_audit.py
+
+doc-inventory:
+	@python3 scripts/doc_inventory.py
+
+doc-inventory-check:
+	@python3 scripts/doc_inventory.py --check
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

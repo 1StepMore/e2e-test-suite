@@ -101,3 +101,11 @@ repos:
         #  - pyproject.toml files (when a version is bumped)
         #  - the doc targets (when someone edits them by hand)
         files: ^(pyproject\.toml|Omni_(Pre_Processor|Localizer|Re_Formatter)/pyproject\.toml|README\.md|AGENTS\.md|COMPATIBILITY\.md|VERSION_COMPATIBILITY\.md|scripts/sync_version_docs\.py)$
+
+      - id: omni-doc-inventory
+        name: Omni Suite doc-inventory check (AUTO-GENERATED header + source-truth MCP counts)
+        entry: python3 scripts/doc_inventory.py --check
+        language: system
+        pass_filenames: false
+        stages: [commit]
+        files: ^(docs/|README\.md|AGENTS\.md|CLAUDE\.md|reports/|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|scenarios/|scripts/doc_inventory\.py|\.pre-commit-config\.yaml|Makefile)$
