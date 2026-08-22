@@ -253,9 +253,9 @@ flowchart TB
     end
 
     subgraph Servers["3 stdio MCP servers, started as subprocesses"]
-        OPP_S["opp-mcp-server<br/>7 tools"]
-        OL_S["ol-mcp<br/>8 tools"]
-        ORF_S["orf-mcp-server<br/>6 tools"]
+        OPP_S["opp-mcp-server<br/>9 tools"]
+        OL_S["ol-mcp<br/>21 tools"]
+        ORF_S["orf-mcp-server<br/>7 tools"]
     end
 
     AE -- "extract_document / generate_xliff / save_skeleton" --> OPP_S
@@ -265,11 +265,11 @@ flowchart TB
 
 | Server | Module | Entry point | Tools | Config env var |
 |--------|--------|-------------|-------|----------------|
-| `opp-mcp-server` | OPP | `Omni_Pre_Processor/src/opp/mcp/server.py` | 7 | `OPP_MCP_ALLOWED_DIRS` |
-| `ol-mcp` | OL | `Omni_Localizer/src/ol_mcp/server.py` | 8 | (none — uses `OL_CONFIG_PATH`) |
-| `orf-mcp-server` | ORF | `Omni_Re_Formatter/src/orf/mcp/server.py` | 6 | `ORF_MCP_ALLOWED_DIRS` |
+| `opp-mcp-server` | OPP | `Omni_Pre_Processor/src/opp/mcp/server.py` | 9 | `OPP_MCP_ALLOWED_DIRS` |
+| `ol-mcp` | OL | `Omni_Localizer/src/ol_mcp/server.py` | 21 | (none — uses `OL_CONFIG_PATH`) |
+| `orf-mcp-server` | ORF | `Omni_Re_Formatter/src/orf/mcp/server.py` | 7 | `ORF_MCP_ALLOWED_DIRS` |
 
-**Total: 21 tools** (7 + 8 + 6). Each server has a `ping` health-check tool.
+**Total: 37 tools** (9 + 21 + 7). Each server has a `ping` health-check tool.
 MCP server names are historically inconsistent (OPP/ORF carry `-server`,
 OL does not) — this is a known wart, not a bug, and changing it now would
 break existing client configurations.
@@ -448,7 +448,7 @@ Omni_Suite/                              ← this repo (parent / test suite)
 │   │   ├── extractors/                  ← per-format extractors
 │   │   ├── channels/                    ← MD / XLIFF formatters
 │   │   ├── cli.py                       ← CLI (generates manifest + skeleton)
-│   │   └── mcp/server.py                ← MCP server (7 tools)
+│   │   └── mcp/server.py                ← MCP server (9 tools)
 │   ├── pyproject.toml                   ← version 0.9.1
 │   └── README.md
 ├── Omni_Localizer/                      ← OL standalone git repo
@@ -459,7 +459,7 @@ Omni_Suite/                              ← this repo (parent / test suite)
 ├── Omni_Re_Formatter/                   ← ORF standalone git repo
 │   ├── src/orf/                         ← package source
 │   │   ├── cli.py                       ← CLI (apply-md / apply-xliff)
-│   │   └── mcp/server.py                ← MCP server (6 tools)
+│   │   └── mcp/server.py                ← MCP server (7 tools)
 │   ├── pyproject.toml                   ← version 0.4.17
 │   └── README.md
 ├── tests/                               ← parent suite tests (30+ files)

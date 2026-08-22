@@ -92,7 +92,7 @@ implementation details even if they are importable today.**
 |---------|----------|---------------------|
 | **CLI commands & flags** | `opp --target-format=md <file>`, `ol translate-md <file> -s en -t zh -o <dir>`, `orf apply-md <file> --target-format docx -o <out>` | `Omni_<Module>/src/<pkg>/cli.py` (per subcommand) |
 | **Exit codes** | `0` ok, non-zero error (see `docs/ERROR_CODES.md` for the full table) | Per-module `cli.py` |
-| **MCP tool names** | `extract_document`, `translate_md_text`, `apply_md`, `apply_xliff`, etc. (7 + 8 + 6 = 21 tools) | `Omni_<Module>/src/<pkg>/mcp/server.py` `_TOOL_SCHEMAS` / `@server.list_tools()` |
+| **MCP tool names** | `extract_document`, `translate_md_text`, `apply_md`, `apply_xliff`, etc. (9 + 21 + 7 = 37 tools) | `Omni_<Module>/src/<pkg>/mcp/server.py` `_TOOL_SCHEMAS` / `@server.list_tools()` |
 | **MCP tool input schemas** | Required and optional parameters, types, defaults | Same location as above |
 | **MCP tool output schemas** | Structured JSON payloads returned via `TextContent` | Same location |
 | **Artifact filenames** | `document.md`, `document.xlf`, `document_manifest.json`, `document.skeleton.zip`, `images.json` | OPP `cli.py` writers |
@@ -299,9 +299,9 @@ To avoid scope creep:
 - `tests/integration/test_version_compat.py` — cross-version integration test
 - `.omo/plans/2026-06-22-production-readiness-plan.md` § 13 (version strategy) and § 14 (rollback/migration)
 - Per-module:
-  - `Omni_Pre_Processor/README.md` — OPP public CLI and 7 MCP tools
+  - `Omni_Pre_Processor/README.md` — OPP public CLI and 9 MCP tools
   - `Omni_Pre_Processor/CHANGELOG.md` — OPP release history
-  - `Omni_Localizer/README.md` — OL public CLI and 8 MCP tools
+  - `Omni_Localizer/README.md` — OL public CLI and 21 MCP tools
   - `Omni_Localizer/CHANGELOG.md` — OL release history
-  - `Omni_Re_Formatter/README.md` — ORF public CLI and 6 MCP tools
+  - `Omni_Re_Formatter/README.md` — ORF public CLI and 7 MCP tools
   - `Omni_Re_Formatter/CHANGELOG.md` — ORF release history

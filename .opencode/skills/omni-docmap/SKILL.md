@@ -51,7 +51,7 @@ All paths are relative to the project root `/mnt/d/贯维/Omni_Suite`. Each entr
 | `docs/七阶段AI开发流程-用CodingAgent交付成品的方法论.md` | 230 | 7-stage AI development methodology reference (how to deliver a finished product with a coding agent) | Methodology revisions |
 | `docs/ARCHITECTURE.md` | ~515 | Cross-module architecture, pipeline diagrams, data flow | Architecture changes, new modules, pipeline flow changes |
 | `docs/API_STABILITY.md` | ~307 | API stability guarantees per module, SemVer policy, deprecation policy | Version bumps, API surface changes, deprecation decisions |
-| `docs/agent-pipeline-guide.md` | — | Full MCP tool signatures for all 34 tools across OPP/OL/ORF (OPP 7 / OL 21 / ORF 6) | MCP tool changes (add/remove/rename params) |
+| `docs/agent-pipeline-guide.md` | — | Full MCP tool signatures for all 37 tools across OPP/OL/ORF (OPP 9 / OL 21 / ORF 7) | MCP tool changes (add/remove/rename params) |
 | `docs/DECISIONS.md` | ~241 | Architecture Decision Records (ADR 0001–0006) | New architectural decisions, superseded ADRs |
 | `docs/ERROR_CODES.md` | ~113 | MCP error code catalog (OPP/OL/ORF) | Error code changes (add/rename/remove codes) |
 | `docs/SECURITY.md` | ~250 | Security posture & user action items (C1, C2), PathValidator, MCP auth | Security model changes, env var changes |
@@ -156,7 +156,7 @@ This section tells you **exactly which docs to update** for each type of change.
 
 | Priority | Document | What to update |
 |----------|----------|----------------|
-| 🔴 CRITICAL | `AGENTS.md` | MCP Tool Reference tables (3 tables: OPP 7/OL 21/ORF 6) + tool counts in Per-Module Cheat Sheet |
+| 🔴 CRITICAL | `AGENTS.md` | MCP Tool Reference tables (3 tables: OPP 9/OL 21/ORF 7) + tool counts in Per-Module Cheat Sheet |
 | 🔴 CRITICAL | `docs/agent-pipeline-guide.md` | Full tool parameter signatures |
 | 🔴 CRITICAL | Module's `AGENTS.md` | MCP tool table in that module's AGENTS.md |
 | 🔴 HIGH | `.opencode/skills/omni-suite/SKILL.md` | MCP tool quick reference + tool counts |

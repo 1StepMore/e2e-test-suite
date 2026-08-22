@@ -32,7 +32,7 @@ The Omni Suite is a three-stage document localization pipeline:
 - **OL** (`omni-localizer`) — translates MD/XLIFF between languages via LLM
 - **ORF** (`omni-re-formatter`) — backfills translated content to target format
 
-Each module ships a CLI and an MCP server (21 tools total: 7 OPP + 8 OL + 6
+Each module ships a CLI and an MCP server (37 tools total: 9 OPP + 21 OL + 7
 ORF). The pipeline ingests 16 input formats (DOCX, PPTX, PDF, XLSX, CSV,
 JSON, XML, HTML, ODT, EPUB, EML, MSG, IPYNB, images, audio/video, YouTube
 `.url`) and emits 16 output formats from ORF (`apply-md`).
@@ -277,7 +277,7 @@ to prevent the fake-pandoc seam from leaking into production output.
 
 ## 3. Attack Surface
 
-### 3.1 MCP Tool Inventory (21 tools)
+### 3.1 MCP Tool Inventory (37 tools)
 
 | Module | Tool | Inputs that touch the host | Network egress |
 |--------|------|----------------------------|----------------|
@@ -897,7 +897,7 @@ an issue (non-security) or email `security@` (security).
 - `docs/SECURITY.md` — operator-facing action items (C1, C2, fixes C3-C6, C12).
 - `docs/ARCHITECTURE.md` — cross-module design + MCP naming wart.
 - `docs/ERROR_CODES.md` — full error-code dictionary (12 OPP, 12 OL, 13 ORF).
-- `docs/API_STABILITY.md` — public-surface contract (7+8+6 = 21 tools).
+- `docs/API_STABILITY.md` — public-surface contract (9+21+7 = 37 tools).
 - `docs/T14_LIMITATION.md` — hermetic CI seam gap.
 - `docs/SLA.md` — availability / latency targets (relevant to DoS).
 - `PRODUCTION_READINESS.md` — prior production-readiness assessment.

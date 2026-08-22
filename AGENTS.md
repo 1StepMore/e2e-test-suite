@@ -48,9 +48,9 @@ omni-suite --version
 
 | Module | Role | CLI (key subcommand) | MCP tools | Source |
 |--------|------|---------------------|-----------|--------|
-| **OPP** | Extract documents → MD + XLIFF + skeleton | `opp <file> --target-format both --output-dir <dir>` | 7 tools (`extract_document`, `batch_extract`…) | `Omni_Pre_Processor/src/` |
+| **OPP** | Extract documents → MD + XLIFF + skeleton | `opp <file> --target-format both --output-dir <dir>` | 9 tools (`extract_document`, `batch_extract`…) | `Omni_Pre_Processor/src/` |
 | **OL** | Translate MD/XLIFF between languages | `ol translate-md <file> -s <src> -t <tgt> -o <dir>` | 21 tools (`translate_md_text`, `judge_text`…) | `Omni_Localizer/src/` |
-| **ORF** | Backfill translated content → target format | `orf apply-md <file> --target-format <fmt> -o <out>` | 6 tools (`apply_md`, `apply_xliff`…) | `Omni_Re_Formatter/src/` |
+| **ORF** | Backfill translated content → target format | `orf apply-md <file> --target-format <fmt> -o <out>` | 7 tools (`apply_md`, `apply_xliff`…) | `Omni_Re_Formatter/src/` |
 | **Validation** | Agent-agnostic validation — scenario library + standards + director loop | `python scripts/validation/run_validation.py --list` (full walkthroughs in "How to validate" below) | 2 tools (`list_validation_scenarios`, `run_validation_scenario`) | `scripts/validation/` + `omni_mcp/validation/` |
 
 ## Common Tasks
@@ -334,7 +334,7 @@ These MCP tool calls work in any AI coding tool that supports MCP. Use them to o
 
 ## MCP Tool Reference
 
-### OPP MCP Server (7 tools)
+### OPP MCP Server (9 tools)
 
 | Tool | Description | Key Parameters |
 |------|-------------|---------------|
@@ -372,7 +372,7 @@ These MCP tool calls work in any AI coding tool that supports MCP. Use them to o
 | `extract_warnings` | Extract warning markers from an output file | `file_path` (str) |
 | `ping` | Health check endpoint | (none) |
 
-### ORF MCP Server (6 tools)
+### ORF MCP Server (7 tools)
 
 | Tool | Description | Key Parameters |
 |------|-------------|---------------|
@@ -593,9 +593,9 @@ Tier/key semantics for validation runs (tier 1 = hermetic, 2 = real LLM keys, 3 
   for context).
 - Tests live under `tests/` at suite root and within each `Omni_*/tests/` sub-repo.
 - For end-to-end orchestration, chain per-module MCPs in sequence, passing `output_dir` from each step as input to the next.
-- OPP MCP provides 7 tools: `extract_document`, `batch_extract`, `detect_format_tool`, `generate_markdown`, `generate_xliff`, `save_skeleton`, `ping`.
+- OPP MCP provides 9 tools: `extract_document`, `batch_extract`, `detect_format_tool`, `generate_markdown`, `generate_xliff`, `save_skeleton`, `ping`, + 2 more — full table in the OPP MCP Tool Reference section above.
 - OL MCP provides 21 tools (8 listed here): `translate_md_text`, `judge_text`, `load_glossary`, `get_relevant_terms`, `search_tm`, `batch_translate_texts`, `translate_xliff`, `ping`, + 13 more — full table in the OL MCP Tool Reference section above.
-- ORF MCP provides 6 tools: `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `ping`.
+- ORF MCP provides 7 tools: `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `ping`, + 1 more — full table in the ORF MCP Tool Reference section above.
 - Use `uvx` for quick MCP server execution without manual install. For pip-installed variants, use `opp mcp`, `ol mcp`, and `orf mcp` as the command.
 - Set `OMNI_TEST_FAKE_LLM=1` in the MCP server environment for zero-cost testing without real API keys.
 - Use `batch_extract` (OPP) or `batch_translate_texts` (OL) for processing multiple files in a single call.

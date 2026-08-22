@@ -319,9 +319,9 @@ The `docs/` directory contains comprehensive validation master plans for all fou
 | File | Scope | Coverage |
 |------|-------|----------|
 | `docs/SUITE_VALIDATION_MASTER_PLAN.md` | Suite-level orchestration (OPP→OL→ORF) | 15 Qs, 3 pipeline paths, real API E2E |
-| `docs/OPP_VALIDATION_MASTER_PLAN.md` | OPP extraction engine | 17 Qs, 13 input formats, 7 MCP tools |
+| `docs/OPP_VALIDATION_MASTER_PLAN.md` | OPP extraction engine | 17 Qs, 13+ input formats, 9 MCP tools |
 | `docs/OL_VALIDATION_MASTER_PLAN.md` | OL translation engine | 17 Qs, 21 MCP tools, 8 quality gates, real LLM |
-| `docs/ORF_VALIDATION_MASTER_PLAN.md` | ORF backfill engine | 14 Qs, 16 output formats, 6 MCP tools |
+| `docs/ORF_VALIDATION_MASTER_PLAN.md` | ORF backfill engine | 14 Qs, 16 output formats, 7 MCP tools |
 
 **How to use:**
 1. Open the relevant plan file (e.g. `docs/OL_VALIDATION_MASTER_PLAN.md`)
