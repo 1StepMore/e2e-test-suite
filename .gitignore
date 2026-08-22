@@ -110,3 +110,4 @@ reports/_archive/
 
 # ---- Script pycache ----
 scripts/**/__pycache__/
+.backup-bundles/
