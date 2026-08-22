@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **SEC-LEAK-1 — real provider API keys purged from repo + history**: the Baidu Qianfan (`bce-v3/ALTAK-…`) and MiniMax (`sk-cp-…`) keys leaked in May 2026 were found re-published in `docs/SECURITY.md`, `reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md`, and (pre-gitignore) `.omo/plans/2026-06-17-fix-plan-round-8.md` — the last also carrying live Zhipu (`ca5c1f6…`) and NVIDIA NIM (`nvapi-C_7ORG…`) keys. Remediation: redacted all real key values → `REDACTED_*` placeholders in the working tree; `git filter-repo --replace-text` (full 5-key set) rewrote all 354 reachable commits; deleted 15 stale `refs/backup/local/*` refs pinning pre-rewrite leaked history; `reflog expire + gc --prune=now` removed dangling leak blobs. Verification: exhaustive scan of every blob reachable from every ref (main/tags/backup refs/stash) → **0 matches**. Hardening: `.gitleaks.toml` gained `baidu-qianfan-key` + `minimax-sk-cp-key` rules (the Baidu `/` shape had evaded the default `[A-Za-z0-9_\-]` classes); pre-commit `omni-no-hardcoded-keys` now scans `docs/ reports/ .omo/`, covers `sk-cp-*`/`bce-v3/ALTAK-*`/`sk-ant-*`/`sk-proj-*`, and tightened `sk-` to no-hyphen bodies (kills `task-N` path false positives). **Remaining user action**: rotate the keys at the provider consoles (C1) and force-push the rewritten history to `origin` + `backup` remotes (coordinate with collaborators).
+
 - **OL#78 — AGENTS.md OL tool count stale (6 occurrences, 8→21)**: updated version table, per-module cheat sheet, MCP server descriptions, and OL AGENTS.md header to reflect OL's current 21 MCP tools (was 8). (Suite-level docs alignment)
 
 ### Added
