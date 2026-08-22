@@ -466,8 +466,8 @@ def check_version_sync(root: Path, failures: list[str]) -> None:
         return
     if proc.returncode != 0:
         failures.append(
-            "scripts/sync_version_docs.py --check failed (rc=%d): %s"
-            % (proc.returncode, (proc.stdout or proc.stderr).strip())
+            f"scripts/sync_version_docs.py --check failed (rc={proc.returncode}): "
+            f"{(proc.stdout or proc.stderr).strip()}"
         )
 
 
