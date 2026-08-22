@@ -58,14 +58,14 @@ The audit on 2026-06-04 found real `MINIMAX_API_KEY` and `BAIDU_API_KEY` values 
 
 Commit `141123b657e2ca531b0a3761d0c38287da6ced95` (May 29 2026) added `Omni_Localizer/config/book_localization.yaml` whose header comments literally contained both API keys. Later commits (`da61b5f`, `9d62126`) only patched the **comments**; the historical diff is permanent in `.git/objects/`.
 
-> **✅ VERIFIED CLEAN 2026-06-05 (T17 prep, before doing the filter-repo).** Exhaustive scan of **663 blobs in `Omni_Localizer/.git/objects/`** (every reachable + unreachable blob, including all dangling objects from `git fsck`) for the exact leaked key signatures from `../reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md`:
-> - `REDACTED_MINIMAX_KEY` → **0 matches**
-> - `REDACTED_BAIDU_KEY` → **0 matches**
-> - Broader patterns (`sk-cp-*`, `bce-v3/*`, `sk-ant-*`, generic `sk-*` ≥20 chars) → **0 matches**
-> - The 3 specific blob SHAs from the plan (`3b15963d…`, `79c386c6…`, `707195f4…`) → **NOT in object DB at all**
-> - Current `main:config/test_universal.yaml` → uses `${OPENAI_API_KEY}` placeholder, **clean**
+> **✅ PURGED 2026-08-22 (SEC-LEAK-1).** Re-audit found the real key values were still re-published in two tracked files (`docs/SECURITY.md` itself and `reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md`), plus a third file that had been tracked in history before `.omo/` was gitignored (`.omo/plans/2026-06-17-fix-plan-round-8.md`, carrying live Zhipu + NVIDIA NIM keys). Remediation performed:
+> 1. Redacted all real key values → `REDACTED_*` placeholders in the working tree.
+> 2. `git filter-repo --replace-text` with the **complete** key set (Baidu `bce-v3/ALTAK-…`, MiniMax `sk-cp-…`, Zhipu `ca5c1f6…`, NVIDIA `nvapi-C_7ORG…`, OPENCODE_GO `sk-URB3…`) rewrote all 354 reachable commits.
+> 3. Deleted 15 stale `refs/backup/local/*` refs that pinned pre-rewrite leaked history.
+> 4. `git reflog expire --expire=now --all && git gc --prune=now` removed dangling leak blobs.
+> 5. **Verification:** exhaustive scan of every blob reachable from every ref (main, tags, backup refs, stash) → **0 matches** for all five key signatures.
 >
-> The plan's leak inventory describes a state that does not exist in this clone (neither local nor on `origin/main`, `origin/e2e-14-fix`, `origin/e2e-validated`). Either a prior cleanup already removed them, or the plan was based on an analysis of a different clone. **No filter-repo needed locally.**
+> **Force-push still required to purge the remote** (`origin/main` + `backup/main` still carry the pre-rewrite commits — see C1 rotation note; coordinate with collaborators before force-pushing).
 
 **If you have already rotated the keys (C1) AND the keys are no longer in any active config, the git history is purely archival.** You can choose to leave it alone. If you want to purge (now moot for the local clone, but the playbook is preserved in `../reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md` for reference):
 
