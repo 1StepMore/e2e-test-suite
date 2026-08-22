@@ -72,12 +72,20 @@ repos:
         entry: |
           bash -c '
             if grep -rn --include="*.yaml" --include="*.json" --include="*.md" \
-              -E "(sk-[A-Za-z0-9_-]{20,}|nvapi-[A-Za-z0-9_-]{20,}|[a-f0-9]{16,}\.[A-Za-z0-9]{12,})" \
+              -E "(ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{20,}|gho_[A-Za-z0-9_]{36,}|sk-[A-Za-z0-9_-]{20,}|nvapi-[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_\-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|api[_-]?key[=:][\"'\'']?[A-Za-z0-9_\-]{16,}|[a-f0-9]{32,}\.[A-Za-z0-9_\-]{16,})" \
               Omni_Pre_Processor/src/ Omni_Localizer/src/ Omni_Re_Formatter/src/ \
               Omni_Pre_Processor/config/ Omni_Localizer/config/ Omni_Re_Formatter/config/ \
-              tests/ 2>/dev/null | \
-              grep -v ".venv" | grep -v "__pycache__" | grep -v "\.git/"; then
+              tests/ scripts/ 2>/dev/null | \
+              grep -v ".venv" | grep -v "__pycache__" | grep -v "\.git/" | grep -v "ghp_abcdefghijklmnopqrstuvwxyzABCDEFGH" | grep -v "_no_secret_leak" | grep -v "KEY_SHAPES\|ghp_/" | grep -v "artifact_assertions.py"; then
               echo "HARDCODED API KEY DETECTED (see matches above)"; exit 1
+            fi
+            # Token-in-URL shape: https://user:token@github.com (any token shape, not only ghp_)
+            if grep -rn --include="*.yaml" --include="*.json" --include="*.md" --include="*.sh" --include="*.py" --include="*.toml" \
+              -E "https://[^[:space:]@/:]+:[^[:space:]@]+@github\.com" \
+              Omni_Pre_Processor/src/ Omni_Localizer/src/ Omni_Re_Formatter/src/ \
+              Omni_Pre_Processor/config/ Omni_Localizer/config/ Omni_Re_Formatter/config/ \
+              tests/ scripts/ 2>/dev/null | grep -v ".venv" | grep -v "__pycache__" | grep -v "\.git/"; then
+              echo "TOKEN-IN-URL DETECTED (https://user:token@github.com) — use gh auth / env var, never embed token in URL"; exit 1
             fi
           '
         language: system
