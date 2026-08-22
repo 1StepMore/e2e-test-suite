@@ -359,10 +359,18 @@ card, `--deliver` builds a human-review zip under
 regressions. Full reference:
 [docs/dev/per-repo-validation-delivery.md](docs/dev/per-repo-validation-delivery.md).
 
+`--matrix --artifacts <dir-or-zip> --module {opp,ol,orf,suite,all}` adds the
+artifact-assertion matrix: deterministic P0/P1 assertions (hard-security
+group + per-module structure groups) run on the actual produced files and
+write `artifact-report.json`; P0/P1 failures exit 1. `artifact_diff.py`
+classifies the four-class change between two artifact reports
+(new/regressed/fixed/existing-failing). Reference:
+[docs/dev/artifact-assertion-matrix.md](docs/dev/artifact-assertion-matrix.md).
+
 Key pointers:
 
 - **Standards**: `scenarios/STANDARDS.md` — the single citable bar, exact thresholds per anchor
-- **Engine + tooling**: `scripts/validation/` (`run_validation.py`, `coverage_audit.py`, `validation_report.py`, `validation_diff.py`) + `omni_mcp/validation/`
+- **Engine + tooling**: `scripts/validation/` (`run_validation.py`, `coverage_audit.py`, `validation_report.py`, `validation_diff.py`, `artifact_matrix.py`, `artifact_diff.py`) + `omni_mcp/validation/`
 - **Human director loop**: `docs/dev/validation-director-loop.md` — 10-minute per-run checklist, two-role model
 - **Framework plan**: `.omo/plans/validation-framework.md` — the original work plan (scope, waves, verification)
 

@@ -112,6 +112,21 @@ python scripts/validation/run_validation.py --repo orf --tier 1 --matrix --deliv
 #   --deliver -> zip at 04-Output/artifacts/deliverables/omni-suite/ (01-RAW/ real
 #                artifacts, 02-PROCESSED/ reports, manifest.json)
 
+# Artifact-assertion matrix (e2e-test-suite#44): deterministic P0/P1 assertions
+# on the ACTUAL PRODUCED FILES. --artifacts implies --matrix; P0/P1 failures -> exit 1.
+# Assertion groups: hard-security (placeholder/secret/broken-reference/external-error
+# leak) run on every artifact; module structure groups per module. Full reference:
+# docs/dev/artifact-assertion-matrix.md
+MCP_ALLOWED_DIRECTORIES=/tmp python scripts/validation/run_validation.py --repo orf --tier 1 \
+  --matrix --artifacts /tmp/omni_val/orf-backfill-html --module orf
+#   -> artifact-report.json in the run dir, prints "ARTIFACT MATRIX: <path>"
+python scripts/validation/artifact_matrix.py /tmp/omni_val/orf-backfill-html \
+  --module orf --out /tmp/omni_val/artifact-report.json   # standalone (dir or delivery .zip)
+
+# Four-class artifact diff (new/regressed/fixed/existing-failing; missing noted
+# separately); exit 1 when regressed>0 or existing-failing>0
+python scripts/validation/artifact_diff.py <base-artifact-report.json> <head-artifact-report.json>
+
 # Four-class version regression (new/regressed/fixed/existing-failing); exit 1
 # when regressed>0 or existing-failing>0; coverage snapshot via --out
 python scripts/validation/validation_diff.py <newer> --against-version 0.4.0
@@ -119,7 +134,7 @@ python scripts/validation/validation_diff.py <newer> --base-sha <sha-prefix>
 python scripts/validation/coverage_audit.py --out validation-runs/<ts>/coverage.json
 ```
 
-Every run persists `run_meta` (suite/opp/ol/orf versions + git SHAs). Full reference: [docs/dev/per-repo-validation-delivery.md](docs/dev/per-repo-validation-delivery.md).
+Every run persists `run_meta` (suite/opp/ol/orf versions + git SHAs). Full reference: [docs/dev/per-repo-validation-delivery.md](docs/dev/per-repo-validation-delivery.md). Artifact assertions (P0/P1 groups, report JSON shape, exit-code contract): [docs/dev/artifact-assertion-matrix.md](docs/dev/artifact-assertion-matrix.md).
 
 Tier semantics: 1 = hermetic (no keys), 2 = real LLM keys, 3 = paid/external/network. A tier-2/3 scenario without its keys reports `unconfigured` — never a fake green. The citable bar is `scenarios/STANDARDS.md` (two families: AGENT-SURFACE + HUMAN-QUALITY); the human director loop is `docs/dev/validation-director-loop.md`. Full per-agent walkthroughs (incl. reading `latest.txt` + `report.md`, and the 10-minute director checklist): [How to validate (Codex)](#how-to-validate-codex) and [How to validate (any agent)](#how-to-validate-any-agent) below.
 
