@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import importlib.util
 import re
 import sys
 from collections import Counter
@@ -391,6 +392,24 @@ _REPO_DIR_MAP: dict[str, list[str]] = {
 REPO_HELP = "scenario source repo(s): suite (default), opp, ol, orf, or all"
 
 
+def _load_script(name: str, rel_path: str) -> Any:
+    """Lazily load a ``scripts/validation`` module by path.
+
+    ``scripts/`` has no package ``__init__``, so a plain import cannot
+    resolve from ``omni_mcp``; importlib by absolute path keeps the
+    post-run extras (report card, delivery package) out of ``--help`` /
+    ``--check`` / ``--list`` hot paths.  Raises ImportError when the
+    target file is missing.
+    """
+    target = Path(__file__).resolve().parents[2] / rel_path
+    spec = importlib.util.spec_from_file_location(name, target)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {target}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def main(argv: list[str] | None = None) -> int:
     """The validation CLI.  Returns the exit code (0 = no failures)."""
     parser = argparse.ArgumentParser(
@@ -441,6 +460,26 @@ def main(argv: list[str] | None = None) -> int:
         help=REPO_HELP,
     )
     parser.add_argument(
+        "--matrix", action="store_true",
+        help="after the run, build the director report (report.md + report.json "
+        "with the per-repo report_card) in the run dir and print MATRIX: <path>; "
+        "with --artifacts, build the ARTIFACT-assertion matrix instead "
+        "(artifact-report.json) and print ARTIFACT MATRIX: <path>",
+    )
+    parser.add_argument(
+        "--artifacts",
+        metavar="PATH",
+        default=None,
+        help="run the artifact-assertion matrix on produced artifacts (a "
+        "directory or delivery .zip; 01-RAW/ preferred) — implies --matrix; "
+        "P0/P1 assertion failures drive a nonzero exit (issue #44)",
+    )
+    parser.add_argument(
+        "--deliver", action="store_true",
+        help="after the run, build the human-review delivery zip in "
+        "04-Output/artifacts/deliverables/omni-suite/ and print DELIVERY: <zip>",
+    )
+    parser.add_argument(
         "--scenarios-dir", default="scenarios", help="scenario library directory (default: scenarios)"
     )
     parser.add_argument(
@@ -471,6 +510,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    # --artifacts without --matrix is treated as --matrix --artifacts (issue
+    # #44 acceptance uses `validation --matrix --module opp --artifacts <dir>`).
+    if args.artifacts is not None:
+        args.matrix = True
+
     try:
         loaded: list[dict[str, Any]] = []
         for d in dirs:
@@ -481,7 +525,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.list:
         names, _empty = _select_names(
-            loaded, dirs, args.scenario, args.tier, args.category, args.module
+            loaded, dirs, args.scenario, args.tier, args.category,
+            None if args.artifacts else args.module,
         )
         selected = [s for s in loaded if s["name"] in names] if names else loaded
         print(f"Available Scenarios ({len(selected)}):")
@@ -494,7 +539,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     names, empty_filters = _select_names(
-        loaded, dirs, args.scenario, args.tier, args.category, args.module
+        loaded, dirs, args.scenario, args.tier, args.category,
+        None if args.artifacts else args.module,
     )
     for f in empty_filters:
         print(f"WARNING: no scenarios match {f}")
@@ -529,4 +575,65 @@ def main(argv: list[str] | None = None) -> int:
         f"(details: {run.run_dir})"
     )
     _print_verdict_table(run.scenarios, args.verbose)
-    return 1 if any(r.status == "failed" for r in run.scenarios) else 0
+
+    matrix_exit_code: int | None = None  # set when the artifact matrix runs
+    if args.matrix:
+        if args.artifacts is not None:
+            try:
+                _amod = _load_script(
+                    "artifact_matrix", "scripts/validation/artifact_matrix.py"
+                )
+                module = args.module or args.repo or "suite"
+                report = _amod.build_artifact_report(
+                    args.artifacts, module, run.run_dir
+                )
+                report_path = _amod.write_artifact_report(report, run.run_dir)
+                print(f"ARTIFACT MATRIX: {report_path}")
+                counts = report.get("counts") or {}
+                p0 = int(counts.get("p0_failed") or 0)
+                p1 = int(counts.get("p1_failed") or 0)
+                print(
+                    f"  artifact assertions: {counts.get('artifacts', 0)} "
+                    f"artifact(s), {counts.get('assertions', 0)} assertion(s), "
+                    f"{counts.get('passed', 0)} passed, {counts.get('failed', 0)} "
+                    f"failed (P0: {p0}, P1: {p1})"
+                )
+                if p0 + p1 > 0:
+                    matrix_exit_code = 1
+            except Exception as exc:  # artifact matrix must not fail the run
+                print(
+                    f"WARNING: artifact matrix failed: {exc}", file=sys.stderr
+                )
+        else:
+            try:
+                _report_mod = _load_script(
+                    "validation_report", "scripts/validation/validation_report.py"
+                )
+                report_scenarios_dir = args.scenarios_dir if args.repo is None else dirs[0]
+                _report_mod.write_report(
+                    str(Path(run.run_dir) / "scenarios.json"), report_scenarios_dir
+                )
+                print(f"MATRIX: {Path(run.run_dir) / 'report.md'}")
+            except Exception as exc:  # report generation must not fail the run
+                print(f"WARNING: report generation failed: {exc}", file=sys.stderr)
+
+    if args.deliver:
+        try:
+            _delivery_mod = _load_script(
+                "make_delivery_package", "scripts/validation/make_delivery_package.py"
+            )
+            zip_path = _delivery_mod.build_delivery(
+                run.run_dir,
+                "04-Output/artifacts/deliverables/omni-suite",
+                tag=None,
+            )
+            print(f"DELIVERY: {zip_path}")
+        except Exception as exc:  # delivery must not fail the run either
+            print(f"WARNING: delivery package failed: {exc}", file=sys.stderr)
+
+    scenario_failures = any(r.status == "failed" for r in run.scenarios)
+    # With --artifacts the ARTIFACT matrix drives the exit code (any P0/P1
+    # failure -> 1); the scenario verdicts still print but do not override it.
+    if matrix_exit_code is not None:
+        return matrix_exit_code
+    return 1 if scenario_failures else 0
