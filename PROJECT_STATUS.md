@@ -98,9 +98,9 @@ If `make doctor` fails, the pipeline won't work. Fix those issues before any tra
 
 ## Submodule skills (for deep work inside one module)
 
-- OPP: `Omni_Pre_Processor/.opencode/skills/opp-extractor/SKILL.md`
-- OL: `Omni_Localizer/.opencode/skills/ol-localizer/SKILL.md`
-- ORF: `Omni_Re_Formatter/.opencode/skills/orf-formatter/SKILL.md`
+- OPP: `Omni_Pre_Processor/src/opp_agent/SKILL.md` (OpenCode) / `Omni_Pre_Processor/src/opp_hermes/SKILL.md` (Hermes)
+- OL: `Omni_Localizer/src/.opencode/skills/ol-localizer/SKILL.md`
+- ORF: `Omni_Re_Formatter/src/.opencode/skills/orf-formatter/SKILL.md`
 
 ## Git workflow
 

@@ -332,4 +332,4 @@ Known Hermetic CI gaps:
 - `tests/test_ol_lqa_autoinvoke.py` (7 parametrized tests) and `tests/test_e2e_xliff_lqa_image_placement.py` (1 test) may timeout at 60s — these require real LLM JudgeService or fastmock LLM responses and are slow even with `OMNI_TEST_FAKE_LLM=1`.
 - All slow/timeout-prone tests are excluded from the `-m "not nightly"` CI filter; they need individual investigation and longer timeouts if run in CI.
 
-See `docs/T14_LIMITATION.md` for the full root cause analysis.
+See `docs/archive/T14_LIMITATION.md` for the full root cause analysis.

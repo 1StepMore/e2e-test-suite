@@ -192,10 +192,10 @@ Contract tests are the executable form of this policy. They live in
 
 | # | Surface | What we freeze | Test file |
 |---|---------|----------------|-----------|
-| 1 | **CLI flags & help text** | `--help` output is byte-stable per module version. Adding a flag is a minor bump. Removing one is a major. | `tests/contract/test_cli_help_contract.py` |
-| 2 | **MCP tool list & schemas** | `server.list_tools()` output is byte-stable. New tools are minor; renames/removals are major. | `tests/contract/test_mcp_schema_contract.py` |
+| 1 | **CLI flags & help text** | `--help` output is byte-stable per module version. Adding a flag is a minor bump. Removing one is a major. | `tests/contract/test_cli_help.py` |
+| 2 | **MCP tool list & schemas** | `server.list_tools()` output is byte-stable. New tools are minor; renames/removals are major. | `tests/contract/test_mcp_schemas.py` |
 | 3 | **MCP tool I/O** | For each tool, the structured response shape (keys, types, success/error envelope) is frozen. | `tests/contract/test_mcp_io_contract.py` |
-| 4 | **Artifact format** | `manifest.json` schema (required keys, types), `skeleton.zip` key-files list, `images.json` floating-image keys. | `tests/contract/test_artifact_contract.py` |
+| 4 | **Artifact format** | `manifest.json` schema (required keys, types), `skeleton.zip` key-files list, `images.json` floating-image keys. | `tests/contract/test_contract_documentation.py` |
 | 5 | **Cross-version pipeline** | A pinned (opp, ol, orf) combination runs end-to-end on a minimal DOCX and produces a valid result. | `tests/integration/test_version_compat.py` |
 
 ### 5.2 What "byte-stable" means in practice

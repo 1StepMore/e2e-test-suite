@@ -34,7 +34,7 @@ This document is the retrospective baseline. It records what is actually built, 
 
 ## 4. Acceptance Criteria
 
-Each threshold below is transcribed from the cited source and verified against it. No number here was invented. Sources: `docs/ACCEPTANCE.md`, `Makefile`, `tests/fidelity/run_fidelity.py`, `Omni_Localizer/src/ol_mcp/tools.py`, and the four validation master plans.
+Each threshold below is transcribed from the cited source and verified against it. No number here was invented. Sources: `docs/ACCEPTANCE.md`, `Makefile`, `tests/fidelity/run_fidelity.py`, `Omni_Localizer/src/ol_mcp/tools.py`, and the four archived validation master plans (`docs/archive/*_VALIDATION_MASTER_PLAN.md`).
 
 1. **OPP extract fidelity**: `char_cosine >= 0.9` against the reference corpus. Source: `tests/fidelity/run_fidelity.py:22` (`CHAR_COSINE_THRESHOLD = 0.9`), corroborated by OPP_VALIDATION_MASTER_PLAN.
 2. **Test-coverage floor**: `>= 80%` combined across the three module `src/` trees. Source: `Makefile:93` (`--cov-fail-under=80` on the `test-coverage` target).
@@ -47,12 +47,12 @@ Each threshold below is transcribed from the cited source and verified against i
 
 Additional thresholds from `docs/ACCEPTANCE.md`: multi-judge LQA pass rate >= 85% (avg >= 4.0/5); Spearman rank correlation >= 0.7; inter-judge exact-match agreement >= 60%; security tests 63/63; observability tests 42/42; fresh checkout install (`git clone && uv sync && bash setup_dev.sh`) < 10 min; 0 hardcoded secrets in tracked configs; circuit breaker opens after 5 consecutive failures.
 
-**Executable verification set** (the four validation master plans, one line each):
+**Executable verification set** (the four validation master plans, archived at `docs/archive/`; superseded by `scripts/validation/run_validation.py` + `scenarios/`):
 
-- `docs/OPP_VALIDATION_MASTER_PLAN.md`: 17 questions over 13 input formats and 7 MCP tools.
-- `docs/OL_VALIDATION_MASTER_PLAN.md`: 17 questions over 21 MCP tools, 8 quality gates, and real-LLM scenarios.
-- `docs/ORF_VALIDATION_MASTER_PLAN.md`: 14 questions over 16 output formats and 6 MCP tools.
-- `docs/SUITE_VALIDATION_MASTER_PLAN.md`: 15 questions over 2 pipeline paths (MD + XLIFF) and 3 MCP servers.
+- `docs/archive/OPP_VALIDATION_MASTER_PLAN.md`: 17 questions over 13 input formats and 7 MCP tools.
+- `docs/archive/OL_VALIDATION_MASTER_PLAN.md`: 17 questions over 21 MCP tools, 8 quality gates, and real-LLM scenarios.
+- `docs/archive/ORF_VALIDATION_MASTER_PLAN.md`: 14 questions over 16 output formats and 6 MCP tools.
+- `docs/archive/SUITE_VALIDATION_MASTER_PLAN.md`: 15 questions over 2 pipeline paths (MD + XLIFF) and 3 MCP servers.
 
 Each plan is executable by any agent: pick a user question, run the scenario, compare actual vs expected, and report a binary verdict.
 

@@ -157,7 +157,7 @@ The following CRITICAL items were fixed in code during the T1–T15 work cycles.
 
 ### C12. MCP servers leaked full tracebacks → **FIXED**
 
-**Before:** Six near-identical copies of `return {"success": False, "error": f"...{str(e)}"}` in `ol_mcp/tools.py` alone, plus similar blocks in `opp_mcp/server.py` and `orf_mcp/server.py`. Clients received file paths, internal logic, and system info in error messages.
+**Before:** Six near-identical copies of `return {"success": False, "error": f"...{str(e)}"}` in `ol_mcp/tools.py` alone, plus similar blocks in `opp/mcp/server.py` and `orf/mcp/server.py`. Clients received file paths, internal logic, and system info in error messages.
 
 **Fix:** A single `@mcp_error_boundary` decorator at the tool boundary. The decorator:
 
@@ -166,8 +166,8 @@ The following CRITICAL items were fixed in code during the T1–T15 work cycles.
 - Generates a short correlation id (`corr_xxxx`) so server logs can be looked up by the client error code
 
 The decorator lives at:
-- `Omni_Pre_Processor/src/opp_mcp/_errors.py`
-- `Omni_Re_Formatter/src/orf_mcp/_errors.py` (added during T10; see also the `mcp_error_boundary` import in `ol_mcp/tools.py`)
+- `Omni_Pre_Processor/src/opp/mcp/_errors.py`
+- `Omni_Re_Formatter/src/orf/mcp/_errors.py` (added during T10; see also the `mcp_error_boundary` import in `ol_mcp/tools.py`)
 
 **Verified by:** `Omni_Pre_Processor/tests/mcp/test_*.py` and the per-tool tests in the three sub-repos.
 
@@ -246,5 +246,5 @@ Until then, the recommendation is: **stdio only, never bind to a network socket*
 
 - `../reports/_archive/2026-Q2/AUDIT_FINDINGS_VERIFIED.md` — full audit, 17 CRITICAL items, 22 HIGH, 35 MEDIUM/LOW
 - `../reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md` — pre-written playbook for the C2 purge (do not run without coordination)
-- `docs/T14_LIMITATION.md` — the T14 partial-state limitation (hermetic CI seam gap)
+- `docs/archive/T14_LIMITATION.md` — the T14 partial-state limitation (hermetic CI seam gap)
 - `SETUP.md` — Phase 1 setup guide (where the `.env` and `local.yaml` go)

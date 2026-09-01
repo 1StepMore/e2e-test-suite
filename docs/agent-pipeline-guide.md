@@ -265,5 +265,5 @@ export ORF_ALLOWED_DIRECTORIES="${GITHUB_WORKSPACE}/test_fixtures"
 - ORF path config: `Omni_Re_Formatter/AGENTS.md` ->
   Path Configuration (MCP Server) section
 - Security model: `ARCHITECTURE.md` (cross-module),
-  `OPP_Pre_Processor/AGENTS.md` -> PathValidator security model section,
+  `Omni_Pre_Processor/AGENTS.md` -> PathValidator security model section,
   `Omni_Re_Formatter/AGENTS.md` -> PathValidator security model section

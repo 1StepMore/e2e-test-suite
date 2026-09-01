@@ -482,7 +482,7 @@ Omni_Suite/                              ← this repo (parent / test suite)
 │   ├── ACCEPTANCE.md
 │   ├── ERROR_CODES.md
 │   ├── SECURITY.md
-│   └── T14_LIMITATION.md
+│   └── archive/                          ← retired docs (markers enforced by --check)
 ├── VERSION_COMPATIBILITY.md             ← tested (opp, ol, orf) combinations
 ├── .omo/                                ← operational plans & notepads
 │   ├── plans/2026-06-22-production-readiness-plan.md
@@ -512,4 +512,4 @@ Omni_Suite/                              ← this repo (parent / test suite)
 - `docs/ERROR_CODES.md` — cross-module exit-code table
 - `docs/SECURITY.md` — path validation, auth, rate limiting, CVE policy
 - `docs/ACCEPTANCE.md` — production-readiness acceptance criteria
-- `docs/T14_LIMITATION.md` — known limitations
+- `docs/archive/` — retired docs (validation master plans, T14 limitation, security findings snapshot, E2E fix records)
