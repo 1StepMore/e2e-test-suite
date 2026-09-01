@@ -27,6 +27,9 @@
 │ generate-report     Generate HTML and CSV quality reports from translation   │
 │                     warnings and model costs.                                │
 │ inspect-config      Inspect OL configuration: models, paths, LQA settings.   │
+│ init                Bootstrap a local OL config with the unified LLM model   │
+│                     pool.                                                    │
+│ doctor              Validate the OL config with a 5-check checklist.         │
 │ judge-text          Evaluate translation quality using LLM judge (OL#8       │
 │                     rubric).                                                 │
 │ load-glossary       Load a JSON glossary file and print as JSON.             │
