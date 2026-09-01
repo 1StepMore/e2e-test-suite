@@ -13,14 +13,13 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 28 |
-| Total lines | 22173 |
-| Active files | 28 |
-| Archived files | 0 |
-| Category — known-limitations | 1 files / 220 lines |
-| Category — validation-plans | 4 files / 13739 lines |
+| Total files | 30 |
+| Total lines | 22293 |
+| Active files | 22 |
+| Archived files | 8 |
+| Category — archive | 8 files / 14157 lines |
 | Category — expectations | 4 files / 2512 lines |
-| Category — security | 3 files / 1282 lines |
+| Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
 | Category — docs/dev | 4 files / 818 lines |
 | Category — docs/root | 11 files / 3466 lines |
@@ -35,22 +34,24 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `DECISIONS.md` | 241 | docs/root | active | — |
 | `ERROR_CODES.md` | 113 | docs/root | active | — |
 | `OL_EXPECTATIONS.md` | 279 | expectations | active | — |
-| `OL_VALIDATION_MASTER_PLAN.md` | 4487 | validation-plans | active | — |
 | `OPP_EXPECTATIONS.md` | 804 | expectations | active | — |
-| `OPP_VALIDATION_MASTER_PLAN.md` | 3104 | validation-plans | active | — |
 | `ORF_EXPECTATIONS.md` | 539 | expectations | active | — |
-| `ORF_VALIDATION_MASTER_PLAN.md` | 2561 | validation-plans | active | — |
 | `PRD.md` | 61 | docs/root | active | — |
 | `RELEASE_NOTES.md` | 23 | docs/root | active | — |
 | `SECURITY.md` | 250 | security | active | — |
 | `SECURITY_AUDIT.md` | 954 | security | active | — |
-| `SECURITY_FINDINGS.md` | 78 | security | active | — |
 | `SLA.md` | 127 | docs/root | active | — |
 | `SUITE_EXPECTATIONS.md` | 890 | expectations | active | — |
-| `SUITE_VALIDATION_MASTER_PLAN.md` | 3587 | validation-plans | active | — |
-| `T14_LIMITATION.md` | 220 | known-limitations | active | — |
 | `agent-pipeline-guide.md` | 269 | docs/root | active | — |
 | `agent-tester-validation-guide.md` | 1496 | docs/root | active | — |
+| `archive/OL_VALIDATION_MASTER_PLAN.md` | 4489 | archive | archived | — |
+| `archive/OPP_VALIDATION_MASTER_PLAN.md` | 3106 | archive | archived | — |
+| `archive/ORF_VALIDATION_MASTER_PLAN.md` | 2563 | archive | archived | — |
+| `archive/README.md` | 45 | archive | archived | — |
+| `archive/SECURITY_FINDINGS.md` | 80 | archive | archived | — |
+| `archive/SUITE_VALIDATION_MASTER_PLAN.md` | 3589 | archive | archived | — |
+| `archive/T14_LIMITATION.md` | 222 | archive | archived | — |
+| `archive/e2e-fix-records.md` | 63 | archive | archived | — |
 | `dev/artifact-assertion-matrix.md` | 278 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 187 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 279 | docs/dev | active | — |

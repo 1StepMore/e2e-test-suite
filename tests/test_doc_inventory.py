@@ -303,3 +303,198 @@ def test_check_version_sync_delegation(consistent_tree, capsys):
     assert "sync_version_docs.py" in combined, (
         f"failure text must name the failing sub-script, got: {combined!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# 9. Gate A — archive discipline (check_archive)
+# ---------------------------------------------------------------------------
+
+def test_check_archive_marker_missing_exit_1(tmp_path, capsys):
+    """An archived doc without the first-line 'Status: ARCHIVED' marker is
+    exit 1 naming the offending file."""
+    root = tmp_path
+    (root / "docs/archive").mkdir(parents=True, exist_ok=True)
+    (root / "docs/archive/old_plan.md").write_text(
+        "# Old Plan\n\nSuperseded content.\n", encoding="utf-8"
+    )
+    _generate(root)
+    rc = di.main(["--check", "--root", str(root)])
+    captured = capsys.readouterr()
+    assert rc == 1, "an archived doc without its marker must fail the check"
+    combined = captured.out + captured.err
+    assert "old_plan.md" in combined and "ARCHIVED" in combined, (
+        f"failure text must name the file and the marker requirement, got: {combined!r}"
+    )
+
+
+def test_check_archive_marker_present_exit_0(tmp_path):
+    """An archived doc WITH the first-line 'Status: ARCHIVED' marker passes."""
+    root = tmp_path
+    (root / "docs/archive").mkdir(parents=True, exist_ok=True)
+    (root / "docs/archive/old_plan.md").write_text(
+        "> **Status: ARCHIVED (2026-08-23). Reason: superseded. "
+        "Superseded by: scripts/validation/run_validation.py.**\n\n"
+        "# Old Plan\n\nSuperseded content.\n",
+        encoding="utf-8",
+    )
+    _generate(root)
+    assert di.main(["--check", "--root", str(root)]) == 0
+
+
+def test_check_archive_marker_in_maintained_path_exit_1(tmp_path, capsys):
+    """An ARCHIVED marker in a maintained (non-archive) doc fails the check."""
+    root = tmp_path
+    (root / "docs").mkdir(parents=True, exist_ok=True)
+    (root / "docs/still_active.md").write_text(
+        "> **Status: ARCHIVED (2026-08-23).**\n\n# Still active\n", encoding="utf-8"
+    )
+    _generate(root)
+    rc = di.main(["--check", "--root", str(root)])
+    captured = capsys.readouterr()
+    assert rc == 1, "an ARCHIVED marker outside docs/archive/ must fail"
+    combined = captured.out + captured.err
+    assert "still_active.md" in combined, (
+        f"failure text must name the misplaced file, got: {combined!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 10. Gate B — referential integrity (check_referential)
+# ---------------------------------------------------------------------------
+
+def test_check_broken_link_exit_1(tmp_path, capsys):
+    """A broken relative Markdown link in a scoped instruction doc is exit 1."""
+    root = tmp_path
+    (root / "README.md").write_text(
+        "# Omni Suite\n\nSee [missing doc](docs/does-not-exist.md).\n",
+        encoding="utf-8",
+    )
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    (root / "scripts/sync_version_docs.py").write_text(
+        "if __name__ == '__main__':\n    raise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    _generate(root)
+    rc = di.main(["--check", "--root", str(root)])
+    captured = capsys.readouterr()
+    assert rc == 1, "a broken link must fail the check"
+    combined = captured.out + captured.err
+    assert "does-not-exist.md" in combined, (
+        f"failure text must name the broken target, got: {combined!r}"
+    )
+
+
+def test_check_dead_path_token_exit_1(tmp_path, capsys):
+    """A backticked path-shaped token that resolves nowhere is exit 1."""
+    root = tmp_path
+    (root / "README.md").write_text(
+        "# Omni Suite\n\nSource lives in `src/opp/mcp/server.py`.\n",
+        encoding="utf-8",
+    )
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    (root / "scripts/sync_version_docs.py").write_text(
+        "if __name__ == '__main__':\n    raise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    _generate(root)
+    rc = di.main(["--check", "--root", str(root)])
+    captured = capsys.readouterr()
+    assert rc == 1, "a dead path token must fail the check"
+    combined = captured.out + captured.err
+    assert "src/opp/mcp/server.py" in combined, (
+        f"failure text must name the dead path token, got: {combined!r}"
+    )
+
+
+def test_check_resolvable_path_token_exit_0(tmp_path):
+    """A path-shaped token that resolves (repo-root or module-root) passes."""
+    root = tmp_path
+    (root / "README.md").write_text(
+        "# Omni Suite\n\nSource lives in `src/opp/mcp/server.py`.\n",
+        encoding="utf-8",
+    )
+    mcp = root / "Omni_Pre_Processor/src/opp/mcp"
+    mcp.mkdir(parents=True, exist_ok=True)
+    (mcp / "server.py").write_text(OPP_SERVER, encoding="utf-8")
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    (root / "scripts/sync_version_docs.py").write_text(
+        "if __name__ == '__main__':\n    raise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    _generate(root)
+    assert di.main(["--check", "--root", str(root)]) == 0
+
+
+# ---------------------------------------------------------------------------
+# 11. Gate C — skill line-count claims (check_line_claims)
+# ---------------------------------------------------------------------------
+
+def test_check_line_claim_drift_exit_1(tmp_path, capsys):
+    """omni-docmap SKILL.md line-count claims outside ±15% fail the check."""
+    root = tmp_path
+    skill = root / ".opencode/skills/omni-docmap"
+    skill.mkdir(parents=True, exist_ok=True)
+    (skill / "SKILL.md").write_text(
+        "# Docmap\n\n| File | Lines |\n|------|-------|\n"
+        "| `AGENTS.md` | ~50 |\n",
+        encoding="utf-8",
+    )
+    (root / "AGENTS.md").write_text(
+        "\n".join(f"# line {i}" for i in range(200)), encoding="utf-8"
+    )
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    (root / "scripts/sync_version_docs.py").write_text(
+        "if __name__ == '__main__':\n    raise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    _generate(root)
+    rc = di.main(["--check", "--root", str(root)])
+    captured = capsys.readouterr()
+    assert rc == 1, "a drifted line-count claim must fail the check"
+    combined = captured.out + captured.err
+    assert "AGENTS.md" in combined and "~50" in combined, (
+        f"failure text must name the claim and file, got: {combined!r}"
+    )
+
+
+def test_check_line_claim_in_band_exit_0(tmp_path):
+    """Line-count claims within ±15% of the actual pass the check."""
+    root = tmp_path
+    skill = root / ".opencode/skills/omni-docmap"
+    skill.mkdir(parents=True, exist_ok=True)
+    (skill / "SKILL.md").write_text(
+        "# Docmap\n\n| File | Lines |\n|------|-------|\n"
+        "| `AGENTS.md` | ~200 |\n",
+        encoding="utf-8",
+    )
+    (root / "AGENTS.md").write_text(
+        "\n".join(f"# line {i}" for i in range(200)), encoding="utf-8"
+    )
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    (root / "scripts/sync_version_docs.py").write_text(
+        "if __name__ == '__main__':\n    raise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    _generate(root)
+    assert di.main(["--check", "--root", str(root)]) == 0
+
+
+# ---------------------------------------------------------------------------
+# 12. Archive categorization (generator)
+# ---------------------------------------------------------------------------
+
+def test_archive_categorization(tmp_path):
+    """An archived *_VALIDATION_MASTER_PLAN.md categorizes as 'archive', not
+    'validation-plans' (archive segment wins over filename overrides)."""
+    root = tmp_path
+    (root / "docs/archive").mkdir(parents=True, exist_ok=True)
+    (root / "docs/archive/OL_VALIDATION_MASTER_PLAN.md").write_text(
+        "> **Status: ARCHIVED (2026-08-23).**\n\n# OL Plan\n", encoding="utf-8"
+    )
+    _generate(root)
+    text = (root / "docs/dev/doc-inventory.md").read_text(encoding="utf-8")
+    assert "archive/OL_VALIDATION_MASTER_PLAN.md" in text
+    assert "| archive |" in text, (
+        f"archived master plan must categorize as 'archive', inventory: {text!r}"
+    )
+    assert "validation-plans" not in text.split("OL_VALIDATION_MASTER_PLAN.md")[0].split("|")[-1]

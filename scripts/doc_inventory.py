@@ -146,13 +146,18 @@ def count_listed_tools(path: Path) -> int:
 
 
 def categorize(rel: Path) -> str:
-    """Map a docs-relative path to its category (filename override first)."""
+    """Map a docs-relative path to its category.
+
+    The ``archive`` path segment wins over every filename override so an
+    archived ``*_VALIDATION_MASTER_PLAN.md`` categorizes as ``archive``,
+    never as ``validation-plans``.
+    """
+    if "archive" in rel.parts:
+        return "archive"
     name = rel.name
     for pattern, cat in FILENAME_CATEGORY_OVERRIDES:
         if pattern.search(name):
             return cat
-    if "archive" in rel.parts:
-        return "archive"
     for seg in CATEGORY_SEGMENTS:
         if seg in rel.parts:
             return f"docs/{seg}"
@@ -505,6 +510,261 @@ def check_inventory(root: Path, failures: list[str]) -> None:
         )
 
 
+#: Status-marker convention for archived docs (first content line).
+ARCHIVED_MARKER_RE = re.compile(r"^>\s*\*\*Status:\s*ARCHIVED\b")
+
+#: Maintained (non-archive) Markdown files scanned by the referential gate.
+#: Root instruction files + authoritative docs — the surfaces an agent actually
+#: follows. ``docs/archive/`` is excluded by design: archived docs may
+#: legitimately reference long-gone paths.
+REFERENTIAL_SCOPE = (
+    "AGENTS.md",
+    "README.md",
+    "CLAUDE.md",
+    "CONTRIBUTING.md",
+    "TESTS.md",
+    "SETUP.md",
+    "CONTEXT.md",
+    "CONTRACT.md",
+    "ACCEPTED_GAPS.md",
+    "PRODUCTION_READINESS.md",
+    "PROJECT_STATUS.md",
+    "COMPATIBILITY.md",
+    "docs/ARCHITECTURE.md",
+    "docs/API_STABILITY.md",
+    "docs/SECURITY.md",
+    "docs/PRD.md",
+    "docs/agent-pipeline-guide.md",
+    "docs/ERROR_CODES.md",
+    ".opencode/skills/omni-docmap/SKILL.md",
+)
+
+#: Backticked paths inside instruction files; ``:NN`` line refs are stripped.
+_PATH_TOKEN_RE = re.compile(r"`([^`\n]+)`")
+_LINE_REF_RE = re.compile(r":\d+(?:-\d+)?$")
+_LINK_TARGET_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+
+#: Tokens that are intentional historical references (deleted files mentioned
+#: in security/incident narratives) or gitignored runtime config that
+#: legitimately does not exist in the tree.
+_HISTORICAL_PATH_TOKENS = {
+    "Omni_Localizer/config/book_localization.yaml",
+    "config/book_localization.yaml",
+    "config/secret.yaml",
+    "config/production.yaml",
+    "config/local.yaml",
+    "config/local*.yaml",
+    "scripts/mcp_bridge.py",
+    ".cursor/mcp.json",
+}
+
+#: Link targets that are markdown-syntax illustrations ("![alt](path)"),
+#: not real files.
+_SYNTAX_EXAMPLE_TARGETS = {"path", "image_001.png"}
+
+#: Skip tokens that are not real repo paths (globs, templates, URLs, anchors,
+#: env vars, virtualenv internals, generated/dist artifacts).
+_SKIP_TOKEN_SUBSTR = (
+    "{",
+    "}",
+    "[",
+    "]",
+    "<",
+    ">",
+    "*",
+    "http://",
+    "https://",
+    "#",
+    "://",
+    "$",
+    ".venv",
+    "dist/",
+    "__pycache__",
+    ".git/",
+    "word/",
+    "references/",
+    "~",
+)
+
+#: Root-level files with no dot in the name that are still real paths.
+_ROOT_FILE_ALLOW = {"Makefile", "VERSION", "LICENSE", "Dockerfile"}
+
+#: Module roots tried as fallback resolution domains for source paths that
+#: are written relative to a sub-repo (e.g. ``opp/mcp/_errors.py``).
+_MODULE_ROOTS = (
+    "Omni_Pre_Processor",
+    "Omni_Localizer",
+    "Omni_Re_Formatter",
+)
+#: Suffix under a module root where source paths live (``<module>/src``).
+_MODULE_SRC = "src"
+#: Sub-package prefixes under ``<module>/src`` for per-module source paths
+#: (``mcp/config.py`` lives at ``src/opp/mcp/config.py``).
+_MODULE_PKGS = ("opp", "ol", "orf", "ol_mcp")
+
+
+def _is_path_token(token: str) -> bool:
+    """A backticked token looks like a repo path iff it resolves to a file-ish
+    name: a slash-separated path whose basename has an extension, a dotfile or
+    root file with an extension, or an allowlisted root file. This excludes
+    CLI flags (``--check``), code identifiers (``CLI_ERROR``), branch
+    prefixes (``feat/``), bare extensions (``.md``), artifact names
+    (``skeleton.zip``) and bare directory names (``scenarios/``)."""
+    if token in _ROOT_FILE_ALLOW:
+        return True
+    if any(ch in token for ch in " \t=()|;&"):
+        return False
+    # Elided/redacted tokens ("bce-v3/ALTpa...") are not paths.
+    if "..." in token:
+        return False
+    # "path.py:SYMBOL" is a symbol reference, not a path with a line number.
+    if ":" in token:
+        _, _, suffix = token.partition(":")
+        if not suffix.isdigit():
+            return False
+    if "/" not in token:
+        # No separator: only resolve-able root files (".gitignore", ".env").
+        # Bare ".ext" / "name.ext" / artifact names are not paths.
+        return False
+    base = token.rsplit("/", 1)[-1]
+    return "." in base
+
+
+def _resolve_token(root: Path, token: str) -> Path | None:
+    """Resolve a path token: repo-root first, then each module root
+    (``<module>/`` and ``<module>/src/<pkg>/``)."""
+    for base in (root, *(root / m for m in _MODULE_ROOTS)):
+        for prefix in ("", _MODULE_SRC, *(f"{_MODULE_SRC}/{p}" for p in _MODULE_PKGS)):
+            candidate = (base / prefix / token).resolve()
+            if candidate.exists():
+                return candidate
+    return None
+
+
+def _is_maintained_md(root: Path, rel: str) -> bool:
+    path = root / rel
+    return path.is_file() and "docs/archive" not in path.as_posix()
+
+
+def check_archive(root: Path, failures: list[str]) -> None:
+    """Gate A — archive discipline.
+
+    * Every ``docs/archive/*.md`` file must carry an ``ARCHIVED`` status marker
+      as its first content line.
+    * No maintained (non-archive) doc under ``docs/`` may carry an
+      ``ARCHIVED`` status marker in its first 3 lines.
+    """
+    archive_dir = root / "docs" / "archive"
+    if archive_dir.is_dir():
+        for path in sorted(archive_dir.glob("*.md")):
+            if path.name == "README.md":
+                # The archive index README documents the marker convention; it
+                # is not itself a retired doc, so it carries no ARCHIVED marker.
+                continue
+            lines = read_text(path).splitlines()
+            first = lines[0] if lines else ""
+            if not ARCHIVED_MARKER_RE.search(first):
+                failures.append(
+                    f"{path.relative_to(root)}: archived doc missing "
+                    f"'Status: ARCHIVED' first-line marker"
+                )
+    docs = root / "docs"
+    if docs.is_dir():
+        for path in sorted(docs.rglob("*.md")):
+            if "archive" in path.relative_to(docs).parts:
+                continue
+            head = "\n".join(read_text(path).splitlines()[:3])
+            if ARCHIVED_MARKER_RE.search(head):
+                failures.append(
+                    f"{path.relative_to(root)}: carries an ARCHIVED status marker "
+                    f"outside docs/archive/ — move it or remove the marker"
+                )
+
+
+def _strip_line_ref(token: str) -> str:
+    """Strip a trailing ``:NN``/``:NN-NN`` line reference from a path token."""
+    return _LINE_REF_RE.sub("", token).strip()
+
+
+def check_referential(root: Path, failures: list[str]) -> None:
+    """Gate B — referential integrity (the context-rot gate).
+
+    For every maintained instruction doc: (1) every relative Markdown link
+    target resolves to an existing file or directory; (2) every backticked
+    repo-path token resolves relative to the repo root. Anchors, URLs, globs,
+    templates, env vars, and virtualenv internals are skipped.
+    """
+    for rel in REFERENTIAL_SCOPE:
+        path = root / rel
+        if not path.exists():
+            continue
+        text = read_text(path)
+
+        # (1) Markdown link targets: `[label](target)`.
+        for m in _LINK_TARGET_RE.finditer(text):
+            target = m.group(1).strip()
+            if not target or any(s in target for s in _SKIP_TOKEN_SUBSTR):
+                continue
+            # Fragment-only ("#sec") links are intra-file — always fine.
+            if target.startswith("#"):
+                continue
+            # Rooted paths ("/foo") — not repo-relative Markdown links.
+            if target.startswith("/"):
+                continue
+            if target in _SYNTAX_EXAMPLE_TARGETS:
+                continue
+            target = _strip_line_ref(target)
+            if not target:
+                continue
+            resolved = (path.parent / target).resolve()
+            if not resolved.exists():
+                failures.append(f"{rel}: broken link -> {target}")
+
+        # (2) Backticked repo-path tokens (only path-shaped tokens, see
+        # _is_path_token: excludes CLI flags, code identifiers, branch names).
+        for m in _PATH_TOKEN_RE.finditer(text):
+            token = m.group(1).strip()
+            if not token or any(s in token for s in _SKIP_TOKEN_SUBSTR):
+                continue
+            token = _strip_line_ref(token)
+            if not token:
+                continue
+            # Method calls ("PathValidator.validate_path()") are code, not paths.
+            if "()" in token:
+                continue
+            if not _is_path_token(token):
+                continue
+            if token in _HISTORICAL_PATH_TOKENS:
+                continue
+            if _resolve_token(root, token) is None:
+                failures.append(f"{rel}: dead path token -> `{token}`")
+
+
+def check_line_claims(root: Path, failures: list[str]) -> None:
+    """Gate C — skill line-count claims vs actual (skill sync, ±15%).
+
+    ``omni-docmap/SKILL.md`` tables carry ``~N`` line-count claims per file;
+    verify each against the real file when it exists.
+    """
+    skill = root / ".opencode" / "skills" / "omni-docmap" / "SKILL.md"
+    if not skill.exists():
+        return
+    for m in re.finditer(r"\|\s*`([^`]+)`\s*\|\s*~?(\d+)\s*\|", read_text(skill)):
+        rel, claimed = m.group(1), int(m.group(2))
+        if rel.startswith((".", "..", "/")) or rel.startswith("http"):
+            continue
+        path = root / rel
+        if not path.exists():
+            continue  # existence handled by Gate B
+        actual = len(read_text(path).splitlines())
+        lo, hi = int(claimed * 0.85), int(claimed * 1.15)
+        if not (lo <= actual <= hi):
+            failures.append(
+                f"omni-docmap SKILL.md claims `{rel}` ~{claimed} lines, "
+                f"actual is {actual} (±15% band {lo}-{hi})"
+            )
+
+
 def run_check(root: Path) -> list[str]:
     """Run all --check gates; return the list of human-readable failures."""
     failures: list[str] = []
@@ -548,6 +808,15 @@ def run_check(root: Path) -> list[str]:
 
     # 9. Inventory freshness.
     check_inventory(root, failures)
+
+    # 10. Archive discipline (docs/archive/ markers).
+    check_archive(root, failures)
+
+    # 11. Referential integrity (links + repo-path tokens in instruction docs).
+    check_referential(root, failures)
+
+    # 12. Skill line-count claims vs actual (omni-docmap SKILL.md).
+    check_line_claims(root, failures)
 
     return failures
 
