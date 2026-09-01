@@ -131,6 +131,12 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 
 ## Critical constraints
 
+**Backup mirrors (renanzai40) — disaster recovery + writable remote when origin is down:**
+- Every repo has a `backup` remote → `renanzai40/{OmniSuite,OPP,OL,ORF}_BackUp.git`, authenticated via SSH key `~/.ssh/id_ed25519_renanzai40` (host alias `github.com-renanzai40`, port 443). See `omni-issue-pr` skill → "Backup mirrors" for the full table, SSH incantation, and sync discipline.
+- **When `origin` (1StepMore) is unreachable** (account suspended / deploy-key read-only / TLS failure), use `backup` for all writes: `git push backup main:main`.
+- After `main` changes, keep the mirror in sync (`git push backup main:main`); if the mirror has commits local main lacks (e.g. externally pushed fixes/security series), **merge them into local main** rather than force-overwriting.
+- Offline full-history bundles: `.backup-bundles/*.bundle` at suite root (OPP/OL/ORF bundles clone cleanly; suite bundle is a shallow artifact — use `refs/backup/*` for suite recovery).
+
 - **Python ≥ 3.13** is required for all components. Verify with `python3 --version`.
 - **Always set `OMNI_TEST_FAKE_LLM=1`** unless real LLM API keys are configured.
 - **For DOCX/PPTX ORF tests, also set `OMNI_TEST_FAKE_PANDOC=1`** — without this, pandoc is invoked as a subprocess and tests fail.
