@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-08-23). Reason: dated `pip-audit` snapshot (2026-06-22). Superseded by: `docs/SECURITY_AUDIT.md` (live audit).**
+
 # Security Findings — venv Dependency Audit
 
 > **Source**: `pip-audit 2.10.1` run on `.venv_ol/` (Python 3.13, Linux x86_64)

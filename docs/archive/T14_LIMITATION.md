@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-08-23). Reason: resolved limitation, retained for history. Superseded by: the fix it documents.**
+
 # T14 Limitation — Hermetic CI Seam Gap in OL CLI
 
 > **Last updated:** 2026-06-05 (T17 — see Resolution at top)

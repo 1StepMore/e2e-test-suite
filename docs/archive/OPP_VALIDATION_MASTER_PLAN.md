@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-08-23). Reason: prose validation plan superseded by the executable scenario library. Superseded by: `scripts/validation/run_validation.py` + `scenarios/`.**
+
 # OPP Validation Master Plan
 
 ## Result-Oriented · User-Centric · All Scenarios & Boundaries
