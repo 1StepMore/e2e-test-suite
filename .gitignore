@@ -116,3 +116,10 @@ reports/_archive/
 # ---- Script pycache ----
 scripts/**/__pycache__/
 .backup-bundles/
+
+# ---- Benchmarks (generated outputs; the harness itself IS tracked) ----
+# run_benchmark.sh writes results/<ts>/ (metrics.json, output docx, run dirs)
+# and make_rich_fixture.py regenerates fixtures/rich.docx on demand — never
+# commit generated benchmark artifacts.
+benchmarks/results/
+benchmarks/format-fidelity/fixtures/rich.docx
