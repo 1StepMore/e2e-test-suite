@@ -61,6 +61,17 @@ ol translate-md /tmp/opp/document.md -s en -t zh -o /tmp/ol
 orf apply-md /tmp/ol/document.md --target-format docx -o result.docx
 ```
 
+### Run the suite pipeline in one shot (N1 enhancement, 2026-09-04)
+
+`omni-suite pipeline <file>` chains the 3 steps above behind a single CLI.
+Three flags (see `omni-suite pipeline --help`):
+
+```bash
+omni-suite pipeline document.docx --dry-run            # print the OPP→OL→ORF commands without executing (no LLM keys)
+omni-suite pipeline document.docx --gates-only         # OPP + OL (8 quality gates) + `ol extract-warnings`; skip ORF backfill
+omni-suite pipeline document.docx --keep-intermediate  # keep /tmp/omni-suite-pipeline/<stem>/ after the run
+```
+
 ### Run validation
 
 The agent-agnostic validation framework runs real scenarios against the shipped surface (no mocks, no FAKE_LLM as evidence). Tier-1 scenarios are hermetic — no LLM keys needed.
