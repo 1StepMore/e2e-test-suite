@@ -126,6 +126,8 @@ writes 16 output formats. Verified OPP→OL→ORF paths as of 2026-06-23:
 
 Dependency notes: [ORF README](Omni_Re_Formatter/README.md) · [OPP README](Omni_Pre_Processor/README.md).
 
+Structure preservation measured against pandoc direct: [Format-fidelity benchmark](benchmarks/format-fidelity/BENCHMARK.md).
+
 ---
 
 ## Pipeline Selection Strategy
