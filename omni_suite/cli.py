@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -88,7 +89,10 @@ def main() -> None:
         if not remaining or remaining[0] in ("--help", "-h"):
             _run_pipeline(["--help"])
         else:
-            _validate_env(require_llm=True)
+            # Non-obvious: gates-only still runs real OPP/OL subprocesses, yet
+            # neither flag needs an LLM key at the CLI boundary.
+            no_llm_needed = "--dry-run" in remaining or "--gates-only" in remaining
+            _validate_env(require_llm=not no_llm_needed)
             _run_pipeline(remaining)
     elif cmd == "check":
         _run_check(sys.argv[2:])
@@ -98,6 +102,15 @@ def main() -> None:
         print(f"Unknown command: {cmd}")
         _print_usage()
         sys.exit(1)
+
+
+def _resolve_tool(name: str) -> str:
+    """Prefer the suite venv's tool: pip-installed copies (e.g. ~/.local/bin)
+    run without the repo config context and fail on config resolution."""
+    venv_tool = _VENV_BIN / name
+    if venv_tool.exists():
+        return str(venv_tool)
+    return shutil.which(name) or name
 
 
 def _run_pipeline(args: list[str]) -> None:
@@ -115,28 +128,42 @@ def _run_pipeline(args: list[str]) -> None:
     tgt = kwargs.get("target-lang", "zh")
     fmt = kwargs.get("target-format", "docx")
     output = kwargs.get("output")
+    dry_run = bool(kwargs.get("dry-run"))
+    gates_only = bool(kwargs.get("gates-only"))
+    keep_intermediate = bool(kwargs.get("keep-intermediate"))
 
     suite_root = Path(__file__).parent.parent
-    opp = shutil.which("opp") or f"{_VENV_BIN}/opp"
-    ol = shutil.which("ol") or f"{_VENV_BIN}/ol"
-    orf = shutil.which("orf") or f"{_VENV_BIN}/orf"
+    opp = _resolve_tool("opp")
+    ol = _resolve_tool("ol")
+    orf = _resolve_tool("orf")
     env = {**os.environ,
            "OL_CONFIG_PATH": str(suite_root / "Omni_Localizer" / "config" / "test_universal.yaml")}
     if kwargs.get("fake-llm"):
         env["OMNI_TEST_FAKE_LLM"] = "1"
 
-    temp_dir = Path("/tmp/omni-suite-pipeline") / Path(file_path).stem
-    temp_dir.mkdir(parents=True, exist_ok=True)
+    stem = Path(file_path).stem
+    temp_dir = Path("/tmp/omni-suite-pipeline") / stem
     opp_dir = temp_dir / "opp"
     ol_dir = temp_dir / "ol"
-    opp_dir.mkdir(exist_ok=True); ol_dir.mkdir(exist_ok=True)
+    out_path = output or f"{temp_dir}/result.{fmt}"
+
+    opp_cmd = [opp, file_path, "--target-format", "both",
+               "--source-lang", src, "--target-lang", tgt,
+               "--output-dir", str(opp_dir)]
+
+    if dry_run:
+        print(f"[1/3] OPP would run: {shlex.join(opp_cmd)}")
+        print(f"[2/3] OL would run: {shlex.join([ol, 'translate-md', str(opp_dir / f'{stem}.md'), '-s', src, '-t', tgt, '-o', str(ol_dir)])}")
+        print(f"[3/3] ORF would run: {shlex.join([orf, 'apply-md', str(ol_dir / f'{stem}.md'), '--target-format', fmt, '-o', out_path])}")
+        return
+
+    opp_dir.mkdir(parents=True, exist_ok=True)
+    ol_dir.mkdir(exist_ok=True)
 
     try:
         # Step 1: OPP extract
         print(f"[1/3] OPP extracting {file_path} → {opp_dir}")
-        subprocess.run([opp, file_path, "--target-format", "both",
-                       "--source-lang", src, "--target-lang", tgt,
-                       "--output-dir", str(opp_dir)], check=True, env=env, timeout=120)
+        subprocess.run(opp_cmd, check=True, env=env, timeout=120)
 
         md_file = next(opp_dir.glob("*.md"), None)
         if not md_file:
@@ -144,16 +171,33 @@ def _run_pipeline(args: list[str]) -> None:
 
         # Step 2: OL translate
         print(f"[2/3] OL translating {md_file}")
-        subprocess.run([ol, "translate-md", str(md_file), "-s", src, "-t", tgt, "-o", str(ol_dir)],
-                      check=True, env=env, timeout=300)
+        ol_cmd = [ol, "translate-md", str(md_file), "-s", src, "-t", tgt, "-o", str(ol_dir)]
+        if gates_only:
+            ol_result = subprocess.run(ol_cmd, check=True, env=env, timeout=300,
+                                       capture_output=True, text=True)
+        else:
+            subprocess.run(ol_cmd, check=True, env=env, timeout=300)
 
         ol_md = next(ol_dir.glob("*.md"), None)
         if not ol_md:
             raise RuntimeError("OL did not produce translated output")
 
+        if gates_only:
+            print("[gates-only] Skipping ORF backfill — extracting OL quality-gate warnings")
+            warnings_run = subprocess.run([ol, "extract-warnings", str(ol_md)],
+                                          capture_output=True, text=True,
+                                          env=env, timeout=120)
+            print(warnings_run.stdout, end="")
+            if warnings_run.returncode != 0:
+                tail = (ol_result.stdout or "")[-2000:]
+                if tail.strip():
+                    print("--- OL translate-md stdout (tail) ---")
+                    print(tail)
+                print("(ol extract-warnings unavailable — showing OL stdout tail instead)")
+            return
+
         # Step 3: ORF backfill
-        print(f"[3/3] ORF backfilling → {output or f'{temp_dir}/result.{fmt}'}")
-        out_path = output or f"{temp_dir}/result.{fmt}"
+        print(f"[3/3] ORF backfilling → {out_path}")
         subprocess.run([orf, "apply-md", str(ol_md), "--target-format", fmt, "-o", out_path],
                       check=True, env=env, timeout=120)
 
@@ -168,7 +212,10 @@ def _run_pipeline(args: list[str]) -> None:
         print(f"❌ Pipeline error: {e}", file=sys.stderr)
         sys.exit(1)
     finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
+        if keep_intermediate or gates_only:
+            print(f"Intermediate files kept at: {temp_dir}")
+        else:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def _parse_pipeline_args(args: list[str]) -> tuple[str, dict]:
@@ -322,6 +369,11 @@ def _print_usage() -> None:
     print("                         Supports any of ORF's 16 formats")
     print("    --fake-llm           Use fake LLM mode (bypasses API keys)")
     print("    --output PATH        Output file path (auto-generated if omitted)")
+    print("    --dry-run            Print the 3 pipeline commands and exit")
+    print("                         (executes nothing, creates no files)")
+    print("    --gates-only         Run OPP+OL (incl. 8 quality gates) and")
+    print("                         print extract-warnings; skips ORF backfill")
+    print("    --keep-intermediate  Keep /tmp/omni-suite-pipeline/<stem> after run")
     print("")
     print("  Pipeline path selection:")
     print("    MD path (default):   omni-suite translate <file> --target-format <fmt>")

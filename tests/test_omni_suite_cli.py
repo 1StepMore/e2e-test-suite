@@ -1,5 +1,6 @@
 """Tests for suite-level omni-suite CLI (W4.2)."""
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +10,17 @@ import pytest
 SUITE_ROOT = Path(__file__).resolve().parent.parent
 CLI = sys.executable  # Current venv Python — used for `python -m omni_suite`
 OMNI_SUITE_BIN = str(SUITE_ROOT / ".venv_ol" / "bin" / "omni-suite")
+FIXTURE_DOCX = SUITE_ROOT / "tests" / "production" / "small_fixture.docx"
+PIPELINE_TMP_ROOT = Path("/tmp/omni-suite-pipeline")
+
+
+def _pipeline_env() -> dict[str, str]:
+    return {
+        **os.environ,
+        "OMNI_TEST_FAKE_LLM": "1",
+        "OL_CONFIG_PATH": str(SUITE_ROOT / "Omni_Localizer" / "config" / "test_universal.yaml"),
+        "PATH": str(SUITE_ROOT / ".venv_ol" / "bin") + ":" + os.environ.get("PATH", ""),
+    }
 
 
 class TestVersion:
@@ -151,6 +163,82 @@ class TestPipeline:
             f"Unexpected exit code: {result.returncode}\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
+
+    def test_pipeline_dry_run_no_exec(self, tmp_path: Path):
+        """--dry-run prints the 3 commands and creates nothing."""
+        assert FIXTURE_DOCX.exists(), f"Fixture missing: {FIXTURE_DOCX}"
+        output = tmp_path / "result.docx"
+        stem = FIXTURE_DOCX.stem
+        temp_dir = PIPELINE_TMP_ROOT / stem
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+        result = subprocess.run(
+            [CLI, "-m", "omni_suite", "pipeline", str(FIXTURE_DOCX),
+             "--dry-run", "--output", str(output)],
+            capture_output=True, text=True, cwd=str(SUITE_ROOT),
+            env=_pipeline_env(), timeout=300,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "[1/3] OPP would run:" in result.stdout
+        assert "[2/3] OL would run:" in result.stdout
+        assert "[3/3] ORF would run:" in result.stdout
+        assert not output.exists(), "dry-run must not produce output files"
+        assert not temp_dir.exists(), "dry-run must not create the temp dir"
+
+    def test_pipeline_gates_only_skips_orf(self):
+        """--gates-only runs OPP+OL, prints warnings, skips ORF, keeps temp."""
+        assert FIXTURE_DOCX.exists(), f"Fixture missing: {FIXTURE_DOCX}"
+        stem = FIXTURE_DOCX.stem
+        temp_dir = PIPELINE_TMP_ROOT / stem
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+        result = subprocess.run(
+            [CLI, "-m", "omni_suite", "pipeline", str(FIXTURE_DOCX), "--gates-only"],
+            capture_output=True, text=True, cwd=str(SUITE_ROOT),
+            env=_pipeline_env(), timeout=300,
+        )
+
+        if result.returncode != 0:
+            pytest.fail(
+                f"gates-only failed: rc={result.returncode}\n"
+                f"stdout: {result.stdout}\nstderr: {result.stderr}"
+            )
+        ol_ran = "[2/3] OL" in result.stdout
+        orf_ran = "[3/3] ORF" in result.stdout
+        warnings_shown = (
+            "No warnings found" in result.stdout
+            or "warnings" in result.stdout
+            or "extract-warnings unavailable" in result.stdout
+        )
+        assert ol_ran, result.stdout
+        assert not orf_ran, "gates-only must not run ORF"
+        assert warnings_shown, result.stdout
+        assert "Intermediate files kept at:" in result.stdout
+        assert temp_dir.exists(), "gates-only keeps intermediate files"
+        ol_files = list((temp_dir / "ol").iterdir()) if (temp_dir / "ol").exists() else []
+        assert ol_files, "OL intermediate output missing"
+
+    def test_pipeline_keep_intermediate_survives(self):
+        """Full pipeline with --keep-intermediate leaves the temp dir in place."""
+        assert FIXTURE_DOCX.exists(), f"Fixture missing: {FIXTURE_DOCX}"
+        stem = FIXTURE_DOCX.stem
+        temp_dir = PIPELINE_TMP_ROOT / stem
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+        result = subprocess.run(
+            [CLI, "-m", "omni_suite", "pipeline", str(FIXTURE_DOCX),
+             "--keep-intermediate", "--target-format", "docx"],
+            capture_output=True, text=True, cwd=str(SUITE_ROOT),
+            env=_pipeline_env(), timeout=300,
+        )
+
+        assert result.returncode == 0, (
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "Pipeline complete" in result.stdout
+        assert "Intermediate files kept at:" in result.stdout
+        assert temp_dir.exists(), "temp dir must survive with --keep-intermediate"
 
 
 class TestUsageAndErrors:
