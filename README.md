@@ -1,13 +1,28 @@
 # E2E Test Suite
 
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/1StepMore/e2e-test-suite/actions)
-[![PyPI - opp](https://img.shields.io/pypi/v/opp.svg)](https://pypi.org/project/opp/)
+[![CI (1StepMore)](https://img.shields.io/badge/CI%20(1StepMore)-%E4%B8%BB%E5%8F%B7%E6%81%A2%E5%A4%8D%E5%90%8E%E6%8E%A5%E7%9C%9F%E5%AE%9E%E7%8A%B6%E6%80%81-lightgrey.svg)](https://github.com/1StepMore/e2e-test-suite/actions) <!-- 1StepMore 主号 suspend 期间 GitHub Actions 徽章不实时，此为静态占位；origin 解除 suspend 后须改回实时 badge（如 https://img.shields.io/github/actions/workflow/status/1StepMore/e2e-test-suite/validation.yml），主号恢复后接真实状态。 -->
+[![PyPI - omni-pre-processor](https://img.shields.io/pypi/v/omni-pre-processor.svg)](https://pypi.org/project/omni-pre-processor/)
 [![PyPI - omni-localizer](https://img.shields.io/pypi/v/omni-localizer.svg)](https://pypi.org/project/omni-localizer/)
 [![PyPI - omni-re-formatter](https://img.shields.io/pypi/v/omni-re-formatter.svg)](https://pypi.org/project/omni-re-formatter/)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 OPP → OL → ORF 全链路集成测试环境，含全自动 bug 发现 → OpenCode 修复 → 验证闭环。
+
+---
+
+## Test status（2026-09-04）
+
+1StepMore 主号 suspend 期间 GitHub Actions 徽章不实时；backup 镜像（renanzai40/OmniSuite_BackUp）不触发 CI。以下为本地可证明运行的验证命令：
+
+```bash
+source .venv_ol/bin/activate
+python scripts/validation/run_validation.py --tier 1          # hermetic scenario library (no LLM keys)
+python scripts/validation/run_validation.py --check           # contract-lint the scenario library
+pytest tests/ -q -m "not nightly"                             # suite tests, EXCLUDING nightly
+```
+
+> **为何排除 `nightly`（`-m "not nightly"`）**：`nightly` marker 已在 pyproject + tests/pytest.ini 注册，但 suite conftest 预置了 dummy API keys —— 若不排除，nightly 测试会真的发起 real LLM 调用或挂起，不适合作为 end-user 验证门禁。CI 本身同样使用 `-m "not nightly"`（见 .github/workflows/e2e-tests.yml:102/111/127）。
 
 ---
 
