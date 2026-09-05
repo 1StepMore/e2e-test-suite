@@ -11,7 +11,7 @@ cd /mnt/d/贯维/Omni_Suite
 .venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py -m "nightly" -v
 ```
 
-**Expected:** `11 passed, 3 skipped in ~25–32 minutes`. The 3 skipped are Tier 1.2 (`opp-mcp`), Tier 2.2 (`xliff_all_mcp`), Tier 2.4 (`md_docx_all_mcp`) — all blocked on Phase 0.5 (OPP MCP server init + `save_skeleton` tool). See `.omo/plans/e2e-test-suite-redesign.md` Phase 0.5.
+**Expected:** `11 passed, 3 skipped in ~25–32 minutes`. The 3 skipped are Tier 1.2 (`opp-mcp`), Tier 2.2 (`xliff_all_mcp`), Tier 2.4 (`md_docx_all_mcp`) — all blocked on Phase 0.5 (OPP MCP server init + `save_skeleton` tool). See `tests/test_e2e_real_llm.py` Phase 0.5.
 
 > **Note:** After the full implementation cycle all 14 tests passed with no skips (see below). The 3 MCP-path tests require a running OPP MCP server with the `save_skeleton` tool — in CI or headless environments without a running server they remain skipped. When run on a machine with all MCP services running, all 14 pass.
 
@@ -76,7 +76,7 @@ The mock/CI suite in `conftest.py` uses a different fixture (`sample_docx_path`,
 
 ## What the 14 nightly tests do
 
-The 14 tests are organized in 4 tiers. See `.omo/plans/e2e-test-suite-redesign.md` for the full design rationale.
+The 14 tests are organized in 4 tiers. See `tests/test_e2e_real_llm.py` for the full design rationale.
 
 ### Tier 1 — Per-component × per-transport smoke (6 parametrized tests, ~8-12 min)
 
@@ -281,7 +281,7 @@ def test_your_new_real_llm_test(
 | `Omni_Localizer/config/local.yaml` | Real LLM pool config (gitignored) |
 | `SETUP.md` | Phase 1 setup guide — fill `.env` + `local.yaml` |
 | `.omo/plans/real-llm-integration-tests.md` | Section 0 ground-truth (12 drawings, 7 unique files) |
-| `.omo/plans/e2e-test-suite-redesign.md` | **Current design** — 14-test 4-tier matrix, Phase 0.5 OPP MCP gap, helper specs, risks |
+| `tests/test_e2e_real_llm.py` | **Current design** — 14-test 4-tier matrix, Phase 0.5 OPP MCP gap, helper specs, risks |
 | `爱上海尔_第二章_全球创牌 - E2E测试专用.docx` | Test fixture (447 KB, 24 images, 9 paragraphs) |
 
 ---

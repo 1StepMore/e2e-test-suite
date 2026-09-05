@@ -244,7 +244,7 @@ key) so older consumers stay unaffected.
 Each module ships its own Model Context Protocol (MCP) server over stdio.
 All three implement the same `mcp.server.Server` + `stdio_server` pattern
 (the legacy `fastmcp` 3.4.2 stdio bug was fixed in Phase 1 — see
-`.omo/notepads/2026-06-22-production-readiness-plan/learnings.md`).
+`.omo/plans/2026-06-22-production-readiness-plan.md`).
 
 ```mermaid
 flowchart TB

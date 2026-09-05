@@ -345,7 +345,6 @@ Key pointers:
 - **Standards**: `scenarios/STANDARDS.md` — the single citable bar, exact thresholds per anchor
 - **Engine + tooling**: `scripts/validation/` (`run_validation.py`, `coverage_audit.py`, `validation_report.py`, `validation_diff.py`, `artifact_matrix.py`, `artifact_diff.py`) + `omni_mcp/validation/`
 - **Human director loop**: `docs/dev/validation-director-loop.md` — 10-minute per-run checklist, two-role model
-- **Framework plan**: `.omo/plans/validation-framework.md` — the original work plan (scope, waves, verification)
 
 ---
 

@@ -58,7 +58,7 @@ The audit on 2026-06-04 found real `MINIMAX_API_KEY` and `BAIDU_API_KEY` values 
 
 Commit `141123b657e2ca531b0a3761d0c38287da6ced95` (May 29 2026) added `Omni_Localizer/config/book_localization.yaml` whose header comments literally contained both API keys. Later commits (`da61b5f`, `9d62126`) only patched the **comments**; the historical diff is permanent in `.git/objects/`.
 
-> **✅ PURGED 2026-08-22 (SEC-LEAK-1).** Re-audit found the real key values were still re-published in two tracked files (`docs/SECURITY.md` itself and `reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md`), plus a third file that had been tracked in history before `.omo/` was gitignored (`.omo/plans/2026-06-17-fix-plan-round-8.md`, carrying live Zhipu + NVIDIA NIM keys). Remediation performed:
+> **✅ PURGED 2026-08-22 (SEC-LEAK-1).** Re-audit found the real key values were still re-published in two tracked files of the pre-rewrite lineage (`docs/SECURITY.md` itself and a dedicated purge-plan report, `GIT_HISTORY_PURGE_PLAN.md`, that was not carried over to this lineage), plus a third file that had been tracked in history before `.omo/` was gitignored (`.omo/plans/2026-06-17-fix-plan-round-8.md`, carrying live Zhipu + NVIDIA NIM keys). Remediation performed:
 > 1. Redacted all real key values → `REDACTED_*` placeholders in the working tree.
 > 2. `git filter-repo --replace-text` with the **complete** key set (Baidu `bce-v3/ALTAK-…`, MiniMax `sk-cp-…`, Zhipu `ca5c1f6…`, NVIDIA `nvapi-C_7ORG…`, OPENCODE_GO `sk-URB3…`) rewrote all 354 reachable commits.
 > 3. Deleted 15 stale `refs/backup/local/*` refs that pinned pre-rewrite leaked history.
@@ -67,7 +67,7 @@ Commit `141123b657e2ca531b0a3761d0c38287da6ced95` (May 29 2026) added `Omni_Loca
 >
 > **Force-push still required to purge the remote** (`origin/main` + `backup/main` still carry the pre-rewrite commits — see C1 rotation note; coordinate with collaborators before force-pushing).
 
-**If you have already rotated the keys (C1) AND the keys are no longer in any active config, the git history is purely archival.** You can choose to leave it alone. If you want to purge (now moot for the local clone, but the playbook is preserved in `../reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md` for reference):
+**If you have already rotated the keys (C1) AND the keys are no longer in any active config, the git history is purely archival.** You can choose to leave it alone. If you want to purge (now moot for the local clone, but the `git filter-repo` procedure is preserved in `.omo/plans/2026-06-17-fix-plan-round-8.md` Step 5 for reference):
 
 **Option A — `git filter-repo` (recommended):**
 
@@ -245,6 +245,6 @@ Until then, the recommendation is: **stdio only, never bind to a network socket*
 ## See also
 
 - `../reports/_archive/2026-Q2/AUDIT_FINDINGS_VERIFIED.md` — full audit, 17 CRITICAL items, 22 HIGH, 35 MEDIUM/LOW
-- `../reports/_archive/2026-Q2/GIT_HISTORY_PURGE_PLAN.md` — pre-written playbook for the C2 purge (do not run without coordination)
+- `.omo/plans/2026-06-17-fix-plan-round-8.md` — `git filter-repo` purge procedure for the C2 scrub (do not run without coordination)
 - `docs/archive/T14_LIMITATION.md` — the T14 partial-state limitation (hermetic CI seam gap)
 - `SETUP.md` — Phase 1 setup guide (where the `.env` and `local.yaml` go)
