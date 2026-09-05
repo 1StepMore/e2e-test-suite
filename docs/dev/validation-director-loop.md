@@ -67,8 +67,8 @@ python scripts/validation/run_validation.py --scenario <name> --tier 1
 stem** (AutoInfo semantics). Real stems: `tool-`, `opp`, `orf-md`,
 `orf-xliff`, `pipeline`, `regression`. The literal word `agent-surface` is NOT
 a stem; running `--scenario agent-surface` matches nothing and exits 0 having
-run zero scenarios. Use `--scenario tool- --tier 1` to select the 39
-per-tool agent-surface scenarios.
+run zero scenarios. Use `--scenario tool- --tier 1` to select the 41 per-tool
+agent-surface scenarios.
 
 Tiers (guide §1): 1 = hermetic, no keys; 2 = needs real LLM keys; 3 =
 paid/external/network. A tier-2 scenario without keys reports `unconfigured`,
@@ -104,7 +104,7 @@ python scripts/validation/coverage_audit.py
 ```
 
 This is the agent-satisfaction metric: `declared` (the LIVE module tool
-registries, 39 tools at baseline) versus `scenario_used`. `missing` is a gap
+registries, 41 tools at baseline) versus `scenario_used`. `missing` is a gap
 an agent-user would hit blind and makes the audit exit 1; `phantom` coverage
 never counts.
 

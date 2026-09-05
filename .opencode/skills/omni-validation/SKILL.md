@@ -1,6 +1,6 @@
 ---
 name: omni-validation
-description: Validate the Omni Suite against its 83-scenario library (agent-user conformance + human-quality conformance). List/run/check scenarios, read the director report, audit coverage. Tier-1 runs are hermetic (no LLM keys).
+description: Validate the Omni Suite against its 84-scenario library (agent-user conformance + human-quality conformance). List/run/check scenarios, read the director report, audit coverage. Tier-1 runs are hermetic (no LLM keys).
 ---
 
 # Omni Suite — Validation Framework

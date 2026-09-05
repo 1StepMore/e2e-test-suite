@@ -319,7 +319,7 @@ are hermetic — no LLM keys needed.
 
 ```bash
 source .venv_ol/bin/activate
-python scripts/validation/run_validation.py --scenario tool- --tier 1   # 39 per-tool agent-surface scenarios
+python scripts/validation/run_validation.py --scenario tool- --tier 1   # 41 per-tool agent-surface scenarios
 ```
 
 Each module also ships its own in-repo scenario library, runnable via
