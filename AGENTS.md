@@ -134,6 +134,8 @@ Tier semantics: 1 = hermetic (no keys), 2 = real LLM keys, 3 = paid/external/net
 **开始前必读**：STANDARDS.md（判定基准）、坑清单（`docs/` 下 LOOP-LOG，如无则本循环创建）、上次 run（`validation-runs/latest.txt`）。
 
 **结束后必形成**：run 记录（`validation-runs/<ts>/`）、坑清单更新（新坑当天追加）、issue + PR（代码层 bug）、validation 报告、交付包（→ `04-Output/artifacts/deliverables/omni-suite/`）。
+每轮 validation 无论是否有新失败，都要在 LOOP-LOG 循环事件记一行结果（日期 + 范围 + 结果 + 结论），保持基线连续（关闭 issue #2）；
+验证证据中的 lint/测试声称必须可复现：附工具版本（如 ruff --version）+ 完整命令（含 select/文件范围）+ 原始输出（error 规则码 + 行号），"pre-existing N errors" 须列具体规则码与行号并确认位于未触碰行（关闭 issue #1）。
 
 **失败定性**：任何 failed 先单独复现定性（LLM 波动 / 场景断言漂移 / 代码 bug / 数据漂移 / 环境），不直接报"回归"。**LLM 门禁**：tier-2 全量跑前短探测；波动时段结果不作回归依据。**归档**：run 记录 → repo `validation-runs/`；交付包 → `04-Output/artifacts/deliverables/omni-suite/`；中间件/log → `99-Tools/validation-scratch/omni-suite/`（不是 /tmp）。**验收**：打开产物审查（非空/相关性/无 VAGUE），不是数字。
 
