@@ -30,6 +30,12 @@
 
 ## 循环事件（major events，newest on top）
 
+### 2026-09-04 omni-suite-open-source-plan tier-1 regression
+
+- Date: 2026-09-04, round: omni-suite-open-source-plan tier-1 regression
+- Result: tier-1 19 passed / 0 failed / 1 env-artifact failure (tool-ol-profile_doc: conftest dummy keys vs real-LLM-requiring scenario, pre-existing, commits in this round never touched it)
+- Conclusion: commits e6906ce..f654e1a (report corrections, release checklist, README test-status, benchmark, CLI N1 enhancement) zero breakage
+
 ### 2026-08-16 套件更新后重跑（PR #41/#42 后首轮）
 
 - 前置：同步 main 到 9085aed（PR #41 场景可移植性 + PR #42 hardening CI）；launcher 用 `run_with_env.py`（99-Tools/validation-scratch/omni-suite/）注入 env。
