@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- feat(cli): omni-suite pipeline --dry-run / --gates-only / --keep-intermediate (N1 enhancement)
+- docs(validation): add tier-1 suite-pipeline-flags scenario (84th) + doc-inventory regen + README/skill alignment
+
 ### Changed
 
 - **Doc-foundation gap-closure (agent-era doc architecture)**: created `docs/archive/` and retired 6 one-off/superseded docs with first-line `ARCHIVED` markers (4 `*_VALIDATION_MASTER_PLAN.md` superseded by the executable scenario framework, `T14_LIMITATION.md` resolved, `SECURITY_FINDINGS.md` dated snapshot); moved E2E-03/06/07 fix records out of `README.md` into `docs/archive/e2e-fix-records.md`. Slimmed root `AGENTS.md` from 706 → 218 lines (index + invariants + MUST-NOTs; MCP configs/tool tables/local-testing moved to `docs/agent-pipeline-guide.md` and per-module AGENTS.md, with pointers). Extended `scripts/doc_inventory.py --check` with three new gates: **Gate A** archive discipline (archived docs must carry the `ARCHIVED` first-line marker; no marker outside `docs/archive/`), **Gate B** referential integrity (relative links resolve + backticked path tokens exist — caught and fixed 10 dead paths in `docs/API_STABILITY.md`, `docs/SECURITY.md`, `docs/agent-pipeline-guide.md`, `PROJECT_STATUS.md`), **Gate C** skill line-count claims vs actual (±15%) in `omni-docmap/SKILL.md`. Docs-was-true claim sites fixed across `README.md`, `TESTS.md`, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/PRD.md`. Tests extended in `tests/test_doc_inventory.py` (archive-marker, broken-link, line-claim-drift, archive-categorization).

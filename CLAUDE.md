@@ -102,7 +102,7 @@ The `omni-contract-smoke` hook is manual-only (`stages: [manual]`), skipped on `
 
 ## How to validate
 
-Run the agent-testing validation engine (83 scenarios; no mocks, no
+Run the agent-testing validation engine (84 scenarios; no mocks, no
 FAKE_LLM as evidence). All commands from the suite root with the venv:
 
 ```bash

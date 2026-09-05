@@ -84,7 +84,7 @@
 
 **任务**：基于现有 `omni-suite` CLI 补强：
 ```
-omni pipeline input.docx --src zh --dst en --format xliff
+omni-suite pipeline input.docx --source-lang en --target-lang zh --target-format docx
   # = OPP 提取 → OL 翻译 → ORF 还原，一条命令
 ```
 - 补强 `pipeline` 子命令串联（依赖已发布的三包）
@@ -153,7 +153,7 @@ N2 omni serve（不实施）┼── 第 3-4 周（统一入口补强；服务�
 N3 翻译记忆（不实施）┘
 ```
 
-**验收里程碑**：第 4 周末，`pip install omni-suite` 后一条 `omni pipeline` 命令完成 DOCX 翻译（含 gate 报告 + 保真数据）；新增能力（--gates-only/--dry-run/--keep-intermediate + benchmark + 徽章位）验收通过。
+**验收里程碑**：第 4 周末，`pip install omni-suite` 后一条 `omni-suite pipeline` 命令完成 DOCX 翻译（含 gate 报告 + 保真数据）；新增能力（--gates-only/--dry-run/--keep-intermediate + benchmark + 徽章位）验收通过。
 
 ---
 

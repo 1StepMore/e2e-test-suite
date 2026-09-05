@@ -17,7 +17,7 @@ make test-quick      # pytest tests/ -m "not nightly" -q
 
 If `make doctor` fails, the pipeline won't work. Fix those issues first.
 
-## Current versions (2026-06-29)
+## Current versions (2026-09-05)
 
 | Component | Version | Path | CLI Framework |
 |---|---|---|---|
@@ -26,7 +26,7 @@ If `make doctor` fails, the pipeline won't work. Fix those issues first.
 | ORF | **0.4.17** | `Omni_Re_Formatter/` | click |
 | Suite | **0.4.0** | `./` | — |
 
-Test matrix status: **131 PASS, 64 SKIP, 0 FAIL** across 195 cells (verified 2026-06-29).
+Test matrix status: **131 PASS, 64 SKIP, 0 FAIL** across 195 cells (verified 2026-09-05).
 False-positive rate: **0/200** (was 48/200 before the 2026-06-29 quality_checks.py fix).
 
 > **CLI framework note**: Flag names are uniform (`--kebab-case`), but help-text styles differ. See `../docs/DECISIONS.md` ADR 0001.
@@ -86,6 +86,23 @@ Requires `skeleton.zip` (only produced for DOCX/PPTX/EPUB inputs).
 | Exact original layout (fonts, styles, floating images) | XLIFF path | `apply-xliff` reuses skeleton.zip |
 | Both options (recommended default) | Extract with `both` | Produces MD + XLIFF + skeleton in one pass |
 
+### Suite pipeline one-shot (`omni-suite pipeline`)
+
+`omni-suite pipeline <file>` chains the 3 stages above behind a single CLI
+(`<file> [--source-lang en] [--target-lang zh] [--target-format docx]
+[--output <path>]`). Three flags (see `omni-suite pipeline --help`):
+
+```bash
+omni-suite pipeline document.docx --dry-run            # print the OPP→OL→ORF commands without executing (no LLM keys)
+omni-suite pipeline document.docx --gates-only         # OPP + OL (8 quality gates) + `ol extract-warnings`; skip ORF backfill
+omni-suite pipeline document.docx --keep-intermediate  # keep /tmp/omni-suite-pipeline/<stem>/ after the run
+```
+
+`--dry-run` and `--gates-only` need no LLM keys at the CLI level
+(`--fake-llm`/FAKE_LLM seam applies to the translated output); a full run
+still requires real LLM keys or `OMNI_TEST_FAKE_LLM=1` unless the pipeline
+is invoked with `--fake-llm`.
+
 ## Output formats (16, ORF `apply-md`)
 
 DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON.
@@ -109,7 +126,7 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 | **CLI** | Ad-hoc one-off conversions, scripts, debugging, manual pipelines |
 | **MCP server** | Inside an MCP-compatible agent (Claude, Cursor, OpenCode), want text-in/text-out, want tool-level validation |
 
-**MCP tool counts**: OPP 7 / OL 21 / ORF 6 (34 total). Names + signatures in "MCP tool quick reference" below.
+**MCP tool counts**: OPP 9 / OL 21 / ORF 7 (37 total). Names + signatures in "MCP tool quick reference" below.
 
 > **⚠️ FastMCP stdio bug**: If MCP servers fail to respond to stdio (silent, no JSON-RPC handshake), use the `scripts/mcp_bridge.py` workaround (raw JSON-RPC over stdin/stdout, no `mcp` library needed). See `../ACCEPTED_GAPS.md` line 18.
 
@@ -148,21 +165,23 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 
 ## Common errors (top 5)
 
-1. **"Tool not found" in MCP** → Check `CLAUDE.md` / `.cursorrules` for correct tool names. ORF has **6** tools (not 7).
+1. **"Tool not found" in MCP** → Check `CLAUDE.md` / `.cursorrules` for correct tool names. ORF has **7** tools (incl. `get_capabilities`).
 2. **"ValueError: allowed_directories cannot be empty"** → Set `OPP_MCP_ALLOWED_DIRS` (NOT `OPP_ALLOWED_DIRECTORIES`). OPP is fail-closed.
 3. **"PDF → XLIFF blocked"** → Use MD path. PDF→XLIFF is intentionally not supported.
 4. **OL real LLM timeout** → Set `OMNI_TEST_FAKE_LLM=1` for testing, or set API keys in `.env`.
 5. **"MCP server not responding to stdio"** → Use `scripts/mcp_bridge.py` (FastMCP 3.4.2 stdio bug). See `../ACCEPTED_GAPS.md`.
 
-## MCP tool quick reference (34 total across modules)
+## MCP tool quick reference (37 total across modules)
 
-### OPP — `opp-mcp-server` (7 tools)
+### OPP — `opp-mcp-server` (9 tools)
 - `extract_document` — Extract single file (13 input formats)
 - `batch_extract` — Process multiple files
 - `detect_format_tool` — Magic-bytes detection
 - `generate_markdown` — MD only
 - `generate_xliff` — XLIFF only
 - `save_skeleton` — Save skeleton.zip (required by ORF `apply-xliff`)
+- `validate_xliff` — XLIFF structural validation
+- `get_capabilities` — Server capability advertisement
 - `ping` — Health check
 
 ### OL — `ol-mcp` (21 tools, **no `-server` suffix**)
@@ -177,12 +196,13 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 
 > Full 21-tool registry: see the OL MCP tool table in `Omni_Localizer/AGENTS.md` (21 tools total).
 
-### ORF — `orf-mcp-server` (6 tools)
+### ORF — `orf-mcp-server` (7 tools)
 - `apply_md` — MD → 16 formats (accepts inline `content` OR path `input_md`)
 - `apply_xliff` — Backfill XLIFF into source (needs skeleton.zip)
 - `batch_convert` — Batch convert directory
 - `detect_format` — Magic-bytes detection
 - `info` — Document metadata
+- `get_capabilities` — Server capability advertisement
 - `ping` — Health check
 
 For per-tool parameter signatures, see `../docs/agent-pipeline-guide.md`.

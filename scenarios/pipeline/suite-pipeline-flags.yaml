@@ -1,0 +1,162 @@
+name: suite-pipeline-flags
+description: >-
+  First suite-CLI scenario: exercises the omni-suite pipeline orchestrator
+  flags (--dry-run, --gates-only, --keep-intermediate) as a tier-1 HERMETIC
+  agent-surface contract — no LLM keys, no FAKE_LLM, nothing executed.
+  Proves three things about commit 458c88c's shipped CLI: (1) --dry-run
+  exits 0 and prints the full [1/3]/[2/3]/[3/3] would-run command plan
+  (OPP --target-format both, ol translate-md, orf apply-md) WITHOUT
+  creating the /tmp/omni-suite-pipeline/<stem>/ directory; (2) --gates-only
+  is NOT stopped by the LLM-key gate (_validate_env require_llm=True does
+  not block this subcommand — it reaches real execution) yet fails cleanly
+  with exit 1 and a clear stderr error when the input file does not exist;
+  (3) `omni-suite --help` surfaces all three flags to an agent. The FAKE_LLM
+  full-execution paths (gates-only/keep-intermediate with keys) are already
+  covered by tests/test_omni_suite_cli.py and intentionally NOT duplicated
+  here — they are not hermetic. Cleanup step removes any gates-only temp
+  residue under /tmp/omni-suite-pipeline/.
+category: pipeline
+tier: 1
+instructions: |-
+  This scenario proves the omni-suite orchestrator CLI honors its new
+  pipeline flags as an agent would encounter them, entirely without LLM
+  keys (tier 1 hermetic — dispatched steps inherit the parent env and the
+  dispatcher never injects OMNI_TEST_FAKE_LLM).
+
+  What to do:
+  1. Run `omni-suite pipeline <committed DOCX fixture> --dry-run` with no
+     keys and no FAKE_LLM. Expected: exit 0 and ALL THREE plan markers on
+     stdout — "[1/3] OPP would run:" (with --target-format both), "[2/3] OL
+     would run:" (with translate-md), "[3/3] ORF would run:" (with
+     apply-md). A non-fatal "No LLM provider keys found" warning MAY appear
+     on stdout first (_validate_env with require_llm=False prints to stdout
+     and does NOT exit) — that is shipped behavior, not a failure; the
+     scenario deliberately does NOT assert stdout_not_has on it.
+  2. A python step proves dry-run created NOTHING: the
+     /tmp/omni-suite-pipeline/<stem>/ directory must not exist (dry-run
+     returns before any mkdir; the --help text itself promises "creates no
+     files").
+  3. Run `omni-suite pipeline <missing input> --gates-only`. Expected:
+     exit 1 with "Pipeline step failed:" on stderr. This is the paired
+     contract: the command was NOT blocked by the LLM-key argument gate
+     (_validate_env(require_llm=True) does not fire for this path — it got
+     all the way to executing the real OPP subprocess, which failed on the
+     nonexistent input), AND it failed cleanly with a clear stderr reason
+     instead of a traceback or a silent zero exit.
+  4. Run `omni-suite --help` and require the three flags to be advertised:
+     --dry-run, --gates-only, --keep-intermediate (agent discoverability —
+     note `omni-suite pipeline --help` prints only a short usage line
+     WITHOUT the flag descriptions, so the full help is the contract).
+  5. Cleanup step (best-effort, never graded into the verdict): remove any
+     /tmp/omni-suite-pipeline/<missing-stem>/ residue the gates-only
+     failure left behind (the CLI keeps intermediates on failure by
+     design).
+
+  Verified against the shipped CLI (commit 458c88c): dry-run exits 0 with
+  the three would-run markers; gates-only on a missing file exits 1 with
+  "Pipeline step failed:" on stderr and "[1/3] OPP extracting" on stdout;
+  --help lists all three flags. Deterministic, no network, no keys.
+steps:
+  - name: Dry-run prints the full 3-step plan without keys or execution
+    kind: cli
+    command: omni-suite pipeline scenarios/_fixtures/meridian_robotics.docx --dry-run
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "[1/3] OPP would run:"
+        - "[2/3] OL would run:"
+        - "[3/3] ORF would run:"
+        - "--target-format both"
+        - "translate-md"
+        - "apply-md"
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Run the real omni-suite CLI on the committed Meridian DOCX fixture
+      with --dry-run, no LLM keys, no FAKE_LLM. Check: exit 0 and stdout
+      contains all three plan markers ("[1/3] OPP would run:", "[2/3] OL
+      would run:", "[3/3] ORF would run:") plus the actual subcommand
+      names they promise (--target-format both, translate-md, apply-md) —
+      the full OPP->OL->ORF plan, STANDARDS.md#exit-codes. The non-fatal
+      "No LLM provider keys found" warning on stdout is shipped behavior
+      (_validate_env with require_llm=False prints to stdout and returns)
+      and must NOT be treated as failure.
+  - name: Dry-run creates no /tmp/omni-suite-pipeline/<stem> directory
+    kind: python
+    command: |-
+      import pathlib, sys
+      stem_dir = pathlib.Path("/tmp/omni-suite-pipeline/meridian_robotics")
+      if stem_dir.exists():
+          print("ERROR: dry-run created %s (must create nothing)" % stem_dir)
+          sys.exit(1)
+      print("OK: dry-run created no temp dir (%s absent)" % stem_dir)
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: dry-run created no temp dir"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      The --help text promises dry-run "executes nothing, creates no
+      files". Check: /tmp/omni-suite-pipeline/meridian_robotics (the stem
+      of the fixture from step 1) does not exist after the dry-run —
+      dry-run returns before any mkdir. Scoped to the exact stem (the
+      parent /tmp/omni-suite-pipeline/ may legitimately hold residue from
+      other runs). Check: exit 0 + "OK: dry-run created no temp dir".
+  - name: Gates-only is not blocked by the key gate and fails cleanly on missing input
+    kind: cli
+    command: omni-suite pipeline /tmp/omni_val/suite-pipeline-flags/does-not-exist.docx --gates-only
+    timeout_seconds: 120
+    expect:
+      exit_code: 1
+      stderr_has: ["Pipeline step failed:"]
+      stdout_has: ["[1/3] OPP extracting"]
+      stdout_not_has: ["[2/3] OL"]
+    standard: STANDARDS.md#error-clarity
+    instructions: |-
+      Run gates-only on a nonexistent input file (no keys, no FAKE_LLM).
+      The point is the PAIRED contract. First, --gates-only was NOT
+      stopped by the LLM-key argument gate: the CLI reached real
+      execution, printing "[1/3] OPP extracting" on stdout and spawning
+      the actual OPP subprocess (verified: _validate_env(require_llm=True)
+      never fires on this path). Second, it failed cleanly on the bad
+      input: exit 1 and "Pipeline step failed: ... returned non-zero exit
+      status 1" on stderr naming the failing command — a clear error, not
+      a traceback and not a silent zero exit
+      (STANDARDS.md#error-clarity). stdout_not_has "[2/3] OL" pins that
+      the failure surfaced at step 1 of 3.
+  - name: Full help advertises all three pipeline flags
+    kind: cli
+    command: omni-suite --help
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has:
+        - "--dry-run"
+        - "--gates-only"
+        - "--keep-intermediate"
+    standard: STANDARDS.md#tool-contract
+    instructions: |-
+      Agent discoverability: `omni-suite --help` must advertise all three
+      pipeline flags (--dry-run, --gates-only, --keep-intermediate) so an
+      agent can find them without reading source. Note `omni-suite
+      pipeline --help` prints only a short usage line WITHOUT the flag
+      descriptions (verified), so the full help is the discoverability
+      contract (STANDARDS.md#tool-contract: the tool describes itself).
+cleanup_steps:
+  - name: Remove gates-only temp residue (best-effort, never graded)
+    kind: python
+    command: |-
+      import shutil
+      shutil.rmtree("/tmp/omni-suite-pipeline/does-not-exist", ignore_errors=True)
+      shutil.rmtree("/tmp/omni-suite-pipeline/meridian_robotics", ignore_errors=True)
+      print("OK: pipeline temp residue removed")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: pipeline temp residue removed"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Best-effort cleanup of the temp dirs this scenario may have created
+      under /tmp/omni-suite-pipeline/ (the gates-only failure keeps
+      intermediates by design; the stem dir is defensive). Cleanup steps
+      are never graded into the scenario verdict (loader.py guide §2.6).

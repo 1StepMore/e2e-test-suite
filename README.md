@@ -109,6 +109,7 @@ omni-suite --compatibility       # version matrix
 # 5. 一键跑整条 OPP→OL→ORF pipeline（支持 --dry-run / --gates-only / --keep-intermediate，见 AGENTS.md → Common Tasks）
 omni-suite pipeline document.docx --dry-run    # 只打印将执行的 3 步命令，不真正执行（无需 LLM keys）
 omni-suite pipeline document.docx --gates-only # OPP + OL（8 项质量门）+ ol extract-warnings，跳过 ORF 回写
+omni-suite pipeline document.docx --keep-intermediate # 保留 /tmp/omni-suite-pipeline/<stem>/ 中间产物（全流程后）
 ```
 
 

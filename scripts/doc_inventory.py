@@ -8,7 +8,7 @@ any third-party dependency. Two modes:
   AUTO-GENERATED header + Summary + Inventory table. Idempotent (no
   timestamps): regenerating twice produces byte-identical output.
 * ``--check``: verify (in order) source-truth MCP tool counts vs claim-site
-  docs, scenario count (83, when ``scenarios/`` exists), input/output format
+  docs, scenario count (84, when ``scenarios/`` exists), input/output format
   claims, the canonical test matrix, nightly-test claims, version-sync
   delegation (``scripts/sync_version_docs.py --check``), stray
   ``tests/test_bug_*.py`` files, and inventory freshness. No files are
@@ -390,7 +390,7 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
 
 
 def check_scenarios(root: Path, failures: list[str]) -> None:
-    """Scenario count == 83 with tier split; input formats >= 13; '13+' claims.
+    """Scenario count == 84 with tier split; input formats >= 13; '13+' claims.
 
     Skipped (report-only, not a failure) when ``scenarios/`` is absent.
     """
@@ -402,15 +402,15 @@ def check_scenarios(root: Path, failures: list[str]) -> None:
     total = len(yamls)
     tiers: dict[str, int] = {}
     for p in yamls:
-        tier = "1"  # missing tier field defaults to tier 1 (plan: 79/3/1)
+        tier = "1"  # missing tier field defaults to tier 1 (plan: 80/3/1)
         for line in read_text(p).splitlines():
             if re.match(r"tier\s*:", line.strip()):
                 tier = line.split(":", 1)[1].strip()
                 break
         tiers[tier] = tiers.get(tier, 0) + 1
     print(f"  scenarios/: {total} yaml files; tiers={dict(sorted(tiers.items()))}")
-    if total != 83:
-        failures.append(f"scenarios/: {total} yaml files, expected 83")
+    if total != 84:
+        failures.append(f"scenarios/: {total} yaml files, expected 84")
 
     opp_dir = scenarios / "opp"
     if opp_dir.is_dir():
