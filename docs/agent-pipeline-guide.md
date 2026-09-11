@@ -197,7 +197,7 @@ compares their default behavior and security posture.
 | Server | Env Variable | Default | Behavior if Unset | Security |
 |--------|-------------|---------|-------------------|----------|
 | OPP MCP | `OPP_MCP_ALLOWED_DIRS` | None | Raises `ValueError`, server refuses to start | Fail-closed |
-| OL MCP | N/A | N/A | OL has no directory restriction | N/A |
+| OL MCP | `MCP_ALLOWED_DIRECTORIES` (or `OL_MCP_ALLOWED_DIRS`) | None | Raises `ValueError`, server refuses to start | Fail-closed |
 | ORF MCP | `ORF_ALLOWED_DIRECTORIES` | `[Path.cwd()]` | Silently uses CWD | Fail-open |
 | Omni MCP | N/A | N/A | Relies on underlying server config | N/A |
 
@@ -230,11 +230,23 @@ The same validation pipeline (allowlist, extensions, symlinks, size)
 applies when the variable is set. See
 `Omni_Re_Formatter/AGENTS.md` (Path Configuration section) for details.
 
-### OL MCP
+### OL MCP (Fail Closed)
 
-OL has no directory restriction mechanism. Its MCP tools accept file
-paths and content directly. Path validation is handled by the caller
-or the orchestrating agent.
+OL reads a comma-separated directory allowlist from
+`MCP_ALLOWED_DIRECTORIES` (unified cross-module name), falling back to
+`OL_MCP_ALLOWED_DIRS` (OL-specific) and then the deprecated
+`OL_ALLOWED_DIRECTORIES`. If none is set, `get_default_validator()`
+raises `ValueError` and the MCP server refuses to start — it no longer
+silently defaults to `cwd` + `/tmp`:
+
+```bash
+export MCP_ALLOWED_DIRECTORIES="/data/documents,/data/output"
+```
+
+Note: the separator is a **comma** (OPP's `OPP_MCP_ALLOWED_DIRS` uses
+colons). Path denials are reported with the stable `OL_PATH_DENIED`
+error code. See `Omni_Localizer/AGENTS.md` (Env vars section) for
+details.
 
 ### Omni MCP
 
@@ -244,10 +256,12 @@ Configure those individually using the variables above.
 
 ### Recommended Setup
 
-Always set both OPP and ORF path variables explicitly:
+Always set OPP, OL, and ORF path variables explicitly (OPP/ORF are
+colon-separated; OL is comma-separated):
 
 ```bash
 export OPP_MCP_ALLOWED_DIRS="/data/documents"
+export MCP_ALLOWED_DIRECTORIES="/data/documents"
 export ORF_ALLOWED_DIRECTORIES="/data/documents"
 ```
 
@@ -255,6 +269,7 @@ For CI/CD environments:
 
 ```bash
 export OPP_MCP_ALLOWED_DIRS="${GITHUB_WORKSPACE}/test_fixtures"
+export MCP_ALLOWED_DIRECTORIES="${GITHUB_WORKSPACE}/test_fixtures"
 export ORF_ALLOWED_DIRECTORIES="${GITHUB_WORKSPACE}/test_fixtures"
 ```
 

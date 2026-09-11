@@ -64,15 +64,16 @@ Source: `ol_mcp/_errors.py:_ERROR_CODE_MAP`
 |------|-----------------|---------|----------------|---------------|
 | `OL_FILE_NOT_FOUND` | `FileNotFoundError` | A required file was not found. | Glossary path, TMX path, or config path doesn't exist. | Verify the file exists. |
 | `OL_PERMISSION_DENIED` | `PermissionError` | Permission denied for the requested operation. | File is not readable by the server process. | Check file permissions. |
+| `OL_PATH_DENIED` | `PathDeniedError` | Path is not within the allowed directories. | Path falls outside the `MCP_ALLOWED_DIRECTORIES` allowlist (or the legacy `OL_MCP_ALLOWED_DIRS` / `OL_ALLOWED_DIRECTORIES`). | Set `MCP_ALLOWED_DIRECTORIES` to include the path. |
 | `OL_INVALID_INPUT` | `ValueError` | The request input was invalid. | Schema validation failed, or LLM returned unparseable output. | Validate input; retry may succeed if LLM transient. |
 | `OL_MISSING_KEY` | `KeyError` | A required key was missing from the input. | A required field was omitted from the input model. | Check the tool's input schema. |
 | `OL_TIMEOUT` | `TimeoutError` | The operation timed out. | LLM call exceeded timeout. | Retry; consider increasing timeout for large batches. |
 | `OL_NOT_IMPLEMENTED` | `NotImplementedError` | The requested feature is not yet implemented. | A code path was hit that is stubbed or pending. | File a feature request. |
 | `OL_INTERNAL_ERROR` | (any other exception) | An internal error occurred. Catch-all for unmapped exception classes. | Unexpected server-side failure (e.g., LiteLLM router failure, repair pipeline crash). | Check server logs. Retry may succeed if transient. |
 
-Note: OL does **not** emit `OL_PATH_DENIED` or `OL_RESOURCE_EXHAUSTED` — path
-validation in OL is enforced by `ol_mcp/security.py` and returns
-`OL_INVALID_INPUT` with a descriptive message instead.
+Note: OL does **not** emit `OL_RESOURCE_EXHAUSTED`. Path validation is
+enforced by `ol_mcp/security.py`; path denials are reported with the stable
+`OL_PATH_DENIED` code (`PathDeniedError`).
 
 ---
 
