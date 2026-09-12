@@ -1,0 +1,73 @@
+name: ol-path-denied
+description: >
+  Regression seed locking the OL MCP path-security contract introduced in
+  OL backup/main d27cf14 (issue #8): a path-taking tool MUST reject any path
+  outside the configured allowlist with the stable, agent-readable code
+  OL_PATH_DENIED (src/ol_mcp/_errors.py:27), and the allowlist policy is
+  fail-CLOSED — with no MCP_ALLOWED_DIRECTORIES / OL_MCP_ALLOWED_DIRS /
+  OL_ALLOWED_DIRECTORIES set, get_default_validator() must deny cleanly (no
+  silent cwd + /tmp fallback) and MUST NOT leak a stack trace.  This replaces
+  the pre-d27cf14 OL_PATH_NOT_ALLOWED assertion; if the stable code is ever
+  renamed or the fail-closed policy is loosened, this scenario turns RED.
+category: regression
+regression: true
+regression_issue: "renanzai40/OmniSuite_BackUp#8"
+tier: 1
+requires_env: [MCP_ALLOWED_DIRECTORIES]
+instructions: |
+  What to do:
+  1. With an allowlist configured (MCP_ALLOWED_DIRECTORIES), call the real
+     OL load_glossary tool on a path outside the allowlist.  Expect the
+     stable denial code OL_PATH_DENIED inside the JSON envelope, success
+     false, and no Python traceback.
+  2. Clear all three allowlist env names inside the subprocess and call the
+     tool again.  Expect fail-CLOSED behavior: a clean JSON denial envelope
+     (success false) and no traceback — never a crash and never a silent
+     cwd + /tmp default that would accept the path.
+
+  Both steps are hermetic (tier 1): no LLM keys, no network — they exercise
+  the shipped tool function directly (no mocks, no FAKE_LLM).
+steps:
+  - name: 'OL rejects an out-of-allowlist path with the stable OL_PATH_DENIED code'
+    kind: python
+    command: |
+      import asyncio, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import LoadGlossaryInput, load_glossary
+      r = asyncio.run(load_glossary(params=LoadGlossaryInput(path="/nonexistent/glossary.json")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['OL_PATH_DENIED', '"success": false']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      With MCP_ALLOWED_DIRECTORIES set, call load_glossary on
+      /nonexistent/glossary.json (outside the allowlist).  Expect a clean
+      OL_PATH_DENIED denial with success=false and no traceback — never
+      OL_PATH_NOT_ALLOWED (stale) and never a silent success.
+  - name: 'OL allowlist policy is fail-closed: no env yields a clean denial, no traceback'
+    kind: python
+    command: |
+      import asyncio, os, sys
+      for _k in ("MCP_ALLOWED_DIRECTORIES", "OL_MCP_ALLOWED_DIRS", "OL_ALLOWED_DIRECTORIES"):
+          os.environ.pop(_k, None)
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import LoadGlossaryInput, load_glossary
+      r = asyncio.run(load_glossary(params=LoadGlossaryInput(path="/tmp/glossary.json")))
+      print(r)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      Clear MCP_ALLOWED_DIRECTORIES / OL_MCP_ALLOWED_DIRS /
+      OL_ALLOWED_DIRECTORIES and call load_glossary on /tmp/glossary.json.
+      Fail-closed means the validator refuses without an allowlist: expect a
+      clean JSON denial (success false) and no traceback — a silent success
+      (the old cwd + /tmp default) is the regression this locks out.
