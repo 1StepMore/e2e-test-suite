@@ -55,7 +55,8 @@ All paths are relative to the project root `/mnt/d/贯维/Omni_Suite`. Each entr
 | `docs/ARCHITECTURE.md` | ~515 | Cross-module architecture, pipeline diagrams, data flow | Architecture changes, new modules, pipeline flow changes |
 | `docs/API_STABILITY.md` | ~307 | API stability guarantees per module, SemVer policy, deprecation policy | Version bumps, API surface changes, deprecation decisions |
 | `docs/agent-pipeline-guide.md` | — | Full MCP tool signatures for all 37 tools across OPP/OL/ORF (OPP 9 / OL 21 / ORF 7) | MCP tool changes (add/remove/rename params) |
-| `docs/DECISIONS.md` | ~241 | Architecture Decision Records (ADR 0001–0006) | New architectural decisions, superseded ADRs |
+| `docs/DECISIONS.md` | ~20 | Redirect index → `docs/adr/` (ADR 0001–0006) | Do not edit; add new ADRs in `docs/adr/` |
+| `docs/adr/README.md` | ~39 | ADR index with links to individual decision records | New ADRs, status changes, superseded ADRs |
 | `docs/ERROR_CODES.md` | ~113 | MCP error code catalog (OPP/OL/ORF) | Error code changes (add/rename/remove codes) |
 | `docs/SECURITY.md` | ~250 | Security posture & user action items (C1, C2), PathValidator, MCP auth | Security model changes, env var changes |
 | `docs/SECURITY_AUDIT.md` | ~954 | Full security audit: attack surface, identified gaps, severity model, roadmap | Security audit findings, new threat vectors |
@@ -178,7 +179,7 @@ This section tells you **exactly which docs to update** for each type of change.
 | 🔴 HIGH | `AGENTS.md` (suite) | Per-module cheat sheet, Common Tasks |
 | 🔴 HIGH | `.opencode/skills/omni-suite/SKILL.md` | CLI examples, command sections |
 | 🟡 MEDIUM | Module's SKILL.md | CLI invocation examples |
-| 🟡 MEDIUM | `docs/DECISIONS.md` | If CLI framework divergence is affected |
+| 🟡 MEDIUM | `docs/adr/0001-cli-framework-defer-unification.md` | If CLI framework divergence is affected |
 | 🟡 MEDIUM | `docs/API_STABILITY.md` | If the change affects stability guarantees |
 | 🟡 MEDIUM | `CHANGELOG.md` (suite + module) | Changelog entry |
 | 🟡 MEDIUM | `CLAUDE.md` | CLI examples for Claude |
@@ -258,7 +259,7 @@ This section tells you **exactly which docs to update** for each type of change.
 | Priority | Document | What to update |
 |----------|----------|----------------|
 | 🔴 CRITICAL | `docs/ARCHITECTURE.md` | Architecture description, diagrams |
-| 🔴 HIGH | `docs/DECISIONS.md` | New ADR or superseding existing ADR |
+| 🔴 HIGH | `docs/adr/` (new ADR file + README.md index) | New ADR or superseding existing ADR |
 | 🟡 MEDIUM | Module's `AGENTS.md` | Source layout tree |
 | 🟡 MEDIUM | Module's `README.md` | Architecture diagram |
 | 🟡 MEDIUM | `.opencode/skills/omni-suite/SKILL.md` | Architecture overview |
