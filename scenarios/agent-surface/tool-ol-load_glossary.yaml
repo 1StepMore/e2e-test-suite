@@ -48,7 +48,7 @@ steps:
     expect:
       success: true
       exit_code: 0
-      stdout_has: ['OL_PATH_NOT_ALLOWED']
+      stdout_has: ['OL_PATH_DENIED']
       stdout_not_has: ['Traceback (most recent call last)']
     standard: STANDARDS.md#path-security
-    instructions: 'Call with a nonexistent path outside the allowlist; the OL PathValidator must deny it with a clean OL_PATH_NOT_ALLOWED error, no traceback.'
+    instructions: 'Call with a nonexistent path outside the allowlist; the OL PathValidator must deny it with a clean OL_PATH_DENIED error, no traceback.'

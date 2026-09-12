@@ -2,7 +2,7 @@ name: tool-ol-batch_translate_texts
 description: "OL batch_translate_texts translates multiple texts in parallel (requires real LLM keys) and rejects wrong-shaped params cleanly."
 category: agent-surface
 tier: 1
-requires_env: [OPENAI_API_KEY, ZHIPU_API_KEY, AGNES_API_KEY, NVIDIA_NIM_API_KEY, OL_CONFIG_PATH]
+requires_env: [OPENAI_API_KEY, ZHIPU_API_KEY, AGNES_API_KEY, NVIDIA_NIM_API_KEY, OL_CONFIG_PATH, MCP_ALLOWED_DIRECTORIES]
 instructions: |
   Agent-user conformance (draft D13, mission axis 1): this scenario proves the
   live tool responds as an agent-user expects — schema-shaped arguments accepted,
