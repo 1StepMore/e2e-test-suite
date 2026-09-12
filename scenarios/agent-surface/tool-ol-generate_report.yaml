@@ -2,6 +2,7 @@ name: tool-ol-generate_report
 description: "OL generate_report returns the shipped clean validation denial for any output_dir (known defect) and a clean error for wrong-shaped params."
 category: agent-surface
 tier: 1
+requires_env: [MCP_ALLOWED_DIRECTORIES]
 instructions: |
   Agent-user conformance (draft D13, mission axis 1): this scenario proves the
   live tool responds as an agent-user expects — schema-shaped arguments accepted,
@@ -23,10 +24,10 @@ steps:
     expect:
       success: true
       exit_code: 0
-      stdout_has: ['OL_PATH_NOT_ALLOWED', 'Extension']
+      stdout_has: ['OL_PATH_DENIED', 'Extension']
       stdout_not_has: ['Traceback (most recent call last)']
     standard: STANDARDS.md#error-clarity
-    instructions: "KNOWN DEFECT (finding): generate_report validates its output_dir through the file-oriented PathValidator, which rejects any directory ('Extension not in allowed set'), so the tool can never succeed as shipped. This step pins the REAL behavior: a clean OL_PATH_NOT_ALLOWED error with no traceback. Report the defect to the ORF/OL bug track."
+    instructions: "KNOWN DEFECT (finding): generate_report validates its output_dir through the file-oriented PathValidator, which rejects any directory ('Extension not in allowed set'), so the tool can never succeed as shipped. This step pins the REAL behavior: a clean OL_PATH_DENIED error with no traceback. Report the defect to the ORF/OL bug track."
   - name: 'generate_report returns a clean error for wrong-shaped params'
     kind: python
     command: |
