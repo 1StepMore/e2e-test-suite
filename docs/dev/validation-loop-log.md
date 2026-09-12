@@ -78,3 +78,34 @@
 - 启动:`.venv/bin/python scripts/validation/run_validation.py`(全量 83 场景,后台,log → 99-Tools/validation-scratch/omni-suite/)。
 - 预期:tier-1 66 全跑;tier-2 3 + tier-3 1 → unconfigured(无 key)。
 - 状态:运行中 → 待结果。
+
+## 复盘记录（fix-retro，2026-09-07 起）
+
+> 每轮修复完成后按 `fix-retro` skill 输出复盘块（5 问）追加到此段。目标：不只记坑，沉淀模式——根因分类统计 → 重复模式识别 → 预防措施 → 技能沉淀。复盘块的根因分类基于失败定性协议（validation-run-governance.md §2），不凭印象。
+
+### 复盘模板（首轮复盘在下一轮修复后追加）
+
+```markdown
+## 复盘（fix-retro @ YYYY-MM-DD）
+**本轮修了什么**:
+- issue #NNN: 一句话
+
+**根因分类统计**:
+| 类型 | 数量 | 例子 |
+|------|------|------|
+| 类型错误 | N | ... |
+| 边界/空值 | N | ... |
+| 环境/配置 | N | ... |
+| 依赖/版本 | N | ... |
+| 其他 | N | ... |
+
+**模式识别**（重复出现的根因 → 系统性问题）:
+- 模式: ...（出现 ≥2 次）
+- 系统性解读: ...
+
+**预防措施**（哪些可以 gate 预防而非事后修）:
+- ...
+
+**沉淀**（新的 skill/checklist/坑清单条目）:
+- ...
+```
