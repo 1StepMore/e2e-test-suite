@@ -12,24 +12,33 @@ engine is run in a worker thread (``asyncio.to_thread``) because its
 in-process mcp adapter awaits async tool functions via ``asyncio.run``,
 which cannot run inside the MCP server's own event loop.
 
-SECURITY: This server calls OPP/OL/ORF CLIs directly, bypassing sub-module
-MCP path security (PathValidator).  Only use in trusted environments.
+SECURITY: This server drives the OPP/OL/ORF CLIs directly.  It does NOT chain
+through each sub-module's MCP PathValidator, so ``translate_file`` enforces its
+own fail-CLOSED allowlist (``MCP_ALLOWED_DIRECTORIES`` / ``OMNI_MCP_ALLOWED_DIRS``,
+see ``omni_mcp/orchestrator.py``) plus shared-secret auth
+(``MCP_SHARED_SECRET``) before any path reaches the sub-CLIs.  A path outside
+the allowlist is denied with ``OMNI_PATH_DENIED``; no allowlist configured is a
+denial, never a silent cwd default.
 """
 
 from __future__ import annotations
 
-import anyio
 import asyncio
+import contextlib
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
+import anyio
 import mcp.types as types
+from mcp.server import Server
+from mcp.server.lowlevel.server import request_ctx
+from mcp.server.stdio import stdio_server
 
 from omni_mcp import __version__
+from omni_mcp._errors import error_response as _build_error_response
 from omni_mcp.orchestrator import translate_file as _translate_file
 from omni_mcp.validation.cli import _select_names
 from omni_mcp.validation.engine import run_scenarios
@@ -48,20 +57,56 @@ logger = logging.getLogger("omni_mcp.server")
 
 
 def _error_response(code: str, message: str, **extra: Any) -> dict[str, Any]:
-    """Standardized error response (Wave 0 shape)."""
-    resp: dict[str, Any] = {
-        "success": False,
-        "error": {"code": code, "message": message},
-        "error_code": code,
-        "message": message,
-    }
-    resp.update(extra)
-    return resp
+    """Standardized error response (Wave 0 shape) with a recovery hint."""
+    return _build_error_response(code, message, **extra)
 
 
 def _success_response(content: dict[str, Any]) -> dict[str, Any]:
     """Standardized success response wrapping payload under ``content``."""
     return {"success": True, "content": content}
+
+
+def _current_request_context() -> Any | None:
+    """Return the active MCP ``RequestContext`` or None outside a request."""
+    try:
+        return request_ctx.get()
+    except LookupError:
+        return None
+
+
+def _progress_reporter(
+    loop: asyncio.AbstractEventLoop,
+    ctx: Any | None,
+) -> tuple[Callable[[dict[str, Any]], None] | None, list[Any]]:
+    """Bind the orchestrator's stage events to MCP progress notifications.
+
+    The orchestrator runs in a worker thread; its callback schedules a
+    ``notifications/progress`` message back onto *loop* and records the
+    future for the caller to flush.  Returns ``(None, [])`` when there is no
+    active request or the client did not opt in with a ``progressToken``.
+    """
+    meta = getattr(ctx, "meta", None)
+    token = getattr(meta, "progressToken", None) if meta is not None else None
+    session = getattr(ctx, "session", None)
+    if token is None or session is None:
+        return None, []
+
+    pending: list[Any] = []
+
+    def _report(event: dict[str, Any]) -> None:
+        total = event.get("total")
+        future = asyncio.run_coroutine_threadsafe(
+            session.send_progress_notification(
+                progress_token=token,
+                progress=float(event.get("index", 0)),
+                total=float(total) if total is not None else None,
+                message=event.get("message"),
+            ),
+            loop,
+        )
+        pending.append(future)
+
+    return _report, pending
 
 
 # ── Tool implementations ─────────────────────────────────────────────
@@ -73,22 +118,43 @@ async def translate_file(
     target_lang: str,
     output_format: str,
     pipeline: str | None = None,
+    shared_secret: str | None = None,
 ) -> dict[str, Any]:
     """Orchestrate OPP→OL→ORF in one call.
 
     This is the in-process async wrapper around the synchronous
     orchestrator.  Tests can import and call it directly.
+
+    The orchestrator (three real CLI subprocesses) is offloaded to a worker
+    thread via ``asyncio.to_thread`` so the server event loop stays
+    responsive to concurrent requests.  Expected duration is documented on
+    ``omni_mcp.orchestrator.translate_file`` (roughly 10-60s hermetic;
+    minutes with a real LLM provider).  When the client opted into progress
+    (``_meta.progressToken``), one ``notifications/progress`` message is
+    emitted per pipeline stage.
+
+    Security: the orchestrator enforces the MCP allowlist (fail CLOSED,
+    ``OMNI_PATH_DENIED``) and shared-secret auth (``MCP_SHARED_SECRET``,
+    ``AUTH_FAILED``) before any path reaches the sub-CLIs.
     """
     if not file_path:
         return _error_response("OMNI_INVALID_INPUT", "file_path is required")
 
-    result = _translate_file(
+    loop = asyncio.get_running_loop()
+    report_progress, pending = _progress_reporter(loop, _current_request_context())
+    result = await asyncio.to_thread(
+        _translate_file,
         file_path=file_path,
         source_lang=source_lang,
         target_lang=target_lang,
         output_format=output_format,
         pipeline=pipeline,
+        shared_secret=shared_secret,
+        progress_callback=report_progress,
     )
+    for future in pending:
+        with contextlib.suppress(Exception):
+            await asyncio.wrap_future(future)
     return result
 
 
@@ -289,6 +355,13 @@ _TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "Omit for auto-detection based on OPP's suggested_pipeline."
                     ),
                 },
+                "shared_secret": {
+                    "type": "string",
+                    "description": (
+                        "MCP shared secret. Required when the MCP_SHARED_SECRET "
+                        "env var is set (AUTH_FAILED otherwise)."
+                    ),
+                },
             },
             "required": ["file_path", "source_lang", "target_lang", "output_format"],
         },
@@ -460,10 +533,11 @@ def main() -> None:
 
     WARNING
     -------
-    This server calls OPP/OL/ORF CLIs directly, bypassing sub-module MCP
-    path security (PathValidator).  Pass ``--danger-disable-security`` to
-    acknowledge this risk — the flag is required for documentation purposes;
-    without it a startup warning is emitted.
+    This server drives the OPP/OL/ORF CLIs directly rather than chaining
+    through each sub-module's MCP PathValidator.  ``translate_file`` applies
+    its own fail-CLOSED allowlist + shared-secret auth (see the module
+    docstring); ``--danger-disable-security`` acknowledges that this is still
+    not the sub-modules' per-tool validator.
     """
     import argparse
 

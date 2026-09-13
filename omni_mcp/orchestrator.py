@@ -23,15 +23,127 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
+
+from omni_mcp._errors import error_response as _build_error_response
+from omni_mcp._manifest import written_files
 
 logger = logging.getLogger("omni_mcp.orchestrator")
 
+ProgressEvent = dict[str, object]
+ProgressCallback = Callable[[ProgressEvent], None]
+
+TOTAL_STAGES = 3
+
+#: Expected wall-clock duration per stage.  These are hermetic
+#: (``OMNI_TEST_FAKE_LLM``) figures; with a real LLM provider the OL stage
+#: dominates and can run for minutes on a large document.
+STAGE_EXPECTED_SECONDS: dict[str, int] = {"opp": 5, "ol": 30, "orf": 10}
+
+
+def _emit_progress(
+    callback: ProgressCallback | None,
+    stage: str,
+    index: int,
+    message: str,
+) -> None:
+    """Emit one stage progress event. A failing reporter never aborts the run."""
+    if callback is None:
+        return
+    try:
+        callback(
+            {
+                "stage": stage,
+                "index": index,
+                "total": TOTAL_STAGES,
+                "message": message,
+            }
+        )
+    except Exception:  # noqa: BLE001 - progress is best-effort side channel
+        logger.debug("progress callback raised for stage %s", stage, exc_info=True)
+
+#: Allowlist env vars, in resolution order. The unified cross-module name
+#: comes first, then the suite-specific name, then each sub-module's own
+#: name (the orchestrator drives all three CLIs, so honoring any of their
+#: allowlists is consistent with their fail-closed policies).
+_ALLOWLIST_ENV_VARS = (
+    "MCP_ALLOWED_DIRECTORIES",
+    "OMNI_MCP_ALLOWED_DIRS",
+    "OPP_MCP_ALLOWED_DIRS",
+    "OL_MCP_ALLOWED_DIRS",
+    "ORF_MCP_ALLOWED_DIRS",
+)
+
+#: Error code for a path outside the omni-mcp allowlist. Mirrors the
+#: *_PATH_DENIED codes the sub-modules use so agents can switch on one shape.
+OMNI_PATH_DENIED = "OMNI_PATH_DENIED"
+
+
+def _allowed_directories() -> list[Path]:
+    """Resolve the explicit directory allowlist from the environment.
+
+    Returns an empty list when no allowlist is configured (callers must
+    fail CLOSED in that case — never fall back to cwd).
+    """
+    raw = ""
+    for var in _ALLOWLIST_ENV_VARS:
+        raw = os.environ.get(var, "")
+        if raw.strip():
+            break
+    if not raw.strip():
+        return []
+    dirs: list[Path] = []
+    for part in raw.replace(";", ",").replace(":", ",").split(","):
+        part = part.strip()
+        if part:
+            dirs.append(Path(part).expanduser().resolve())
+    return dirs
+
+
+def _path_denial_message(file_path: str) -> str | None:
+    """Return a denial message for *file_path* or None if it is allowed.
+
+    The allowlist must be explicitly configured (fail CLOSED). A path is
+    allowed only when it resolves inside at least one allowlisted
+    directory.
+    """
+    allowed = _allowed_directories()
+    if not allowed:
+        return (
+            "MCP_ALLOWED_DIRECTORIES (or OMNI_MCP_ALLOWED_DIRS) must be set "
+            "(fail-CLOSED security policy). Export it as a comma- or "
+            "colon-separated list of allowed directories."
+        )
+    try:
+        resolved = Path(file_path).resolve()
+    except (ValueError, OSError) as e:
+        return f"Cannot resolve path: {e}"
+    for d in allowed:
+        try:
+            resolved.relative_to(d)
+            return None
+        except ValueError:
+            continue
+    return (
+        "Path is not within the allowed directories: "
+        + ", ".join(str(d) for d in allowed)
+    )
+
+
+def _check_shared_secret(provided: str | None) -> bool:
+    """Shared-secret auth mirroring the sub-modules (disabled when unset)."""
+    expected = os.environ.get("MCP_SHARED_SECRET")
+    if not expected:
+        return True
+    return provided == expected
+
 
 def _error(code: str, message: str) -> dict[str, object]:
-    """Build a standardized error dict."""
-    return {"success": False, "error": {"code": code, "message": message}}
+    """Build a standardized error dict (with a recovery hint)."""
+    return _build_error_response(code, message)
 
 
 def _success(content: dict[str, object]) -> dict[str, object]:
@@ -115,6 +227,8 @@ def translate_file(
     opp_path: str = "opp",
     ol_path: str = "ol",
     orf_path: str = "orf",
+    shared_secret: str | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, object]:
     """Orchestrate OPP→OL→ORF as subprocess calls.
 
@@ -131,13 +245,34 @@ def translate_file(
         auto-detect from OPP's ``suggested_pipeline`` field.
     opp_path / ol_path / orf_path:
         CLI commands for each module (default: ``"opp"``, ``"ol"``, ``"orf"``).
+    shared_secret:
+        MCP shared secret. Required only when ``MCP_SHARED_SECRET`` is set.
+    progress_callback:
+        Optional synchronous reporter invoked once per stage with
+        ``{stage, index, total, message}``.  Called from whatever thread runs
+        this function, so an async caller that offloads to an executor can
+        bridge it to MCP progress notifications.
+
+    Expected duration (hermetic, ``OMNI_TEST_FAKE_LLM=1``): roughly 10-60s
+    total (OPP ~5s, OL ~30s, ORF ~10s).  With a real LLM provider the OL
+    stage dominates and can take minutes for a large document; callers should
+    surface progress rather than block on the result.
 
     Returns
     -------
     dict
         ``{success: True, content: {output_path, pipeline, ...}}`` on success.
         ``{success: False, error: {code, message}}`` on failure.
+        ``AUTH_FAILED`` when ``MCP_SHARED_SECRET`` is configured and the
+        provided secret does not match.  ``OMNI_PATH_DENIED`` when the
+        source path is outside the configured allowlist or no allowlist is
+        configured (fail CLOSED — the path never reaches the sub-CLIs).
     """
+    if not _check_shared_secret(shared_secret):
+        return _error(
+            "AUTH_FAILED",
+            "Authentication failed: shared_secret is missing or incorrect.",
+        )
     logger.warning(
         "SECURITY: omni_mcp bypasses sub-module MCP path security (PathValidator). "
         "Only use in trusted environments."
@@ -146,11 +281,14 @@ def translate_file(
     start = time.time()
     file_path = str(Path(file_path).resolve())
 
+    denial = _path_denial_message(file_path)
+    if denial is not None:
+        return _error(OMNI_PATH_DENIED, denial)
+
     if not Path(file_path).exists():
         return _error("FILE_NOT_FOUND", f"Source file does not exist: {file_path}")
 
-    work_dir = Path(f"/tmp/omni_mcp_{int(start)}")
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = Path(tempfile.mkdtemp(prefix="omni_mcp_"))
 
     try:
         return _run_pipeline(
@@ -164,9 +302,11 @@ def translate_file(
             ol_path=ol_path,
             orf_path=orf_path,
             start_time=start,
+            progress_callback=progress_callback,
         )
     finally:
-        shutil.rmtree(str(work_dir), ignore_errors=True)
+        for intermediate_name in ("opp", "ol"):
+            shutil.rmtree(str(work_dir / intermediate_name), ignore_errors=True)
 
 
 def _run_pipeline(
@@ -181,6 +321,7 @@ def _run_pipeline(
     ol_path: str,
     orf_path: str,
     start_time: float,
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, object]:
     """Internal pipeline runner. Separated for readability."""
 
@@ -191,12 +332,14 @@ def _run_pipeline(
     ol_dir.mkdir(exist_ok=True)
 
     # ── Step 1: OPP extract ───────────────────────────────────────────
+    _emit_progress(progress_callback, "opp", 1, "OPP extraction")
     opp_cmd = [
         opp_path, file_path,
         "--target-format", "both",
         "--source-lang", source_lang,
         "--target-lang", target_lang,
         "--output-dir", str(opp_dir),
+        "--json",
     ]
     opp_result = _run_cli(opp_cmd, timeout=120)
     if not opp_result.get("success"):
@@ -217,6 +360,7 @@ def _run_pipeline(
             pipeline = "md"
 
     # ── Step 2: OL translate ──────────────────────────────────────────
+    _emit_progress(progress_callback, "ol", 2, "OL translation")
     if pipeline == "md":
         md_path = _find_output_file(opp_dir, stem, [".md"])
         if md_path is None:
@@ -227,6 +371,7 @@ def _run_pipeline(
             "-s", source_lang,
             "-t", target_lang,
             "-o", str(ol_dir),
+            "--json",
         ]
         ol_result = _run_cli(ol_cmd, timeout=300)
         if not ol_result.get("success"):
@@ -248,6 +393,7 @@ def _run_pipeline(
             "-s", source_lang,
             "-t", target_lang,
             "-o", str(ol_dir),
+            "--json",
         ]
         ol_result = _run_cli(ol_cmd, timeout=300)
         if not ol_result.get("success"):
@@ -262,6 +408,7 @@ def _run_pipeline(
         return _error("INVALID_PIPELINE", f"Unknown pipeline type: {pipeline}")
 
     # ── Step 3: ORF backfill ──────────────────────────────────────────
+    _emit_progress(progress_callback, "orf", 3, "ORF backfill")
     output_path = str(work_dir / f"output.{output_format}")
 
     if pipeline == "md":
@@ -269,6 +416,7 @@ def _run_pipeline(
             orf_path, "apply-md", str(translated_md),
             "--target-format", output_format,
             "-o", output_path,
+            "--json",
         ]
     else:
         # XLIFF path: need original file + translated XLIFF
@@ -277,6 +425,7 @@ def _run_pipeline(
             "--xliff", str(translated_md),
             "--output", output_path,
             "--format", output_format,
+            "--json",
         ]
 
     orf_result = _run_cli(orf_cmd, timeout=120)
@@ -311,7 +460,7 @@ def _run_pipeline(
 
     duration_ms = int((time.time() - start_time) * 1000)
 
-    return _success({
+    response = _success({
         "output_path": str(actual_output),
         "pipeline": pipeline,
         "source_lang": source_lang,
@@ -319,3 +468,5 @@ def _run_pipeline(
         "output_format": output_format,
         "duration_ms": duration_ms,
     })
+    response["outputs"], response["sidecars"] = written_files(str(actual_output))
+    return response
