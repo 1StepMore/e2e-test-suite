@@ -28,8 +28,9 @@ Flags (mirror AutoInfo ``run-validation-scenarios.py`` semantics):
   heading in ``scenarios/STANDARDS.md``.  Exit 1 on any finding.
 
 Exit codes: 0 = no failures (``unconfigured`` / ``partial-pass`` /
-``recovered`` / ``passed`` are NOT failures), 1 = any ``failed``
-scenario, lint finding, or load error.
+``recovered`` / ``passed`` are NOT failures), 1 = any ``failed`` or
+``invalid`` scenario, lint finding, or load error.  ``invalid`` is R-07's
+fake-LLM inadmissible-evidence verdict and is never a pass.
 
 - ``--repo {opp,ol,orf,suite,all}`` — select scenario source directory(ies)
   by component.  ``all`` merges from all four dirs.
@@ -54,7 +55,7 @@ from typing import Any
 import yaml
 
 from omni_mcp.validation.engine import run_scenarios
-from omni_mcp.validation.loader import ScenarioError, load_scenarios
+from omni_mcp.validation.loader import LEVELS, ScenarioError, load_scenarios
 
 #: AutoInfo tier semantics (run-validation-scenarios.py:569-571): 1 = no
 #: keys hermetic, 2 = LLM key, 3 = paid/external/network.
@@ -84,7 +85,8 @@ class LintFinding:
     file: str
     #: 1-based primary step index (0 for scenario-level / cleanup steps).
     step: int
-    #: ``yaml`` | ``falsifiable`` | ``self-echo`` | ``standard-anchor``.
+    #: ``yaml`` | ``falsifiable`` | ``self-echo`` | ``standard-anchor`` |
+    #: ``known-gap-location`` | ``level``.
     rule: str
     #: Human-readable detail naming the violation.
     detail: str
@@ -193,6 +195,13 @@ def lint_scenarios(
     3. **standard-anchor** — every ``standard:`` citation is
        ``STANDARDS.md#<anchor>`` and the anchor resolves to a real
        ``### Name {#anchor-id}`` heading in ``STANDARDS.md`` (D12).
+    4. **known-gap-location** — a ``known_gap: true`` scenario must live
+       under a ``known-gaps/`` directory, and every scenario under
+       ``known-gaps/`` must declare ``known_gap: true`` (T-17: a weakened
+       bar is never silently left in the pass-bar library).
+    5. **level** — every scenario declares ``level`` ∈ ``LEVELS``
+       (``agent-user`` | ``human-quality``); a missing or unknown level is
+       a finding, never silently defaulted (T-19).
 
     Recovery steps are linted under their primary's step index; cleanup
     steps under index 0.  Findings carry file + step + rule + detail.
@@ -215,6 +224,41 @@ def lint_scenarios(
                 LintFinding(str(yaml_path), 0, "yaml", "scenario must be a YAML mapping")
             )
             continue
+        in_known_gaps = "known-gaps" in yaml_path.parts
+        is_known_gap = data.get("known_gap") is True
+        if is_known_gap and not in_known_gaps:
+            findings.append(
+                LintFinding(
+                    str(yaml_path), 0, "known-gap-location",
+                    "known_gap: true scenario must live under a known-gaps/ "
+                    "directory (never in the pass-bar library)",
+                )
+            )
+        if in_known_gaps and not is_known_gap:
+            findings.append(
+                LintFinding(
+                    str(yaml_path), 0, "known-gap-location",
+                    "scenario under known-gaps/ must declare known_gap: true "
+                    "(or leave the directory)",
+                )
+            )
+        level = data.get("level")
+        if level is None:
+            findings.append(
+                LintFinding(
+                    str(yaml_path), 0, "level",
+                    "missing 'level' — every scenario must declare the user "
+                    "level it serves: 'agent-user' or 'human-quality' (T-19; C-01)",
+                )
+            )
+        elif level not in LEVELS:
+            findings.append(
+                LintFinding(
+                    str(yaml_path), 0, "level",
+                    f"unknown 'level' {level!r} — must be one of {sorted(LEVELS)} "
+                    "(agent-user = conformance, human-quality = result quality)",
+                )
+            )
         steps = data.get("steps")
         if not isinstance(steps, list):
             continue  # schema violation — the loader's job at run time
@@ -354,7 +398,7 @@ def _print_verdict_table(results: list[Any], verbose: bool) -> None:
                     f"{s.get('name') or ''}  {s.get('surface') or ''}"
                 )
     totals = Counter(r.status for r in results)
-    order = ("passed", "failed", "unconfigured", "partial-pass", "recovered")
+    order = ("passed", "failed", "invalid", "unconfigured", "partial-pass", "recovered", "known-gap")
     print("Totals: " + ", ".join(f"{totals.get(s, 0)} {s}" for s in order))
 
 
@@ -447,10 +491,18 @@ def main(argv: list[str] | None = None) -> int:
         "--dry-run", action="store_true", help="load + validate + print the plan; dispatch nothing"
     )
     parser.add_argument(
+        "--allow-fake",
+        action="store_true",
+        help="R-07 contract-only escape hatch: with OMNI_TEST_FAKE_LLM=1 active, "
+        "re-admit a human-quality-family scenario ONLY when every step cites an "
+        "AGENT-SURFACE anchor (anchor-less is ineligible); human-quality anchors "
+        "and fake-echo artifacts stay invalid",
+    )
+    parser.add_argument(
         "--verbose", "-v", action="store_true", help="per-step detail in the summary"
     )
     parser.add_argument(
-        "--check", action="store_true", help="contract lint (falsifiable, no self-echo PASS/FAIL, standard anchors) without executing"
+        "--check", action="store_true", help="contract lint (falsifiable, no self-echo PASS/FAIL, standard anchors, known-gap location, declared user level) without executing"
     )
     parser.add_argument("--tier", type=int, choices=[1, 2, 3], default=None, help=TIER_HELP)
     parser.add_argument(
@@ -506,7 +558,9 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(
             "Contract check: clean — every step falsifiable, no self-echo "
-            "PASS/FAIL, standard citations resolve to STANDARDS.md anchors"
+            "PASS/FAIL, standard citations resolve to STANDARDS.md anchors, "
+            "known-gap scenarios isolated under known-gaps/, every scenario "
+            "declares an approved user level"
         )
         return 0
 
@@ -566,7 +620,12 @@ def main(argv: list[str] | None = None) -> int:
         else names
     )
     try:
-        run = run_scenarios(dirs, filters=filters, runs_dir=args.runs_dir)
+        run = run_scenarios(
+            dirs,
+            filters=filters,
+            runs_dir=args.runs_dir,
+            allow_fake=args.allow_fake,
+        )
     except ScenarioError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -631,7 +690,10 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:  # delivery must not fail the run either
             print(f"WARNING: delivery package failed: {exc}", file=sys.stderr)
 
-    scenario_failures = any(r.status == "failed" for r in run.scenarios)
+    scenario_failures = any(
+        r.status in ("failed", "invalid") and not getattr(r, "known_gap", False)
+        for r in run.scenarios
+    )
     # With --artifacts the ARTIFACT matrix drives the exit code (any P0/P1
     # failure -> 1); the scenario verdicts still print but do not override it.
     if matrix_exit_code is not None:

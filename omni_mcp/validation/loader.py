@@ -37,7 +37,6 @@ _SCENARIO_FIELDS = frozenset(
         "steps",             # required — non-empty list of steps
         "category",          # optional — grouping label (default "general")
         "requires_env",      # optional — list of env var names
-        "requires_http",     # optional — flag: needs a live HTTP service
         "min_passing",       # optional — partial-pass: int count
         "pass_ratio",        # optional — partial-pass: float fraction
         "regression",        # optional — marks a regression scenario
@@ -47,8 +46,22 @@ _SCENARIO_FIELDS = frozenset(
         "tier",              # optional (plan todo 9) — AutoInfo tier model:
                              # 1 = no keys hermetic, 2 = LLM key,
                              # 3 = paid/external/network (default 1)
+        "level",             # optional (C-01) — user level the scenario
+                             # serves: "agent-user" | "human-quality"
+                             # (no default; T-19 makes it mandatory)
+        "known_gap",         # optional (T-17) — scenario asserts a bar the
+                             # pipeline cannot yet meet; excluded from the
+                             # pass bar.  Must live under a ``known-gaps/``
+                             # directory (enforced by the contract lint).
     }
 )
+
+#: The C-01-approved user-level set.  Wave 0 resolved "every level of
+#: user" to the two validation mission families; a scenario declaring a
+#: ``level`` outside this set is rejected at load time (never silently
+#: coerced).  ``level`` has no default while T-19 is outstanding, so
+#: scenarios that predate it still load; T-19 flips it to required.
+LEVELS = frozenset({"agent-user", "human-quality"})
 
 #: Allowed per-step fields (guide §2.2 + §2.4 + D12).  ``expect`` is the
 #: mandatory heart of every step; ``standard`` is an opaque citation string
@@ -66,6 +79,9 @@ _STEP_FIELDS = frozenset(
         "collect_artifacts",  # optional — files/payloads the step proves exist
         "standard",           # optional (D12) — STANDARDS.md#<anchor> citation
         "instructions",       # optional (D12) — per-step "what to check" text
+        "known_gap",          # optional (T-17) — step asserts the published
+                              # bar but the pipeline cannot meet it yet; its
+                              # failure is excluded from the scenario verdict.
     }
 )
 
@@ -176,6 +192,13 @@ def _validate_step(step: Any, path: str | Path, where: str) -> None:
             path, f"{where} 'instructions' must be a string, got {instructions!r}"
         )
 
+    known_gap = step.get("known_gap")
+    if known_gap is not None and not isinstance(known_gap, bool):
+        raise ScenarioError(
+            path, f"{where} 'known_gap' must be a boolean, got {known_gap!r}"
+        )
+    step.setdefault("known_gap", False)
+
     _validate_collect_artifacts(step.get("collect_artifacts"), path, where)
 
     # Secondary steps are steps too: recovery steps run only after the
@@ -219,9 +242,9 @@ def validate_scenario(scenario: dict[str, Any], path: str | Path) -> dict[str, A
     """Validate one scenario dict against the guide §2 schema.
 
     Returns the scenario with defaults applied — the same dict the executor
-    consumes (category ``general``, ``requires_env`` ``[]``,
-    ``requires_http`` ``False``, ``tier`` 1, ``cleanup_steps`` ``[]``,
-    per-step ``arguments``/``recovery_steps`` ``{}``/``[]``).
+    consumes (category ``general``, ``requires_env`` ``[]``, ``tier`` 1,
+    ``cleanup_steps`` ``[]``, per-step ``arguments``/``recovery_steps``
+    ``{}``/``[]``).
 
     Raises
     ------
@@ -265,13 +288,6 @@ def validate_scenario(scenario: dict[str, Any], path: str | Path) -> dict[str, A
             )
     scenario.setdefault("requires_env", [])
 
-    requires_http = scenario.get("requires_http")
-    if requires_http is not None and not isinstance(requires_http, bool):
-        raise ScenarioError(
-            path, f"'requires_http' must be a boolean flag, got {requires_http!r}"
-        )
-    scenario.setdefault("requires_http", False)
-
     category = scenario.get("category")
     if category is not None and not isinstance(category, str):
         raise ScenarioError(path, f"'category' must be a string, got {category!r}")
@@ -296,6 +312,14 @@ def validate_scenario(scenario: dict[str, Any], path: str | Path) -> dict[str, A
             f"2=LLM key, 3=paid/external/network), got {tier!r}",
         )
     scenario.setdefault("tier", 1)
+
+    level = scenario.get("level")
+    if level is not None and level not in LEVELS:
+        raise ScenarioError(
+            path,
+            f"'level' must be one of {sorted(LEVELS)} (agent-user = "
+            f"conformance, human-quality = result quality), got {level!r}",
+        )
 
     # Partial-pass policy (guide §2.7): validated at load time.
     min_passing = scenario.get("min_passing")
@@ -332,6 +356,13 @@ def validate_scenario(scenario: dict[str, Any], path: str | Path) -> dict[str, A
         raise ScenarioError(
             path, f"'regression_issue' must be a string, got {regression_issue!r}"
         )
+
+    known_gap = scenario.get("known_gap")
+    if known_gap is not None and not isinstance(known_gap, bool):
+        raise ScenarioError(
+            path, f"'known_gap' must be a boolean, got {known_gap!r}"
+        )
+    scenario.setdefault("known_gap", False)
 
     cleanup_steps = scenario.get("cleanup_steps")
     if cleanup_steps is not None:

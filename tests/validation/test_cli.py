@@ -26,6 +26,7 @@ VALID = """
 name: sample
 description: "valid hermetic scenario"
 tier: 1
+level: agent-user
 requires_env: []
 steps:
   - name: "one"
@@ -661,7 +662,7 @@ def test_main_repo_merge_then_run_persists(tmp_path, capsys, monkeypatch):
 
     rc = main(["--repo", "all", "--runs-dir", str(tmp_path / "runs")])
 
-    out = capsys.readouterr().out
+    capsys.readouterr()
     assert rc == 0
     assert (tmp_path / "runs" / "latest.txt").exists()
     latest = (tmp_path / "runs" / "latest.txt").read_text(encoding="utf-8").strip()

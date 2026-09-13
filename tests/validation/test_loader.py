@@ -25,7 +25,6 @@ name: sample-e2e
 description: "A valid 3-step scenario exercising all schema families"
 category: pipeline
 requires_env: [TEST_DB_URL]
-requires_http: true
 min_passing: 2
 pass_ratio: 0.67
 regression: false
@@ -150,7 +149,6 @@ def test_defaults_applied_for_optional_fields(tmp_path):
 
     assert s["category"] == "general"
     assert s["requires_env"] == []
-    assert s["requires_http"] is False
     assert s["cleanup_steps"] == []
     assert s["steps"][0]["recovery_steps"] == []
     assert s["steps"][1]["arguments"] == {}  # mcp steps default to empty arguments
@@ -447,11 +445,14 @@ def test_requires_env_members_must_be_str(tmp_path):
     assert "requires_env" in str(ei.value)
 
 
-def test_requires_http_must_be_bool(tmp_path):
-    _write(tmp_path, "bad-http.yaml", """
-    name: bad-http
-    description: "requires_http is a flag"
-    requires_http: "yes"
+def test_requires_http_rejected_as_unknown_field(tmp_path):
+    """T-21: the suite has no HTTP surface, so ``requires_http`` was removed
+    from the closed field set — the loader rejects it as a typo instead of
+    silently accepting a field nothing gates."""
+    _write(tmp_path, "no-http.yaml", """
+    name: no-http
+    description: "requires_http is no longer part of the schema"
+    requires_http: true
     steps:
       - name: "one"
         kind: cli

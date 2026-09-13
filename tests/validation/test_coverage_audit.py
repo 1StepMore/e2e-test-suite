@@ -1,23 +1,31 @@
-"""Tests for scripts/validation/coverage_audit.py (plan todo 17).
+"""Tests for scripts/validation/coverage_audit.py (plan todo 17, X-04/T-12).
 
 The coverage audit is the agent-satisfaction metric (draft D13, mission
-axis 1): every live MCP tool must be scenario-used, else ``missing`` —
-an agent-user would hit it blind.  It also surfaces DRIFT between the
-LIVE module registries and the frozen contract fixtures (draft D11:
-``tests/contract/fixtures/*_mcp_schemas.json`` + ``EXPECTED_COUNTS`` at
-``tests/contract/test_mcp_schemas.py:49``) as a finding, without
-modifying those fixtures (todo 21 reconciles them).
+axis 1).  T-12 (P0) made the metric EXECUTION-backed: ``covered`` was
+renamed ``referenced`` (filename/``kind: mcp`` presence — the old, unproven
+metric) and the audit now also reports ``passed`` — tools whose call ran
+over the REAL MCP protocol with in-process parity (X-04 transport parity,
+``omni_mcp.validation.dispatch.run_transport_parity``).  A declared tool
+that is not execution-backed (diverged, or its server failed to start) lands
+in ``missing`` and drives exit 1 — a deliberately broken tool must make the
+audit fail.
+
+Two modes:
+- static (``--no-execute``): the old filename/kind-presence metric under its
+  new name ``referenced``; ``missing`` = declared - referenced.
+- execution-backed (default): runs the transport-parity suite over every
+  declared tool; ``missing`` = declared - passed.
 
 The script lives under ``scripts/`` which is not a package (no
-``__init__.py``), so the module is loaded from its file path with
-importlib — the same "thin wrapper around a real module" convention as
+``__init__.py``), so the module is loaded from its file path with importlib —
+the same "thin wrapper around a real module" convention as
 ``scripts/validation/run_validation.py``.
 
 RED-first discipline: every test here drives ``compute_coverage`` /
 ``main()`` with explicit tmp scenario/fixture dirs where a failure is
-simulated; the happy test runs against the REAL repo library (after
-todo 14 landed all 39 per-tool agent-surface scenarios and todo 20
-added the two suite validation tools — 41 declared).
+simulated; the happy tests run against the REAL repo library.  The
+execution-backed tests inject a synthetic parity report (unit speed) except
+one real small-module run (omni_mcp, 4 tools) proving execution is real.
 """
 
 from __future__ import annotations
@@ -95,7 +103,7 @@ def full_scenario_dir(tmp_path: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Happy path — every declared tool has a scenario (guide §5.1, D13)
+# Happy path — every declared tool is referenced (guide §5.1, D13)
 # ---------------------------------------------------------------------------
 
 
@@ -113,26 +121,136 @@ def test_live_surface_is_four_modules_and_nonempty():
 
 
 @pytest.mark.parametrize("module", MODULES)
-def test_real_repo_all_declared_tools_covered(module: str):
-    """Happy: against the REAL scenario library (todo 14 landed all 39
-    per-tool agent-surface scenarios, todo 20 the two suite validation
-    tools), every declared tool of every module is scenario-used — zero
-    ``missing``, zero ``phantom``."""
+def test_real_repo_all_declared_tools_referenced(module: str):
+    """Happy (static): against the REAL scenario library every declared tool
+    of every module is referenced by a scenario — zero ``missing`` (static),
+    zero ``phantom``."""
     report = audit.compute_coverage(SUITE_ROOT)
     assert report.missing[module] == [], (
-        f"{module}: declared but never scenario-used: {report.missing[module]}"
+        f"{module}: declared but never scenario-referenced: {report.missing[module]}"
     )
-    assert report.covered[module] == sorted(report.declared[module])
+    assert report.referenced[module] == sorted(report.declared[module])
 
 
-def test_real_repo_main_exits_zero():
-    """Happy: ``python scripts/validation/coverage_audit.py`` exits 0
-    when nothing is missing (acceptance criterion for todo 17)."""
-    assert audit.main([]) == 0
+def test_real_repo_main_no_execute_exits_zero():
+    """Happy (static): ``main([\"--no-execute\"])`` exits 0 when nothing is
+    missing (the old todo-17 acceptance under the renamed metric)."""
+    assert audit.main(["--no-execute"]) == 0
 
 
 # ---------------------------------------------------------------------------
-# Failure path — a missing scenario must surface under ``missing`` + exit 1
+# Execution-backed coverage (T-12) — synthetic + one real small-module run
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_report(diverged_tools: list[tuple[str, str]]) -> object:
+    """A synthetic ParityReport where every declared tool passed EXCEPT the
+    given (module, tool) pairs, which diverged."""
+    from omni_mcp.validation.dispatch import ParityReport, ParityResult
+
+    surface = audit.load_live_surface()
+    results = []
+    for module, tools in surface.items():
+        for tool in tools:
+            diverged = (module, tool) in set(diverged_tools)
+            results.append(
+                ParityResult(
+                    module=module,
+                    tool=tool,
+                    arguments={},
+                    in_process={"success": not diverged},
+                    protocol={"success": True, "is_error": False, "payload": {}, "error": None},
+                    equal=not diverged,
+                    detail="diverged on purpose (test)" if diverged else "",
+                    duration_seconds=0.01,
+                )
+            )
+    return ParityReport(results=results, server_errors={})
+
+
+def test_execution_backed_missing_drives_exit_1(monkeypatch):
+    """T-12 acceptance: a deliberately broken tool (a parity divergence) puts
+    that tool in ``missing`` and makes ``main()`` exit 1."""
+    monkeypatch.setattr(
+        audit, "run_execution_backed_coverage",
+        lambda *a, **k: _synthetic_report([("opp", "ping")]),
+    )
+
+    rc = audit.main([])
+
+    assert rc == 1
+    report = audit.compute_coverage(
+        SUITE_ROOT, execution=_synthetic_report([("opp", "ping")])
+    )
+    assert "ping" in report.missing["opp"]
+    assert "ping" not in report.passed["opp"]
+
+
+def test_execution_backed_all_pass_exits_zero(monkeypatch):
+    """When every declared tool's parity execution passes, ``main()`` exits 0
+    and every tool is execution-backed."""
+    monkeypatch.setattr(
+        audit, "run_execution_backed_coverage", lambda *a, **k: _synthetic_report([])
+    )
+
+    assert audit.main([]) == 0
+    report = audit.compute_coverage(SUITE_ROOT, execution=_synthetic_report([]))
+    for module in MODULES:
+        assert report.missing[module] == []
+        assert report.passed[module] == sorted(report.declared[module])
+
+
+def test_real_execution_marks_suite_tools_passed():
+    """One real, bounded execution: the transport-parity path over the four
+    suite omni_mcp tools (fast startup, no component imports) marks all four
+    execution-backed and leaves the audit exit code at 0 for them.
+
+    Each tool is called with its per-tool scenario arguments (the same inputs
+    ``run_execution_backed_coverage`` derives) — e.g. run_validation_scenario
+    with ``scenario: tool-omni_mcp-ping``, never ``{}`` (which would run the
+    whole library on the server)."""
+    from omni_mcp.validation.dispatch import run_transport_parity
+
+    surface = {"omni_mcp": audit.load_live_surface()["omni_mcp"]}
+    scenarios = SUITE_ROOT / "scenarios"
+    module_tools = {
+        m: {t: audit.load_tool_arguments(scenarios, m, t) for t in tools}
+        for m, tools in surface.items()
+    }
+    report = run_transport_parity(module_tools, server_timeout=120, call_timeout=60)
+
+    assert report.server_errors == {}
+    assert sorted({r.tool for r in report.results}) == sorted(surface["omni_mcp"])
+    assert report.diverged() == []
+    coverage_report = audit.compute_coverage(SUITE_ROOT, execution=report)
+    assert coverage_report.passed["omni_mcp"] == sorted(surface["omni_mcp"])
+    assert coverage_report.missing["omni_mcp"] == []
+
+
+def test_tool_arguments_loaded_from_scenario_mcp_step():
+    """load_tool_arguments returns the first ``kind: mcp`` step's arguments
+    for the tool's per-tool scenario ({} when the scenario has none)."""
+    args = audit.load_tool_arguments(
+        SUITE_ROOT / "scenarios", "omni_mcp", "run_validation_scenario"
+    )
+    assert args.get("scenario") == "tool-omni_mcp-ping"
+    assert audit.load_tool_arguments(SUITE_ROOT / "scenarios", "opp", "ping") == {}
+
+
+def test_no_arg_first_mcp_step_wins_over_later_error_boundary_step():
+    """A tool whose FIRST ``kind: mcp`` step takes no arguments (``arguments:``
+    with no value) is exercised with ``{}`` — the representative agent call —
+    NOT with a later error-boundary step's arguments.  OPP get_capabilities
+    declares a no-arg step then a deliberate ``bogus``-rejection step; the
+    parity path must call it with no args (so it SUCCEEDS on both surfaces),
+    not with ``bogus`` (which would both-error and hide a real regression)."""
+    assert audit.load_tool_arguments(
+        SUITE_ROOT / "scenarios", "opp", "get_capabilities"
+    ) == {}
+
+
+# ---------------------------------------------------------------------------
+# Failure path (static) — a missing scenario under ``missing`` + exit 1
 # ---------------------------------------------------------------------------
 
 _MISSING_CASES = [
@@ -146,26 +264,26 @@ _MISSING_CASES = [
 def test_missing_tool_reported_and_exit_1(
     module: str, tool: str, filename: str, full_scenario_dir: Path
 ):
-    """Failure: delete ONE tool scenario from an otherwise-complete
+    """Failure (static): delete ONE tool scenario from an otherwise-complete
     library → that tool lands under ``missing`` for its module and the
-    audit exits 1 (guide §5.1: missing is the actionable half)."""
+    static audit exits 1 (guide §5.1: missing is the actionable half)."""
     (full_scenario_dir / filename).unlink()
     report = audit.compute_coverage(SUITE_ROOT, scenarios_dir=full_scenario_dir)
     assert tool in report.missing[module]
-    assert audit.main(["--scenarios-dir", str(full_scenario_dir)]) == 1
+    assert audit.main(["--no-execute", "--scenarios-dir", str(full_scenario_dir)]) == 1
 
 
 def test_shared_tool_name_missing_in_both_modules(full_scenario_dir: Path):
-    """The sets are name-based (guide §5.1): ``translate_file`` is declared
-    by BOTH ``ol`` and ``omni_mcp`` — deleting only the suite scenario
-    leaves the name covered via OL's, so it surfaces under ``missing`` in
-    both modules only when BOTH scenarios are gone."""
+    """The static sets are name-based (guide §5.1): ``translate_file`` is
+    declared by BOTH ``ol`` and ``omni_mcp`` — deleting only the suite
+    scenario leaves the name referenced via OL's, so it surfaces under
+    ``missing`` in both modules only when BOTH scenarios are gone."""
     for filename in ("tool-ol-translate_file.yaml", "tool-omni_mcp-translate_file.yaml"):
         (full_scenario_dir / filename).unlink()
     report = audit.compute_coverage(SUITE_ROOT, scenarios_dir=full_scenario_dir)
     assert "translate_file" in report.missing["ol"]
     assert "translate_file" in report.missing["omni_mcp"]
-    assert audit.main(["--scenarios-dir", str(full_scenario_dir)]) == 1
+    assert audit.main(["--no-execute", "--scenarios-dir", str(full_scenario_dir)]) == 1
 
 
 def test_missing_scenario_name_is_linked(full_scenario_dir: Path):
@@ -174,7 +292,7 @@ def test_missing_scenario_name_is_linked(full_scenario_dir: Path):
     (full_scenario_dir / "tool-opp-extract_document.yaml").unlink()
     report = audit.compute_coverage(SUITE_ROOT, scenarios_dir=full_scenario_dir)
     assert "extract_document" in report.missing["opp"]
-    assert "extract_document" not in report.covered["opp"]
+    assert "extract_document" not in report.referenced["opp"]
 
 
 # ---------------------------------------------------------------------------
@@ -184,14 +302,14 @@ def test_missing_scenario_name_is_linked(full_scenario_dir: Path):
 
 def test_phantom_tool_never_counts_as_coverage(tmp_path: Path):
     """Phantom (guide §5.1): a scenario naming a tool no live registry
-    declares lands in ``phantom`` — never in ``covered``/``missing``."""
+    declares lands in ``phantom`` — never in ``referenced``/``missing``."""
     scn = tmp_path / "agent-surface"
     scn.mkdir(parents=True)
     _write_scenario(scn, "tool-opp-extract_document.yaml", mcp_tool="opp.mcp.server.extract_document")
     _write_scenario(scn, "tool-opp-definitely_not_a_tool.yaml", mcp_tool="opp.mcp.server.definitely_not_a_tool")
     report = audit.compute_coverage(SUITE_ROOT, scenarios_dir=scn)
     assert "definitely_not_a_tool" in report.phantom
-    assert "definitely_not_a_tool" not in report.covered["opp"]
+    assert "definitely_not_a_tool" not in report.referenced["opp"]
     assert "definitely_not_a_tool" not in report.missing["opp"]
 
 
@@ -270,13 +388,13 @@ def test_expected_counts_literal_parsed_from_test_file():
 
 
 def test_main_out_writes_snapshot_json(tmp_path: Path):
-    """main(['--out', path]) writes a snapshot JSON that parses and has a
-    totals block; exit code follows the normal missing logic (0 on the
-    real repo library)."""
+    """main(['--no-execute', '--out', path]) writes a snapshot JSON that
+    parses and has a totals block; exit code follows the static missing
+    logic (0 on the real repo library)."""
     import json as _json
 
     out = tmp_path / "coverage.json"
-    rc = audit.main(["--out", str(out)])
+    rc = audit.main(["--no-execute", "--out", str(out)])
 
     assert rc == 0
     assert out.is_file()
@@ -286,18 +404,24 @@ def test_main_out_writes_snapshot_json(tmp_path: Path):
 
 
 def test_build_snapshot_shape(tmp_path: Path):
-    """build_snapshot nests the declared/covered/missing per-module sets,
-    phantom as a flat list, plus totals — the diff-friendly shape."""
+    """build_snapshot nests the declared/referenced/passed/missing
+    per-module sets, phantom as a flat list, plus totals — the diff-friendly
+    shape.  Without an execution report, passed is empty and missing is
+    the static (referenced-based) gap."""
     report = audit.compute_coverage(SUITE_ROOT)
     snap = audit.build_snapshot(report)
 
-    assert set(snap) == {"generated_at", "suite_sha", "declared", "covered", "missing", "phantom", "totals"}
-    for key in ("declared", "covered", "missing"):
+    assert set(snap) == {
+        "generated_at", "suite_sha", "declared", "referenced", "passed",
+        "missing", "phantom", "execution_errors", "totals",
+    }
+    for key in ("declared", "referenced", "passed", "missing"):
         assert set(snap[key]) == set(MODULES)
         assert isinstance(snap[key]["opp"], list)
     assert isinstance(snap["phantom"], list)
-    assert set(snap["totals"]) == {"declared", "covered", "missing"}
-    assert snap["totals"]["declared"] == snap["totals"]["covered"]  # real repo: full coverage
+    assert set(snap["totals"]) == {"declared", "referenced", "passed", "missing"}
+    assert snap["totals"]["declared"] == snap["totals"]["referenced"]  # real repo: full reference
+    assert snap["totals"]["passed"] == 0  # static mode: no execution evidence
     assert snap["suite_sha"] != "unknown"
 
 
@@ -332,18 +456,18 @@ def test_coverage_delta_diffs_snapshots(tmp_path: Path):
     older.mkdir(parents=True)
     newer.mkdir(parents=True)
     (older / "coverage.json").write_text(
-        '{"declared": {"opp": 9}, "covered": {"opp": 9}, "missing": {"opp": []}, '
-        '"phantom": [], "totals": {"declared": 9, "covered": 9, "missing": 0}}',
+        '{"declared": {"opp": 9}, "referenced": {"opp": 9}, "missing": {"opp": []}, '
+        '"phantom": [], "totals": {"declared": 9, "referenced": 9, "missing": 0}}',
         encoding="utf-8",
     )
     (newer / "coverage.json").write_text(
-        '{"declared": {"opp": 9}, "covered": {"opp": 8}, "missing": {"opp": ["extract_document"]}, '
-        '"phantom": [], "totals": {"declared": 9, "covered": 8, "missing": 1}}',
+        '{"declared": {"opp": 9}, "referenced": {"opp": 8}, "missing": {"opp": ["extract_document"]}, '
+        '"phantom": [], "totals": {"declared": 9, "referenced": 8, "missing": 1}}',
         encoding="utf-8",
     )
 
     delta, note = diff_mod.compute_coverage_delta(older, newer)
 
     assert delta is not None
-    assert delta["totals.covered"] == {"older": 9, "newer": 8, "delta": -1}
+    assert delta["totals.referenced"] == {"older": 9, "newer": 8, "delta": -1}
     assert delta["missing.opp"]["added"] == ["extract_document"]

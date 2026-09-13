@@ -22,13 +22,15 @@ Adopted defaults (draft ``.omo/drafts/validation-framework.md``, task 8):
   parameter when given (exactly what dispatch will run the steps with —
   ``build_cli_env`` semantics in dispatch.py), else ``os.environ``.  A var
   present but empty counts as missing (AutoInfo :1356-1367 semantics).
-  ``requires_http`` is accepted by the loader but not gated yet (dispatch
-  has no http surface) — the gate is ``requires_env`` only.
+  The gate is ``requires_env`` only — the suite declares no HTTP surface,
+  so the unused ``requires_http`` field was removed (T-21).
 - **verdict derivation order** (guide §3.3 aggregate): env gate ->
   all primary steps green (``recovered`` if any step was recovered, else
   ``passed``) -> partial-pass policy (``min_passing`` OR ``pass_ratio``,
   AutoInfo :1441-1462) -> ``failed``.  ``unconfigured`` comes ONLY from
-  the gate, never from an output check.
+  the gate, never from an output check.  The R-07 fake guard then overrides
+  to ``invalid`` when ``OMNI_TEST_FAKE_LLM=1`` is active and the scenario is
+  human-quality evidence (or a produced artifact carries the fake echo).
 - **recovery is one level deep** (guide §2.6): recovery steps never run
   their own recovery; cleanup steps run without recovery.
 - **persist stamp** ``%Y%m%d-%H%M%S``; a same-second collision gets a
@@ -45,6 +47,7 @@ import dataclasses
 import datetime
 import json
 import os
+import re
 import subprocess
 import time
 import uuid
@@ -52,8 +55,22 @@ from pathlib import Path
 from typing import Any
 
 from omni_mcp.validation.dispatch import StepResult, dispatch_step
+from omni_mcp.validation.family import (
+    HUMAN_QUALITY,
+    all_steps_agent_surface,
+    family_of,
+    has_human_quality_anchor,
+)
 from omni_mcp.validation.grader import grade_step
 from omni_mcp.validation.loader import load_scenarios
+
+_FAKE_LLM_ENV = "OMNI_TEST_FAKE_LLM"
+
+#: The ``_FakeModelPool`` echo signature: a bracketed target language code
+#: at the start of a line (``[zh] ...``, ``[xx] ...``).  MULTILINE so a
+#: marker on any line trips it, not only the first (OL's E2E-65 strip does
+#: not remove ``[xx] ``).
+_FAKE_ECHO_RE = re.compile(r"^\[[A-Za-z][A-Za-z0-9_-]*\] ", re.MULTILINE)
 
 
 @dataclasses.dataclass
@@ -64,7 +81,8 @@ class ScenarioResult:
     #: Unique identifier (the scenario's ``name`` field).
     name: str
     #: ``passed`` | ``failed`` | ``unconfigured`` | ``recovered`` |
-    #: ``partial-pass`` (guide §3.1 phase 4).
+    #: ``partial-pass`` | ``invalid`` | ``known-gap`` (T-17 — a scenario
+    #: marked ``known_gap: true``; never a pass, never a failure).
     status: str
     #: Human-readable one-line summary for the director report.
     summary: str
@@ -81,6 +99,10 @@ class ScenarioResult:
     cleanup: list[dict[str, Any]]
     #: The run-wide trace id (shared by every record of the run).
     trace_id: str
+    #: T-17: a ``known_gap: true`` scenario asserts a bar the pipeline
+    #: cannot yet meet.  Its status is ``known-gap`` and it is excluded
+    #: from the pass bar (never drives a nonzero exit, never a blocker).
+    known_gap: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -216,6 +238,66 @@ def _missing_env(scenario: dict[str, Any], env: dict[str, str] | None) -> list[s
 
 
 # ---------------------------------------------------------------------------
+# R-07: family/anchor-classified fake-invalid
+# ---------------------------------------------------------------------------
+
+
+def _fake_marker_path(steps: list[dict[str, Any]]) -> str | None:
+    """The first declared artifact whose whole text carries the
+    ``_FakeModelPool`` echo signature, else None.
+
+    Whole-artifact scan: every ``collect_artifacts`` path is read in full
+    and searched line-by-line (``re.MULTILINE``) — a marker on a non-first
+    line still trips it.  Unreadable paths are skipped, never fatal.
+    """
+    for step in steps:
+        for artifact in step.get("collect_artifacts") or []:
+            path = artifact.get("path") if isinstance(artifact, dict) else None
+            if not path:
+                continue
+            try:
+                text = Path(path).read_text(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):
+                continue
+            if _FAKE_ECHO_RE.search(text):
+                return str(path)
+    return None
+
+
+def _fake_llm_reason(
+    scenario: dict[str, Any], env: dict[str, str] | None, allow_fake: bool
+) -> str | None:
+    """Why a fake-active scenario's verdict must be ``invalid``, else None.
+
+    Fires only when ``OMNI_TEST_FAKE_LLM=1`` is active in the effective
+    env.  A human-quality scenario (name family OR any HUMAN-QUALITY anchor
+    citation) is invalid regardless of flags; ``--allow-fake`` re-admits it
+    only when EVERY step cites an AGENT-SURFACE anchor (anchor-less is
+    ineligible, non-vacuous).  Independently, a produced artifact carrying
+    the fake echo signature is invalid — positive fake content cannot be
+    waved away.
+    """
+    if _effective_env(env).get(_FAKE_LLM_ENV) != "1":
+        return None
+    steps = scenario.get("steps", [])
+    family, derivation = family_of(scenario["name"], steps)
+    human_quality = family == HUMAN_QUALITY or has_human_quality_anchor(steps)
+    if human_quality and not (allow_fake and all_steps_agent_surface(steps)):
+        return (
+            "OMNI_TEST_FAKE_LLM=1 is active and this scenario is "
+            "human-quality evidence — fake output is never admissible "
+            f"(family={family}, derivation={derivation})"
+        )
+    marker = _fake_marker_path(steps)
+    if marker is not None:
+        return (
+            "OMNI_TEST_FAKE_LLM=1 is active and artifact "
+            f"{marker!r} carries the `[<tgt>] ` fake-echo signature"
+        )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Phases 2 + 3 + 5, one step: dispatch, grade, trace (guide §3.3)
 # ---------------------------------------------------------------------------
 
@@ -229,6 +311,12 @@ def _step_arguments(step: dict[str, Any]) -> dict[str, Any]:
     if step.get("kind") == "mcp":
         return dict(step.get("arguments") or {})
     return {"command": step["command"]}
+
+
+def _step_status(known_gap: bool, passed: bool) -> str:
+    if passed:
+        return "passed"
+    return "known-gap" if known_gap else "failed"
 
 
 def _execute_step(
@@ -267,6 +355,7 @@ def _execute_step(
             duration_seconds=0.0,
         )
     grade = grade_step(step.get("expect"), sr.actual)
+    known_gap = bool(step.get("known_gap"))
     record: dict[str, Any] = {
         "step_index": index,
         "name": step.get("name") or ("cleanup step" if index == 0 else f"step {index}"),
@@ -281,7 +370,8 @@ def _execute_step(
         "duration_seconds": sr.duration_seconds,
         "trace_id": trace_id,
         "passed": grade.passed,
-        "status": "passed" if grade.passed else "failed",
+        "known_gap": known_gap,
+        "status": _step_status(known_gap, grade.passed),
         "grade": dataclasses.asdict(grade),
         "recovery": [],
         "recovery_status": None,
@@ -315,11 +405,12 @@ def _aggregate(scenario: dict[str, Any], records: list[dict[str, Any]]) -> str:
     else ``failed``.  ``unconfigured`` is never produced here — it comes
     only from the pre-dispatch gate.
     """
-    failed = [r for r in records if not r["passed"]]
+    failed = [r for r in records if not r["passed"] and not r.get("known_gap")]
     if not failed:
         return "recovered" if any(r["status"] == "recovered" for r in records) else "passed"
-    succeeded = len(records) - len(failed)
-    total = len(records)
+    graded = [r for r in records if not r.get("known_gap")]
+    succeeded = len(graded) - len(failed)
+    total = len(graded)
     bar_ok = False
     min_passing = scenario.get("min_passing")
     pass_ratio = scenario.get("pass_ratio")
@@ -335,17 +426,31 @@ def _summary(
     status: str,
     records: list[dict[str, Any]],
     missing: list[str],
+    *,
+    reason: str = "",
 ) -> str:
     if status == "unconfigured":
         return f"unconfigured — missing env var(s): {', '.join(missing)}"
+    if reason:
+        return f"{status} — {reason}"
     passed = sum(1 for r in records if r["passed"])
-    return f"{status} — {len(records)} step(s), {passed} passed"
+    gap_steps = sum(1 for r in records if r.get("known_gap"))
+    suffix = f", {gap_steps} known-gap step(s)" if gap_steps else ""
+    return f"{status} — {len(records)} step(s), {passed} passed{suffix}"
 
 
 def _run_one(
-    scenario: dict[str, Any], env: dict[str, str] | None, trace_id: str
+    scenario: dict[str, Any],
+    env: dict[str, str] | None,
+    trace_id: str,
+    allow_fake: bool = False,
 ) -> ScenarioResult:
-    """Run one scenario: gate, main steps, recovery, cleanup, aggregate."""
+    """Run one scenario: gate, main steps, recovery, cleanup, aggregate.
+
+    After aggregation the R-07 fake guard may override the verdict to
+    ``invalid`` (human-quality evidence under fake, or a produced artifact
+    carrying the fake echo signature).
+    """
     missing = _missing_env(scenario, env)
     if missing:
         # unconfigured never passes, never fails, never half-runs (guide
@@ -358,6 +463,7 @@ def _run_one(
             steps=[],
             cleanup=[],
             trace_id=trace_id,
+            known_gap=bool(scenario.get("known_gap")),
         )
     records = [
         _execute_step(s, env, trace_id, i)
@@ -368,14 +474,26 @@ def _run_one(
         _execute_step(c, env, trace_id, 0, with_recovery=False)
         for c in scenario.get("cleanup_steps", [])
     ]
+    fake_reason = _fake_llm_reason(scenario, env, allow_fake)
+    known_gap = bool(scenario.get("known_gap"))
+    reason = fake_reason or ""
+    if fake_reason is not None:
+        status = "invalid"
+    elif known_gap:
+        status = "known-gap"
+        reason = (
+            "known gap — published bar not met; excluded from the pass bar "
+            "(see ACCEPTED_GAPS.md)"
+        )
     return ScenarioResult(
         name=scenario["name"],
         status=status,
-        summary=_summary(scenario, status, records, []),
+        summary=_summary(scenario, status, records, [], reason=reason),
         missing_env=[],
         steps=records,
         cleanup=cleanup,
         trace_id=trace_id,
+        known_gap=known_gap,
     )
 
 
@@ -461,6 +579,7 @@ def run_scenarios(
     runs_dir: str | Path = "validation-runs",
     persist: bool = True,
     run_meta: dict[str, Any] | None = None,
+    allow_fake: bool = False,
 ) -> RunResult:
     """Run every (filtered) scenario: load -> dispatch -> grade ->
     aggregate -> trace -> persist (guide §3.1 six phases).
@@ -487,6 +606,12 @@ def run_scenarios(
     run_meta
         Optional explicit run metadata dict.  When None, auto-collected
         from component versions and git SHAs.
+    allow_fake
+        The R-07 contract-only escape hatch.  When ``OMNI_TEST_FAKE_LLM=1``
+        is active, a human-quality scenario is ``invalid`` regardless of
+        this flag — ``True`` re-admits it only when EVERY step cites an
+        AGENT-SURFACE anchor (anchor-less is ineligible).  A produced
+        artifact carrying the fake echo signature is always invalid.
 
     Returns
     -------
@@ -508,7 +633,7 @@ def run_scenarios(
         loaded.extend(load_scenarios(d))
     selected = _select(loaded, filters)
     trace_id = str(uuid.uuid4())  # one UUID per run, threaded everywhere
-    results = [_run_one(s, env, trace_id) for s in selected]
+    results = [_run_one(s, env, trace_id, allow_fake) for s in selected]
     run = RunResult(
         trace_id=trace_id,
         timestamp=datetime.datetime.now().isoformat(timespec="seconds"),
