@@ -28,6 +28,11 @@
 - [ ] **Hermes 会话注入 PYTHONPATH 含 `~/.hermes/hermes-agent` → OL `from cli import *` 裸导入会命中 hermes-agent 的 cli.py**——表现为 ModuleNotFoundError: prompt_toolkit(其实是 import 错了文件)。跑 OL/OPP/ORF 的 CLI 子进程前 `unset PYTHONPATH`。同坑:`.venv_ol` editable .pth 若指向 `src/Omni_*` 旧副本(被 gitignore),手动改 .pth 指向 `Omni_*/src`,别指望 pip 重装自动修(pip 有 editable 路径缓存)。
 - [ ] **NVIDIA NIM key 分两档**:能 `GET /v1/models`(列 102 个)≠ 能调用;免费 key 需在 build.nvidia.com 模型页逐个授权,未授权模型调用 403 "Authorization failed"。
 
+### 2026-09-13 文档/入口 gate 化（由本日复盘的重复模式新增）
+
+- [ ] **模块入口与 venv editable 必须指向「与 HEAD 一致的那份工作目录」**——suite 根 `Omni_*` 若指向 `<suite>/src/Omni_*`，那是**第二工作目录**（`.git` 是 gitdir 指针文件，共享 canonical clone 的 `.git`）：`HEAD` 看起来一致，工作区文件却可能是几个月前的，而 venv 的 editable `.pth`、`utils/mcp_client.py` 的 `PYTHONPATH`、`omni_suite/cli.py` 全部落它上面 → **静默跑旧代码、不报错**。跑前双查：`readlink -f <suite>/Omni_Localizer` + `.venv/bin/python -c "import ol_mcp,os; print(os.path.realpath(ol_mcp.__file__))"`；判据：`<入口>/.git` 是**文件** = 危险，是目录才正常。修法 `ln -sfn ../Omni_Localizer <suite>/Omni_Localizer`（换指向前先确认旧副本独有的 gitignored 文件已复制过去，例如 OL 的 `.env`）。已 gate 化：`make entry-check` / `make doctor` / pre-commit `omni-module-entry-check`（issue #11 → PR #12）。
+- [ ] **模块文档里的计数/版本断言属于代码契约**——改工具数、版本号、子命令数必须同步改模块 `docs/*.md` 与 README 散文（`registers N tools` / `All N tool functions` / `exposing N tools` / `vX.Y.Z (matches pyproject.toml)`）。已 gate 化：`python3 scripts/doc_inventory.py --check` 现在覆盖模块 docs + README 散文（issue #10 → PR #12）；动模块文档前后都跑它。
+
 ## 循环事件（major events，newest on top）
 
 ### 2026-09-04 omni-suite-open-source-plan tier-1 regression
@@ -82,6 +87,41 @@
 ## 复盘记录（fix-retro，2026-09-07 起）
 
 > 每轮修复完成后按 `fix-retro` skill 输出复盘块（5 问）追加到此段。目标：不只记坑，沉淀模式——根因分类统计 → 重复模式识别 → 预防措施 → 技能沉淀。复盘块的根因分类基于失败定性协议（validation-run-governance.md §2），不凭印象。
+
+## 复盘（fix-retro @ 2026-09-13）
+
+**本轮修了什么**（7 个 issue + 8 个 PR；全部是文档/gate 层，零产品代码逻辑改动）:
+- OmniSuite #10 → **PR #12**：doc-inventory claim-site 覆盖缺口（模块 `docs/*.md`、README 散文形计数、自述式版本断言）
+- OmniSuite #11 → **PR #12**：模块入口一致性 fail-loud 检查（`scripts/check_module_entry.py`，挂 `make doctor` / `make entry-check` / pre-commit）
+- OL #6 → **PR OL#8**：`docs/MCP-CONNECTION-TEMPLATE.md` 路径安全表陈旧（OL permissive / ORF fail-open vs 实际 fail-CLOSED）
+- OL #7 → 合入 **PR OL#8**：同文件 §8 工具清单陈旧（34 → 37）
+- OL #9 → **PR OL#10**：`docs/API.md` / `ARCHITECTURE.md` / `TROUBLESHOOTING.md` / `TUTORIAL.md` 的工具数、版本号、子命令数陈旧
+- OPP #5 → **PR OPP#6**：`docs/API.md` "All 7 tool functions" → 9
+- ORF #2 → **PR ORF#3**：README/ARCHITECTURE 6 tools + 遗留 FastMCP 描述 + 版本示例
+- （非 issue）环境层：suite 模块入口 symlink 从 `src/Omni_*`（7 月旧工作目录）重指到 `../Omni_*`；`utils/mcp_client.py` 路径去 `src/` 前缀并补 OL 的 `MCP_ALLOWED_DIRECTORIES`（fail-closed 后必填）
+
+**根因分类统计**:
+| 类型 | 数量 | 例子 |
+|------|------|------|
+| 文档与代码漂移 | 6 | #6 §6.1 表、#7 §8 清单、#9 计数/版本/子命令、#5、#2（#10 是这类缺陷的 gate 缺口） |
+| 陈旧派生物/入口 | 1 | #11：`src/Omni_*` 第二工作目录被 symlink + venv editable 引用 |
+| 环境/配置 | 1 | `utils/mcp_client.py` 缺 `MCP_ALLOWED_DIRECTORIES` |
+
+**模式识别**（重复出现的根因 → 系统性问题）:
+- **模式 1：同源变更只改代码与顶层文档，不回写模块/派生文档（出现 6 次）** —— 2026-09-13 的 MCP envelope + fail-closed 改造改了代码和套件文档，模块 `docs/` 全部漏更新（OL 4 处、OPP 1 处、ORF 3 处）。系统性解读：文档同步没有 gate 覆盖模块 `docs/` 与 README 散文形，靠自觉必然漏。
+- **模式 2：过期派生物仍被当权威引用（出现 2 次）** —— 7 月的 `src/Omni_*` 副本被 venv editable + symlink 引用（静默跑旧代码）；模块文档被 agent 当配置依据（照它配置起不来）。系统性解读：派生物缺「过期即失效」机制。
+- **模式 3：坑清单已记录但未 gate 化 → 原样复发** —— 本清单 2026-08-15 就记过「套件内嵌模块副本必须与模块 HEAD 同步」，9/13 再次踩中（这次靠人恰好选对目录才没炸在验证里）。清单开头自嘲式写着「写而不用 = 无价值」。系统性解读：只记录不 gate 的坑 = 未修复。
+
+**预防措施**（本轮已落地为 gate，而非再记一条）:
+- #10 → PR #12：`doc_inventory.py --check` 扩到模块 `docs/*.md` + README 散文形 + `vX.Y.Z (matches pyproject.toml)` 自述式版本断言（实测：模块停在未修 main 时 exit 1 列出恰好这 7 条）
+- #11 → PR #12：`scripts/check_module_entry.py` —— 入口必须是真 clone（`.git` 是目录）、venv editable `.pth` 必须与入口 realpath 一致，否则 exit 1 并打印 `ln -sfn` 修法（合成 gitdir 指针 / pth 不匹配两种坏布局实测均 fail-loud）
+- 登记但未 gate（诚实记录）：MCP 示例响应 payload 与 envelope 形态一致性（本机实测 OL/ORF 的 ping 形态与文档示例不同）；模块 docs 工具章节完整性（OL 21 个工具只文档 8 个、OPP 9 个只文档 7 个）
+
+**沉淀**（新的 skill / checklist / 坑清单条目）:
+- skill `wsl-github-sync`：新增「同一 `.git` 的第二工作目录伪装成已同步 clone」坑（诊断四连 + 修法）
+- skill `opencode-orchestration`：新增「brief 让 opencode 读 `--dir` 之外的兄弟仓库 → 权限层 auto-reject、run 静默零改动退出」坑（brief 必须自包含）
+- dev-assets：`Omni-Suite.md` / `e2e-test-suite.md` / `AutoMedia.md` 三页 HEAD + issue/PR 轨迹
+- 本 LOOP-LOG 坑清单：新增上面「2026-09-13 文档/入口 gate 化」两条
 
 ### 复盘模板（首轮复盘在下一轮修复后追加）
 
