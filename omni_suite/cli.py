@@ -1,13 +1,15 @@
 """omni-suite — suite-level CLI for the Omni document localization pipeline."""
 from __future__ import annotations
 
-import importlib.metadata
+import json
 import os
 import shlex
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+from . import run_manifest
 
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
 _COMPAT_FILE = Path(__file__).parent.parent / "COMPATIBILITY.md"
@@ -64,11 +66,21 @@ def _validate_env(require_llm: bool = False) -> None:
         if require_llm:
             print(msg, file=sys.stderr)
             sys.exit(1)
-        print(msg)
+        # T-05: agents parse stdout — the warning belongs on stderr.
+        print(msg, file=sys.stderr)
 
     missing_optional = [k for k in _OPTIONAL_VARS if not os.environ.get(k)]
     if missing_optional and not os.environ.get("OMNI_TEST_FAKE_LLM"):
         pass  # silence optional warnings — .env.example documents them
+
+
+def _no_llm_needed(args: list[str]) -> bool:
+    """True when a pipeline invocation needs no LLM provider key.
+
+    ``--dry-run`` executes nothing; ``--gates-only`` skips ORF and
+    ``--fake-llm`` selects the fake seam — all three satisfy the env gate.
+    """
+    return "--dry-run" in args or "--gates-only" in args or "--fake-llm" in args
 
 
 def main() -> None:
@@ -89,10 +101,9 @@ def main() -> None:
         if not remaining or remaining[0] in ("--help", "-h"):
             _run_pipeline(["--help"])
         else:
-            # Non-obvious: gates-only still runs real OPP/OL subprocesses, yet
-            # neither flag needs an LLM key at the CLI boundary.
-            no_llm_needed = "--dry-run" in remaining or "--gates-only" in remaining
-            _validate_env(require_llm=not no_llm_needed)
+            # Non-obvious: gates-only/fake-llm run real OPP/OL subprocesses,
+            # yet none of the three bypass flags needs an LLM key at this boundary.
+            _validate_env(require_llm=not _no_llm_needed(remaining))
             _run_pipeline(remaining)
     elif cmd == "check":
         _run_check(sys.argv[2:])
@@ -116,10 +127,10 @@ def _resolve_tool(name: str) -> str:
 def _run_pipeline(args: list[str]) -> None:
     """Orchestrate OPP → OL → ORF on a single file.
 
-    Usage: omni-suite pipeline <file> [--source-lang en] [--target-lang zh] [--target-format docx] [--output <path>]
+    Usage: omni-suite pipeline <file> [--source-lang en] [--target-lang zh] [--target-format docx] [--fake-llm] [--resume-from opp|ol|orf] [--run-id ID] [--output <path>]
     """
     if not args or args[0] in ("--help", "-h"):
-        print("Usage: omni-suite pipeline <file> [--source-lang en] [--target-lang zh] [--target-format docx] [--fake-llm] --output <path>")
+        print("Usage: omni-suite pipeline <file> [--source-lang en] [--target-lang zh] [--target-format docx] [--fake-llm] [--resume-from opp|ol|orf] [--run-id ID] --output <path>")
         return
 
     # Parse args
@@ -131,6 +142,15 @@ def _run_pipeline(args: list[str]) -> None:
     dry_run = bool(kwargs.get("dry-run"))
     gates_only = bool(kwargs.get("gates-only"))
     keep_intermediate = bool(kwargs.get("keep-intermediate"))
+    resume_from = kwargs.get("resume-from")
+    run_id = kwargs.get("run-id") or Path(file_path).stem
+
+    if resume_from is True or (resume_from is not None and resume_from not in run_manifest.STAGES):
+        print(
+            f"❌ Invalid --resume-from {resume_from!r}; expected one of {', '.join(run_manifest.STAGES)}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     suite_root = Path(__file__).parent.parent
     opp = _resolve_tool("opp")
@@ -142,10 +162,13 @@ def _run_pipeline(args: list[str]) -> None:
         env["OMNI_TEST_FAKE_LLM"] = "1"
 
     stem = Path(file_path).stem
-    temp_dir = Path("/tmp/omni-suite-pipeline") / stem
+    temp_dir = Path("/tmp/omni-suite-pipeline") / run_id
     opp_dir = temp_dir / "opp"
     ol_dir = temp_dir / "ol"
-    out_path = output or f"{temp_dir}/result.{fmt}"
+    # T-02: the auto-generated output must NOT live inside temp_dir — the
+    # finally block removes that dir, which would delete the artifact we
+    # report at exit. Place it as a sibling of the temp dir instead.
+    out_path = output or str(temp_dir.parent / f"{stem}.result.{fmt}")
 
     opp_cmd = [opp, file_path, "--target-format", "both",
                "--source-lang", src, "--target-lang", tgt,
@@ -157,39 +180,91 @@ def _run_pipeline(args: list[str]) -> None:
         print(f"[3/3] ORF would run: {shlex.join([orf, 'apply-md', str(ol_dir / f'{stem}.md'), '--target-format', fmt, '-o', out_path])}")
         return
 
+    # R-01: decide which stages to reuse BEFORE touching the filesystem. A
+    # missing intermediate (or a stale manifest whose artifacts were deleted)
+    # means the requested resume cannot be honoured — fall back to a full run.
+    skip_stages = run_manifest.plan_resume(resume_from, opp_dir, ol_dir)
+    resumed = bool(skip_stages)
+
+    manifest_path = temp_dir / run_manifest.MANIFEST_NAME
+    prior_manifest = None
+    if manifest_path.exists():
+        try:
+            prior_manifest = run_manifest.RunManifest.load(manifest_path)
+        except (OSError, ValueError):
+            prior_manifest = None
+
+    manifest = run_manifest.RunManifest(
+        run_id=run_id,
+        input_file=str(Path(file_path).resolve()),
+        temp_dir=str(temp_dir),
+        output=str(out_path),
+        source_lang=src,
+        target_lang=tgt,
+        target_format=fmt,
+    )
+    if prior_manifest is not None:
+        manifest.created_at = prior_manifest.created_at
+        manifest.stages = prior_manifest.stages
+
     opp_dir.mkdir(parents=True, exist_ok=True)
     ol_dir.mkdir(exist_ok=True)
 
+    failed = False
+    current_stage = "opp"
+    manifest.save(manifest_path)
+
     try:
         # Step 1: OPP extract
-        print(f"[1/3] OPP extracting {file_path} → {opp_dir}")
-        subprocess.run(opp_cmd, check=True, env=env, timeout=120)
+        if "opp" in skip_stages:
+            print(f"[1/3] OPP reuse existing intermediates ({opp_dir})")
+            manifest.mark("opp", run_manifest.REUSED, str(opp_dir))
+        else:
+            print(f"[1/3] OPP extracting {file_path} → {opp_dir}")
+            manifest.mark("opp", run_manifest.RUNNING)
+            manifest.save(manifest_path)
+            subprocess.run(opp_cmd, check=True, env=env, timeout=120)
+            manifest.mark("opp", run_manifest.COMPLETE, str(opp_dir))
+            manifest.save(manifest_path)
 
         md_file = next(opp_dir.glob("*.md"), None)
         if not md_file:
             raise RuntimeError("OPP did not produce .md output")
 
         # Step 2: OL translate
-        print(f"[2/3] OL translating {md_file}")
-        ol_cmd = [ol, "translate-md", str(md_file), "-s", src, "-t", tgt, "-o", str(ol_dir)]
-        if gates_only:
-            ol_result = subprocess.run(ol_cmd, check=True, env=env, timeout=300,
-                                       capture_output=True, text=True)
+        current_stage = "ol"
+        if "ol" in skip_stages:
+            print(f"[2/3] OL reuse existing intermediates ({ol_dir})")
+            manifest.mark("ol", run_manifest.REUSED, str(ol_dir))
         else:
-            subprocess.run(ol_cmd, check=True, env=env, timeout=300)
+            print(f"[2/3] OL translating {md_file}")
+            manifest.mark("ol", run_manifest.RUNNING)
+            manifest.save(manifest_path)
+            ol_cmd = [ol, "translate-md", str(md_file), "-s", src, "-t", tgt, "-o", str(ol_dir)]
+            ol_result = None
+            if gates_only:
+                ol_result = subprocess.run(ol_cmd, check=True, env=env, timeout=300,
+                                           capture_output=True, text=True)
+            else:
+                subprocess.run(ol_cmd, check=True, env=env, timeout=300)
+            manifest.mark("ol", run_manifest.COMPLETE, str(ol_dir))
+            manifest.save(manifest_path)
 
         ol_md = next(ol_dir.glob("*.md"), None)
         if not ol_md:
             raise RuntimeError("OL did not produce translated output")
 
         if gates_only:
+            manifest.mark("orf", run_manifest.SKIPPED, "gates-only")
+            manifest.status = run_manifest.RUN_COMPLETE
+            manifest.save(manifest_path)
             print("[gates-only] Skipping ORF backfill — extracting OL quality-gate warnings")
             warnings_run = subprocess.run([ol, "extract-warnings", str(ol_md)],
                                           capture_output=True, text=True,
                                           env=env, timeout=120)
             print(warnings_run.stdout, end="")
             if warnings_run.returncode != 0:
-                tail = (ol_result.stdout or "")[-2000:]
+                tail = (ol_result.stdout or "")[-2000:] if ol_result else ""
                 if tail.strip():
                     print("--- OL translate-md stdout (tail) ---")
                     print(tail)
@@ -197,25 +272,61 @@ def _run_pipeline(args: list[str]) -> None:
             return
 
         # Step 3: ORF backfill
+        current_stage = "orf"
         print(f"[3/3] ORF backfilling → {out_path}")
+        manifest.mark("orf", run_manifest.RUNNING)
+        manifest.save(manifest_path)
         subprocess.run([orf, "apply-md", str(ol_md), "--target-format", fmt, "-o", out_path],
                       check=True, env=env, timeout=120)
+        manifest.mark("orf", run_manifest.COMPLETE, out_path)
+        manifest.status = run_manifest.RUN_COMPLETE
+        manifest.save(manifest_path)
 
         print(f"✅ Pipeline complete: {out_path}")
+    except KeyboardInterrupt:
+        failed = True
+        manifest.mark(current_stage, run_manifest.FAILED, "interrupted")
+        manifest.save(manifest_path)
+        _print_partial(manifest)
+        print("❌ Interrupted — intermediates kept for --resume-from", file=sys.stderr)
+        sys.exit(130)
     except subprocess.TimeoutExpired:
+        failed = True
+        manifest.mark(current_stage, run_manifest.FAILED, "timeout")
+        manifest.save(manifest_path)
+        _print_partial(manifest)
         print("❌ Timeout: a pipeline step exceeded its time limit", file=sys.stderr)
         sys.exit(1)
     except subprocess.CalledProcessError as e:
+        failed = True
+        manifest.mark(current_stage, run_manifest.FAILED, f"exit {e.returncode}")
+        manifest.save(manifest_path)
+        _print_partial(manifest)
         print(f"❌ Pipeline step failed: {e}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
+        failed = True
+        manifest.mark(current_stage, run_manifest.FAILED, type(e).__name__)
+        manifest.save(manifest_path)
+        _print_partial(manifest)
         print(f"❌ Pipeline error: {e}", file=sys.stderr)
         sys.exit(1)
     finally:
         if keep_intermediate or gates_only:
             print(f"Intermediate files kept at: {temp_dir}")
+        elif Path(out_path).resolve().is_relative_to(temp_dir.resolve()):
+            print(f"Intermediate files kept at: {temp_dir}")
+        elif failed or resumed:
+            label = "kept for --resume-from" if failed else "kept as run record"
+            print(f"Intermediate files {label} at: {temp_dir}",
+                  file=sys.stderr if failed else sys.stdout)
         else:
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _print_partial(manifest) -> None:
+    """Machine-readable partial-run report (R-01) — one JSON object on stdout."""
+    print(json.dumps(manifest.summary(), ensure_ascii=False))
 
 
 def _parse_pipeline_args(args: list[str]) -> tuple[str, dict]:
@@ -336,22 +447,40 @@ def _run_readiness_check(args: list[str]) -> None:
     sys.exit(result.returncode)
 
 
-_DISTRIBUTIONS = [
-    ("omni-suite", "omni-suite"),
-    ("opp", "omni-pre-processor"),
-    ("ol", "omni-localizer"),
-    ("orf", "omni-re-formatter"),
+_VERSION_SOURCES = [
+    ("omni-suite", _VERSION_FILE),
+    ("opp", Path(__file__).parent.parent / "Omni_Pre_Processor" / "pyproject.toml"),
+    ("ol", Path(__file__).parent.parent / "Omni_Localizer" / "pyproject.toml"),
+    ("orf", Path(__file__).parent.parent / "Omni_Re_Formatter" / "pyproject.toml"),
 ]
 
 
+def _read_repo_version(path: Path) -> str:
+    """Read a component version from a repo ``VERSION`` or ``pyproject.toml``.
+
+    Installed importlib metadata goes stale whenever a version is bumped
+    without reinstalling; the repo files are the source of truth (T-05).
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return "N/A (not found)"
+    if path.name == "VERSION":
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                return stripped
+        return "N/A (not found)"
+    for line in text.splitlines():
+        if line.startswith("version ="):
+            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return "N/A (not found)"
+
+
 def _print_versions() -> None:
-    """Print all 4 component versions from importlib.metadata."""
-    for label, dist in _DISTRIBUTIONS:
-        try:
-            ver = importlib.metadata.version(dist)
-        except importlib.metadata.PackageNotFoundError:
-            ver = "N/A (not installed)"
-        print(f"{label}: {ver}")
+    """Print all 4 component versions from the repo source of truth."""
+    for label, path in _VERSION_SOURCES:
+        print(f"{label}: {_read_repo_version(path)}")
 
 
 def _print_usage() -> None:
@@ -373,6 +502,10 @@ def _print_usage() -> None:
     print("                         (executes nothing, creates no files)")
     print("    --gates-only         Run OPP+OL (incl. 8 quality gates) and")
     print("                         print extract-warnings; skips ORF backfill")
+    print("    --resume-from STAGE  Resume a partial run (opp|ol|orf): reuse")
+    print("                         intermediates of prior stages and continue")
+    print("    --run-id ID          Run directory name under /tmp/omni-suite-pipeline")
+    print("                         (default: input file stem); targets a prior run")
     print("    --keep-intermediate  Keep /tmp/omni-suite-pipeline/<stem> after run")
     print("")
     print("  Pipeline path selection:")
