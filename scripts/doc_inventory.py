@@ -8,11 +8,12 @@ any third-party dependency. Two modes:
   AUTO-GENERATED header + Summary + Inventory table. Idempotent (no
   timestamps): regenerating twice produces byte-identical output.
 * ``--check``: verify (in order) source-truth MCP tool counts vs claim-site
-  docs, scenario count (85, when ``scenarios/`` exists), input/output format
-  claims, the canonical test matrix, nightly-test claims, version-sync
-  delegation (``scripts/sync_version_docs.py --check``), stray
-  ``tests/test_bug_*.py`` files, and inventory freshness. No files are
-  written; exit 1 on any failure.
+  docs, scenario count (DERIVED from the ``scenarios/**/*.yaml`` glob, never
+  pinned — claim-site docs stating a count must match it; skipped when
+  ``scenarios/`` is absent), input/output format claims, the canonical test
+  matrix, nightly-test claims, version-sync delegation
+  (``scripts/sync_version_docs.py --check``), stray ``tests/test_bug_*.py``
+  files, and inventory freshness. No files are written; exit 1 on any failure.
 
 ``--root DIR`` rebases every path onto DIR (lets tests point at a temp repo
 tree); when the tree lacks ``scenarios/`` the scenario/format sub-checks are
@@ -255,8 +256,27 @@ def render_report(rows: list[dict[str, Any]]) -> str:
 _SUITE_HEADER_RE = re.compile(r"### (OPP|OL|ORF) MCP Server\s+\((\d+)\s+tools?\)")
 #: Claude MCP server names.
 _CLAUDE_SERVER_RE = re.compile(r"### (opp-mcp-server|ol-mcp|orf-mcp-server)\s+\((\d+)\s+tools?\)")
-#: agent-pipeline-guide per-module tool counts.
-_GUIDE_MODULE_RE = re.compile(r"\*\*(OPP|OL|ORF) MCP\s+\((\d+)\s+tools?\)\*\*")
+#: agent-pipeline-guide per-module tool counts. The live guide writes
+#: "**OPP MCP (7 tools):**" — the optional ":" after ")" is the T-11 blind
+#: spot this regex now covers.
+_GUIDE_MODULE_RE = re.compile(r"\*\*(OPP|OL|ORF) MCP\s+\((\d+)\s+tools?\):?\*\*")
+#: agent-pipeline-guide "Server Overview" table rows ("| OPP MCP | 7 | ...").
+_GUIDE_TABLE_RE = re.compile(r"\|\s*(OPP|OL|ORF) MCP\s*\|\s*(\d+)\s*\|")
+#: API_STABILITY §2.2 prose ("**OPP** is on its 0.6.x line. ... the 7 MCP
+#: tools"). The count can sit past a sentence boundary, so the gap is
+#: line-bounded (not period-bounded) and capped at 60 chars.
+_API_MODULE_PROSE_RE = re.compile(r"(OPP|OL|ORF)[^\n]{0,60}?(\d+) MCP tools")
+#: "7 + 21 + 6 = 34 tools" / "9+21+7=37 工具" / "= 37 module tools" /
+#: "= 37 个模块工具" module-sum forms (OPP+OL+ORF). Qualifier words between
+#: the total and the tool noun ("module", "个模块") are allowed.
+_MODULE_SUM_RE = re.compile(
+    r"(\d+)\s*\+\s*(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)"
+    r"(?:\s+\w+)*(?:\s*(?:tools?|工具))"
+)
+#: docs/PRD.md "OPP (7 tools), OL (21 tools), ORF (6 tools)" list form.
+_PRD_LIST_RE = re.compile(r"(OPP|OL|ORF)\s*\((\d+)\s+tools?\)")
+#: Per-repo README "MCP Surface Mastery (7 MCP tools)" counts.
+_README_MCP_RE = re.compile(r"\((\d+)\s+MCP tools\)")
 #: ARCHITECTURE diagram server rows ("opp-mcp-server<br/>7 tools").
 _ARCH_DIAGRAM_RE = re.compile(r"(opp-mcp-server|ol-mcp|orf-mcp-server)\s*<br/?>\s*(\d+)\s+tools?")
 #: ARCHITECTURE "Total: 21 tools".
@@ -278,6 +298,16 @@ def _fail(failures: list[str], rel: str, module: str, claimed: int, expected: in
         failures.append(f"{rel} claims {module} {claimed} tools, source truth is {expected}")
 
 
+def _check_module_sum(failures: list[str], rel: str, text: str, source: dict[str, int]) -> None:
+    total = source["opp"] + source["ol"] + source["orf"]
+    for m in _MODULE_SUM_RE.finditer(text):
+        opp_c, ol_c, orf_c, total_c = (int(g) for g in m.groups())
+        _fail(failures, rel, "opp", opp_c, source["opp"])
+        _fail(failures, rel, "ol", ol_c, source["ol"])
+        _fail(failures, rel, "orf", orf_c, source["orf"])
+        _fail(failures, rel, "total", total_c, total)
+
+
 def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -> None:
     """Verify every tool-count claim in the drift-prone docs matches source truth."""
     total = source["opp"] + source["ol"] + source["orf"]
@@ -297,11 +327,14 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
             mod = SERVER_MODULE[m.group(1)]
             _fail(failures, "CLAUDE.md", mod, int(m.group(2)), source[mod])
 
-    # docs/agent-pipeline-guide.md: "**OPP MCP (7 tools):**" + "all 34 tools across".
+    # docs/agent-pipeline-guide.md: "**OPP MCP (7 tools):**" + "all 34 tools
+    # across" + the Server Overview table.
     path = root / "docs" / "agent-pipeline-guide.md"
     if path.exists():
         text = read_text(path)
         for m in _GUIDE_MODULE_RE.finditer(text):
+            _fail(failures, "docs/agent-pipeline-guide.md", m.group(1).lower(), int(m.group(2)), source[m.group(1).lower()])
+        for m in _GUIDE_TABLE_RE.finditer(text):
             _fail(failures, "docs/agent-pipeline-guide.md", m.group(1).lower(), int(m.group(2)), source[m.group(1).lower()])
         m = re.search(r"all\s+(\d+)\s+tools\s+across", text)
         if m:
@@ -328,7 +361,8 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
         for m in _TREE_OL_RE.finditer(text):
             _fail(failures, "docs/ARCHITECTURE.md", "ol", int(m.group(1)), source["ol"])
 
-    # docs/API_STABILITY.md: "7 + 8 + 6 = 21 tools" + named "OPP public CLI and 7 MCP tools".
+    # docs/API_STABILITY.md: "7 + 8 + 6 = 21 tools" + named "OPP public CLI and
+    # 7 MCP tools" + §2.2 prose ("... the 7 MCP tools") + the 9+21+7=37 sum.
     path = root / "docs" / "API_STABILITY.md"
     if path.exists():
         text = read_text(path)
@@ -336,6 +370,9 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
             _fail(failures, "docs/API_STABILITY.md", "total", int(m.group(1)), total)
         for m in re.finditer(r"(OPP|OL|ORF) public CLI and (\d+) MCP tools", text):
             _fail(failures, "docs/API_STABILITY.md", m.group(1).lower(), int(m.group(2)), source[m.group(1).lower()])
+        for m in _API_MODULE_PROSE_RE.finditer(text):
+            _fail(failures, "docs/API_STABILITY.md", m.group(1).lower(), int(m.group(2)), source[m.group(1).lower()])
+        _check_module_sum(failures, "docs/API_STABILITY.md", text, source)
 
     # docs/SECURITY_AUDIT.md: "(21 tools total: 7 OPP + 8 OL + 6 ORF)".
     path = root / "docs" / "SECURITY_AUDIT.md"
@@ -354,6 +391,29 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
             continue
         for m in _MODULE_AGENTS_ANY_RE.finditer(read_text(path)):
             _fail(failures, rel, mod, int(m.group(1)), source[mod])
+
+    # Per-repo README.md: "MCP Surface Mastery (N MCP tools)".
+    for rel, mod in (
+        ("Omni_Pre_Processor/README.md", "opp"),
+        ("Omni_Localizer/README.md", "ol"),
+        ("Omni_Re_Formatter/README.md", "orf"),
+    ):
+        path = root / rel
+        if not path.exists():
+            continue
+        for m in _README_MCP_RE.finditer(read_text(path)):
+            _fail(failures, rel, mod, int(m.group(1)), source[mod])
+
+    # docs/PRD.md: "OPP (7 tools), OL (21 tools), ORF (6 tools)".
+    path = root / "docs" / "PRD.md"
+    if path.exists():
+        for m in _PRD_LIST_RE.finditer(read_text(path)):
+            _fail(failures, "docs/PRD.md", m.group(1).lower(), int(m.group(2)), source[m.group(1).lower()])
+
+    # docs/SUITE_EXPECTATIONS.md: "7 + 21 + 6 = 34 tools" sum form.
+    path = root / "docs" / "SUITE_EXPECTATIONS.md"
+    if path.exists():
+        _check_module_sum(failures, "docs/SUITE_EXPECTATIONS.md", read_text(path), source)
 
     # reports/SELF_DRIVEN_LOOP_V2_REPORT.md: "opp-mcp-server (7 tools) | ol-mcp (8 tools) | ...".
     path = root / "reports" / "SELF_DRIVEN_LOOP_V2_REPORT.md"
@@ -389,10 +449,65 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
 # ---------------------------------------------------------------------------
 
 
-def check_scenarios(root: Path, failures: list[str]) -> None:
-    """Scenario count == 85 with tier split; input formats >= 13; '13+' claims.
+#: Scenario-count claim forms validated against the DERIVED library numbers
+#: (total, tier-1, tier-2, tier-3). The expected count is never hardcoded —
+#: the ``scenarios/**/*.yaml`` glob is the source of truth, and these docs
+#: must state what the library actually contains. Each entry is
+#: ``(pattern, rel-path, group-idx -> expected-slot)``; group 1..N map to
+#: slots (0=total, 1=tier-1, 2=tier-2, 3=tier-3).
+_SCENARIO_CLAIM_SITES: tuple[tuple[re.Pattern[str], str, tuple[int, ...]], ...] = (
+    (
+        re.compile(r"(\d+)-scenario library"),
+        ".opencode/skills/omni-validation/SKILL.md",
+        (0,),
+    ),
+    (
+        re.compile(
+            r"scenario library \*\*(\d+)\*\* = \*\*(\d+) tier-1 / (\d+) tier-2 / (\d+) tier-3\*\*"
+        ),
+        ".opencode/skills/omni-docmap/SKILL.md",
+        (0, 1, 2, 3),
+    ),
+    (
+        re.compile(r"scenarios/: (\d+) yaml files; tiers=\{'1': (\d+), '2': (\d+), '3': (\d+)\}"),
+        ".opencode/skills/omni-docmap/SKILL.md",
+        (0, 1, 2, 3),
+    ),
+)
 
-    Skipped (report-only, not a failure) when ``scenarios/`` is absent.
+
+def _check_scenario_claim_sites(
+    root: Path, total: int, tiers: dict[str, int], failures: list[str]
+) -> None:
+    """Validate docs that state a scenario count / tier split against the
+    derived library numbers (total + tiers['1'/'2'/'3']). Skipped when the
+    claim-site doc is absent (e.g. a test fixture tree)."""
+    derived = (total, tiers.get("1", 0), tiers.get("2", 0), tiers.get("3", 0))
+    for pattern, rel, idxs in _SCENARIO_CLAIM_SITES:
+        path = root / rel
+        if not path.exists():
+            continue
+        for m in pattern.finditer(read_text(path)):
+            claimed = tuple(int(m.group(i + 1)) for i in idxs)
+            expected = tuple(derived[i] for i in idxs)
+            if claimed != expected:
+                failures.append(
+                    f"{rel}: scenario claim {m.group(0)!r} does not match the "
+                    f"derived library ({total} yaml files, "
+                    f"tiers={dict(sorted(tiers.items()))}) — update the doc "
+                    f"when the scenario library changes"
+                )
+
+
+def check_scenarios(root: Path, failures: list[str]) -> None:
+    """Scenario count DERIVED from the ``scenarios/**/*.yaml`` glob (never a
+    pinned number); claim-site docs stating a count/tier-split must match it.
+    Input formats >= 13; '13+' claims.
+
+    Skipped (report-only, not a failure) when ``scenarios/`` is absent. The
+    library glob is the source of truth — a legitimate scenario addition or
+    removal never fails the gate by itself; only a doc claiming a stale count
+    does (update the claim-site docs when the library changes).
     """
     scenarios = root / "scenarios"
     if not scenarios.is_dir():
@@ -402,15 +517,14 @@ def check_scenarios(root: Path, failures: list[str]) -> None:
     total = len(yamls)
     tiers: dict[str, int] = {}
     for p in yamls:
-        tier = "1"  # missing tier field defaults to tier 1 (plan: 81/3/1)
+        tier = "1"  # missing tier field defaults to tier 1 (plan: 82/3/1)
         for line in read_text(p).splitlines():
             if re.match(r"tier\s*:", line.strip()):
                 tier = line.split(":", 1)[1].strip()
                 break
         tiers[tier] = tiers.get(tier, 0) + 1
     print(f"  scenarios/: {total} yaml files; tiers={dict(sorted(tiers.items()))}")
-    if total != 85:
-        failures.append(f"scenarios/: {total} yaml files, expected 85")
+    _check_scenario_claim_sites(root, total, tiers, failures)
 
     opp_dir = scenarios / "opp"
     if opp_dir.is_dir():

@@ -55,26 +55,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
-AGENT_USER = "agent-user conformance"
-HUMAN_QUALITY = "human-quality conformance"
-
-#: STANDARDS.md anchors by family (scenarios/STANDARDS.md §AGENT-SURFACE
-#: and §HUMAN-QUALITY) — used when the scenario name has no prefix.
-AGENT_SURFACE_ANCHORS = {
-    "tool-contract",
-    "json-parseable",
-    "error-clarity",
-    "path-security",
-    "exit-codes",
-}
-HUMAN_QUALITY_ANCHORS = {
-    "lqa-threshold",
-    "para-ratio",
-    "cjk-density",
-    "punct-hygiene",
-    "drawing-count",
-    "opens-docx",
-}
+# R-07: the shared rule lives in omni_mcp.validation.family (scripts/ is not
+# a package, so the dependency points INTO it). Anchor sets are re-exports.
+from omni_mcp.validation.family import (  # noqa: F401
+    AGENT_SURFACE_ANCHORS,
+    AGENT_USER,
+    HUMAN_QUALITY,
+    HUMAN_QUALITY_ANCHORS,
+    family_of,
+)
 
 GREEN_STATUSES = {"passed", "recovered"}
 
@@ -91,18 +80,8 @@ _REPO_PREFIXES: dict[str, tuple[str, ...]] = {
 
 
 # ---------------------------------------------------------------------------
-# Family derivation (D13) — name prefix first, then standard anchors
+# Repo routing (family/anchor classification imported from the package)
 # ---------------------------------------------------------------------------
-
-
-def _anchor_of(standard: Any) -> str | None:
-    """The anchor id of a ``STANDARDS.md#<anchor>`` citation, else None."""
-    if not standard:
-        return None
-    s = str(standard)
-    if "#" in s:
-        return s.split("#", 1)[1].strip()
-    return s.strip() or None
 
 
 def _repo_of_scenario(name: str) -> tuple[str, str]:
@@ -119,28 +98,6 @@ def _repo_of_scenario(name: str) -> tuple[str, str]:
             if name.startswith(prefix):
                 return repo, "prefix"
     return "suite", "default"
-
-
-def family_of(name: str, steps: list[dict[str, Any]]) -> tuple[str, str]:
-    """Derive the verdict family of a scenario: name prefix, else the
-    steps' standard anchors, else the agent-user default.
-
-    Returns ``(family, derivation)`` where derivation is one of
-    ``prefix`` / ``standard`` / ``default`` (recorded in report.json so
-    the rule that was applied is auditable).
-    """
-    if name.startswith("tool-"):
-        return AGENT_USER, "prefix"
-    if name.startswith("pipeline-"):
-        return HUMAN_QUALITY, "prefix"
-    anchors = [_anchor_of(s.get("standard")) for s in steps]
-    for a in anchors:
-        if a in HUMAN_QUALITY_ANCHORS:
-            return HUMAN_QUALITY, "standard"
-    for a in anchors:
-        if a in AGENT_SURFACE_ANCHORS:
-            return AGENT_USER, "standard"
-    return AGENT_USER, "default"
 
 
 # ---------------------------------------------------------------------------
@@ -172,15 +129,20 @@ def _actual_summary(actual: Any, limit: int = 100) -> str:
 
 
 def _verdict_marker(status: str) -> str:
-    """The status marker: GREEN / RED / UNCONFIGURED / PARTIAL-PASS /
-    RECOVERED.  ``unconfigured`` is its own distinct status — never
-    GREEN, never RED-as-failure."""
+    """The status marker: GREEN / RED / UNCONFIGURED / INVALID /
+    PARTIAL-PASS / RECOVERED.  ``unconfigured`` is its own distinct status
+    — never GREEN, never RED-as-failure; ``invalid`` (fake-LLM
+    inadmissible evidence) never renders GREEN."""
     if status == "unconfigured":
         return "UNCONFIGURED"
+    if status == "invalid":
+        return "INVALID"
     if status == "failed":
         return "RED"
     if status == "partial-pass":
         return "PARTIAL-PASS"
+    if status == "known-gap":
+        return "KNOWN-GAP"
     if status == "recovered":
         return "GREEN (recovered)"
     return "GREEN"
@@ -287,6 +249,7 @@ def _build_report(
             "steps": step_rows,
             "cleanup": sc.get("cleanup", []),
             "trace_id": sc.get("trace_id"),
+            "known_gap": bool(sc.get("known_gap", False)),
         }
 
         if status == "failed":
@@ -498,7 +461,15 @@ def _render_markdown(report_data: dict[str, Any]) -> str:
                      "family tables), so the human-quality bar was not exercised "
                      "in this run.")
     else:
-        lines.append(f"All {passed} scenario(s) passed.")
+        known_gap_count = counts.get("known-gap", 0)
+        if known_gap_count:
+            lines.append(
+                f"All {passed} non-known-gap scenario(s) passed; "
+                f"{known_gap_count} known-gap scenario(s) excluded from the "
+                "pass bar (published bar not met; see ACCEPTED_GAPS.md)."
+            )
+        else:
+            lines.append(f"All {passed} scenario(s) passed.")
     lines.append("")
 
     # --- Regression failures --------------------------------------------

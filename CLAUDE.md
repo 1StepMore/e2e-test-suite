@@ -92,13 +92,13 @@ The `omni-contract-smoke` hook is manual-only (`stages: [manual]`), skipped on `
 ## MCP Tool Quick Reference
 
 ### opp-mcp-server (9 tools)
-`extract_document`, `batch_extract`, `detect_format_tool`, `generate_markdown`, `generate_xliff`, `save_skeleton`, `ping`
+`extract_document`, `batch_extract`, `detect_format_tool`, `generate_markdown`, `generate_xliff`, `save_skeleton`, `validate_xliff`, `get_capabilities`, `ping`
 
 ### ol-mcp (21 tools)
-`translate_md_text`, `translate_xliff`, `judge_text`, `load_glossary`, `get_relevant_terms`, `search_tm`, `batch_translate_texts`, `ping`
+`translate_md_text`, `translate_xliff`, `judge_text`, `load_glossary`, `get_relevant_terms`, `search_tm`, `batch_translate_texts`, `translate_file`, `extract_terms`, `add_tm_entries`, `shield_md_text`, `unshield_md_text`, `generate_report`, `inspect_config`, `disambiguate`, `extract_warnings`, `get_translation_status`, `verify_terms`, `profile_doc`, `get_capabilities`, `ping`
 
 ### orf-mcp-server (7 tools)
-`apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `ping`
+`apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `get_capabilities`, `ping`
 
 ## How to validate
 

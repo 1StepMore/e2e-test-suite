@@ -43,13 +43,13 @@ three is recorded in `VERSION_COMPATIBILITY.md` and verified by
 
 ### 2.2 Module maturity
 
-- **OPP** is on its 0.6.x line. The CLI surface and the 7 MCP tools are
+- **OPP** is on its 0.6.x line. The CLI surface and the 9 MCP tools are
   stable enough to be treated as 1.0 candidates. We will bump to 1.0
   when we have completed Phase 4 observability work and have a clean
   security audit.
 - **OL** is on 0.4.x. The text-in/text-out MCP tool set is stable; the
   file-based CLI is stable.
-- **ORF** is on 0.4.x. The 6 MCP tools and the `apply-md`/`apply-xliff`
+- **ORF** is on 0.4.x. The 7 MCP tools and the `apply-md`/`apply-xliff`
   CLIs are stable.
 
 Until each module reaches 1.0, a minor bump **may** contain a
@@ -92,7 +92,7 @@ implementation details even if they are importable today.**
 |---------|----------|---------------------|
 | **CLI commands & flags** | `opp --target-format=md <file>`, `ol translate-md <file> -s en -t zh -o <dir>`, `orf apply-md <file> --target-format docx -o <out>` | `Omni_<Module>/src/<pkg>/cli.py` (per subcommand) |
 | **Exit codes** | `0` ok, non-zero error (see `docs/ERROR_CODES.md` for the full table) | Per-module `cli.py` |
-| **MCP tool names** | `extract_document`, `translate_md_text`, `apply_md`, `apply_xliff`, etc. (9 + 21 + 7 = 37 tools) | `Omni_<Module>/src/<pkg>/mcp/server.py` `_TOOL_SCHEMAS` / `@server.list_tools()` |
+| **MCP tool names** | `extract_document`, `translate_md_text`, `apply_md`, `apply_xliff`, etc. (9 + 21 + 7 = 37 module tools; 41 total with the 4 suite tools) | `Omni_<Module>/src/<pkg>/mcp/server.py` `_TOOL_SCHEMAS` / `@server.list_tools()` |
 | **MCP tool input schemas** | Required and optional parameters, types, defaults | Same location as above |
 | **MCP tool output schemas** | Structured JSON payloads returned via `TextContent` | Same location |
 | **Artifact filenames** | `document.md`, `document.xlf`, `document_manifest.json`, `document.skeleton.zip`, `images.json` | OPP `cli.py` writers |

@@ -498,3 +498,150 @@ def test_archive_categorization(tmp_path):
         f"archived master plan must categorize as 'archive', inventory: {text!r}"
     )
     assert "validation-plans" not in text.split("OL_VALIDATION_MASTER_PLAN.md")[0].split("|")[-1]
+
+
+# ---------------------------------------------------------------------------
+# 13. T-11 — stale tool-count claim forms (guide colon form, API prose,
+#     PRD list, SUITE sum, per-repo README) must fail the check.
+# ---------------------------------------------------------------------------
+
+#: Canonical claim-site content (source truth 9/21/7, 37 module + 4 suite = 41).
+CANONICAL_GUIDE = """# Agent Pipeline Guide
+
+## Server Overview
+
+| Server | Tool Count | MCP Name |
+|--------|-----------|----------|
+| OPP MCP | 9 | `opp-mcp-server` |
+| OL MCP | 21 | `ol-mcp` |
+| ORF MCP | 7 | `orf-mcp-server` |
+
+## Tool Lists
+
+**OPP MCP (9 tools):**
+**OL MCP (21 tools):**
+**ORF MCP (7 tools):**
+
+Module MCP tools: 37 (9 OPP + 21 OL + 7 ORF); with the 4 suite tools = 41 total.
+"""
+
+CANONICAL_PRD = """# PRD
+
+- **Three MCP servers**: OPP (9 tools), OL (21 tools), ORF (7 tools) —
+  37 module tools plus 4 suite tools = 41 total.
+"""
+
+CANONICAL_API_STABILITY = """# API Stability
+
+### 2.2 Module maturity
+
+- **OPP** is on its 0.6.x line. The CLI surface and the 9 MCP tools are
+  stable enough to be treated as 1.0 candidates.
+- **ORF** is on 0.4.x. The 7 MCP tools and the CLIs are stable.
+
+### 3.1 Public surface
+
+| Surface | Examples | Where |
+|---------|----------|-------|
+| **MCP tool names** | example names (9 + 21 + 7 = 37 module tools; 41 with the 4 suite tools) | source |
+"""
+
+CANONICAL_SUITE = """# Suite Expectations
+
+| **MCP 原生** | all exposed (9+21+7=37 工具；加 suite 4 个 = 41) |
+| **MCP 工具总数** | 37（9 + 21 + 7） |
+"""
+
+CANONICAL_OPP_README = """# OPP
+
+| 3 | MCP Surface Mastery (9 MCP tools) | Q9-OPP |
+"""
+CANONICAL_ORF_README = """# ORF
+
+| 3 | MCP Surface Mastery (7 MCP tools) | Q8-ORF |
+"""
+
+
+def _write_claim_docs(root: Path, guide: str, prd: str, api: str, suite: str,
+                      opp_readme: str, orf_readme: str) -> None:
+    """Write the T-11 claim-site docs (and the per-repo OPP/ORF READMEs)."""
+    docs = root / "docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / "agent-pipeline-guide.md").write_text(guide, encoding="utf-8")
+    (docs / "PRD.md").write_text(prd, encoding="utf-8")
+    (docs / "API_STABILITY.md").write_text(api, encoding="utf-8")
+    (docs / "SUITE_EXPECTATIONS.md").write_text(suite, encoding="utf-8")
+    for mod, content in (("Omni_Pre_Processor", opp_readme), ("Omni_Re_Formatter", orf_readme)):
+        (root / mod).mkdir(parents=True, exist_ok=True)
+        (root / mod / "README.md").write_text(content, encoding="utf-8")
+
+
+def test_check_rejects_stale_tool_claims(consistent_tree, capsys):
+    """Every T-11 stale form fails: guide colon form (`**OPP MCP (7 tools):**`),
+    guide table row, API_STABILITY prose (`the 7 MCP tools` / `the 6 MCP tools`),
+    PRD:24 list, SUITE_EXPECTATIONS `7+21+6=34`, and per-repo README counts."""
+    _write_claim_docs(
+        consistent_tree,
+        guide=CANONICAL_GUIDE.replace("| OPP MCP | 9 |", "| OPP MCP | 7 |")
+        .replace("| ORF MCP | 7 |", "| ORF MCP | 6 |")
+        .replace("**OPP MCP (9 tools):**", "**OPP MCP (7 tools):**")
+        .replace("**ORF MCP (7 tools):**", "**ORF MCP (6 tools):**"),
+        prd=CANONICAL_PRD.replace("OPP (9 tools)", "OPP (7 tools)").replace(
+            "ORF (7 tools)", "ORF (6 tools)"
+        ),
+        api=CANONICAL_API_STABILITY.replace("the 9 MCP tools", "the 7 MCP tools").replace(
+            "the 7 MCP tools and the CLIs", "the 6 MCP tools and the CLIs"
+        ),
+        suite=CANONICAL_SUITE.replace("9+21+7=37 工具", "7+21+6=34 工具"),
+        opp_readme=CANONICAL_OPP_README.replace("(9 MCP tools)", "(7 MCP tools)"),
+        orf_readme=CANONICAL_ORF_README.replace("(7 MCP tools)", "(6 MCP tools)"),
+    )
+    _generate(consistent_tree)
+    rc = di.main(["--check", "--root", str(consistent_tree)])
+    combined = capsys.readouterr().out + capsys.readouterr().err
+    assert rc == 1, "stale tool-count claims must fail the check"
+    for site in (
+        "agent-pipeline-guide.md",
+        "PRD.md",
+        "API_STABILITY.md",
+        "SUITE_EXPECTATIONS.md",
+        "Omni_Pre_Processor/README.md",
+        "Omni_Re_Formatter/README.md",
+    ):
+        assert site in combined, f"failure text must name {site}, got: {combined!r}"
+
+
+def test_check_accepts_canonical_claim_forms(consistent_tree):
+    """The reconciled canonical forms (9/21/7, 37 module, 41 total) pass."""
+    _write_claim_docs(
+        consistent_tree,
+        CANONICAL_GUIDE,
+        CANONICAL_PRD,
+        CANONICAL_API_STABILITY,
+        CANONICAL_SUITE,
+        CANONICAL_OPP_README,
+        CANONICAL_ORF_README,
+    )
+    _generate(consistent_tree)
+    assert di.main(["--check", "--root", str(consistent_tree)]) == 0
+
+
+def test_check_rejects_injected_wrong_count(consistent_tree, capsys):
+    """Injecting a wrong count into an otherwise-canonical guide fails."""
+    injected = CANONICAL_GUIDE.replace("**OPP MCP (9 tools):**", "**OPP MCP (4 tools):**")
+    _write_claim_docs(
+        consistent_tree,
+        injected,
+        CANONICAL_PRD,
+        CANONICAL_API_STABILITY,
+        CANONICAL_SUITE,
+        CANONICAL_OPP_README,
+        CANONICAL_ORF_README,
+    )
+    _generate(consistent_tree)
+    rc = di.main(["--check", "--root", str(consistent_tree)])
+    combined = capsys.readouterr().out + capsys.readouterr().err
+    assert rc == 1, "an injected wrong tool count must fail the check"
+    assert "agent-pipeline-guide.md" in combined and "4 tools" in combined, (
+        f"failure text must name the guide and the injected count, got: {combined!r}"
+    )

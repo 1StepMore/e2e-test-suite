@@ -48,7 +48,9 @@ Full MCP tool signatures (all 37 tools): [`docs/agent-pipeline-guide.md`](docs/a
 ### Translate a DOCX end-to-end
 
 ```bash
-# Always set FAKE_LLM unless you have real API keys
+# CLI smoke/contract runs only: FAKE_LLM gives deterministic, zero-cost output
+# (plumbing / schema / exit-code checks). Do NOT use it as human-quality
+# validation evidence — see "Critical Notes" #1.
 export OMNI_TEST_FAKE_LLM=1
 
 # 1. Extract
@@ -74,7 +76,7 @@ omni-suite pipeline document.docx --keep-intermediate  # keep /tmp/omni-suite-pi
 
 ### Run validation
 
-The agent-agnostic validation framework runs real scenarios against the shipped surface (no mocks, no FAKE_LLM as evidence). Tier-1 scenarios are hermetic — no LLM keys needed.
+The agent-agnostic validation framework runs real scenarios against the shipped surface (no mocks, no FAKE_LLM as evidence — a fallback-active human-quality run is `invalid`, see [`scenarios/STANDARDS.md#fallbacks-never-evidence`](scenarios/STANDARDS.md#fallbacks-never-evidence)). Tier-1 scenarios are hermetic — no LLM keys needed.
 
 ```bash
 source .venv_ol/bin/activate
@@ -157,7 +159,7 @@ See `README.md` → "Cross-Format Production-Readiness" for the full 36-path ver
 
 ## Critical Notes
 
-1. **FAKE_LLM required** — All CLI calls need `OMNI_TEST_FAKE_LLM=1` unless real LLM API keys are configured.
+1. **FAKE_LLM — two distinct uses** — `OMNI_TEST_FAKE_LLM=1` is a deterministic fallback seam. **(i) CLI smoke/contract runs: allowed** (plumbing, schema/exit-code checks, zero-cost dry runs). **(ii) Validation runs: forbidden for human-quality evidence** — in a human-quality scenario (`pipeline-*` prefix or any step citing a HUMAN-QUALITY anchor) a fallback-active run reports `invalid`, never `passed`; fallbacks are never quality evidence. `--allow-fake` is the contract-only escape hatch (all-AGENT-SURFACE scenarios only). Citable bar: [`scenarios/STANDARDS.md#fallbacks-never-evidence`](scenarios/STANDARDS.md#fallbacks-never-evidence).
 2. **pandoc dependency** — DOCX, ODT, EPUB, RTF, ICML outputs require pandoc (auto-installed via `pypandoc-binary`).
 3. **MSG → use .eml** — MSG output requires commercial Aspose.Email. Use `.eml` instead (open standard, fully supported).
 4. **Cross-format XLIFF** — Converting DOCX XLIFF → PPTX needs `orf apply-xliff --force`.
@@ -166,7 +168,7 @@ See `README.md` → "Cross-Format Production-Readiness" for the full 36-path ver
 
 ## Agent Tips
 
-- Use the FAKE_LLM seam for zero-cost testing — no API keys needed.
+- **FAKE_LLM scope**: use `OMNI_TEST_FAKE_LLM=1` for CLI smoke/contract runs only — it is forbidden as human-quality validation evidence and forces an `invalid` verdict (see Critical Notes #1; [`scenarios/STANDARDS.md#fallbacks-never-evidence`](scenarios/STANDARDS.md#fallbacks-never-evidence)).
 - **Glossary**: see [CONTEXT.md](CONTEXT.md) — shared pipeline terminology (Ubiquitous Language).
 - `omni_suite/cli.py` is print-only — use per-module CLIs for real work.
 - Per-sub-repo `AGENTS.md` files (in each sub-repo root) cover dev/agent context: architecture, CLI, MCP tools, env vars, test patterns, known gotchas.
@@ -197,7 +199,7 @@ Configured in `.pre-commit-config.yaml` at the project root. Install: `pip insta
 
 ## How to validate (any agent)
 
-Generic instructions — applies to Hermes, Claude, Cursor, Codex, opencode, or any agent. Every scenario dispatches through the REAL shipped surface (no mocks, no FAKE_LLM as evidence); tier-1 scenarios are hermetic and need no LLM keys.
+Generic instructions — applies to Hermes, Claude, Cursor, Codex, opencode, or any agent. Every scenario dispatches through the REAL shipped surface (no mocks, no FAKE_LLM as evidence — `OMNI_TEST_FAKE_LLM=1` is allowed only for CLI smoke/contract runs, never for validation evidence; a fallback-active human-quality run is `invalid` per [`scenarios/STANDARDS.md#fallbacks-never-evidence`](scenarios/STANDARDS.md#fallbacks-never-evidence)); tier-1 scenarios are hermetic and need no LLM keys.
 
 ```bash
 source .venv_ol/bin/activate

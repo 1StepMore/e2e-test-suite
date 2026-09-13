@@ -36,7 +36,7 @@ All paths are relative to the project root `/mnt/d/贯维/Omni_Suite`. Each entr
 | `SETUP.md` | ~259 | Developers | Phase 1 setup guide for real LLM integration tests (API keys, config) | API key changes, env var changes, setup process changes |
 | `PROJECT_STATUS.md` | ~126 | First file to read | Project snapshot: versions, test matrix health, recent changes | Version bumps, test health changes, architecture changes |
 | `PRODUCTION_READINESS.md` | ~187 | Maintainers | V1-V11 production-readiness checklist (version consistency, module integrity, security, observability) | Any new production requirement, new check items |
-| `ACCEPTED_GAPS.md` | ~42 | All devs | Known limitations and tradeoffs (PDF→XLIFF blocked, MSG requires commercial, etc.) | New gap discovered, existing gap resolved |
+| `ACCEPTED_GAPS.md` | ~66 | All devs | Known limitations and tradeoffs (PDF→XLIFF blocked, MSG requires commercial, validation known gaps, etc.) | New gap discovered, existing gap resolved |
 | `CONTRACT.md` | ~180 | All devs | OPP→OL→ORF handoff contract (artifact formats, metadata schemas, failure modes) | Pipeline boundary contract changes |
 | `CLAUDE.md` | ~142 | Claude Code | Claude-specific context (architecture summary, commands, tips) | Architecture changes, CLI changes, MCP changes |
 | `TESTS.md` | ~335 | Developers | Test instructions for real LLM + E2E suite (14 nightly tests, prerequisites) | Test suite changes, test configuration changes |
@@ -57,7 +57,7 @@ All paths are relative to the project root `/mnt/d/贯维/Omni_Suite`. Each entr
 | `docs/agent-pipeline-guide.md` | — | Full MCP tool signatures for all 37 tools across OPP/OL/ORF (OPP 9 / OL 21 / ORF 7) | MCP tool changes (add/remove/rename params) |
 | `docs/DECISIONS.md` | ~20 | Redirect index → `docs/adr/` (ADR 0001–0006) | Do not edit; add new ADRs in `docs/adr/` |
 | `docs/adr/README.md` | ~39 | ADR index with links to individual decision records | New ADRs, status changes, superseded ADRs |
-| `docs/ERROR_CODES.md` | ~113 | MCP error code catalog (OPP/OL/ORF) | Error code changes (add/rename/remove codes) |
+| `docs/ERROR_CODES.md` | ~273 | MCP error code catalog + recovery hints (OPP/OL/ORF/omni-mcp) | Error code or recovery-hint changes (add/rename/remove codes) |
 | `docs/SECURITY.md` | ~250 | Security posture & user action items (C1, C2), PathValidator, MCP auth | Security model changes, env var changes |
 | `docs/SECURITY_AUDIT.md` | ~954 | Full security audit: attack surface, identified gaps, severity model, roadmap | Security audit findings, new threat vectors |
 | `docs/archive/SECURITY_FINDINGS.md` | ~78 | venv dependency audit (`pip-audit` results, 19 vulns in 8 packages) — **archived** | Dependency changes, vulnerability fixes |
@@ -339,9 +339,9 @@ Four gates keep the documentation consistent with source truth. Run them after a
 
 ### D3 — Canonical numbers (P1)
 
-**Criterion**: canonical numbers are test matrix **131 PASS / 64 SKIP / 0 FAIL**, nightly **14**, scenario library **85** = **81 tier-1 / 3 tier-2 / 1 tier-3**. Historical measurements must carry explicit markers (e.g. `(--collect-only; canonical: 14)`).
+**Criterion**: canonical numbers are test matrix **131 PASS / 64 SKIP / 0 FAIL**, nightly **14**, scenario library **119** = **105 tier-1 / 13 tier-2 / 1 tier-3**. Historical measurements must carry explicit markers (e.g. `(--collect-only; canonical: 14)`).
 
-**Verify**: `python3 scripts/doc_inventory.py --check` → prints `scenarios/: 85 yaml files; tiers={'1': 81, '2': 3, '3': 1}` and verifies the canonical test matrix + nightly-test claims.
+**Verify**: `python3 scripts/doc_inventory.py --check` → prints `scenarios/: 119 yaml files; tiers={'1': 105, '2': 13, '3': 1}` and verifies the canonical test matrix + nightly-test claims.
 
 ### D4 — No stale artifacts (P1)
 

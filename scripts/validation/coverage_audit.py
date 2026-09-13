@@ -8,7 +8,9 @@ Run from the repo root (plan todo 17):
 
 Declared-vs-exercised coverage (guide §5.1, draft D13 — the
 agent-satisfaction metric: every live tool must be scenario-used, else
-``missing`` — an agent-user would hit it blind):
+``missing`` — an agent-user would hit it blind).  T-12 (P0) made the
+metric EXECUTION-backed; the old name-presence metric is retained under
+its new name ``referenced``:
 
 - ``declared``      = the LIVE module MCP tool registries, parsed by
                       IMPORTING them (same in-process pattern as
@@ -21,12 +23,19 @@ agent-satisfaction metric: every live tool must be scenario-used, else
                         omni_mcp ``omni_mcp.server._TOOL_SCHEMAS``     (4)
                       = 41 tools — this script stays correct because it
                       always reads the live registries.
-- ``scenario_used`` = tool names referenced by
-                      ``scenarios/agent-surface/tool-<module>-<tool>.yaml``
-                      filenames + every ``kind: mcp`` step's ``tool:``
-                      anywhere under ``scenarios/**``.
-- ``covered``       = declared ∩ scenario_used
-- ``missing``       = declared − covered        (exit 1 while non-empty)
+- ``referenced``    = the OLD metric, renamed (filename ``tool-*.yaml`` +
+                      every ``kind: mcp`` step's ``tool:`` — name/kind
+                      PRESENCE, not execution; T-12's P0 gap).
+- ``passed``        = EXECUTION-backed: tools whose call ran over the REAL
+                      MCP protocol with in-process parity — the X-04
+                      transport-parity path
+                      (``omni_mcp.validation.dispatch.run_transport_parity``).
+                      A tool whose server failed to start or whose protocol
+                      response diverged from the in-process call is NOT
+                      passed.
+- ``missing``       = declared − (referenced in ``--no-execute`` static
+                      mode; passed in the default execution mode).
+                      (exit 1 while non-empty)
 - ``phantom``       = scenario_used − declared  (contributes zero; the
                       deliberate error-boundary probe ``_call_tool`` is
                       allowlisted per guide §5.1's legitimate exception)
@@ -238,17 +247,81 @@ def compute_drift(fixture_counts: dict[str, int], surface: dict[str, list[str]])
 
 @dataclasses.dataclass
 class CoverageReport:
-    """Everything derived from the two surfaces (guide §5.1 sets)."""
+    """Everything derived from the surfaces (guide §5.1 sets, T-12/X-04).
+
+    ``referenced`` is the OLD name-presence metric (renamed per T-12);
+    ``passed`` is EXECUTION-backed (X-04 transport parity).  ``missing``
+    is the ACTIVE-mode gap: declared − referenced in static mode
+    (``execution is None``), declared − passed in execution mode.
+    """
 
     declared: dict[str, list[str]]
     scenario_used: set[str]
-    covered: dict[str, list[str]]
+    referenced: dict[str, list[str]]
+    passed: dict[str, list[str]]
     missing: dict[str, list[str]]
     phantom: list[str]
     error_boundary_probes: list[str]
     drift: dict[str, Any]
     scenario_count: int
     scenario_files: int
+    #: The X-04 parity report backing ``passed`` (None in static mode).
+    execution: Any
+    #: module -> server startup/launch error when a server was unreachable.
+    execution_errors: dict[str, str]
+
+
+def load_tool_arguments(scenarios_dir: Path, module: str, tool: str) -> dict[str, Any]:
+    """The arguments the tool's per-tool scenario calls it with.
+
+    Returns the first ``kind: mcp`` step's ``arguments`` of
+    ``tool-<module>-<tool>.yaml`` under *scenarios_dir* (recursive), else
+    ``{}`` — the parity suite reuses the scenario's real call args so a
+    tool is exercised with the same inputs an agent-user would supply.
+    """
+    target = f"tool-{module}-{tool}.yaml"
+    for yf in sorted(scenarios_dir.rglob("*.yaml")):
+        if yf.name != target:
+            continue
+        try:
+            data = yaml.safe_load(yf.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        for step in data.get("steps") or []:
+            if isinstance(step, dict) and step.get("kind") == "mcp":
+                arguments = step.get("arguments")
+                if arguments is None:
+                    # No-arg representative call — do not fall through to a
+                    # later error-boundary step (get_capabilities' ``bogus``).
+                    return {}
+                if isinstance(arguments, dict):
+                    return dict(arguments)
+        return {}
+    return {}
+
+
+def run_execution_backed_coverage(
+    surface: dict[str, list[str]],
+    scenarios_dir: Path,
+    env: dict[str, str] | None = None,
+    server_timeout: float = 240.0,
+    call_timeout: float = 90.0,
+) -> Any:
+    """EXECUTION-backed evidence (T-12, X-04): run the transport-parity
+    suite over every declared tool, using each tool's per-tool scenario
+    arguments.  Returns the dispatch ``ParityReport``."""
+    from omni_mcp.validation.dispatch import run_transport_parity
+
+    module_tools: dict[str, dict[str, dict[str, Any]]] = {}
+    for module, tools in surface.items():
+        module_tools[module] = {
+            tool: load_tool_arguments(scenarios_dir, module, tool) for tool in tools
+        }
+    return run_transport_parity(
+        module_tools, env=env, server_timeout=server_timeout, call_timeout=call_timeout
+    )
 
 
 def compute_coverage(
@@ -257,11 +330,18 @@ def compute_coverage(
     scenarios_dir: Path | None = None,
     fixtures_dir: Path | None = None,
     expected_counts_file: Path | None = None,
+    execution: Any = None,
 ) -> CoverageReport:
     """Declared vs exercised over the committed sources under *root*.
 
     Parameters may be overridden for tests/synthetic inputs; defaults
     resolve against the real repo layout.
+
+    *execution* is an optional X-04 ``ParityReport`` (from
+    :func:`run_execution_backed_coverage`).  When given, ``passed`` is
+    derived from it and ``missing`` = declared − passed (execution mode);
+    when None, ``passed`` is empty and ``missing`` = declared −
+    referenced (static mode).
     """
     scenarios_dir = scenarios_dir or root / "scenarios"
     fixtures_dir = fixtures_dir or root / "tests" / "contract" / "fixtures"
@@ -274,8 +354,21 @@ def compute_coverage(
     error_boundary = sorted(scenario_used & ERROR_BOUNDARY_TOOLS)
     scenario_used = scenario_used - ERROR_BOUNDARY_TOOLS
 
-    covered = {m: sorted(set(tools) & scenario_used) for m, tools in declared.items()}
-    missing = {m: sorted(set(tools) - scenario_used) for m, tools in declared.items()}
+    referenced = {m: sorted(set(tools) & scenario_used) for m, tools in declared.items()}
+
+    passed: dict[str, list[str]] = {m: [] for m in declared}
+    execution_errors: dict[str, str] = {}
+    if execution is not None:
+        passed_set: dict[str, set[str]] = {m: set() for m in declared}
+        for result in getattr(execution, "results", []):
+            module = getattr(result, "module", None)
+            if module in passed_set and getattr(result, "equal", False):
+                passed_set[module].add(result.tool)
+        passed = {m: sorted(tools) for m, tools in passed_set.items()}
+        execution_errors = dict(getattr(execution, "server_errors", {}) or {})
+        missing = {m: sorted(set(tools) - passed_set[m]) for m, tools in declared.items()}
+    else:
+        missing = {m: sorted(set(tools) - scenario_used) for m, tools in declared.items()}
     phantom = sorted(scenario_used - declared_all)
 
     fixture_counts = parse_fixture_counts(fixtures_dir)
@@ -290,48 +383,70 @@ def compute_coverage(
     return CoverageReport(
         declared=declared,
         scenario_used=scenario_used,
-        covered=covered,
+        referenced=referenced,
+        passed=passed,
         missing=missing,
         phantom=phantom,
         error_boundary_probes=error_boundary,
         drift=drift,
         scenario_count=len(scenario_used),
         scenario_files=scenario_files,
+        execution=execution,
+        execution_errors=execution_errors,
     )
 
 
 def render(report: CoverageReport) -> str:
-    """Human-readable table: covered / missing / phantom / DRIFT."""
+    """Human-readable table: referenced / passed / missing / DRIFT."""
     lines: list[str] = []
     declared_total = sum(len(t) for t in report.declared.values())
-    covered_total = sum(len(t) for t in report.covered.values())
+    referenced_total = sum(len(t) for t in report.referenced.values())
+    passed_total = sum(len(t) for t in report.passed.values())
     missing_total = sum(len(t) for t in report.missing.values())
-    lines.append("Coverage audit — declared vs exercised (guide §5.1, D13)")
+    lines.append("Coverage audit — declared vs exercised (guide §5.1, D13; T-12/X-04)")
     lines.append(
         f"  scenario files: {report.scenario_files}  |  distinct tool names referenced: "
         f"{report.scenario_count} (of {declared_total} declared module-tool slots — "
         f"ping/get_capabilities/translate_file are declared in multiple modules)"
     )
     lines.append("")
-    lines.append(f"  {'module':<12} {'declared':>8} {'covered':>8} {'missing':>8}")
-    lines.append(f"  {'-'*12} {'-'*8} {'-'*8} {'-'*8}")
+    lines.append(f"  {'module':<12} {'declared':>8} {'referenced':>10} {'passed':>8} {'missing':>8}")
+    lines.append(f"  {'-'*12} {'-'*8} {'-'*10} {'-'*8} {'-'*8}")
     for module in ("opp", "ol", "orf", "omni_mcp"):
         lines.append(
             f"  {module:<12} {len(report.declared[module]):>8} "
-            f"{len(report.covered[module]):>8} {len(report.missing[module]):>8}"
+            f"{len(report.referenced[module]):>10} "
+            f"{len(report.passed[module]):>8} {len(report.missing[module]):>8}"
         )
     lines.append(
-        f"  {'TOTAL':<12} {declared_total:>8} {covered_total:>8} {missing_total:>8}"
+        f"  {'TOTAL':<12} {declared_total:>8} {referenced_total:>10} "
+        f"{passed_total:>8} {missing_total:>8}"
     )
     lines.append("")
+    lines.append(
+        "  referenced = scenario name/kind PRESENCE (the old metric, renamed per T-12); "
+        "passed = ran over the REAL MCP protocol with in-process parity (X-04)."
+    )
+    if report.execution is not None:
+        diverged = sorted(
+            f"{r.module}.{r.tool}" for r in report.execution.diverged()
+        )
+        lines.append(
+            f"  execution: {passed_total}/{declared_total} tools execution-backed; "
+            f"{len(diverged)} diverged"
+        )
+        for entry in diverged:
+            lines.append(f"    DIVERGED: {entry}")
+        for module, error in sorted(report.execution_errors.items()):
+            lines.append(f"    SERVER ERROR ({module}): {error}")
+    lines.append("")
     if missing_total:
-        lines.append(f"  MISSING ({missing_total}) — declared but never scenario-used (an agent-user would hit it blind):")
+        lines.append(f"  MISSING ({missing_total}) — not execution-backed (an agent-user would hit it blind):")
         for module in ("opp", "ol", "orf", "omni_mcp"):
             for tool in report.missing[module]:
                 lines.append(f"    {module}: {tool}")
     else:
-        lines.append("  MISSING: 0 — every declared tool is scenario-used.")
-    lines.append("")
+        lines.append("  MISSING: 0 — every declared tool is execution-backed.")
     lines.append(f"  PHANTOM ({len(report.phantom)}) — scenario names no live tool (contributes zero coverage):")
     for tool in report.phantom:
         lines.append(f"    {tool}")
@@ -360,10 +475,16 @@ def render(report: CoverageReport) -> str:
         f"({', '.join(report.declared['omni_mcp'])})."
     )
     lines.append("")
-    verdict = (
-        f"  VERDICT: {covered_total}/{declared_total} covered, "
-        f"{missing_total} missing"
-    )
+    if report.execution is None:
+        verdict = (
+            f"  VERDICT (static): {referenced_total}/{declared_total} referenced, "
+            f"{missing_total} missing"
+        )
+    else:
+        verdict = (
+            f"  VERDICT (execution-backed): {passed_total}/{declared_total} passed, "
+            f"{missing_total} missing"
+        )
     if missing_total:
         verdict += " -> FAIL (missing > 0), exit 1"
     else:
@@ -399,21 +520,24 @@ def _suite_git_sha(root: Path) -> str:
 
 def build_snapshot(report: CoverageReport) -> dict[str, Any]:
     """The persisted coverage snapshot (``--out`` shape, diff-friendly):
-    ``{generated_at, suite_sha, declared, covered, missing, phantom,
-    totals}`` — per-module lists under the first four, ``phantom`` a flat
-    list, ``totals`` the declared/covered/missing counts."""
+    ``{generated_at, suite_sha, declared, referenced, passed, missing,
+    phantom, execution_errors, totals}`` — per-module lists under the first
+    four, ``phantom`` a flat list, ``totals`` the active-mode counts."""
     totals = {
         "declared": sum(len(t) for t in report.declared.values()),
-        "covered": sum(len(t) for t in report.covered.values()),
+        "referenced": sum(len(t) for t in report.referenced.values()),
+        "passed": sum(len(t) for t in report.passed.values()),
         "missing": sum(len(t) for t in report.missing.values()),
     }
     return {
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "suite_sha": _suite_git_sha(SUITE_ROOT),
         "declared": {k: list(v) for k, v in report.declared.items()},
-        "covered": {k: list(v) for k, v in report.covered.items()},
+        "referenced": {k: list(v) for k, v in report.referenced.items()},
+        "passed": {k: list(v) for k, v in report.passed.items()},
         "missing": {k: list(v) for k, v in report.missing.items()},
         "phantom": list(report.phantom),
+        "execution_errors": dict(report.execution_errors),
         "totals": totals,
     }
 
@@ -431,10 +555,19 @@ def write_snapshot(report: CoverageReport, out_path: str | Path) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI entry: print the audit table; exit 1 while any ``missing``."""
+    """CLI entry: print the audit table; exit 1 while any ``missing``.
+
+    Default (T-12): EXECUTION-backed — runs the X-04 transport-parity suite
+    over every declared tool (real MCP protocol + in-process parity) and
+    reports ``passed``.  ``--no-execute`` runs the renamed static
+    ``referenced`` metric instead (the old todo-17 behavior).
+    """
     parser = argparse.ArgumentParser(
         prog="coverage_audit.py",
-        description="Coverage audit: live MCP tool surface vs scenario usage (guide §5.1).",
+        description=(
+            "Coverage audit: live MCP tool surface vs scenario usage, "
+            "EXECUTION-backed (X-04 transport parity) since T-12 (guide §5.1)."
+        ),
     )
     parser.add_argument("--scenarios-dir", type=Path, default=None,
                         help="scenario library root (default: <repo>/scenarios)")
@@ -445,13 +578,32 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=None,
                         help="write the coverage snapshot (todo 26 shape) to this path "
                         "after printing the table; exit-code logic unchanged")
+    parser.add_argument("--no-execute", action="store_true",
+                        help="static mode: report the renamed ``referenced`` metric only "
+                        "(filename/kind presence — the old, unproven metric); do NOT run "
+                        "the transport-parity suite")
+    parser.add_argument("--server-timeout", type=float, default=240.0,
+                        help="per-module server startup cap in seconds (default 240; the "
+                        "OL import chain alone takes ~30-40s)")
+    parser.add_argument("--call-timeout", type=float, default=90.0,
+                        help="per-tool call cap in seconds (default 90)")
     args = parser.parse_args(argv)
 
+    if args.no_execute:
+        execution = None
+    else:
+        execution = run_execution_backed_coverage(
+            load_live_surface(),
+            args.scenarios_dir or SUITE_ROOT / "scenarios",
+            server_timeout=args.server_timeout,
+            call_timeout=args.call_timeout,
+        )
     report = compute_coverage(
         SUITE_ROOT,
         scenarios_dir=args.scenarios_dir,
         fixtures_dir=args.fixtures_dir,
         expected_counts_file=args.expected_counts_file,
+        execution=execution,
     )
     print(render(report))
     if args.out is not None:

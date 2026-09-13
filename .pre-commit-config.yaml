@@ -109,3 +109,26 @@ repos:
         pass_filenames: false
         stages: [commit]
         files: ^(docs/|README\.md|AGENTS\.md|CLAUDE\.md|reports/|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|scenarios/|scripts/doc_inventory\.py|\.pre-commit-config\.yaml|Makefile)$
+
+      # Validation coverage audit (C-03 local gate): every live MCP tool must
+      # be exercised by a scenario. EXECUTION-backed transport parity (X-04) —
+      # the same command as CI `validation.yml` Gate 2 (41/41 in .venv_ol).
+      # Runs on the shared venv only: the parity diverges under other
+      # interpreters (e.g. system python3.14 reports 36/41). Skipped without
+      # the venv.
+      - id: omni-coverage-audit
+        name: Omni Suite MCP tool coverage audit (execution-backed)
+        entry: "bash -c 'if [ -x .venv_ol/bin/python ]; then .venv_ol/bin/python scripts/validation/coverage_audit.py; else echo \"skip: .venv_ol not built\"; exit 0; fi'"
+        language: system
+        pass_filenames: false
+        files: ^(scenarios/|scripts/validation/|omni_mcp/|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/|Omni_Localizer/src/ol_mcp/tools\.py|\.pre-commit-config\.yaml)$
+
+      # Scenario-library contract lint (C-03 local gate): every step
+      # falsifiable, standards anchors resolve. Fast, hermetic, no network.
+      # Skipped without the venv.
+      - id: omni-validation-check
+        name: Omni Suite scenario-library contract lint
+        entry: "bash -c 'if [ -x .venv_ol/bin/python ]; then .venv_ol/bin/python scripts/validation/run_validation.py --check; else echo \"skip: .venv_ol not built\"; exit 0; fi'"
+        language: system
+        pass_filenames: false
+        files: ^(scenarios/|scripts/validation/|omni_mcp/|\.pre-commit-config\.yaml)$

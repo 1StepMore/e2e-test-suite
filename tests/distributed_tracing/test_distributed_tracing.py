@@ -3,8 +3,8 @@
 Verifies W3C Trace Context propagation across the OPP → OL → ORF
 pipeline:
 
-- OPP's ``extract_document`` returns a ``traceparent`` field in
-  its response (W3C format ``00-{trace_id}-{span_id}-{flags}``)
+- OPP's ``extract_document`` returns a ``traceparent`` field inside its
+  ``content`` dict (W3C format ``00-{trace_id}-{span_id}-{flags}``)
   when ``OMNI_TRACING_ENABLED=1``.
 - OL's ``translate_md_text`` accepts an optional ``traceparent``
   parameter; if provided, the OL span is a child of that trace
@@ -24,11 +24,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import os
 import re
 import time
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -460,9 +458,9 @@ class TestEndToEndDistributedTrace:
         assert opp_payload.get("success") is True, (
             f"OPP extract_document failed: {opp_payload}"
         )
-        md_content = opp_payload.get("md_content")
+        md_content = opp_payload["content"].get("md_content")
         assert md_content, "OPP must return md_content"
-        opp_tp = opp_payload.get("traceparent")
+        opp_tp = opp_payload["content"].get("traceparent")
         assert opp_tp is not None, (
             "OPP extract_document must return traceparent when tracing is enabled"
         )

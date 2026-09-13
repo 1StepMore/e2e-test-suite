@@ -29,7 +29,7 @@ Omni Suite 是一个三阶段文档本地化流水线，将源文档从一种语
 | **双通道（Two channels）** | MD 通道（文本优先）和 XLIFF 通道（布局保真），按需选择 |
 | **FAKE_LLM 缝（FAKE_LLM seam）** | `OMNI_TEST_FAKE_LLM=1` 即可零成本测试，无需真实 API key |
 | **独立可组合（Independent）** | 三个模块可独立升级，版本组合由兼容矩阵保证 |
-| **MCP 原生（Agent-native）** | 所有能力以 MCP 工具暴露（7+21+6=34 工具），CLI 是后备 |
+| **MCP 原生（Agent-native）** | 所有能力以 MCP 工具暴露（9+21+7=37 个模块工具；加 suite 4 个 = 41），CLI 是后备 |
 | **回写 16 格式（16 output formats）** | ORF `apply-md` 支持 16 种目标格式 |
 | **一次提取，两路可用（`--both`）** | `--target-format both` 同时产出 MD+XLIFF，无需重复提取 |
 | **诚实面对差距（Honest about gaps）** | 本文档如实记录已知限制 |
@@ -179,7 +179,7 @@ Omni Suite 是一个三阶段文档本地化流水线，将源文档从一种语
 |------|------|
 | **输入格式** | 13+（DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML, EPUB, EML, MSG, images, IPYNB, YouTube URL） |
 | **回写格式** | 16（DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON） |
-| **MCP 工具总数** | 34（7 + 21 + 6） |
+| **MCP 工具总数** | 37 模块工具（9 + 21 + 7）；加 suite 4 个 = 41 |
 | **兼容性** | Suite v0.4.0 / OPP v0.9.1 / OL v0.7.1 / ORF v0.4.17 |
 | **已知限制** | PDF→XLIFF 阻止（有意）；MSG 输出需要 Aspose.Email（建议用 .eml）；ORF MCP fail-open（需设置 `ORF_ALLOWED_DIRECTORIES`）；`omni-suite mcp` 是 print-only |
 | **Python 版本** | ≥ 3.13，统一 `.venv_ol/` |
@@ -533,13 +533,15 @@ print('ORF MCP OK')
 
 **场景 6.4: 工具数量验证**
 ```python
-# OPP: 7 tools (extract_document, batch_extract, detect_format_tool,
-#       generate_markdown, generate_xliff, save_skeleton, ping)
+# OPP: 9 tools (extract_document, batch_extract, detect_format_tool,
+#       generate_markdown, generate_xliff, save_skeleton, ping,
+#       validate_xliff, get_capabilities)
 # OL: 21 tools (translate_md_text, translate_xliff, judge_text, ...)
-# ORF: 6 tools (apply_md, apply_xliff, batch_convert, detect_format, info, ping)
-# 总计: 7 + 21 + 6 = 34 tools (但 OL 在 AGENTS.md 列为 21)
+# ORF: 7 tools (apply_md, apply_xliff, batch_convert, detect_format, info,
+#       ping, get_capabilities)
+# 总计: 9 + 21 + 7 = 37 个模块工具；加 suite 4 个 = 41
 ```
-**预期结果：** ✅ OPP 7 工具 / OL 21 工具 / ORF 6 工具
+**预期结果：** ✅ OPP 9 工具 / OL 21 工具 / ORF 7 工具
 
 **实际结果:** _________ **PASS / FAIL:** _________
 
