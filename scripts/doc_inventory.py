@@ -8,8 +8,10 @@ any third-party dependency. Two modes:
   AUTO-GENERATED header + Summary + Inventory table. Idempotent (no
   timestamps): regenerating twice produces byte-identical output.
 * ``--check``: verify (in order) source-truth MCP tool counts vs claim-site
-  docs, scenario count (DERIVED from the ``scenarios/**/*.yaml`` glob, never
-  pinned — claim-site docs stating a count must match it; skipped when
+  docs (suite docs + ``Omni_*/docs/**/*.md`` module docs + module READMEs, with
+  the narrow self-declared ``vX.Y.Z (matches pyproject.toml)`` module-doc
+  version check), scenario count (DERIVED from the ``scenarios/**/*.yaml`` glob,
+  never pinned — claim-site docs stating a count must match it; skipped when
   ``scenarios/`` is absent), input/output format claims, the canonical test
   matrix, nightly-test claims, version-sync delegation
   (``scripts/sync_version_docs.py --check``), stray ``tests/test_bug_*.py``
@@ -292,6 +294,32 @@ _TREE_SERVER_RE = re.compile(r"MCP server\s*\((\d+)\s+tools?\)")
 #: ARCHITECTURE source tree row for OL: "src/ol_mcp/ ← MCP server (N tools)".
 _TREE_OL_RE = re.compile(r"src/ol_mcp/.*MCP server\s*\((\d+)\s+tools?\)")
 
+# --- Module-doc claim shapes (issue #10) -----------------------------------
+# These scan ``Omni_*/docs/**/*.md`` (and the module READMEs for the two
+# prose shapes). Module attribution is DERIVED from the enclosing module
+# directory, never hardcoded per file, so one regex serves all three modules.
+#: OL docs/API.md "The server registers N tools".
+_MODULE_DOC_REGISTERS_RE = re.compile(r"registers\s+(\d+)\s+tools?\b")
+#: OL docs/ARCHITECTURE.md "N tools, all in `TOOL_REGISTRY`".
+_MODULE_DOC_ALL_IN_REGISTRY_RE = re.compile(r"(\d+)\s+tools?,?\s+all in\s+`?TOOL_REGISTRY`?")
+#: OPP docs/API.md "All N tool functions".
+_MODULE_DOC_ALL_TOOL_FUNCTIONS_RE = re.compile(r"All\s+(\d+)\s+tool functions\b")
+#: ORF docs/ARCHITECTURE.md source-tree fence "MCP server (N tools)".
+_MODULE_DOC_MCP_SERVER_RE = re.compile(r"MCP server\s*\((\d+)\s+tools?\)")
+#: Module README prose "exposing N tools".
+_MODULE_README_EXPOSING_RE = re.compile(r"exposing\s+(\d+)\s+tools?\b")
+#: Module README source-tree fence "server.py ... N tools".
+_MODULE_README_SERVER_TREE_RE = re.compile(r"server\.py[^\n]*?(\d+)\s+tools?\b")
+#: Module-doc self-declared version match: "vX.Y.Z (matches `pyproject.toml`)".
+_MODULE_DOC_VERSION_MATCH_RE = re.compile(r"v(\d+\.\d+\.\d+)\s*\(matches\s+`?pyproject\.toml`?\)")
+
+#: Module directory -> module key, in report order (OPP, OL, ORF).
+_MODULE_DOC_DIRS: tuple[tuple[str, str], ...] = (
+    ("Omni_Pre_Processor", "opp"),
+    ("Omni_Localizer", "ol"),
+    ("Omni_Re_Formatter", "orf"),
+)
+
 
 def _fail(failures: list[str], rel: str, module: str, claimed: int, expected: int) -> None:
     if claimed != expected:
@@ -442,6 +470,66 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
             _fail(failures, "omni-docmap SKILL.md", "opp", opp_c, source["opp"])
             _fail(failures, "omni-docmap SKILL.md", "ol", ol_c, source["ol"])
             _fail(failures, "omni-docmap SKILL.md", "orf", orf_c, source["orf"])
+
+
+#: Module-doc tool-count shapes applied to every ``<module>/docs/**/*.md``.
+_MODULE_DOC_TOOL_PATTERNS: tuple[re.Pattern[str], ...] = (
+    _MODULE_DOC_REGISTERS_RE,
+    _MODULE_DOC_ALL_IN_REGISTRY_RE,
+    _MODULE_DOC_ALL_TOOL_FUNCTIONS_RE,
+    _MODULE_DOC_MCP_SERVER_RE,
+)
+#: Module README prose shapes.
+_MODULE_README_TOOL_PATTERNS: tuple[re.Pattern[str], ...] = (
+    _MODULE_README_EXPOSING_RE,
+    _MODULE_README_SERVER_TREE_RE,
+)
+
+
+def _module_pyproject_version(root: Path, module_dir: str) -> str | None:
+    """Return ``version`` from ``<module_dir>/pyproject.toml`` (or None)."""
+    pyproject = root / module_dir / "pyproject.toml"
+    if not pyproject.exists():
+        return None
+    m = re.search(r'^version\s*=\s*"([^"]+)"', read_text(pyproject), re.MULTILINE)
+    return m.group(1) if m else None
+
+
+def check_module_docs(root: Path, source: dict[str, int], failures: list[str]) -> None:
+    """Module-doc claim sites (issue #10): tool counts + self-declared version.
+
+    Scans ``Omni_*/docs/**/*.md`` for the four tool-count shapes and each module
+    README for the two prose shapes. The module (opp/ol/orf) is derived from the
+    enclosing directory, so a stale count anywhere under a module doc tree maps
+    to the right source-truth counter. Also validates the narrow
+    ``vX.Y.Z ... (matches `pyproject.toml`)`` self-declared version claim against
+    that module's ``pyproject.toml`` (only that form; ordinary version mentions
+    are not policed). Missing module docs / pyproject files are skipped.
+    """
+    for module_dir, mod in _MODULE_DOC_DIRS:
+        version = _module_pyproject_version(root, module_dir)
+        docs = root / module_dir / "docs"
+        if docs.is_dir():
+            for path in sorted(docs.rglob("*.md")):
+                rel = path.relative_to(root).as_posix()
+                text = read_text(path)
+                for pattern in _MODULE_DOC_TOOL_PATTERNS:
+                    for m in pattern.finditer(text):
+                        _fail(failures, rel, mod, int(m.group(1)), source[mod])
+                if version is not None:
+                    for m in _MODULE_DOC_VERSION_MATCH_RE.finditer(text):
+                        if m.group(1) != version:
+                            failures.append(
+                                f"{rel} claims version v{m.group(1)} "
+                                f"(matches pyproject.toml), actual is {version}"
+                            )
+        readme = root / module_dir / "README.md"
+        if readme.exists():
+            rel = readme.relative_to(root).as_posix()
+            text = read_text(readme)
+            for pattern in _MODULE_README_TOOL_PATTERNS:
+                for m in pattern.finditer(text):
+                    _fail(failures, rel, mod, int(m.group(1)), source[mod])
 
 
 # ---------------------------------------------------------------------------
@@ -907,6 +995,9 @@ def run_check(root: Path) -> list[str]:
 
     # 2. Claim sites vs source truth.
     check_claim_sites(root, source, failures)
+
+    # 2b. Module-doc claim sites (tool counts + self-declared version, issue #10).
+    check_module_docs(root, source, failures)
 
     # 3. Scenario count + input formats (skipped when scenarios/ absent).
     check_scenarios(root, failures)
