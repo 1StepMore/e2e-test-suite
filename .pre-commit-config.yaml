@@ -110,6 +110,16 @@ repos:
         stages: [commit]
         files: ^(docs/|README\.md|AGENTS\.md|CLAUDE\.md|reports/|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|scenarios/|scripts/doc_inventory\.py|\.pre-commit-config\.yaml|Makefile)$
 
+      # Module-entry consistency (issue #11): the suite's Omni_* symlinks must
+      # resolve to real clones (no gitdir-pointer second worktree) and the venv
+      # editable .pth files must match. Skipped when no module entries exist
+      # (fresh clones have none); the script itself also skips absent modules.
+      - id: omni-module-entry-check
+        name: Omni Suite module-entry consistency (symlink/.git/.pth)
+        entry: "bash -c 'if [ -e Omni_Pre_Processor ] || [ -e Omni_Localizer ] || [ -e Omni_Re_Formatter ]; then python3 scripts/check_module_entry.py; else echo \"skip: module entries not present\"; exit 0; fi'"
+        language: system
+        pass_filenames: false
+
       # Validation coverage audit (C-03 local gate): every live MCP tool must
       # be exercised by a scenario. EXECUTION-backed transport parity (X-04) —
       # the same command as CI `validation.yml` Gate 2 (41/41 in .venv_ol).

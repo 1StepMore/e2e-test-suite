@@ -645,3 +645,111 @@ def test_check_rejects_injected_wrong_count(consistent_tree, capsys):
     assert "agent-pipeline-guide.md" in combined and "4 tools" in combined, (
         f"failure text must name the guide and the injected count, got: {combined!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# 14. Issue #10 — module-doc tool-count + version claim sites
+#     (Omni_*/docs/**/*.md and module READMEs). One case per new regex.
+# ---------------------------------------------------------------------------
+
+#: Stale module-doc claims exactly as observed (ESTABLISHED FACTS), each paired
+#: with the module key whose source-truth counter must reject it.
+MODULE_DOC_STALE_CASES = (
+    ("Omni_Localizer/docs/API.md", "ol", "The server registers 8 tools."),
+    ("Omni_Localizer/docs/ARCHITECTURE.md", "ol", "8 tools, all in `TOOL_REGISTRY`:"),
+    ("Omni_Pre_Processor/docs/API.md", "opp", "All 7 tool functions are importable."),
+    (
+        "Omni_Re_Formatter/docs/ARCHITECTURE.md",
+        "orf",
+        "#### mcp/    # Agent-facing MCP server (6 tools)",
+    ),
+    (
+        "Omni_Re_Formatter/README.md",
+        "orf",
+        "ORF is built on FastMCP, exposing 6 tools via MCP.",
+    ),
+    (
+        "Omni_Re_Formatter/README.md",
+        "orf",
+        "│   ├── server.py     # FastMCP service, 6 tools",
+    ),
+)
+
+#: Canonical module-doc claims (correct counts + self-declared version).
+CANONICAL_MODULE_DOCS = (
+    (
+        "Omni_Localizer/docs/API.md",
+        "# OL API\n\n> **Status**: v0.7.1 (matches `pyproject.toml`).\n\n"
+        "The server registers 21 tools (`TOOL_REGISTRY`).\n",
+    ),
+    ("Omni_Localizer/docs/ARCHITECTURE.md", "# OL Arch\n\n21 tools, all in `TOOL_REGISTRY`:\n"),
+    ("Omni_Pre_Processor/docs/API.md", "# OPP API\n\nAll 9 tool functions are importable.\n"),
+    (
+        "Omni_Re_Formatter/docs/ARCHITECTURE.md",
+        "# ORF Arch\n\n#### mcp/    # Agent-facing MCP server (7 tools)\n",
+    ),
+    (
+        "Omni_Re_Formatter/README.md",
+        "# ORF\n\nORF is built on FastMCP, exposing 7 tools via MCP.\n\n"
+        "│   ├── server.py     # FastMCP service, 7 tools\n",
+    ),
+)
+
+
+@pytest.fixture
+def module_doc_tree(consistent_tree):
+    """``consistent_tree`` plus per-module ``pyproject.toml`` and ``docs/``."""
+    for module_dir, version in (
+        ("Omni_Pre_Processor", "0.9.1"),
+        ("Omni_Localizer", "0.7.1"),
+        ("Omni_Re_Formatter", "0.4.17"),
+    ):
+        d = consistent_tree / module_dir
+        (d / "docs").mkdir(parents=True, exist_ok=True)
+        (d / "pyproject.toml").write_text(
+            f'[project]\nname = "x"\nversion = "{version}"\n', encoding="utf-8"
+        )
+    return consistent_tree
+
+
+@pytest.mark.parametrize("rel,module,stale", MODULE_DOC_STALE_CASES)
+def test_check_rejects_module_doc_stale_tool_claim(
+    module_doc_tree, rel, module, stale, capsys
+):
+    """Each new module-doc tool-count shape catches its stale claim (#10)."""
+    path = module_doc_tree / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"# module doc\n\n{stale}\n", encoding="utf-8")
+    _generate(module_doc_tree)
+    rc = di.main(["--check", "--root", str(module_doc_tree)])
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert rc == 1, f"stale module-doc claim must fail: {stale!r} in {rel}"
+    assert rel in combined, f"failure text must name {rel}, got: {combined!r}"
+
+
+def test_check_rejects_module_doc_stale_version(module_doc_tree, capsys):
+    """A module doc's self-declared version must equal its pyproject.toml."""
+    path = module_doc_tree / "Omni_Localizer/docs/API.md"
+    path.write_text(
+        "# OL API\n\n> **Status**: v0.4.4 (matches `pyproject.toml`).\n",
+        encoding="utf-8",
+    )
+    _generate(module_doc_tree)
+    rc = di.main(["--check", "--root", str(module_doc_tree)])
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert rc == 1, "a stale self-declared module version must fail the check"
+    assert "v0.4.4" in combined and "0.7.1" in combined, (
+        f"failure text must name the stale and actual versions, got: {combined!r}"
+    )
+
+
+def test_check_accepts_canonical_module_doc_claims(module_doc_tree):
+    """Correct module-doc counts + version (9/21/7, v0.7.1) pass the check."""
+    for rel, content in CANONICAL_MODULE_DOCS:
+        path = module_doc_tree / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    _generate(module_doc_tree)
+    assert di.main(["--check", "--root", str(module_doc_tree)]) == 0

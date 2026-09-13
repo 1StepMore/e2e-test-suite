@@ -23,7 +23,7 @@
 #
 # =============================================================================
 
-.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset validate validate-nightly validate-coverage clean clean-artifacts doctor help e2e e2e-help doc-inventory doc-inventory-check
+.PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset validate validate-nightly validate-coverage clean clean-artifacts doctor help e2e e2e-help doc-inventory doc-inventory-check entry-check
 
 PYTHON := .venv_ol/bin/python
 PYTEST := $(PYTHON) -m pytest
@@ -65,6 +65,7 @@ help:
 	@echo "  validate-coverage — Coverage audit only (exit 1 while any MCP tool is missing)"
 	@echo "  doc-inventory          Regenerate docs/dev/doc-inventory.md"
 	@echo "  doc-inventory-check    Verify doc freshness (exit 0 = clean)"
+	@echo "  entry-check            Fail-loud module-entry consistency (symlink/.git/.pth)"
 	@echo "  clean         — Remove __pycache__, .pytest_cache, build artifacts"
 
 setup:
@@ -72,6 +73,7 @@ setup:
 
 doctor:
 	bash scripts/check_deps.sh
+	@python3 scripts/check_module_entry.py
 
 test: test-opp test-ol test-orf
 	$(FAKE_ENV) $(PYTEST) tests/ -m "not nightly" --tb=short -q --no-header
@@ -228,6 +230,9 @@ doc-inventory:
 
 doc-inventory-check:
 	@python3 scripts/doc_inventory.py --check
+
+entry-check:
+	@python3 scripts/check_module_entry.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
