@@ -1,7 +1,8 @@
 name: tool-ol-translate_xliff
 description: "OL translate_xliff translates an XLIFF fixture (requires real LLM keys) and rejects wrong-shaped params cleanly."
+level: agent-user
 category: agent-surface
-tier: 1
+tier: 2
 requires_env: [OPENAI_API_KEY, ZHIPU_API_KEY, AGNES_API_KEY, NVIDIA_NIM_API_KEY]
 instructions: |
   Agent-user conformance (draft D13, mission axis 1): this scenario proves the

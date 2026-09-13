@@ -1,5 +1,6 @@
 name: tool-opp-ping
 description: "OPP ping reports status and version; wrong-shaped call arguments produce a clean error."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

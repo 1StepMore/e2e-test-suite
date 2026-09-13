@@ -1,0 +1,314 @@
+name: pipeline-md-backfill-formats
+description: >-
+  End-to-end MD-path pipeline (T-15) for the 12 non-MSG ORF apply-md targets
+  that the 3 pre-existing pipeline scenarios did not cover: ODT, HTML, RTF,
+  PDF, ICML, SRT, CSV, XLSX, XML, IPYNB, EML and JSON. Real OPP extraction of
+  a synthesized zh DOCX (prose + a markdown table) -> real-LLM OL
+  translate-md (zh -> en) -> real ORF apply-md to the 11 table-bearing
+  targets, each asserted against its own structure anchor; then a second
+  OPP+OL pass over a synthesized zh JSON source -> ORF apply-md to JSON
+  (md2json needs a JSON code block, which OPP emits only for JSON-shaped
+  input). A separate human-quality step asserts the translated MD's CJK
+  density < 5% (STANDARDS.md#cjk-density) so level: human-quality is
+  earned, not declared. Requires real LLM keys -> unconfigured in key-less
+  CI, GREEN in nightly.
+level: human-quality
+category: pipeline
+tier: 2
+requires_env:
+  - OPENAI_API_KEY
+  - ZHIPU_API_KEY
+  - AGNES_API_KEY
+  - NVIDIA_NIM_API_KEY
+  - OPENCODE_GO_KEY
+  - OPENCODE_GO_BASE_URL
+instructions: |-
+  This scenario proves the MD-path pipeline (OPP extract -> OL translate-md
+  -> ORF apply-md) covers all 12 non-MSG MD-path output targets end to end.
+
+  What to do:
+  1. A python step synthesizes a zh-source DOCX at runtime: 6 prose
+     paragraphs plus a 4x3 table. The table matters — ORF MD->CSV/XLSX
+     reads a markdown table; a table-less MD yields a 0-byte CSV (verified).
+  2. OPP extracts the DOCX to MD (--target-format md, zh -> en).
+  3. OL translate-md translates the MD with the real LLM (nightly quality
+     run) against the tracked config (config/default.yaml, ${ENV_VAR} key
+     refs — the requires_env gate guarantees the keys are present).
+  4. A single python step loops the real `orf apply-md` CLI over the 11
+     table-bearing targets (ODT, HTML, RTF, PDF, ICML, SRT, CSV, XLSX, XML,
+     IPYNB, EML) with --no-cache, asserts each artifact is non-empty and
+     matches its structure anchor, and prints one FORMAT-OK line per target
+     plus "OK: 11/11 MD-path formats". Every ORF invocation is the real CLI
+     (subprocess), no mock.
+  5. A human-quality python step asserts the translated MD's CJK density is
+     < 5% (#cjk-density) — the end-user proof that the zh target language
+     actually left the text.
+  6-9. JSON target: md2json only handles structured input (a ```json code
+     block or OPP json_field lines), and OPP emits a ```json block only for
+     JSON-shaped input — so a DOCX/HTML/IPYNB source cannot cover it
+     (verified). A second OPP+OL pass over a synthesized zh JSON source
+     produces the translated MD, and a python step runs the real
+     `orf apply-md --target-format json` and asserts json.loads yields a
+     non-empty dict/list.
+
+  Bar adaptations (documented per format, mirroring scenarios/orf-md/*):
+  - SRT: no timestamped cues in generic prose, so the `srt` channel
+    passes the MD content through — the anchor is a non-empty artifact
+    (same weaker-but-real assertion as orf-md-srt and the cross-format
+    test path 09).
+  - CSV: asserted parseable with >= 1 row, not on cell content (the real
+    LLM may reflow cell text; structure is the contract).
+  - PDF: weasyprint engine; first bytes must be the %PDF- magic.
+  - ICML: pandoc writer marker ParagraphStyleRange (ORF E2E-07).
+  Run it with the real key env (suite-root .env + Omni_Localizer/.env
+  loaded) — with keys scrubbed it must report unconfigured, never
+  pass/fail.
+steps:
+  - name: Generate synthetic Chinese DOCX fixture with a table
+    kind: python
+    command: |-
+      import pathlib, shutil
+      from docx import Document
+      BASE = pathlib.Path("/tmp/omni_val/pipeline-md-formats")
+      shutil.rmtree(BASE, ignore_errors=True)
+      BASE.mkdir(parents=True)
+      doc = Document()
+      for t in ["全球智造科技有限公司成立于2008年，专注于工业自动化系统的研发与制造。",
+                "公司总部位于上海，在苏州、深圳和成都设有三个生产基地。",
+                "我们的核心产品包括协作机器人、视觉引导装配单元和质量检测平台。",
+                "经过十五年的发展，公司已经建立了完整的研发、生产、销售和服务体系。",
+                "公司的愿景是通过智能制造技术，帮助客户实现数字化转型。",
+                "我们相信，技术创新是企业持续发展的根本动力。"]:
+          doc.add_paragraph(t)
+      doc.add_heading("产品数据表", level=2)
+      table = doc.add_table(rows=4, cols=3)
+      rows = [["产品名称", "产量", "状态"],
+              ["协作机器人", "1200", "量产"],
+              ["视觉装配单元", "850", "试产"],
+              ["质检平台", "640", "量产"]]
+      for i, row in enumerate(rows):
+          for j, value in enumerate(row):
+              table.cell(i, j).text = value
+      doc.save(BASE / "source.docx")
+      print("OK: fixture written")
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: fixture written"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Generate the input fixture at runtime: a zh-source DOCX with 6 prose
+      paragraphs and a 4x3 table (the table is required — a table-less MD
+      produces a 0-byte CSV, verified). Check: exit 0 + "OK: fixture
+      written".
+  - name: Extract DOCX to MD via real OPP CLI
+    kind: cli
+    command: opp /tmp/omni_val/pipeline-md-formats/source.docx --target-format md --source-lang zh --target-lang en --output-dir /tmp/omni_val/pipeline-md-formats/opp_out -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/pipeline-md-formats/opp_out/source.md
+    instructions: |-
+      Run the real OPP CLI: `opp source.docx --target-format md -s zh -t en
+      -o opp_out/ -v`. OPP writes source.md (with a markdown table, verified).
+      Check: exit 0 + stderr_has "[INFO] Generated:" (OPP stdout is empty on
+      success; the -v stderr marker is the success signal,
+      STANDARDS.md#exit-codes).
+  - name: Translate MD with real LLM (ol translate-md)
+    kind: cli
+    command: ol translate-md /tmp/omni_val/pipeline-md-formats/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-md-formats/ol_out -c Omni_Localizer/config/default.yaml
+    timeout_seconds: 600
+    expect:
+      exit_code: 0
+      stdout_has: ["Translated"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/pipeline-md-formats/ol_out/source.md
+    instructions: |-
+      Real-LLM translation of the extracted MD (zh -> en) with the tracked
+      OL config (config/default.yaml; the requires_env gate guarantees the
+      keys are present). This is the nightly quality run. Check: exit 0 and
+      stdout contains "Translated" (both fresh "Translated: ..." and cached
+      "Translated (cached): ..." markers contain it).
+  - name: Backfill 11 non-MSG MD-path targets and assert structure anchors
+    kind: python
+    command: |-
+      import csv, json, subprocess, sys, zipfile
+      import xml.etree.ElementTree as ET
+      from pathlib import Path
+      BASE = Path("/tmp/omni_val/pipeline-md-formats")
+      md = BASE / "ol_out" / "source.md"
+      outdir = BASE / "out"
+      outdir.mkdir(parents=True, exist_ok=True)
+      FORMATS = ["odt", "html", "rtf", "pdf", "icml", "srt", "csv", "xlsx", "xml", "ipynb", "eml"]
+      def check(fmt, p):
+          assert p.exists() and p.stat().st_size > 0, "missing or empty artifact"
+          if fmt == "odt":
+              assert zipfile.is_zipfile(p), "not a zip archive"
+              assert "content.xml" in zipfile.ZipFile(p).namelist(), "missing content.xml"
+          elif fmt == "html":
+              t = p.read_text(encoding="utf-8", errors="replace")
+              assert "<html" in t and "<body" in t, "missing <html>/<body>"
+          elif fmt == "rtf":
+              t = p.read_text(encoding="utf-8", errors="replace")
+              assert t.startswith("{") and "\\pard" in t, "missing RTF group brace / \\pard"
+          elif fmt == "pdf":
+              assert p.read_bytes()[:5] == b"%PDF-", "missing %PDF- header"
+          elif fmt == "icml":
+              assert "ParagraphStyleRange" in p.read_text(encoding="utf-8", errors="replace"), "missing ParagraphStyleRange"
+          elif fmt == "srt":
+              assert len(p.read_text(encoding="utf-8", errors="replace").strip()) > 0, "empty SRT"
+          elif fmt == "csv":
+              rows = list(csv.reader(p.read_text(encoding="utf-8", errors="replace").splitlines()))
+              assert len(rows) >= 1, "CSV has no rows"
+          elif fmt == "xlsx":
+              assert zipfile.is_zipfile(p), "xlsx not a zip"
+              assert any(n.startswith("xl/") for n in zipfile.ZipFile(p).namelist()), "missing xl/ part"
+          elif fmt == "xml":
+              ET.parse(str(p))
+          elif fmt == "ipynb":
+              d = json.loads(p.read_text(encoding="utf-8"))
+              assert "nbformat" in d and "cells" in d, "not a valid notebook"
+          elif fmt == "eml":
+              t = p.read_text(encoding="utf-8", errors="replace")
+              assert "From:" in t and "To:" in t and "Subject:" in t, "missing email headers"
+      done = []
+      for fmt in FORMATS:
+          out = outdir / ("source." + fmt)
+          proc = subprocess.run(
+              ["orf", "apply-md", str(md), "--target-format", fmt, "-o", str(out), "--no-cache"],
+              capture_output=True, text=True, timeout=300,
+          )
+          if proc.returncode != 0:
+              print("FORMAT-BAD %s: exit %d: %s" % (fmt, proc.returncode, (proc.stderr or proc.stdout).strip()[-300:]))
+              sys.exit(1)
+          try:
+              check(fmt, out)
+          except Exception as exc:
+              print("FORMAT-BAD %s: %s" % (fmt, exc))
+              sys.exit(1)
+          print("FORMAT-OK %s -> %s (%d bytes)" % (fmt, out.name, out.stat().st_size))
+          done.append(fmt)
+      print("OK: %d/%d MD-path formats" % (len(done), len(FORMATS)))
+    timeout_seconds: 900
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: 11/11 MD-path formats"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/pipeline-md-formats/out/source.odt
+    instructions: |-
+      Loop the real `orf apply-md` CLI over the 11 table-bearing targets
+      with --no-cache and assert each artifact is non-empty and carries its
+      structure anchor (ODT zip+content.xml; HTML html+body; RTF group
+      brace+\pard; PDF %PDF-; ICML ParagraphStyleRange; SRT non-empty;
+      CSV parseable with >= 1 row; XLSX zip with xl/ part; XML well-formed;
+      IPYNB json with nbformat+cells; EML From/To/Subject). The final line
+      "OK: 11/11 MD-path formats" is the falsifiable count — a format drift
+      fails the step. No LLM here; ORF is the hermetic backfill engine.
+  - name: Assert translated MD CJK density below 5% (Q3)
+    kind: python
+    command: |-
+      import re, sys
+      from pathlib import Path
+      text = Path("/tmp/omni_val/pipeline-md-formats/ol_out/source.md").read_text(encoding="utf-8")
+      if not text.strip():
+          print("ERROR: translated MD empty")
+          sys.exit(1)
+      cjk = re.findall(r"[\u4e00-\u9fff]", text)
+      ratio = len(cjk) / len(text)
+      if ratio >= 0.05:
+          print("ERROR: translated MD CJK ratio %.2f%% (>= 5%%, translation incomplete)" % (ratio * 100))
+          sys.exit(1)
+      print("OK: CJK ratio %.2f%% (< 5%%)" % (ratio * 100))
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: CJK ratio"]
+    standard: STANDARDS.md#cjk-density
+    instructions: |-
+      Q3 translation completeness (scripts/omo_loop.py:276-299): the English
+      target must have CJK char ratio < 5% ([\u4e00-\u9fff] over the
+      translated MD text); up to 5% is tolerated for brand names/proper
+      nouns. Check: exit 0 + "OK: CJK ratio".
+  - name: Generate synthetic Chinese JSON source
+    kind: python
+    command: |-
+      import json, pathlib
+      BASE = pathlib.Path("/tmp/omni_val/pipeline-md-formats/json_src")
+      BASE.mkdir(parents=True, exist_ok=True)
+      data = {"产品": [{"名称": "阿尔法", "数值": 100}, {"名称": "贝塔", "数值": 200}]}
+      (BASE / "source.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+      print("OK: json fixture written")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: json fixture written"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Write a zh JSON source. OPP's JSON input channel emits a ```json fenced
+      code block (plus json_field lines) — the shape ORF md2json requires;
+      a DOCX/HTML/IPYNB source does not produce it (verified), which is why
+      the JSON target needs its own OPP pass. Check: exit 0 + "OK: json
+      fixture written".
+  - name: Extract JSON to MD via real OPP CLI
+    kind: cli
+    command: opp /tmp/omni_val/pipeline-md-formats/json_src/source.json --target-format md --source-lang zh --target-lang en --output-dir /tmp/omni_val/pipeline-md-formats/opp_json -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/pipeline-md-formats/opp_json/source.md
+    instructions: |-
+      Run the real OPP CLI on the JSON source: `opp source.json
+      --target-format md -s zh -t en -o opp_json/ -v`. OPP writes source.md
+      carrying a ```json code block. Check: exit 0 + stderr_has
+      "[INFO] Generated:".
+  - name: Translate JSON-derived MD with real LLM
+    kind: cli
+    command: ol translate-md /tmp/omni_val/pipeline-md-formats/opp_json/source.md -s zh -t en -o /tmp/omni_val/pipeline-md-formats/ol_json -c Omni_Localizer/config/default.yaml
+    timeout_seconds: 600
+    expect:
+      exit_code: 0
+      stdout_has: ["Translated"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/pipeline-md-formats/ol_json/source.md
+    instructions: |-
+      Real-LLM translation of the JSON-derived MD (zh -> en). OL shields code
+      fences, so the ```json block survives translation and remains the
+      md2json input. Check: exit 0 + stdout "Translated".
+  - name: Backfill JSON target and assert parseable JSON
+    kind: python
+    command: |-
+      import json, subprocess, sys
+      from pathlib import Path
+      md = "/tmp/omni_val/pipeline-md-formats/ol_json/source.md"
+      out = Path("/tmp/omni_val/pipeline-md-formats/out/source.json")
+      proc = subprocess.run(
+          ["orf", "apply-md", md, "--target-format", "json", "-o", str(out), "--no-cache"],
+          capture_output=True, text=True, timeout=300,
+      )
+      if proc.returncode != 0:
+          print("FORMAT-BAD json: exit %d: %s" % (proc.returncode, (proc.stderr or proc.stdout).strip()[-300:]))
+          sys.exit(1)
+      data = json.loads(out.read_text(encoding="utf-8"))
+      assert isinstance(data, (dict, list)), "json output is not a dict/list"
+      assert data, "json output is empty"
+      print("OK: json (%s, %d bytes)" % (type(data).__name__, out.stat().st_size))
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: json"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/pipeline-md-formats/out/source.json
+    instructions: |-
+      Run the real `orf apply-md --target-format json` on the translated
+      JSON-derived MD and assert the output parses as a non-empty dict/list
+      (the JSON structural anchor). Check: exit 0 + "OK: json".

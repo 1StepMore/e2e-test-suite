@@ -1,0 +1,144 @@
+name: pipeline-xliff-backfill-docx
+description: >-
+  End-to-end XLIFF-path pipeline (T-15) — the first XLIFF-path E2E in the
+  library (0 existed): real OPP extraction of the committed Meridian DOCX
+  (--target-format both) producing an untranslated source.xlf + the
+  layout skeleton source.skeleton.zip -> real-LLM OL translate-xliff
+  (en -> zh) -> real ORF apply-xliff re-injecting the translated units into
+  the skeleton -> assert the backfilled DOCX opens in python-docx with
+  >= 1 paragraph (STANDARDS.md#opens-docx) and that the skeleton-preserving
+  document.xml actually carries CJK target text. Requires real LLM keys ->
+  unconfigured in key-less CI, GREEN in nightly.
+level: human-quality
+category: pipeline
+tier: 2
+requires_env:
+  - OPENAI_API_KEY
+  - ZHIPU_API_KEY
+  - AGNES_API_KEY
+  - NVIDIA_NIM_API_KEY
+  - OPENCODE_GO_KEY
+  - OPENCODE_GO_BASE_URL
+instructions: |-
+  This scenario proves the XLIFF pipeline path (OPP .xlf + skeleton.zip ->
+  OL translate-xliff -> ORF apply-xliff) end to end. The MD path is covered
+  by pipeline-md-* scenarios; this is the layout-faithful path the README's
+  "Pipeline Selection Strategy" defines and that had zero E2E coverage.
+
+  What to do:
+  1. Stage the committed Meridian DOCX (scenarios/_fixtures/translated_pair/
+     source.docx) into the scenario work dir.
+  2. OPP extracts it with --target-format both: source.xlf (untranslated,
+     empty <target> elements) + source.skeleton.zip (the preserved DOCX zip
+     structure). The skeleton is layout, not content, so it is generated at
+     runtime and never committed.
+  3. OL translate-xliff translates source.xlf with the real LLM (en -> zh)
+     against the tracked config; the translated XLIFF's <target> elements
+     supply the backfill content.
+  4. ORF apply-xliff consumes the generated skeleton.zip + the translated
+     XLIFF and writes out.docx, re-injecting translated text into the
+     original structure.
+  5. A python step asserts the human-quality functional floor: out.docx
+     opens in python-docx with >= 1 paragraph (#opens-docx, scripts/
+     omo_loop.py Q1) AND word/document.xml contains CJK characters (proof
+     the translated units were actually backfilled, not just that a DOCX was
+     emitted).
+
+  Run it with the real key env (suite-root .env + Omni_Localizer/.env
+  loaded) — with keys scrubbed it must report unconfigured, never
+  pass/fail.
+steps:
+  - name: Stage committed Meridian DOCX fixture
+    kind: python
+    command: |-
+      import pathlib, shutil
+      BASE = pathlib.Path("/tmp/omni_val/pipeline-xliff-docx")
+      shutil.rmtree(BASE, ignore_errors=True)
+      BASE.mkdir(parents=True)
+      shutil.copy2("scenarios/_fixtures/translated_pair/source.docx", BASE / "source.docx")
+      assert (BASE / "source.docx").stat().st_size > 10000, "fixture unexpectedly small"
+      print("OK: DOCX fixture staged")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: DOCX fixture staged"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Stage the committed Meridian DOCX (38 KB, English source) into
+      /tmp/omni_val/pipeline-xliff-docx/source.docx via shutil.copy2. Check:
+      exit 0 + "OK: DOCX fixture staged"; the size assertion pins a
+      non-trivial fixture (a truncated copy fails).
+  - name: Extract DOCX to XLIFF + skeleton via real OPP CLI
+    kind: cli
+    command: opp /tmp/omni_val/pipeline-xliff-docx/source.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/pipeline-xliff-docx/opp_out -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:", "Skeleton saved:"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/pipeline-xliff-docx/opp_out/source.xlf
+    instructions: |-
+      Run the real OPP CLI with --target-format both: it writes source.xlf
+      (untranslated units) AND source.skeleton.zip (the layout skeleton).
+      Both are required — `--target-format xlf` alone emits no skeleton
+      (verified). Check: exit 0 + stderr_has "[INFO] Generated:" and
+      "Skeleton saved:" (OPP's -v markers on stderr).
+  - name: Translate XLIFF with real LLM (ol translate-xliff)
+    kind: cli
+    command: ol translate-xliff /tmp/omni_val/pipeline-xliff-docx/opp_out/source.xlf -s en -t zh -o /tmp/omni_val/pipeline-xliff-docx/ol_out -c Omni_Localizer/config/default.yaml
+    timeout_seconds: 600
+    expect:
+      exit_code: 0
+      stdout_has: ["Translated"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/pipeline-xliff-docx/ol_out/source.xlf
+    instructions: |-
+      Real-LLM XLIFF translation (en -> zh) with the tracked OL config
+      (config/default.yaml; the requires_env gate guarantees the keys are
+      present). The translated XLIFF is the backfill input. Check: exit 0 +
+      stdout contains "Translated".
+  - name: Backfill translated XLIFF into the skeleton via orf apply-xliff
+    kind: cli
+    command: orf apply-xliff /tmp/omni_val/pipeline-xliff-docx/opp_out/source.skeleton.zip --xliff /tmp/omni_val/pipeline-xliff-docx/ol_out/source.xlf --output /tmp/omni_val/pipeline-xliff-docx/out.docx --format docx
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni_val/pipeline-xliff-docx/out.docx"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/pipeline-xliff-docx/out.docx
+    instructions: |-
+      Run the real ORF backfill: the OPP-generated skeleton.zip is the
+      positional source, the translated XLIFF supplies the <target> units,
+      --format docx selects the same-format skeleton channel. Check: exit 0
+      + stdout "Created <path>" (printed for fresh and cached conversions).
+  - name: Assert DOCX opens and carries backfilled CJK targets
+    kind: python
+    command: |-
+      import re, sys, zipfile
+      from docx import Document
+      p = "/tmp/omni_val/pipeline-xliff-docx/out.docx"
+      try:
+          doc = Document(p)
+          assert len(doc.paragraphs) >= 1, "python-docx opens with zero paragraphs"
+          xml = zipfile.ZipFile(p).read("word/document.xml").decode("utf-8")
+          assert re.search(r"[\u4e00-\u9fff]", xml), "no CJK target text backfilled into document.xml"
+          print("OK: DOCX opens with %d paragraphs; CJK target text present" % len(doc.paragraphs))
+      except Exception as exc:
+          print("ERROR: %s" % exc)
+          sys.exit(1)
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: DOCX opens"]
+    standard: STANDARDS.md#opens-docx
+    collect_artifacts:
+      - path: /tmp/omni_val/pipeline-xliff-docx/out.docx
+    instructions: |-
+      Read out.docx and verify: (1) python-docx opens it with >= 1 paragraph
+      (STANDARDS.md#opens-docx — scripts/omo_loop.py Q1 functional floor);
+      (2) word/document.xml carries CJK characters, proving the translated
+      en -> zh targets were backfilled rather than an empty shell emitted.
+      Check: exit 0 + "OK: DOCX opens".

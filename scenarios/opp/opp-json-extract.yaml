@@ -3,6 +3,7 @@ description: >
   OPP extracts a JSON document to Markdown: runtime-generated synthetic
   JSON (nested object with arrays) -> exit 0, manifest metadata keys,
   declared format JSON, and the payload preserved in a fenced code block.
+level: agent-user
 category: opp-extraction
 instructions: |
   What to do:

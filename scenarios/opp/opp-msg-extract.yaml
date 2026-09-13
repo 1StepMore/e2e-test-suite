@@ -6,6 +6,7 @@ description: >
   scenario reports unconfigured unless the operator exports MSG_FIXTURE
   pointing at a real .msg file.  It never asserts GREEN unconditionally
   and never REDs for the missing fixture.
+level: agent-user
 category: opp-extraction
 requires_env: [MSG_FIXTURE]
 instructions: |

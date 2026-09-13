@@ -8,6 +8,7 @@ description: >
   installed.  Verified 2026-08-14: without an engine OPP degrades
   gracefully (exit 0, empty markdown, warning in the manifest) — the
   gate keeps the tier-1 acceptance from ever REDing on environment.
+level: agent-user
 category: opp-extraction
 requires_env: [OCR_ENGINE]
 instructions: |

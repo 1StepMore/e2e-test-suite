@@ -1,5 +1,6 @@
 name: tool-ol-get_relevant_terms
 description: "OL get_relevant_terms selects glossary terms relevant to a source text and returns clean errors for bad input."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

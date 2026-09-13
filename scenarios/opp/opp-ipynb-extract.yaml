@@ -8,6 +8,7 @@ description: >
   "Extraction failed: outputs"), so this scenario never asserts GREEN
   unconditionally.  It reports unconfigured unless the operator exports
   OPP_IPYNB_OK in an env where the known issue is resolved.
+level: agent-user
 category: opp-extraction
 requires_env: [OPP_IPYNB_OK]
 instructions: |

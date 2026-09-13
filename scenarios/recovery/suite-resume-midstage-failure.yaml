@@ -1,0 +1,185 @@
+name: suite-resume-midstage-failure
+description: >-
+  Failure injection + checkpoint/resume (R-05a). A real `omni-suite pipeline`
+  run is forced to fail at its LAST stage by injecting an invalid
+  `--target-format`. The suite CLI saves a run manifest (the checkpoint) with
+  per-stage status — opp/ol `reused`, orf `failed`, run `partial` — and exits
+  non-zero. The primary step's `recovery_steps` then read that checkpoint and
+  re-issue the documented resume (`--resume-from orf` with a supported
+  format), which reuses the prior intermediates and drives the run to
+  `complete`. The primary RED stays in the trace; the step flips to
+  `recovered`. Hermetic tier 1: the opp/ol intermediates are provisioned, so
+  no LLM subprocess runs and `--fake-llm` only satisfies the suite CLI's
+  provider-key argument gate — no translation is faked.
+level: agent-user
+category: recovery
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Clean the run dir and provision a checkpoint in progress: a real
+     `opp/<stem>.md` and `ol/<stem>.md`, so `--resume-from orf` reuses stages 1
+     and 2 and only stage 3 (ORF) executes.
+  2. Primary: run the real suite CLI with `--resume-from orf` and an injected
+     invalid `--target-format bogus`, expecting a completed run. ORF rejects the
+     format at parse time, so the CLI fails at stage 3 (exit 1) and saves the
+     manifest: status `partial`, `failed_stage` `orf`, opp/ol `reused`, orf
+     `failed`. The primary is RED.
+  3. Recovery: read the on-disk manifest, prove the checkpoint (partial /
+     orf-failed / reused prior stages / resume_hint derivable), then run the
+     documented resume `--resume-from orf --target-format html` and assert the
+     run reaches `complete` with a non-empty HTML artifact.
+  4. Assert the recovered artifact and the final manifest independently.
+
+  Tier 1: no keys, no network, pure-Python HTML engine. `--fake-llm` is used
+  only to pass the suite CLI's provider-key argument gate; because stages 1-2
+  are REUSED, no LLM or fake provider is ever invoked (asserted by the reused
+  stage statuses).
+steps:
+  - name: Provision a checkpoint with opp/ol intermediates (clean dir first)
+    kind: python
+    command: |
+      import pathlib, shutil
+      d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-midstage")
+      shutil.rmtree(d, ignore_errors=True)
+      md = (
+          "---\nsource_lang: en\ntarget_lang: zh\n---\n\n"
+          "# Mid-stage resume\n\nbody text\n"
+      )
+      for sub in ("opp", "ol"):
+          (d / sub).mkdir(parents=True)
+          (d / sub / "meridian_robotics.md").write_text(md, encoding="utf-8")
+      print("PROVISIONED", sorted(p.name for p in d.iterdir()))
+    timeout_seconds: 30
+    expect:
+      exit_code: 0
+      stdout_has: ["PROVISIONED", "ol", "opp"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Remove the run dir, then create `opp/<stem>.md` and `ol/<stem>.md` so
+      plan_resume('orf') returns the two prior stages and only ORF runs. The
+      seed is deterministic and needs no LLM.
+  - name: Pipeline with an injected invalid target fails at ORF and saves the checkpoint
+    kind: cli
+    command: omni-suite pipeline scenarios/_fixtures/meridian_robotics.docx --resume-from orf --run-id r05-resume-midstage --target-format bogus --output /tmp/omni-suite-pipeline/r05-resume-midstage/out.html --fake-llm
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["Pipeline complete"]
+    recovery_steps:
+      - name: Recover - prove the checkpoint, then resume from orf to completion
+        kind: python
+        command: |
+          import json, os, pathlib, subprocess, sys
+          d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-midstage")
+          mpath = d / "manifest.json"
+          if not mpath.exists():
+              print("ERROR: injected failure saved no checkpoint manifest")
+              sys.exit(1)
+          m = json.loads(mpath.read_text(encoding="utf-8"))
+          if not (
+              m.get("status") == "partial"
+              and m.get("failed_stage") == "orf"
+              and m["stages"]["opp"]["status"] == "reused"
+              and m["stages"]["ol"]["status"] == "reused"
+              and m["stages"]["orf"]["status"] == "failed"
+          ):
+              print("ERROR: checkpoint shape wrong: %s" % m)
+              sys.exit(1)
+          print(
+              "CHECKPOINT OK partial failed_stage=orf opp=%s ol=%s orf=%s"
+              % (
+                  m["stages"]["opp"]["status"],
+                  m["stages"]["ol"]["status"],
+                  m["stages"]["orf"]["status"],
+              )
+          )
+          resume = [
+              "omni-suite", "pipeline", m["input_file"],
+              "--resume-from", m["failed_stage"],
+              "--run-id", m["run_id"],
+              "--output", m["output"],
+              "--target-format", "html",
+              "--fake-llm",
+          ]
+          env = {**os.environ, "OMNI_CACHE_DIR": str(d / "cache")}
+          proc = subprocess.run(resume, capture_output=True, text=True, timeout=300, env=env)
+          if proc.returncode != 0:
+              print("RECOVERY FAILED rc=%s stderr=%s" % (proc.returncode, proc.stderr[-400:]))
+              sys.exit(1)
+          m2 = json.loads(mpath.read_text(encoding="utf-8"))
+          out = pathlib.Path(m["output"])
+          if not (
+              m2.get("status") == "complete"
+              and m2.get("failed_stage") is None
+              and m2["stages"]["orf"]["status"] == "complete"
+              and out.exists()
+              and out.stat().st_size > 0
+          ):
+              print("RECOVERY FAILED post-state: %s" % m2)
+              sys.exit(1)
+          print("RECOVERY OK complete artifact=%d bytes" % out.stat().st_size)
+        timeout_seconds: 300
+        expect:
+          exit_code: 0
+          stdout_has: ["CHECKPOINT OK partial", "RECOVERY OK complete"]
+        standard: STANDARDS.md#exit-codes
+        instructions: >-
+          Read the checkpoint the failing primary left on disk and assert its
+          shape (partial / orf failed / opp+ol reused), then re-issue the
+          documented resume from the failed stage with a supported format.
+          When the run reaches `complete` with a non-empty artifact, the
+          recovery step passes and the primary is marked `recovered` (its RED
+          stays in the record).
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      The injected fault: `--target-format bogus` reaches ORF and is rejected
+      at parse time, so the pipeline exits non-zero at stage 3 of 3 and saves
+      the checkpoint. The primary `expect` is the desired completed run, so a
+      non-zero exit with no "Pipeline complete" is a RED that triggers
+      `recovery_steps`.
+  - name: Assert the recovered artifact and the completed manifest
+    kind: python
+    command: |
+      import json, pathlib, sys
+      d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-midstage")
+      out = d / "out.html"
+      ok = False
+      if out.exists() and out.stat().st_size > 0:
+          data = out.read_text(encoding="utf-8")
+          ok = "<html" in data and "<body" in data
+      m = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+      if not ok:
+          print("ERROR: recovered HTML artifact missing or malformed: %s" % out)
+          sys.exit(1)
+      if m.get("status") != "complete" or m.get("failed_stage") is not None:
+          print("ERROR: manifest not complete after resume: %s" % m)
+          sys.exit(1)
+      if "[zh] " in out.read_text(encoding="utf-8"):
+          print("ERROR: fake-LLM echo signature present in artifact")
+          sys.exit(1)
+      print("FINAL OK artifact=%d bytes manifest=%s" % (out.stat().st_size, m["status"]))
+    timeout_seconds: 60
+    expect:
+      exit_code: 0
+      stdout_has: ["FINAL OK", "manifest=complete"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni-suite-pipeline/r05-resume-midstage/out.html
+      - path: /tmp/omni-suite-pipeline/r05-resume-midstage/manifest.json
+    instructions: >-
+      Independent final observation: the recovered out.html is a real HTML
+      document (structural markers), the manifest is `complete` with no failed
+      stage, and the artifact carries no `[<tgt>] ` fake-echo signature.
+cleanup_steps:
+  - name: Remove the scenario run dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni-suite-pipeline/r05-resume-midstage", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort removal of the run dir and its checkpoint.

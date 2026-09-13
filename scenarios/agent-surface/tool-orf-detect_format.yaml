@@ -1,5 +1,6 @@
 name: tool-orf-detect_format
 description: "ORF detect_format detects a DOCX fixture's format via magic bytes and denies system-directory paths cleanly."
+level: agent-user
 category: agent-surface
 tier: 1
 requires_env: [ORF_MCP_ALLOWED_DIRS]

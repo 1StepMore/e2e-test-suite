@@ -11,6 +11,7 @@ description: >-
   parser cannot see ns0:-prefixed trans-units, so the intermediate HTML keeps
   the English skeleton text and the PDF carries no Chinese — structure + exit
   0 is the honest assertable contract (finding in learnings.md).
+level: agent-user
 category: orf-xliff
 tier: 1
 requires_env: []

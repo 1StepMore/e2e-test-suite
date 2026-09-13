@@ -1,0 +1,128 @@
+name: trace-audit-entry
+description: >
+  Traceability gap X-02 (agent-oriented-gap-register.md §4.3): ORF's audit
+  trail (logs/audit_<date>.log, written by get_audit_logger) documents
+  correlation_id + agent_id + operation + result, but no scenario ever
+  asserted a written entry. This scenario drives the REAL ORF audit logger
+  with the documented structlog contextvar fields bound, then parses the
+  real audit file back and asserts one JSON entry carries all four fields
+  with the expected operation/result. JSON is enabled via
+  OMNI_LOG_FORMAT=json; a missing field, a non-JSON line, or a dropped
+  correlation_id turns this scenario RED.
+
+  Hermetic (tier 1): the audit logger is a local file sink — no network, no
+  LLM, no keys. Agent-user evidence: the audit entry is the observable.
+category: traceability
+level: agent-user
+tier: 1
+instructions: |
+  What to do:
+  1. Use a stable /tmp workspace, set OMNI_LOG_FORMAT=json, and import the
+     REAL ORF logging module (src/orf/logging).
+  2. Configure ORF logging (setup_logger, the documented entry-point call),
+     obtain the audit logger (get_audit_logger), and bind the documented
+     structlog contextvars correlation_id + agent_id.
+  3. Emit one audit entry for a real operation (operation=apply_md,
+     result=success). Copy the audit file to a stable path as the artifact.
+  4. The second step parses the stable audit copy as JSONL and asserts the
+     entry contains correlation_id, agent_id, operation, and result with the
+     expected values; a missing field exits non-zero.
+
+  No mocks: the entry is written by the shipped ORF audit logger to its real
+  audit file and read back from disk.
+steps:
+  - name: ORF audit logger writes a JSON entry with the correlation fields bound
+    kind: python
+    command: |-
+      import os, sys, json, pathlib
+      BASE = pathlib.Path("/tmp/omni_val/trace-audit-entry")
+      BASE.mkdir(parents=True, exist_ok=True)
+      os.chdir(BASE)
+      os.environ["OMNI_LOG_FORMAT"] = "json"
+      os.environ["ORF_LOG_LEVEL"] = "INFO"
+      SUITE = "/mnt/d/贯维/Omni_Suite"
+      sys.path.insert(0, str(pathlib.Path(SUITE) / "Omni_Re_Formatter" / "src"))
+      import structlog
+      import orf.logging as logging_mod
+
+      logging_mod.setup_logger("orf")
+      audit = logging_mod.get_audit_logger()
+      structlog.contextvars.bind_contextvars(
+          correlation_id="cid-x02-audit", agent_id="agent-x02")
+      audit.info("apply_md", extra={"operation": "apply_md", "result": "success"})
+      for handler in audit.handlers:
+          handler.flush()
+
+      files = sorted(BASE.glob("logs/audit_*.log"))
+      assert files, "no audit log file was written"
+      lines = [ln for ln in files[-1].read_text(encoding="utf-8").splitlines() if ln.strip()]
+      assert lines, "audit log is empty"
+      target = BASE / "audit.jsonl"
+      target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+      print("AUDIT_WRITTEN " + str(target) + " lines=" + str(len(lines)))
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["AUDIT_WRITTEN"]
+      stderr_not_has: ["Traceback (most recent call last)"]
+    collect_artifacts:
+      - path: /tmp/omni_val/trace-audit-entry/audit.jsonl
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      Uses the shipped ORF audit logger with OMNI_LOG_FORMAT=json and the
+      documented structlog contextvars; copies the real audit file to a
+      stable path for the assertion step.
+  - name: Parse the audit entry and assert correlation_id, agent_id, operation, result
+    kind: python
+    command: |-
+      import json, pathlib, sys
+      p = pathlib.Path("/tmp/omni_val/trace-audit-entry/audit.jsonl")
+      entries = []
+      for line in p.read_text(encoding="utf-8").splitlines():
+          if line.strip():
+              try:
+                  entries.append(json.loads(line))
+              except json.JSONDecodeError:
+                  sys.exit(1)
+      match = [
+          e for e in entries
+          if e.get("correlation_id") == "cid-x02-audit"
+          and e.get("agent_id") == "agent-x02"
+      ]
+      if not match:
+          sys.exit(1)
+      entry = match[-1]
+      required = ("correlation_id", "agent_id", "operation", "result")
+      if any(not entry.get(k) for k in required):
+          sys.exit(1)
+      if entry["operation"] != "apply_md" or entry["result"] != "success":
+          sys.exit(1)
+      print(json.dumps({k: entry[k] for k in required}, sort_keys=True))
+    timeout_seconds: 60
+    expect:
+      exit_code: 0
+      stdout_has:
+        - '"correlation_id": "cid-x02-audit"'
+        - '"agent_id": "agent-x02"'
+        - '"operation": "apply_md"'
+        - '"result": "success"'
+      stderr_not_has: ["Traceback (most recent call last)"]
+    collect_artifacts:
+      - path: /tmp/omni_val/trace-audit-entry/audit.jsonl
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      Strict JSONL parse of the real audit file; the step exits non-zero when
+      any of the four fields is missing or mismatched, so the assertion
+      cannot silently pass.
+cleanup_steps:
+  - name: Remove the scenario temp workspace
+    kind: python
+    command: |-
+      import shutil
+      shutil.rmtree("/tmp/omni_val/trace-audit-entry", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#json-parseable
+    instructions: Best-effort cleanup of the audit workspace.

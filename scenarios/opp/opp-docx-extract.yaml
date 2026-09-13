@@ -5,6 +5,7 @@ description: >
   equivalent of the OL-side YAML frontmatter), markdown heading/table
   structure preserved, and an XLIFF carrying trans-units for the zh
   target language.
+level: agent-user
 category: opp-extraction
 instructions: |
   What to do:

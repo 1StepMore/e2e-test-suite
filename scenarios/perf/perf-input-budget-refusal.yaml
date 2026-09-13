@@ -1,0 +1,95 @@
+name: perf-input-budget-refusal
+description: >
+  Input-budget bound (plan gap R-08, C5 performance × agent-user). An agent
+  that hands OPP `batch_extract` a request larger than the shipped bound
+  (MAX_BATCH_FILES = 50) must get a TYPED refusal, never a silent truncation
+  to the first 50 files and never a partial result envelope. The real
+  in-process tool returns success=false with error.code/error_code ==
+  OPP_RESOURCE_EXHAUSTED and recovery.strategy == reduce_input — the
+  documented chunking path ("Split the batch into smaller chunks ...").
+  The step additionally asserts that no `content`/`results`/`successful`
+  key is present, so the whole request is refused or fully served: the
+  batch is not silently cut down. Tier 1 / hermetic: no LLM keys, no
+  network, deterministic — the guard fires before any file is opened.
+level: agent-user
+category: perf
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Initialize the real OPP MCP server in-process with
+     OPP_MCP_ALLOWED_DIRS=/tmp, then call the real `batch_extract` tool with
+     51 file paths — one more than the shipped MAX_BATCH_FILES bound (50).
+  2. Expect a typed resource-bound refusal: success=false, error.code ==
+     OPP_RESOURCE_EXHAUSTED, and recovery.strategy == reduce_input (the
+     documented "split into smaller chunks" remedy). No `content`/`results`/
+     `successful` field may appear: the batch must be refused whole, not
+     silently truncated to the first 50 files.
+  3. The snippet strictly checks the parsed payload and exits non-zero if
+     any half is violated, so the outer step can only pass on an honest
+     refusal.
+
+  Why this is the R-08 bar: the server refuses the over-bound request and
+  names the chunking recovery path instead of silently dropping files or
+  emitting a partial result. No LLM and no network are involved — the
+  guard fires before any extraction.
+steps:
+  - name: 'Oversized batch is refused with OPP_RESOURCE_EXHAUSTED + reduce_input, no partial result'
+    kind: python
+    command: |
+      import asyncio
+      import json
+      import os
+      import sys
+
+      os.environ["OPP_MCP_ALLOWED_DIRS"] = "/tmp"
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+
+      _init_server(load_config())
+      from opp.mcp.server import batch_extract
+
+      LIMIT = 50
+      paths = ["/tmp/omni-val-r08/f%03d.md" % i for i in range(LIMIT + 1)]
+      r = asyncio.run(batch_extract(file_paths=paths, output_formats="md"))
+
+      code = (r.get("error") or {}).get("code")
+      recovery = (r.get("recovery") or {}).get("strategy")
+      partial = "results" in r or "content" in r or "successful" in r
+      ok = (
+          r.get("success") is False
+          and r.get("error_code") == "OPP_RESOURCE_EXHAUSTED"
+          and code == "OPP_RESOURCE_EXHAUSTED"
+          and recovery == "reduce_input"
+          and not partial
+      )
+      print(json.dumps({
+          "success": r.get("success"),
+          "error_code": r.get("error_code"),
+          "recovery_strategy": recovery,
+          "partial_output_present": partial,
+          "batch_requested": len(paths),
+          "configured_limit": LIMIT,
+      }))
+      if not ok:
+          sys.exit(1)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has:
+        - '"success": false'
+        - '"error_code": "OPP_RESOURCE_EXHAUSTED"'
+        - '"recovery_strategy": "reduce_input"'
+        - '"partial_output_present": false'
+        - '"batch_requested": 51'
+      stdout_not_has:
+        - 'Traceback (most recent call last)'
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      Call the real batch_extract with 51 paths against the shipped 50-file
+      bound. The parsed payload must show the typed OPP_RESOURCE_EXHAUSTED
+      refusal and the reduce_input chunking recovery — with no
+      content/results/successful key, proving the batch was refused whole,
+      not silently truncated. The snippet exits non-zero on any violation.

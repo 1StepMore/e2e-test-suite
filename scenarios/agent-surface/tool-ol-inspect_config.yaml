@@ -1,5 +1,6 @@
 name: tool-ol-inspect_config
 description: "OL inspect_config inspects the OL configuration fixture and returns a clean path error for a bad config path."
+level: agent-user
 category: agent-surface
 tier: 1
 requires_env: [OL_MCP_ALLOWED_DIRS]

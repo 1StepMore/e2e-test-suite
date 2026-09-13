@@ -1,5 +1,6 @@
 name: tool-ol-get_translation_status
 description: "OL get_translation_status answers unknown request ids with a clean NOT_FOUND and wrong-shaped params with a clean error."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

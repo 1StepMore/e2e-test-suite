@@ -1,5 +1,6 @@
 name: tool-omni_mcp-list_validation_scenarios
 description: "Suite omni_mcp list_validation_scenarios enumerates the validation scenario library (name, category, tier, requires_env, description) from the real loader; an invalid tier filter produces a clean error."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

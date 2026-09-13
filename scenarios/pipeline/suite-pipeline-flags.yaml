@@ -15,6 +15,7 @@ description: >-
   covered by tests/test_omni_suite_cli.py and intentionally NOT duplicated
   here — they are not hermetic. Cleanup step removes any gates-only temp
   residue under /tmp/omni-suite-pipeline/.
+level: agent-user
 category: pipeline
 tier: 1
 instructions: |-

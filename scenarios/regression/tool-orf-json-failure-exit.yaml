@@ -1,0 +1,107 @@
+name: tool-orf-json-failure-exit
+description: >
+  Regression seed locking plan gap T-01 (agent-oriented-gap-register.md
+  §4.1): ORF `orf apply-md ... --json` emitted a `success: false` JSON
+  object on stdout but exited 0, so an agent branching on the exit code
+  saw a misleading success while the machine-readable body said failure.
+  The fix raises SystemExit(1) after the JSON error object in every
+  `--json` failure branch. This scenario exercises the real CLI with a
+  deterministic failing conversion (target output dir does not exist) and
+  asserts both halves of the contract: exit code != 0 (#exit-codes) AND
+  stdout is exactly ONE parseable JSON object with success: false
+  (#json-parseable). If the exit code regresses to 0 — or the failure
+  branch stops emitting a single parseable object — this seed turns RED.
+level: agent-user
+category: regression
+regression: true
+regression_issue: "agent-oriented-gap-register.md#T-01"
+tier: 1
+instructions: |
+  What to do:
+  1. Write a minimal translated MD at /tmp/omni_val/orf-json-failure-exit/in.md
+     (no frontmatter needed for the HTML path).
+  2. Run the real `orf apply-md` CLI with --json, targeting a missing
+     output directory so the HTML converter deterministically fails to
+     write (no mocks, no pandoc, no LLM). Expect exit code 1 (NOT 0) and
+     a `success: false` JSON body on stdout, with no Python traceback.
+  3. Re-run the same command inside a python step and strictly parse
+     stdout with json.loads: it must be exactly one JSON object with
+     success false. A trailing human banner on stdout makes json.loads
+     raise, failing the step.
+
+  Hermetic (tier 1): no API keys, no network, no LLM, deterministic.
+steps:
+  - name: Write the failing-conversion MD input
+    kind: python
+    command: |-
+      import pathlib
+      d = pathlib.Path("/tmp/omni_val/orf-json-failure-exit")
+      d.mkdir(parents=True, exist_ok=True)
+      (d / "in.md").write_text("# Hello\n\nworld\n", encoding="utf-8")
+      print(f"wrote {d / 'in.md'}")
+    expect:
+      exit_code: 0
+      stdout_has: ["wrote"]
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      Create the input MD. Deterministic; nothing else depends on the
+      converter engine.
+  - name: ORF apply-md --json on a failed conversion exits 1 with a JSON error object
+    kind: cli
+    command: orf apply-md /tmp/omni_val/orf-json-failure-exit/in.md --target-format html -o /tmp/omni_val/orf-json-failure-exit/missing_dir/out.html --json
+    timeout_seconds: 120
+    expect:
+      exit_code: 1
+      stdout_has: ['"success": false']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      The missing output dir makes MD2HTMLConverter.convert return
+      success=false. The CLI must exit 1 (the T-01 bug: it used to exit 0)
+      while still printing the failure object {"success": false, ...} on
+      stdout. No traceback is allowed on stderr.
+  - name: Strictly parse stdout as exactly one JSON object with success false
+    kind: python
+    command: |-
+      import json, subprocess, sys
+      cmd = [
+          "orf", "apply-md",
+          "/tmp/omni_val/orf-json-failure-exit/in.md",
+          "--target-format", "html",
+          "-o", "/tmp/omni_val/orf-json-failure-exit/missing_dir/out.html",
+          "--json",
+      ]
+      proc = subprocess.run(cmd, capture_output=True, text=True)
+      body = json.loads(proc.stdout)
+      honest = (
+          proc.returncode != 0
+          and isinstance(body, dict)
+          and body.get("success") is False
+      )
+      if not honest:
+          sys.exit(1)
+      print(json.dumps({"exit_code": proc.returncode, "success": body["success"]}))
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ['"exit_code": 1', '"success": false']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      json.loads over the WHOLE stdout rejects any trailing human text
+      (the #json-parseable contract: a single JSON document). The snippet
+      exits non-zero if either the exit code or the body is dishonest, and
+      only prints the parsed machine JSON on success, so the outer step
+      can only pass when both halves hold.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |-
+      import shutil
+      shutil.rmtree("/tmp/omni_val/orf-json-failure-exit", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#json-parseable
+    instructions: Best-effort cleanup of the temp inputs/outputs.

@@ -1,0 +1,130 @@
+name: trace-mutation-manifest-x03
+description: >
+  Traceability gap X-03 (agent-oriented-gap-register.md §4.3): mutating tools
+  used to return only paths, so an agent could not verify what actually
+  changed on disk. This scenario drives the REAL ORF apply_md executable
+  (MD -> HTML, hermetic, no pandoc) and asserts the returned
+  ``{outputs: [{path, sha256, bytes}], sidecars}`` manifest matches the bytes
+  on disk: an independent sha256 of the produced file equals the reported
+  hash, and the reported byte count equals the file size. A stale/cached path,
+  a renamed file, or an unhashed claim turns this scenario RED.
+
+  Hermetic (tier 1): in-process ORF HTML conversion, no network, no LLM keys,
+  no FAKE_LLM. Agent-user evidence: the returned manifest is the observable.
+category: traceability
+level: agent-user
+tier: 1
+instructions: |
+  What to do:
+  1. Use a stable /tmp workspace and set ORF_MCP_ALLOWED_DIRS to it (the ORF
+     tool is fail-CLOSED without an allowlist).
+  2. Import the REAL ORF MCP tool (orf.mcp.server.apply_md) and call it with
+     an MD fixture, target_format=html, and an output path inside the
+     workspace.
+  3. Read the returned manifest: assert outputs[0].path is the output file,
+     recompute sha256 of that file from disk, and assert the reported hash and
+     byte count match. Assert sidecars is a list.
+  4. Persist {returned, on_disk} to manifest.json as the artifact.
+  5. The second step re-reads the artifact and independently recomputes the
+     disk hash, so a silent pass in step 1 is impossible.
+
+  No mocks: the shipped ORF tool writes a real HTML file; the hash is read
+  back from disk.
+steps:
+  - name: ORF apply_md reports a written-file manifest whose sha256 matches disk
+    kind: python
+    command: |-
+      import hashlib, json, os, pathlib, sys
+      BASE = pathlib.Path("/tmp/omni_val/mutation-transparency-x03")
+      BASE.mkdir(parents=True, exist_ok=True)
+      SUITE = "/mnt/d/贯维/Omni_Suite"
+      os.environ.update({
+          "ORF_MCP_ALLOWED_DIRS": str(BASE),
+          "MCP_ALLOWED_DIRECTORIES": str(BASE),
+      })
+      os.environ.pop("MCP_SHARED_SECRET", None)
+      for d in ("Omni_Re_Formatter/src",):
+          sys.path.insert(0, str(pathlib.Path(SUITE) / d))
+
+      from orf.mcp.common import reset_config_and_validator
+      reset_config_and_validator()
+      from orf.mcp.server import apply_md
+
+      md = BASE / "sample.md"
+      md.write_text("# Mutation Transparency\n\nX-03 manifest check.\n", encoding="utf-8")
+      out = BASE / "sample.html"
+
+      raw = apply_md(input_md=str(md), target_format="html", output_path=str(out))
+      parsed = json.loads(raw)
+      assert parsed.get("success") is True, raw
+
+      outputs = parsed.get("outputs")
+      assert isinstance(outputs, list) and outputs, "no outputs manifest returned"
+      assert isinstance(parsed.get("sidecars"), list), "sidecars must be a list"
+      entry = outputs[0]
+      assert entry.get("path") == str(out), entry
+
+      data = out.read_bytes()
+      on_disk = hashlib.sha256(data).hexdigest()
+      assert entry.get("sha256") == on_disk, (entry.get("sha256"), on_disk)
+      assert entry.get("bytes") == len(data) == out.stat().st_size, entry
+
+      artifact = {
+          "returned": entry,
+          "on_disk": {"path": str(out), "sha256": on_disk, "bytes": len(data)},
+      }
+      (BASE / "manifest.json").write_text(
+          json.dumps(artifact, indent=2), encoding="utf-8"
+      )
+      print("MANIFEST_MATCH " + json.dumps(artifact, sort_keys=True))
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["MANIFEST_MATCH"]
+      stderr_not_has: ["Traceback (most recent call last)"]
+    collect_artifacts:
+      - path: /tmp/omni_val/mutation-transparency-x03/manifest.json
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      Calls the real in-process ORF apply_md tool and checks the returned
+      outputs[0] sha256/bytes against the file on disk; writes the comparison
+      to a stable artifact so step 2 can re-verify independently.
+  - name: Independently re-hash the artifact and compare to the reported manifest
+    kind: python
+    command: |-
+      import hashlib, json, pathlib, sys
+      BASE = pathlib.Path("/tmp/omni_val/mutation-transparency-x03")
+      artifact = json.loads((BASE / "manifest.json").read_text(encoding="utf-8"))
+      returned = artifact["returned"]
+      on_disk = artifact["on_disk"]
+
+      data = pathlib.Path(on_disk["path"]).read_bytes()
+      recomputed = hashlib.sha256(data).hexdigest()
+      if recomputed != returned["sha256"] or recomputed != on_disk["sha256"]:
+          sys.exit(1)
+      if returned["bytes"] != len(data):
+          sys.exit(1)
+      print(json.dumps({"sha256": recomputed, "bytes": len(data)}, sort_keys=True))
+    timeout_seconds: 60
+    expect:
+      exit_code: 0
+      stdout_has: ['"bytes"', '"sha256"']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    collect_artifacts:
+      - path: /tmp/omni_val/mutation-transparency-x03/manifest.json
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      Re-reads the persisted manifest and recomputes the disk hash; exits
+      non-zero on any mismatch, so the assertion cannot silently pass.
+cleanup_steps:
+  - name: Remove the scenario temp workspace
+    kind: python
+    command: |-
+      import shutil
+      shutil.rmtree("/tmp/omni_val/mutation-transparency-x03", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#json-parseable
+    instructions: Best-effort cleanup of the mutation-transparency workspace.

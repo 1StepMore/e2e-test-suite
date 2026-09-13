@@ -11,6 +11,7 @@ description: >-
   warning). The committed source.docx is the Meridian Product Overview doc
   matching the xlf, and its run-time skeleton.zip carries the DOCX content
   that --format pptx/epub rejects without --force (exit 2).
+level: agent-user
 category: orf-xliff
 tier: 1
 requires_env: []

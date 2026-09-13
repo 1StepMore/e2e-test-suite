@@ -1,5 +1,6 @@
 name: tool-opp-validate_xliff
 description: "OPP validate_xliff validates inline XLIFF content against the schema and rejects calls with neither content nor path."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

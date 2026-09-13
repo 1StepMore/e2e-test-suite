@@ -1,5 +1,6 @@
 name: tool-opp-extract_document
 description: "OPP extract_document extracts a DOCX fixture to markdown via the real tool function and denies out-of-allowlist paths cleanly."
+level: agent-user
 category: agent-surface
 tier: 1
 requires_env: [OPP_MCP_ALLOWED_DIRS]

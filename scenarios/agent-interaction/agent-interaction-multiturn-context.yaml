@@ -1,0 +1,193 @@
+name: agent-interaction-multiturn-context
+description: >
+  Agent-interaction C4 (plan gap T-18, agent-user level). A three-turn
+  agent session must carry the document context FORWARD across turns and
+  across process boundaries: turn 1 extracts a real DOCX with OPP and
+  records the document identity + produced markdown in a session context
+  file; turn 2 loads that context (no path re-supplied by the caller),
+  asserts the turn-1 artifact is still present, and backfills it to HTML
+  with ORF; turn 3 loads the context and asks ORF `info` about the turn-2
+  output while confirming the turn-1 document identity survived. Each turn
+  is a separate process reading the one persisted context, so a dropped or
+  clobbered field fails the next turn. Tier 1 / hermetic: OPP extraction
+  and ORF MD->HTML are deterministic and need no LLM keys or network.
+category: agent-interaction
+tier: 1
+level: agent-user
+instructions: |
+  What to do:
+  1. Turn 1 — extract a real DOCX with the OPP CLI (deterministic) and
+     persist {document_path, document_name, markdown_path, source_format}
+     to /tmp/omni_val/agent-interaction-context/context.json.
+  2. Turn 2 — read the context in a NEW process; consume ONLY the stored
+     markdown_path (never re-derived) and convert it to HTML with the ORF
+     CLI; add output_path/output_format WITHOUT dropping turn-1 fields.
+  3. Turn 3 — read the context again; run ORF `info` on the stored
+     output_path and assert the document identity from turn 1 is still
+     present. A lost field fails the turn it is needed in.
+
+  Hermetic (tier 1): OPP md extraction and ORF MD->HTML use no LLM and no
+  network; the real shipped CLIs are invoked from the suite venv.
+steps:
+  - name: 'Turn 1: extract the DOCX and persist the session document context'
+    kind: python
+    command: |
+      import json, os, subprocess, sys
+      from pathlib import Path
+
+      session = Path("/tmp/omni_val/agent-interaction-context")
+      work = session / "work"
+      work.mkdir(parents=True, exist_ok=True)
+      doc = "Meridian_Robotics_Product_Overview_E2E.docx"
+      bindir = os.path.dirname(sys.executable)
+
+      proc = subprocess.run(
+          [os.path.join(bindir, "opp"), doc, "--target-format", "md",
+           "--source-lang", "en", "--target-lang", "zh", "--output-dir", str(work)],
+          capture_output=True, text=True,
+      )
+      assert proc.returncode == 0, proc.stderr
+
+      stem = Path(doc).stem
+      markdown = work / (stem + ".md")
+      manifest = work / (stem + "_manifest.json")
+      assert markdown.is_file() and markdown.stat().st_size > 0, "turn-1 extraction produced no markdown"
+
+      context = {
+          "document_path": str(Path(doc).resolve()),
+          "document_name": doc,
+          "markdown_path": str(markdown),
+          "source_format": "DOCX",
+          "turn": 1,
+      }
+      session.joinpath("context.json").write_text(json.dumps(context), encoding="utf-8")
+
+      print("turn=1")
+      print("opp_exit=0")
+      print("document_path_set=" + str(bool(context["document_path"])).lower())
+      print("markdown_exists=" + str(markdown.is_file()).lower())
+      print("markdown_bytes_gt0=" + str(markdown.stat().st_size > 0).lower())
+      print("manifest_found=" + str(manifest.is_file()).lower())
+      print("context_persisted=" + str(session.joinpath("context.json").is_file()).lower())
+    timeout_seconds: 180
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has:
+        - "turn=1"
+        - "opp_exit=0"
+        - "document_path_set=true"
+        - "markdown_exists=true"
+        - "markdown_bytes_gt0=true"
+        - "manifest_found=true"
+        - "context_persisted=true"
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >
+      What to check: the real OPP CLI exits 0 and produces a non-empty
+      markdown plus its manifest; the session context records the resolved
+      document path, the document name, the markdown path, and the source
+      format. The turn is the context PRODUCER — later turns fail if this
+      state is absent.
+    collect_artifacts:
+      - path: /tmp/omni_val/agent-interaction-context/context.json
+  - name: 'Turn 2: load the turn-1 context and backfill the stored markdown to HTML'
+    kind: python
+    command: |
+      import json, os, subprocess, sys
+      from pathlib import Path
+
+      session = Path("/tmp/omni_val/agent-interaction-context")
+      context = json.loads(session.joinpath("context.json").read_text(encoding="utf-8"))
+      assert context.get("turn") == 1, "turn-2 did not receive the turn-1 context"
+
+      markdown = Path(context["markdown_path"])
+      assert markdown.is_file() and markdown.stat().st_size > 0, "turn-2 lost the turn-1 markdown context"
+
+      outdir = session / "out"
+      outdir.mkdir(parents=True, exist_ok=True)
+      out = outdir / "translated.html"
+      bindir = os.path.dirname(sys.executable)
+      proc = subprocess.run(
+          [os.path.join(bindir, "orf"), "apply-md", str(markdown),
+           "--target-format", "html", "-o", str(out)],
+          capture_output=True, text=True,
+      )
+      assert proc.returncode == 0, proc.stderr
+      assert out.is_file() and out.stat().st_size > 0, "turn-2 backfill produced no HTML"
+
+      context["output_path"] = str(out)
+      context["output_format"] = "html"
+      context["turn"] = 2
+      session.joinpath("context.json").write_text(json.dumps(context), encoding="utf-8")
+
+      print("turn=2")
+      print("orf_exit=0")
+      print("turn1_document_preserved=" + str(bool(context.get("document_path"))).lower())
+      print("turn1_markdown_preserved=" + str(str(context.get("markdown_path", "")).endswith(".md")).lower())
+      print("html_exists=" + str(out.is_file()).lower())
+      print("html_bytes_gt0=" + str(out.stat().st_size > 0).lower())
+    timeout_seconds: 180
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has:
+        - "turn=2"
+        - "orf_exit=0"
+        - "turn1_document_preserved=true"
+        - "turn1_markdown_preserved=true"
+        - "html_exists=true"
+        - "html_bytes_gt0=true"
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >
+      What to check: turn 2 runs in a fresh process, reads the persisted
+      context (proving cross-turn persistence), consumes ONLY the stored
+      markdown path, and backfills it to HTML with the real ORF CLI. It
+      then augments the context WITHOUT dropping the turn-1 document and
+      markdown fields. If context were lost, the assert fires and the step
+      is RED.
+    collect_artifacts:
+      - path: /tmp/omni_val/agent-interaction-context/out/translated.html
+  - name: 'Turn 3: resolve the turn-2 output from context and confirm document identity survived'
+    kind: python
+    command: |
+      import json, os, subprocess, sys
+      from pathlib import Path
+
+      session = Path("/tmp/omni_val/agent-interaction-context")
+      context = json.loads(session.joinpath("context.json").read_text(encoding="utf-8"))
+      out = Path(context["output_path"])
+      assert out.is_file() and out.stat().st_size > 0, "turn-3 lost the turn-2 output context"
+
+      bindir = os.path.dirname(sys.executable)
+      proc = subprocess.run(
+          [os.path.join(bindir, "orf"), "info", str(out)],
+          capture_output=True, text=True,
+      )
+      assert proc.returncode == 0, proc.stderr
+      format_lines = [line for line in proc.stdout.splitlines() if line.startswith("Format:")]
+
+      print("turn=3")
+      print("orf_info_exit=0")
+      print("input_is_turn2_output=" + str(out.name == "translated.html").lower())
+      print("document_identity_preserved=" + str(bool(context.get("document_path")) and bool(context.get("markdown_path"))).lower())
+      print("format_html=" + str(any("HTML" in line for line in format_lines)).lower())
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has:
+        - "turn=3"
+        - "orf_info_exit=0"
+        - "input_is_turn2_output=true"
+        - "document_identity_preserved=true"
+        - "format_html=true"
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >
+      What to check: turn 3 resolves the artifact produced in turn 2 from
+      the context (not from a fresh caller-supplied path) and ORF `info`
+      reports Format: HTML. Crucially it also re-reads the turn-1
+      document_path/markdown_path — the document identity persisted across
+      all three turns. A dropped context field fails here.

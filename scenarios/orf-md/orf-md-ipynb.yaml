@@ -3,6 +3,7 @@ description: >-
   ORF apply-md backfill to IPYNB: run the real `orf apply-md` CLI on a
   synthetic translated MD and verify the output carries the IPYNB
   structural signature (json.loads succeeds and the object carries a cells key).
+level: agent-user
 category: orf-md
 tier: 1
 requires_env: []

@@ -1,0 +1,297 @@
+name: suite-resume-killed-subprocess
+description: >-
+  Failure injection + checkpoint/resume (R-05b, killed subprocess). A running
+  `omni-suite pipeline` is interrupted with SIGINT while its stage-3 `orf`
+  subprocess is mid-conversion. The suite CLI catches the interrupt, marks the
+  current stage `failed`, persists the run manifest (the checkpoint: status
+  `partial`, `failed_stage` `orf`, opp/ol `reused`, orf `failed`), prints a
+  machine-readable partial summary carrying a runnable `resume_hint`, and exits
+  130. The primary step's `recovery_steps` then read the printed `resume_hint`
+  and the checkpoint manifest and run the documented resume (from the failed
+  stage, carrying the manifest's recorded target format) to completion. The
+  ORF content cache is isolated under the run dir so a stale global cache cannot
+  serve a wrong artifact. Hermetic tier 1: the opp/ol intermediates are
+  provisioned, so `--fake-llm` only satisfies the suite CLI's provider-key
+  argument gate — no LLM or fake provider is invoked (stages 1-2 are REUSED).
+level: agent-user
+category: recovery
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Provision a large `opp/<stem>.md` + `ol/<stem>.md` (~13 MB) so the reused
+     stages are instant but the ORF conversion runs long enough to interrupt
+     deterministically.
+  2. Primary: launch the real suite CLI (`--resume-from orf`) in its own
+     process group, wait until the ORF child actually appears (read the child
+     PID from /proc), then SIGINT the whole group. The CLI saves the checkpoint
+     (partial/orf-failed) and exits 130. The primary asserts the kill happened
+     and prints the checkpoint, then fails on the desired completed-run
+     postcondition, so `recovery_steps` run.
+  3. Recovery: parse the primary's captured stdout for the partial summary and
+     its `resume_hint`; assert the hint names `--resume-from orf` and the
+     run-id; read the checkpoint manifest for the recorded target format and
+     run the resume from the failed stage (plus `--fake-llm` for the key gate),
+     with the ORF cache isolated under the run dir; assert the run reaches
+     `complete` with a non-empty artifact.
+  4. Assert the final artifact and manifest independently.
+
+  Tier 1: no keys, no network, pure-Python HTML engine.
+  The ORF content cache (`OMNI_CACHE_DIR`) is pointed at `<run-dir>/cache` for
+  every pipeline invocation so the scenario is deterministic against a stale
+  global cache; a wrong cache entry can otherwise serve a fragment/wrong format.
+steps:
+  - name: Provision a checkpoint with large opp/ol intermediates (clean dir first)
+    kind: python
+    command: |
+      import pathlib, shutil
+      d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-kill")
+      shutil.rmtree(d, ignore_errors=True)
+      para = ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 20 + "\n\n")
+      md = "---\nsource_lang: en\ntarget_lang: zh\n---\n\n# Killed subprocess\n\n" + para * 12000
+      for sub in ("opp", "ol"):
+          (d / sub).mkdir(parents=True)
+          (d / sub / "meridian_robotics.md").write_text(md, encoding="utf-8")
+      print("PROVISIONED bytes=%d" % len(md))
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["PROVISIONED bytes="]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Generate a ~13 MB markdown seed for both reused stages so the ORF
+      conversion takes several seconds — a deterministic window for the SIGINT.
+  - name: Killed-subprocess injection - SIGINT stage 3, checkpoint must survive
+    kind: python
+    command: |
+      import json, os, pathlib, shutil, signal, subprocess, sys, time
+
+      def _children(pid):
+          try:
+              raw = pathlib.Path("/proc/%d/task/%d/children" % (pid, pid)).read_text().split()
+              return [int(x) for x in raw]
+          except Exception:
+              return []
+
+      d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-kill")
+      exe = pathlib.Path(sys.executable).parent / "omni-suite"
+      para = ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 20 + "\n\n")
+
+      def provision(seed_paras):
+          # (Re)provision the reused-stage intermediates with a seed whose
+          # size GROWS with each attempt, so a retry widens the ORF window.
+          shutil.rmtree(d, ignore_errors=True)
+          md = "---\nsource_lang: en\ntarget_lang: zh\n---\n\n# Killed subprocess\n\n" + para * seed_paras
+          for sub in ("opp", "ol"):
+              (d / sub).mkdir(parents=True)
+              (d / sub / "meridian_robotics.md").write_text(md, encoding="utf-8")
+          return len(md)
+
+      def checkpoint_ok(mpath):
+          if not mpath.exists():
+              return False
+          try:
+              m = json.loads(mpath.read_text(encoding="utf-8"))
+          except Exception:
+              return False
+          return (
+              m.get("status") == "partial"
+              and m.get("failed_stage") == "orf"
+              and m["stages"]["opp"]["status"] == "reused"
+              and m["stages"]["ol"]["status"] == "reused"
+              and m["stages"]["orf"]["status"] == "failed"
+          )
+
+      # Bounded retry (max 3 attempts): the first kill must land while ORF is
+      # still the current stage. Seed escalation grows the conversion window,
+      # so the SIGINT cannot be masked by a completed run.
+      SEED_PARAS = [12000, 36000, 72000]
+      landed = False
+      for attempt, seed_paras in enumerate(SEED_PARAS, 1):
+          nbytes = provision(seed_paras)
+          cmd = [
+              str(exe), "pipeline", "scenarios/_fixtures/meridian_robotics.docx",
+              "--resume-from", "orf", "--run-id", "r05-resume-kill",
+              "--target-format", "html", "--output", str(d / "out.html"), "--fake-llm",
+          ]
+          env = {**os.environ, "OMNI_CACHE_DIR": str(d / "cache")}
+          p = subprocess.Popen(
+              cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+              text=True, start_new_session=True, env=env,
+          )
+          # Wait for the ORF child, then SIGINT the group IMMEDIATELY: there
+          # is no post-observation sleep, so no window in which the stage can
+          # finish. Poll tightly (20 ms) to minimise the observation latency.
+          child = None
+          deadline = time.time() + 30
+          while time.time() < deadline:
+              if p.poll() is not None:
+                  break
+              kids = _children(p.pid)
+              if kids:
+                  child = kids[0]
+                  break
+              time.sleep(0.02)
+          is_orf = False
+          if child is not None:
+              try:
+                  cl = pathlib.Path("/proc/%d/cmdline" % child).read_bytes().replace(b"\x00", b" ").decode()
+              except Exception:
+                  cl = "(gone)"
+              is_orf = "orf" in cl and "apply-md" in cl
+              try:
+                  os.killpg(os.getpgid(p.pid), signal.SIGINT)
+              except ProcessLookupError:
+                  pass
+          try:
+              out_s, err_s = p.communicate(timeout=120)
+          except subprocess.TimeoutExpired:
+              p.kill()
+              out_s, err_s = p.communicate()
+          (d / "kill_run_stdout.txt").write_text(out_s, encoding="utf-8")
+          ok = checkpoint_ok(d / "manifest.json")
+          print(
+              "ATTEMPT %d/%d seed_paras=%d seed_bytes=%d orf_child=%s is_orf=%s rc=%s checkpoint_ok=%s"
+              % (attempt, len(SEED_PARAS), seed_paras, nbytes, child, is_orf, p.returncode, ok)
+          )
+          if ok and p.returncode == 130:
+              landed = True
+              break
+
+      if not landed:
+          print("ERROR: SIGINT injection never landed mid-orf after %d attempts" % len(SEED_PARAS))
+          sys.exit(1)
+
+      print("KILLED rc=%s" % p.returncode)
+      m = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+      print(
+          "CHECKPOINT OK after SIGINT partial failed_stage=orf orf=%s"
+          % m["stages"]["orf"]["status"]
+      )
+      assert m.get("status") == "complete" and (d / "out.html").exists(), (
+          "stage-3 process was killed mid-run; the checkpoint is saved for resume"
+      )
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["KILLED", "CHECKPOINT OK after SIGINT"]
+    recovery_steps:
+      - name: Recover - run the printed resume_hint to completion
+        kind: python
+        command: |
+          import json, os, pathlib, subprocess, sys
+          d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-kill")
+          text = (d / "kill_run_stdout.txt").read_text(encoding="utf-8")
+          summary = None
+          for line in text.splitlines():
+              try:
+                  obj = json.loads(line)
+              except Exception:
+                  continue
+              if isinstance(obj, dict) and obj.get("resume_hint"):
+                  summary = obj
+          if summary is None:
+              print("ERROR: killed run printed no machine-readable resume_hint")
+              sys.exit(1)
+          if summary.get("status") != "partial" or summary.get("failed_stage") != "orf":
+              print("ERROR: unexpected partial summary: %s" % summary)
+              sys.exit(1)
+          hint = summary["resume_hint"]
+          if "--resume-from orf" not in hint or "--run-id r05-resume-kill" not in hint:
+              print("ERROR: resume_hint not actionable: %s" % hint)
+              sys.exit(1)
+          print("HINT OK %s" % hint)
+          m = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+          resume = [
+              "omni-suite", "pipeline", m["input_file"],
+              "--resume-from", m["failed_stage"],
+              "--run-id", m["run_id"],
+              "--output", m["output"],
+              "--target-format", m["target_format"],
+              "--fake-llm",
+          ]
+          env = {**os.environ, "OMNI_CACHE_DIR": str(d / "cache")}
+          proc = subprocess.run(resume, capture_output=True, text=True, timeout=600, env=env)
+          if proc.returncode != 0:
+              print("RECOVERY FAILED rc=%s stderr=%s" % (proc.returncode, proc.stderr[-400:]))
+              sys.exit(1)
+          m2 = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+          out = d / "out.html"
+          if not (
+              m2.get("status") == "complete"
+              and m2.get("failed_stage") is None
+              and m2["stages"]["orf"]["status"] == "complete"
+              and out.exists()
+              and out.stat().st_size > 0
+          ):
+              print("RECOVERY FAILED post-state: %s" % m2)
+              sys.exit(1)
+          print("RECOVERY OK complete artifact=%d bytes" % out.stat().st_size)
+        timeout_seconds: 600
+        expect:
+          exit_code: 0
+          stdout_has: ["HINT OK", "RECOVERY OK complete"]
+        standard: STANDARDS.md#exit-codes
+        instructions: >-
+          Parse the killed run's captured stdout for the partial summary JSON,
+          assert its `resume_hint` names the failed stage and run-id, then read
+          the checkpoint manifest for the recorded `target_format` and run the
+          resume from the failed stage with that format (the printed hint names
+          the stage/run-id/output but not the format). The ORF cache is isolated
+          under the run dir so no stale global cache can serve a wrong artifact.
+          Completion with a non-empty artifact flips the primary to `recovered`.
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      The injection: SIGINT the pipeline's process group the moment the ORF
+      child is observed in /proc (no post-observation sleep), so there is no
+      window for the stage to finish. If a completed run still slips through
+      (rc != 130 or the checkpoint shape is wrong), the step re-provisions
+      with a larger seed and retries the injection — bounded at three
+      attempts, with the seed size escalating so the ORF conversion window
+      grows. The primary demonstrates the checkpoint survived and then fails
+      on the completed-run expectation to hand off to `recovery_steps`.
+  - name: Assert the recovered artifact and the completed manifest
+    kind: python
+    command: |
+      import json, pathlib, sys
+      d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-kill")
+      out = d / "out.html"
+      if not (out.exists() and out.stat().st_size > 0):
+          print("ERROR: recovered HTML artifact missing: %s" % out)
+          sys.exit(1)
+      data = out.read_text(encoding="utf-8")
+      if "<html" not in data or "<body" not in data:
+          print("ERROR: recovered artifact is not HTML")
+          sys.exit(1)
+      m = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+      if m.get("status") != "complete" or m.get("failed_stage") is not None:
+          print("ERROR: manifest not complete after resume: %s" % m)
+          sys.exit(1)
+      if "[zh] " in data:
+          print("ERROR: fake-LLM echo signature present in artifact")
+          sys.exit(1)
+      print("FINAL OK artifact=%d bytes manifest=%s" % (out.stat().st_size, m["status"]))
+    timeout_seconds: 60
+    expect:
+      exit_code: 0
+      stdout_has: ["FINAL OK", "manifest=complete"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni-suite-pipeline/r05-resume-kill/out.html
+      - path: /tmp/omni-suite-pipeline/r05-resume-kill/manifest.json
+    instructions: >-
+      Independent final observation: the recovered artifact is a real HTML
+      document, the manifest completed with no failed stage, and no fake-echo
+      signature leaked into the artifact.
+cleanup_steps:
+  - name: Remove the scenario run dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni-suite-pipeline/r05-resume-kill", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort removal of the run dir, checkpoint, and 13 MB seed.

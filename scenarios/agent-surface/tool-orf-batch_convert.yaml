@@ -1,5 +1,6 @@
 name: tool-orf-batch_convert
 description: "ORF batch_convert returns the shipped clean conversion error on a fixture dir (known defect) and denies out-of-allowlist dirs."
+level: agent-user
 category: agent-surface
 tier: 1
 requires_env: [ORF_MCP_ALLOWED_DIRS]

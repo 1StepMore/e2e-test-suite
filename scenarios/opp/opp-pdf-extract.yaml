@@ -4,6 +4,7 @@ description: >
   intentionally blocked and covered by the regression seed
   scenarios/regression/, NOT duplicated here): exit 0, manifest metadata
   keys, declared format PDF, and the markdown output declared.
+level: agent-user
 category: opp-extraction
 instructions: |
   What to do:

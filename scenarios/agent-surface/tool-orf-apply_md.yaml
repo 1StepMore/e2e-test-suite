@@ -1,5 +1,6 @@
 name: tool-orf-apply_md
 description: "ORF apply_md converts a markdown fixture to HTML and rejects calls with neither input cleanly."
+level: agent-user
 category: agent-surface
 tier: 1
 requires_env: [ORF_MCP_ALLOWED_DIRS]

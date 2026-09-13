@@ -1,0 +1,137 @@
+name: pipeline-docx-md-docx-lqa-known-gap
+description: >-
+  KNOWN GAP (T13-01 / T17). The published #lqa-threshold bar is
+  `judge_overall >= 4.0` on the /5 scale (STANDARDS.md#lqa-threshold,
+  scripts/omo_loop.py:302-396). The shipped OL judge prompt never asks for
+  terminology_consistency / format_preservation while RUBRIC_WEIGHTS gives
+  them 0.35 combined weight, so judge_overall_score is mathematically
+  capped at 3.25/5 on perfect scores — the published bar is unreachable.
+  This scenario records ONLY the shipped weakened observation (the average
+  of the four dimensions the LLM IS asked to score: adequacy / fluency /
+  accuracy / score) so the gap is documented without polluting the pass
+  bar. Marked known_gap: true — excluded from the pass bar; its verdict
+  is KNOWN-GAP, never GREEN, and its output never prints a pass-looking
+  OK. Full context: ACCEPTED_GAPS.md.
+level: human-quality
+category: pipeline
+tier: 2
+known_gap: true
+requires_env:
+  - OPENAI_API_KEY
+  - ZHIPU_API_KEY
+  - AGNES_API_KEY
+  - NVIDIA_NIM_API_KEY
+  - OPENCODE_GO_KEY
+  - OPENCODE_GO_BASE_URL
+instructions: |-
+  This is NOT a pass-bar scenario. It asserts the shipped weakened
+  four-dimension average for the LQA gate; it never claims the published
+  `judge_overall >= 4.0` bar. The strict published bar is asserted (and
+  its failure recorded) by the step-level known-gap step in
+  scenarios/pipeline/pipeline-docx-md-docx.yaml (and the EPUB / PPTX
+  siblings). See ACCEPTED_GAPS.md (T13-01). Run with real LLM keys; with
+  keys scrubbed it reports unconfigured, never pass/fail.
+steps:
+  - name: Generate synthetic Chinese image-bearing DOCX fixture
+    kind: python
+    command: |-
+      import io, pathlib, shutil, zipfile
+      from docx import Document
+      from docx.shared import Inches
+      BASE = pathlib.Path("/tmp/omni_val/known-gap-lqa")
+      shutil.rmtree(BASE, ignore_errors=True)
+      BASE.mkdir(parents=True)
+      doc = Document()
+      for t in ["全球智造科技有限公司成立于2008年，专注于工业自动化系统的研发与制造。",
+                "公司总部位于上海，在苏州、深圳和成都设有三个生产基地，产品远销全球四十多个国家和地区。",
+                "我们的核心产品包括协作机器人、视觉引导装配单元和人工智能驱动的质量检测平台。",
+                "经过十五年的发展，公司已经建立了完整的研发、生产、销售和服务体系。",
+                "公司的愿景是通过智能制造技术，帮助全球制造业客户实现数字化转型。",
+                "我们相信，技术创新是企业持续发展的根本动力。"]:
+          doc.add_paragraph(t)
+      media = zipfile.ZipFile("test_corpus/complex.docx")
+      img = media.read("word/media/image1.png")
+      for _ in range(2):
+          doc.add_picture(io.BytesIO(img), width=Inches(2.0))
+      doc.save(BASE / "source.docx")
+      print("OK: fixture written")
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: fixture written"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Same zh-source fixture as the pass-bar scenario.
+  - name: Extract DOCX to MD + XLIFF via real OPP CLI
+    kind: cli
+    command: opp /tmp/omni_val/known-gap-lqa/source.docx --target-format both --source-lang zh --target-lang en --output-dir /tmp/omni_val/known-gap-lqa/opp_out -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Real OPP extraction; -v stderr marker is the success signal.
+  - name: Translate XLIFF with real LLM (LQA evidence)
+    kind: cli
+    command: ol translate-xliff /tmp/omni_val/known-gap-lqa/opp_out/source.xlf -s zh -t en -o /tmp/omni_val/known-gap-lqa/ol_out -c Omni_Localizer/config/default.yaml
+    timeout_seconds: 600
+    expect:
+      exit_code: 0
+      stdout_has: ["Translated"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Real-LLM translation of the XLIFF; its trans-units are the LQA input.
+  - name: KNOWN GAP — shipped four-dimension LQA average (weakened)
+    kind: python
+    command: |-
+      import os, re, sys, asyncio
+      os.environ["OMNI_RATE_LIMIT_RPM"] = "0"
+      xlf_text = open("/tmp/omni_val/known-gap-lqa/ol_out/source.xlf", encoding="utf-8").read()
+      pairs = []
+      for m in re.finditer(r'<trans-unit[^>]*id="([^"]+)"[^>]*>.*?<source[^>]*>(.*?)</source>\s*<target[^>]*>(.*?)</target>', xlf_text, re.DOTALL):
+          src = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+          tgt = re.sub(r"<[^>]+>", "", m.group(3)).strip()
+          if src and tgt and tgt != src:
+              pairs.append((m.group(1), src, tgt))
+          if len(pairs) >= 50:
+              break
+      if not pairs:
+          print("ERROR: no scorable unit pairs in OL XLIFF")
+          sys.exit(1)
+      from ol_lqa.judge import JudgeService
+      from ol_pool.router import ModelPool
+      from ol_config.loader import load_config
+      cfg = os.environ.get("OL_CONFIG_PATH", "Omni_Localizer/config/default.yaml")
+      load_config(cfg)
+      pool = ModelPool.get_instance(cfg)
+      judge = JudgeService(pass_threshold=4.0, model_pool=pool)
+      async def _judge_all():
+          return await asyncio.gather(*[judge.judge(s, t, u, source_lang="zh", target_lang="en") for u, s, t in pairs], return_exceptions=True)
+      results = asyncio.run(_judge_all())
+      dims = ["adequacy", "fluency", "accuracy", "score"]
+      scores = []
+      overalls = []
+      for r in results:
+          if isinstance(r, Exception):
+              continue
+          scores.append([r.judge_scores.get(d, 0.0) for d in dims])
+          overalls.append(r.judge_overall_score)
+      if not scores:
+          print("ERROR: all %d judge calls failed (transport errors)" % len(results))
+          sys.exit(1)
+      dim_avg5 = sum(sum(s) for s in scores) / (len(scores) * len(dims)) / 2.0
+      overall5 = sum(overalls) / len(overalls) / 2.0
+      print("KNOWN-GAP: LQA judge_overall_avg_5=%.2f dim_avg_5=%.2f n=%d — shipped behavior asserts the four-dimension average; published bar (#lqa-threshold) is judge_overall >= 4.0 (T13-01); see ACCEPTED_GAPS.md" % (overall5, dim_avg5, len(scores)))
+      if dim_avg5 < 4.0:
+          print("ERROR: four-dimension average %.2f/5 below 4.0/5 (even the weakened observation fails)" % dim_avg5)
+          sys.exit(1)
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["KNOWN-GAP: LQA"]
+    standard: STANDARDS.md#lqa-threshold
+    instructions: |-
+      Weakened observation only: average the four dimensions the LLM is
+      actually asked to score (adequacy / fluency / accuracy / score) and
+      require >= 4.0/5. It deliberately does NOT assert the published
+      `judge_overall >= 4.0` bar — that strict bar is asserted by the
+      step-level known-gap in pipeline-docx-md-docx.yaml and recorded here
+      as the gap. The output marker is KNOWN-GAP, never OK.

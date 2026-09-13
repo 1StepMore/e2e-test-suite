@@ -1,0 +1,55 @@
+name: ol-capabilities-contract
+description: >
+  OL self-description contract (tier 1, hermetic): the REAL
+  ol_mcp.get_capabilities.get_capabilities returns parseable JSON naming
+  module ol, its three LLM roles, its documented language pairs and the
+  live tool registry (derived at call time, never a hardcoded stale list).
+  No LLM, no keys.
+level: agent-user
+category: ol-structure
+tier: 1
+requires_env: []
+instructions: |
+  Hermetic proof of the OL stage's agent-facing self-description: an
+  agent must be able to discover the stage's roles, language pairs and
+  live tools from one parseable JSON response. The tool list is asserted
+  as a superset of the structure-relevant tools so a renamed tool is
+  caught, while additions do not spuriously fail.
+
+  What to check:
+  1. Call the REAL get_capabilities, json.loads the response, and assert
+     module ol, three roles, the en-zh pair, and the required tool names.
+
+steps:
+  - name: 'get_capabilities returns parseable JSON naming the live OL surface'
+    kind: python
+    command: |
+      import json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.get_capabilities import get_capabilities
+      data = json.loads(get_capabilities())
+      assert data["success"] is True, data
+      content = data["content"]
+      tools = sorted(content["tools"])
+      required = ["get_capabilities", "load_glossary", "shield_md_text",
+                  "translate_md_text", "translate_xliff", "unshield_md_text"]
+      missing = [t for t in required if t not in tools]
+      print("module=%s" % content["module"])
+      print("role_count=%d" % len(content["roles"]))
+      print("tool_count=%d" % len(tools))
+      print("required_tools_missing=%d" % len(missing))
+      assert content["module"] == "ol", content["module"]
+      assert len(content["roles"]) == 3, content["roles"]
+      assert "en-zh" in content["language_pairs"], content["language_pairs"]
+      assert not missing, "capabilities lost tools: %r" % missing
+      print("capabilities_contract_ok=true")
+    timeout_seconds: 60
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["module=ol", "role_count=3", "required_tools_missing=0", "capabilities_contract_ok=true"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      Parse the real capabilities response and assert module, roles,
+      language pairs and the live tool registry superset.

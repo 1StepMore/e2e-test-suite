@@ -9,6 +9,7 @@ description: >-
   document from the xlf's Product Overview text — the channel's content match
   finds no trans-unit, so this scenario honestly asserts structure + exit 0,
   NOT translated-target presence (fixture-content limitation, see learnings).
+level: agent-user
 category: orf-xliff
 tier: 1
 requires_env: []

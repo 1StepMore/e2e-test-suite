@@ -6,6 +6,7 @@ description: >-
   carries the EPUB structural signature (zip with mimetype as FIRST entry,
   EPUB/content.opf present) AND the translated Chinese targets from the XLIFF
   (水星机器人 in EPUB/text/ch001.xhtml).
+level: agent-user
 category: orf-xliff
 tier: 1
 requires_env: []

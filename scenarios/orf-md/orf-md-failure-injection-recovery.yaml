@@ -1,0 +1,108 @@
+name: orf-md-failure-injection-recovery
+description: >-
+  Failure injection + recovery (T-21/R-05 seam): `orf apply-md` is first invoked
+  with a deliberately invalid `--target-format`, so the primary step
+  legitimately fails at the CLI boundary; the step's `recovery_steps` then
+  retry with a supported format, which succeeds. The scenario verdict is
+  `recovered` — the primary RED stays in the trace, and recovery_steps
+  demonstrably carry the scenario back to green.
+level: agent-user
+category: orf-md
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Clean the temp dir, write a valid frontmatter MD input, and create the
+     output dir (no stale artifact may survive into the run).
+  2. Run the primary `orf apply-md` with `--target-format bogus` (the injected
+     fault). Click rejects it at parse time, so the primary fails. Its
+     `recovery_steps` then retry with `--target-format html`, which must exit 0
+     and create the output.
+  3. Assert the recovered output exists and carries the HTML signature.
+
+  Recovery never erases the primary RED: the run record keeps the failed
+  primary grade and marks the step `recovered` (guide §2.6). Tier 1: no keys,
+  no network, pure-Python HTML engine.
+steps:
+  - name: Provision the input and output dirs (clean first)
+    kind: python
+    command: |
+      import pathlib, shutil
+      d = pathlib.Path("/tmp/omni_val/t21-orf-recovery")
+      shutil.rmtree(d, ignore_errors=True)
+      (d / "out").mkdir(parents=True)
+      (d / "in.md").write_text(
+          "---\nsource_lang: en\ntarget_lang: zh\n---\n\n# Recovered\n\nbody\n",
+          encoding="utf-8",
+      )
+      print("INPUT READY", d / "in.md")
+    timeout_seconds: 30
+    expect:
+      exit_code: 0
+      stdout_has: ["INPUT READY"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Deterministically create the input and an empty output dir after removing
+      the temp dir, so no stale artifact can be mistaken for this run's output.
+  - name: apply-md with an invalid target fails, then recovery retries with html
+    kind: cli
+    command: orf apply-md /tmp/omni_val/t21-orf-recovery/in.md --target-format bogus -o /tmp/omni_val/t21-orf-recovery/out/out.html
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni_val/t21-orf-recovery/out/out.html"]
+    recovery_steps:
+      - name: Recover - retry with the supported html format
+        kind: cli
+        command: orf apply-md /tmp/omni_val/t21-orf-recovery/in.md --target-format html -o /tmp/omni_val/t21-orf-recovery/out/out.html
+        timeout_seconds: 120
+        expect:
+          exit_code: 0
+          stdout_has: ["Created /tmp/omni_val/t21-orf-recovery/out/out.html"]
+        standard: STANDARDS.md#exit-codes
+        collect_artifacts:
+          - path: /tmp/omni_val/t21-orf-recovery/out/out.html
+        instructions: >-
+          The recovery call: retry the same conversion with a supported format.
+          When it passes, the engine marks the primary step `recovered` while
+          keeping its original RED grade (guide §2.6).
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      The injected-fault primary: `--target-format bogus` is rejected at parse
+      time, so the primary fails. `recovery_steps` then run; the retry with a
+      valid format is what flips the step to recovered.
+  - name: Assert the recovered output exists with the HTML signature
+    kind: python
+    command: |
+      import sys
+      p = "/tmp/omni_val/t21-orf-recovery/out/out.html"
+      try:
+          data = open(p, encoding="utf-8").read()
+          assert "<html" in data, "missing <html> element"
+          assert "<body" in data, "missing <body> element"
+          print("OK recovered output present: <html>+<body>")
+      except Exception as e:
+          print("ERROR: %s" % e)
+          sys.exit(1)
+    timeout_seconds: 30
+    expect:
+      exit_code: 0
+      stdout_has: ["OK recovered output present"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/t21-orf-recovery/out/out.html
+    instructions: >-
+      Prove the recovery produced a real artifact, not just a green envelope:
+      read the recovered output and assert the HTML structural invariant.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni_val/t21-orf-recovery", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort cleanup of the temp inputs/outputs.

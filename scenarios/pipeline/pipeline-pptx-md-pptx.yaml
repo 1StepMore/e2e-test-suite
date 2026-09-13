@@ -5,8 +5,13 @@ description: >-
   extraction (MD + XLIFF), real-LLM OL translation, real ORF apply-md to
   PPTX, then separate quality-gate steps (opens in python-pptx, paragraph
   ratio within +-5%, CJK density < 5%, zero Chinese punctuation, LQA >=
-  4.0/5 via OL JudgeService). Requires real LLM keys -> unconfigured in
+  4.0/5 via OL JudgeService). The LQA bar is asserted at its LITERAL
+  published threshold (judge_overall >= 4.0), flagged step-level
+  ``known_gap: true`` because the shipped OL judge cannot meet it (T13-01);
+  the weakened observation lives under scenarios/pipeline/known-gaps/ and
+  is excluded from the pass bar. Requires real LLM keys -> unconfigured in
   key-less CI, GREEN in nightly (D11).
+level: human-quality
 category: pipeline
 tier: 2
 requires_env:
@@ -52,7 +57,11 @@ instructions: |-
   - The paragraph-ratio bar counts non-empty text-frame paragraphs via
     python-pptx on source vs output — the PPTX-faithful port of Q6's +-5%
     structure check.
-  - LQA: see the LQA step instructions (T13-01 rubric ceiling).
+  - LQA (#lqa-threshold): asserted at the LITERAL judge_overall >= 4.0/5
+    bar, flagged step-level ``known_gap: true`` because OL's rubric/prompt
+    mismatch caps judge_overall_score at 3.25/5 (T13-01); the shipped
+    weakened four-dimension average lives under
+    scenarios/pipeline/known-gaps/ and ACCEPTED_GAPS.md records the gap.
   Run it with the real key env (suite-root .env + Omni_Localizer/.env
   loaded) — with keys scrubbed it must report unconfigured, never
   pass/fail.
@@ -255,7 +264,7 @@ steps:
       smart-convert apostrophes (verified 0 non-ASCII in output), so the
       strict set is enforceable here. Check: exit 0 + "OK: 0 Chinese
       punctuation chars".
-  - name: Assert LQA >= 4.0/5 via OL JudgeService (Q2)
+  - name: Assert LQA judge_overall >= 4.0/5 — published bar (Q2)
     kind: python
     command: |-
       import os, re, sys, asyncio
@@ -293,28 +302,30 @@ steps:
       if not scores:
           print("ERROR: all %d judge calls failed (transport errors)" % len(results))
           sys.exit(1)
-      avg5 = sum(sum(s) for s in scores) / (len(scores) * len(dims)) / 2.0
+      dim_avg5 = sum(sum(s) for s in scores) / (len(scores) * len(dims)) / 2.0
       overall5 = sum(overalls) / len(overalls) / 2.0
-      print("LQA avg_5=%.2f n=%d rubric_overall_avg_5=%.2f (T13-01 ceiling)" % (avg5, len(scores), overall5))
-      if avg5 < 4.0:
-          print("ERROR: LQA %.2f/5 below threshold 4.0/5" % avg5)
+      print("LQA judge_overall_avg_5=%.2f dim_avg_5=%.2f n=%d (T13-01 rubric ceiling)" % (overall5, dim_avg5, len(scores)))
+      if overall5 < 4.0:
+          print("KNOWN-GAP: judge_overall %.2f/5 < 4.0/5 published bar (#lqa-threshold); see ACCEPTED_GAPS.md (T13-01)" % overall5)
           sys.exit(1)
-      print("OK: LQA %.2f/5 >= 4.0/5 (n=%d)" % (avg5, len(scores)))
+      print("OK: judge_overall %.2f/5 >= 4.0/5 (n=%d)" % (overall5, len(scores)))
     timeout_seconds: 300
+    known_gap: true
     expect:
       exit_code: 0
-      stdout_has: ["OK: LQA"]
+      stdout_has: ["OK: judge_overall"]
     standard: STANDARDS.md#lqa-threshold
     instructions: |-
-      Q2 LLM-judged quality (scripts/omo_loop.py:302-396), faithful:
-      parse the first <= 50 scorable trans-unit pairs from the translated
-      XLIFF (whitespace-only / unchanged targets skipped), judge each via
-      OL JudgeService with the real model pool (config/default.yaml), and
-      require the average >= 4.0/5. CAVEAT (finding T13-01): OL's judge
-      prompt never returns terminology_consistency/format_preservation
-      while RUBRIC_WEIGHTS gives them 0.35 combined weight, so
-      judge_overall_score is capped at 3.25/5 on perfect scores; the step
-      therefore averages the four dimensions the LLM is actually asked to
-      score (adequacy/fluency/accuracy/score) and prints the rubric
-      average alongside for evidence. Restore the strict judge_overall
-      form once OL fixes the rubric/prompt mismatch.
+      Q2 LLM-judged quality, the LITERAL published bar
+      (scripts/omo_loop.py:302-396): parse the first <= 50 scorable
+      trans-unit pairs from the translated XLIFF, judge each via OL
+      JudgeService with the real model pool (config/default.yaml), and
+      require the average of ``judge_overall_score`` (0-1, rescored to /5)
+      >= 4.0/5 (STANDARDS.md#lqa-threshold). Flagged ``known_gap: true``:
+      OL's judge prompt never asks for terminology_consistency /
+      format_preservation while RUBRIC_WEIGHTS gives them 0.35 combined
+      weight, so judge_overall_score is capped at 3.25/5 (finding T13-01).
+      The failure is recorded here but excluded from this scenario's
+      verdict; the shipped weakened four-dimension average lives under
+      scenarios/pipeline/known-gaps/. When OL fixes the rubric/prompt
+      mismatch, this step turns green and the marker can be dropped.

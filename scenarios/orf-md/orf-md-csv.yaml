@@ -3,6 +3,7 @@ description: >-
   ORF apply-md backfill to CSV: run the real `orf apply-md` CLI on a
   synthetic translated MD and verify the output carries the CSV
   structural signature (parses with csv.reader and yields >= 1 row).
+level: agent-user
 category: orf-md
 tier: 1
 requires_env: []

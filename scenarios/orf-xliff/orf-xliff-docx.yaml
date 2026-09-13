@@ -6,6 +6,7 @@ description: >-
   backfilled DOCX carries the OOXML structural signature (zip with
   word/document.xml, python-docx opens it) AND the translated Chinese targets
   from the XLIFF (水星机器人 — 产品概述 in word/document.xml).
+level: human-quality
 category: orf-xliff
 tier: 1
 requires_env: []

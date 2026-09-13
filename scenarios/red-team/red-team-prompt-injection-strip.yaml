@@ -1,0 +1,107 @@
+name: red-team-prompt-injection-strip
+description: >
+  Red-team P4 (plan gap T-20a, agent-user level). A prompt-injection echo
+  that leaks into translated output must be NEUTRALIZED by OL's shipped
+  E2E-65 Level-1 repair strip — NOT answered with a typed rejection. The
+  scenario feeds a realistic echoed LLM response (the system instruction
+  "CRITICAL: Output ONLY the <lang> translation." prefixed to a legitimate
+  translation) through the REAL shipped repair function
+  (ol_md.repair.level1.level1_regex_clean and its XLIFF sibling) and
+  asserts the injected instruction is ABSENT from the cleaned output while
+  the translated payload SURVIVES. Both halves are asserted in one report
+  so the step is non-vacuous: it proves the pattern was present before the
+  strip and absent after, and that the strip did not simply empty the
+  output. Tier 1 / hermetic: no LLM keys, no network — the strip is a pure
+  shipped function (no FAKE_LLM seam is used as evidence). Standard mapping
+  note: no STANDARDS.md anchor names "prompt-injection neutralization"
+  specifically; the observable is the agent-facing repair surface returning
+  the expected translated content with no system-prompt artifact, so the
+  step cites the closest bar, #tool-contract (an agent-facing surface must
+  return the expected result), with #error-clarity for the no-traceback
+  half.
+category: red-team
+tier: 1
+level: agent-user
+instructions: |
+  What to do:
+  1. Build the injected "LLM output": the documented E2E-65 echo pattern
+     "CRITICAL: Output ONLY the zh translation." prefixed to a real
+     translation payload. Run it through the shipped MD Level-1 repair.
+  2. Run the same shape through the shipped XLIFF Level-1 repair.
+  3. Assert both repairs remove the injected instruction (present before,
+     absent after) while preserving the translated text. If the pattern
+     regresses (renamed, count changed, output blanked), the red-team
+     scenario turns RED.
+
+  Hermetic (tier 1): no API keys, no network, no FAKE_LLM. The functions
+  exercised are the exact shipped E2E-65 strip surfaces OL runs after the
+  LLM call (ol_md/repair/level1.py, ol_xliff/repair/level1.py).
+steps:
+  - name: 'MD E2E-65 strip removes the injected instruction, preserves the translation'
+    kind: python
+    command: |
+      import json
+      import sys
+
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_md.repair.level1 import level1_regex_clean
+
+      payload = "Meridian Robotics 是一家全球制造商。"
+      injection = "CRITICAL: Output ONLY the zh translation. "
+      dirty = injection + payload
+
+      cleaned, modified = level1_regex_clean(dirty)
+      report = {
+          "injection_present_before": "CRITICAL: Output ONLY" in dirty,
+          "injection_present_after": "CRITICAL: Output ONLY" in cleaned,
+          "payload_preserved": payload in cleaned,
+          "modified": bool(modified),
+      }
+      print(json.dumps(report, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"injection_present_before": true', '"injection_present_after": false', '"payload_preserved": true', '"modified": true']
+      stdout_not_has: ['CRITICAL: Output ONLY', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      The report proves the injected instruction was present in the dirty
+      input (before=true) and absent from the cleaned output (after=false),
+      while the translated payload survived (payload_preserved=true). A
+      regression that stops stripping the echo leaves after=true and the
+      step fails; a regression that blanks the output leaves
+      payload_preserved=false and the step fails. No traceback is allowed.
+  - name: 'XLIFF E2E-65 strip removes the injected instruction, preserves the translation'
+    kind: python
+    command: |
+      import json
+      import sys
+
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_xliff.repair.level1 import level1_regex_clean
+
+      payload = "翻译后的目标文本已经就绪。"
+      injection = "IMPORTANT: Output ONLY the en translation. "
+      dirty = injection + payload
+
+      cleaned, modified = level1_regex_clean(dirty, None)
+      report = {
+          "injection_present_before": "Output ONLY the en translation" in dirty,
+          "injection_present_after": "Output ONLY the en translation" in cleaned,
+          "payload_preserved": payload in cleaned,
+          "modified": bool(modified),
+      }
+      print(json.dumps(report, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"injection_present_before": true', '"injection_present_after": false', '"payload_preserved": true', '"modified": true']
+      stdout_not_has: ['Output ONLY the en translation', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      The XLIFF channel's Level-1 repair carries the same E2E-65 strip. The
+      report proves an "IMPORTANT:" variant is removed (case-insensitive
+      pattern) while the translated target text survives. If the strip is
+      dropped from the XLIFF repair path, this step turns RED.

@@ -1,0 +1,96 @@
+name: ol-locale-en-fr-contract
+description: >
+  OL locale-gate contract for a NON-CJK pair (tier 1, hermetic): the REAL
+  ol_lqa.quality_gates.run_quality_gates / check_locale_conventions, driven
+  only by the OL_TARGET_LOCALE env var, flags EU-locale violations in an
+  en->fr target — a leaked CJK date and US digit grouping — while a clean
+  French target yields zero warnings and the same contaminated text under a
+  CJK target locale yields none. No LLM, no keys: this proves the
+  locale-hygiene control (the punct/format residue bar), never a real
+  translation's quality.
+level: human-quality
+category: ol-quality-gates
+tier: 1
+requires_env: []
+instructions: |
+  Hermetic non-CJK (en->fr) proof of the OL target-locale hygiene gate.
+  The control that keeps a non-CJK target free of foreign-locale artifacts
+  must (a) fire on a contaminated French target and (b) stay silent on a
+  clean one — with OL_TARGET_LOCALE being the only locale input, so the env
+  branch itself is exercised.
+
+  What to check:
+  1. Step 1 sets OL_TARGET_LOCALE=fr-FR in-process and calls the real
+     run_quality_gates with target_locale=None; the contaminated target
+     must yield DATE_LEAKAGE and DIGIT_GROUPING warning codes.
+  2. Step 2 proves no false positive (clean French target -> zero warnings)
+     and locale-specificity (the same contaminated target under zh-CN ->
+     no locale warnings), so the gate is gated by the locale, not the text.
+
+steps:
+  - name: 'OL_TARGET_LOCALE=fr-FR flags a contaminated en->fr target (env branch)'
+    kind: python
+    command: |
+      import os, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_lqa.quality_gates import run_quality_gates
+
+      source = "The report was published on January 5, 2024 for 1,000,000.00 EUR."
+      target = "Le rapport a été publié le 2024年1月5日 pour 1,000,000.00 €."
+
+      # OL_TARGET_LOCALE is the ONLY locale input (target_locale=None):
+      # this exercises the env-var branch, not an explicit argument.
+      os.environ["OL_TARGET_LOCALE"] = "fr-FR"
+      warnings = run_quality_gates(source, target, target_locale=None)
+      codes = sorted(w.split(": ", 1)[1].split(" — ", 1)[0] for w in warnings)
+      print("warning_codes=" + ",".join(codes))
+      assert "DATE_LEAKAGE" in codes, codes
+      assert "DIGIT_GROUPING" in codes, codes
+      print("env_branch_gated=true")
+    timeout_seconds: 30
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["env_branch_gated=true", "DATE_LEAKAGE", "DIGIT_GROUPING"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#punct-hygiene
+    instructions: >-
+      A non-CJK en->fr pair whose French target carries a CJK date and US
+      digit grouping must trip the real locale gate through the
+      OL_TARGET_LOCALE env branch (no explicit target_locale argument).
+  - name: 'Clean fr target has zero warnings; zh-CN does not flag the same text'
+    kind: python
+    command: |
+      import os, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_lqa.quality_gates import run_quality_gates
+
+      source = "The report was published on January 5, 2024 for 1,000,000.00 EUR."
+      clean = "Le rapport a été publié le 5 janvier 2024 pour 1 000 000,00 €."
+      contaminated = "Le rapport a été publié le 2024年1月5日 pour 1,000,000.00 €."
+
+      os.environ["OL_TARGET_LOCALE"] = "fr-FR"
+      clean_warnings = run_quality_gates(source, clean, target_locale=None)
+
+      os.environ["OL_TARGET_LOCALE"] = "zh-CN"
+      cjk_warnings = run_quality_gates(source, contaminated, target_locale=None)
+      cjk_locale_codes = [
+          w for w in cjk_warnings if "DATE_LEAKAGE" in w or "DIGIT_GROUPING" in w
+      ]
+      print("clean_warning_count=%d" % len(clean_warnings))
+      print("cjk_locale_warning_count=%d" % len(cjk_locale_codes))
+      assert clean_warnings == [], clean_warnings
+      assert cjk_locale_codes == [], cjk_locale_codes
+      print("no_false_positive=true")
+      print("locale_specific=true")
+    timeout_seconds: 30
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["clean_warning_count=0", "cjk_locale_warning_count=0", "locale_specific=true"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#punct-hygiene
+    instructions: >-
+      A clean French target must pass the locale gate with zero warnings; the
+      same contaminated text under a CJK target locale must not raise the
+      locale warnings — proving the trigger is the locale, not the text.

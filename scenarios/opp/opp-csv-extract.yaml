@@ -3,6 +3,7 @@ description: >
   OPP extracts a CSV file to Markdown: runtime-generated synthetic CSV
   (header + data rows) -> exit 0, manifest metadata keys, declared format
   CSV, and the data rendered as a markdown table.
+level: agent-user
 category: opp-extraction
 instructions: |
   What to do:

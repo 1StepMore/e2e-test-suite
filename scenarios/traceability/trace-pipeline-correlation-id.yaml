@@ -1,0 +1,233 @@
+name: trace-pipeline-correlation-id
+description: >
+  Traceability gap X-01 (agent-oriented-gap-register.md §4.3): the
+  `traceparent` plumbing exists at every stage (OPP extract_document ->
+  OL translate_md_text -> ORF apply_md) but no scenario ever asserted that a
+  single correlation ID survives the whole pipeline. This scenario passes a
+  W3C `traceparent` produced by stage 1 (OPP) into stage 2 (OL), then stage
+  2's traceparent into stage 3 (ORF), and asserts the observable plumbing:
+  each stage RETURNS a traceparent, all three share one trace_id, each stage
+  emits a span into its own trace JSONL, and the parent_span_id chain links
+  OPP -> OL -> ORF. The correlation ID is therefore present at every stage;
+  a stage that drops it (empty traceparent, a fresh trace_id, or a missing
+  span) turns this scenario RED.
+
+  Hermetic (tier 1): deterministic FAKE_LLM for OL, HTML output for ORF (no
+  pandoc), no network, no API keys. It is agent-user evidence (the tool
+  contract carries the traceparent), never human-quality evidence.
+category: traceability
+level: agent-user
+tier: 1
+instructions: |
+  What to do:
+  1. Build a small DOCX in a stable /tmp workspace and enable OTel tracing
+     (OMNI_TRACING_ENABLED=1, OMNI_TRACES_DIR=<workspace>/traces).
+  2. Call the REAL OPP extract_document (in-process live tool), read the
+     traceparent it returns, and stash its trace_id.
+  3. Feed that traceparent into the REAL OL translate_md_text; assert the
+     returned traceparent shares the same trace_id (child span).
+  4. Feed OL's traceparent into the REAL ORF apply_md (HTML); assert the
+     returned traceparent still shares the same trace_id.
+  5. Read opp.jsonl / ol.jsonl / orf.jsonl and assert each stage wrote a
+     span into the one trace, with OL's parent_span_id = OPP's span_id and
+     ORF's parent_span_id = OL's span_id.
+  6. The second step re-reads summary.json and independently re-asserts the
+     machine-visible contract, so a silent drop in step 1 cannot pass.
+
+  No mocks, no stub transport: OPP/OL/ORF are the shipped in-process tool
+  functions (the same functions the MCP servers expose). FAKE_LLM is used
+  only to make OL deterministic (CLI-smoke class), and this scenario is not
+  human-quality evidence.
+steps:
+  - name: OPP -> OL -> ORF share one trace_id and propagate traceparent at every stage
+    kind: python
+    command: |-
+      import os, sys, json, re, time, pathlib
+      BASE = pathlib.Path("/tmp/omni_val/trace-pipeline-correlation-id")
+      BASE.mkdir(parents=True, exist_ok=True)
+      SUITE = "/mnt/d/贯维/Omni_Suite"
+      os.environ.update({
+          "OMNI_TRACING_ENABLED": "1",
+          "OMNI_TRACES_DIR": str(BASE / "traces"),
+          "OMNI_TEST_FAKE_LLM": "1",
+          "OMNI_TEST_FAKE_PANDOC": "1",
+          "MCP_ALLOWED_DIRECTORIES": str(BASE),
+          "OPP_MCP_ALLOWED_DIRS": str(BASE),
+          "ORF_MCP_ALLOWED_DIRS": str(BASE),
+          "OL_MCP_ALLOWED_DIRS": str(BASE),
+      })
+      os.environ.pop("MCP_SHARED_SECRET", None)
+      cfg = pathlib.Path(SUITE) / "Omni_Localizer" / "config" / "test_universal.yaml"
+      if cfg.exists():
+          os.environ["OL_CONFIG_PATH"] = str(cfg)
+      for d in ("Omni_Pre_Processor/src", "Omni_Localizer/src", "Omni_Re_Formatter/src"):
+          sys.path.insert(0, str(pathlib.Path(SUITE) / d))
+
+      from docx import Document
+      src = BASE / "src.docx"
+      doc = Document()
+      doc.add_heading("Distributed Tracing", level=1)
+      doc.add_paragraph(
+          "Cross-stage correlation: OPP extract_document -> OL translate_md_text "
+          "-> ORF apply_md share one W3C trace via the traceparent parameter."
+      )
+      doc.save(str(src))
+
+      from opp.mcp.config import MCPConfig
+      from opp.mcp.server import _init_server, _handle_call_tool
+      from ol_mcp.tools import _call_tool as ol_call
+      from orf.mcp.server import _call_tool as orf_call
+      import opp.mcp.tracing as opp_tr
+      import ol_mcp.tracing as ol_tr
+      import orf.mcp.tracing as orf_tr
+      import asyncio
+      from opentelemetry import trace
+
+      def _reset_otel():
+          once = trace._TRACER_PROVIDER_SET_ONCE
+          if once is not None:
+              once._done = False
+          trace._TRACER_PROVIDER = None
+
+      def _reset(mod):
+          _reset_otel()
+          mod._setup_done = False
+
+      _TPS = re.compile(r"^[0-9a-f]{2}-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$")
+
+      def _parse(tp):
+          m = _TPS.match(str(tp).strip())
+          assert m, f"invalid traceparent {tp!r}"
+          return m.group(1), m.group(2)
+
+      _init_server(MCPConfig(
+          allowed_directories=[str(BASE)],
+          max_file_size_bytes=100 * 1024 * 1024,
+          resource_storage_dir=str(BASE / "opp_res"),
+      ))
+
+      _reset(opp_tr)
+      opp = json.loads(asyncio.run(_handle_call_tool("extract_document", {
+          "file_path": str(src), "output_formats": ["md"],
+          "source_lang": "en", "target_lang": "zh",
+      }))[0].text)
+      assert opp.get("success") is True, opp
+      opp_tp = opp["content"]["traceparent"]
+      opp_tid, opp_sid = _parse(opp_tp)
+
+      _reset(ol_tr)
+      ol = json.loads(asyncio.run(ol_call("translate_md_text", {
+          "content": opp["content"]["md_content"],
+          "source_lang": "en", "target_lang": "zh", "traceparent": opp_tp,
+      }))[0].text)
+      assert ol.get("success") is True, ol
+      ol_tp = ol["traceparent"]
+      ol_tid, ol_sid = _parse(ol_tp)
+
+      md_out = BASE / "translated.md"
+      md_out.write_text(ol["translated"], encoding="utf-8")
+      _reset(orf_tr)
+      orf = json.loads(asyncio.run(orf_call("apply_md", {
+          "input_md": str(md_out), "target_format": "html",
+          "output_path": str(BASE / "result.html"), "traceparent": ol_tp,
+      }))[0].text)
+      orf_tp = orf["traceparent"]
+      orf_tid, orf_sid = _parse(orf_tp)
+
+      time.sleep(0.4)
+
+      def _spans(name):
+          p = BASE / "traces" / f"{name}.jsonl"
+          rows = []
+          if p.exists():
+              for line in p.read_text(encoding="utf-8").splitlines():
+                  line = line.strip()
+                  if line:
+                      try:
+                          rows.append(json.loads(line))
+                      except Exception:
+                          pass
+          return rows
+
+      opp_spans, ol_spans, orf_spans = _spans("opp"), _spans("ol"), _spans("orf")
+      summary = {
+          "correlation_id": opp_tid,
+          "stages": {
+              "opp": {"traceparent": opp_tp, "trace_id": opp_tid, "span_count": len(opp_spans)},
+              "ol": {"traceparent": ol_tp, "trace_id": ol_tid, "span_count": len(ol_spans)},
+              "orf": {"traceparent": orf_tp, "trace_id": orf_tid, "span_count": len(orf_spans)},
+          },
+          "same_trace_id_across_stages": opp_tid == ol_tid == orf_tid,
+          "ol_parent_span_is_opp": any(s.get("parent_span_id") == opp_sid for s in ol_spans),
+          "orf_parent_span_is_ol": any(s.get("parent_span_id") == ol_sid for s in orf_spans),
+          "span_ids_distinct": len({opp_sid, ol_sid, orf_sid}) == 3,
+      }
+      assert summary["same_trace_id_across_stages"], summary
+      assert all(v["traceparent"] for v in summary["stages"].values()), summary
+      assert all(v["span_count"] >= 1 for v in summary["stages"].values()), summary
+      assert summary["ol_parent_span_is_opp"] and summary["orf_parent_span_is_ol"], summary
+      assert summary["span_ids_distinct"], summary
+      (BASE / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+      print("TRACE_CORRELATION_OK " + json.dumps(
+          {"correlation_id": opp_tid, "stages": sorted(summary["stages"])}, sort_keys=True))
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ['TRACE_CORRELATION_OK', '"correlation_id"', '"stages"']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    collect_artifacts:
+      - path: /tmp/omni_val/trace-pipeline-correlation-id/summary.json
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      Runs the real OPP/OL/ORF in-process tool functions with one traceparent
+      threaded stage to stage, then asserts the shared trace_id, per-stage
+      span presence, and the parent_span_id chain. Any dropped stage fails.
+  - name: Independently re-read summary.json and re-assert the machine-visible contract
+    kind: python
+    command: |-
+      import json, pathlib, sys
+      s = json.loads(
+          pathlib.Path("/tmp/omni_val/trace-pipeline-correlation-id/summary.json")
+          .read_text(encoding="utf-8")
+      )
+      stages = s.get("stages", {})
+      ok = (
+          s.get("same_trace_id_across_stages") is True
+          and s.get("span_ids_distinct") is True
+          and s.get("ol_parent_span_is_opp") is True
+          and s.get("orf_parent_span_is_ol") is True
+          and len(stages) == 3
+          and all(v.get("traceparent") and v.get("span_count", 0) >= 1 for v in stages.values())
+          and len({v["trace_id"] for v in stages.values()}) == 1
+      )
+      if not ok:
+          sys.exit(1)
+      print(json.dumps({
+          "correlation_id": s["correlation_id"],
+          "same_trace": True,
+          "stages": {k: v["span_count"] for k, v in stages.items()},
+      }, sort_keys=True))
+    timeout_seconds: 60
+    expect:
+      exit_code: 0
+      stdout_has: ['"same_trace": true', '"correlation_id"', '"opp"', '"ol"', '"orf"']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    collect_artifacts:
+      - path: /tmp/omni_val/trace-pipeline-correlation-id/summary.json
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      Reads the artifact the previous step produced and re-derives the
+      assertion; a stage missing from summary.json, or a divergent trace_id,
+      exits non-zero so the step cannot pass.
+cleanup_steps:
+  - name: Remove the scenario temp workspace
+    kind: python
+    command: |-
+      import shutil
+      shutil.rmtree("/tmp/omni_val/trace-pipeline-correlation-id", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#tool-contract
+    instructions: Best-effort cleanup of the trace workspace.

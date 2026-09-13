@@ -3,6 +3,7 @@ description: >
   OPP extracts an EML email to Markdown: committed EML fixture -> exit 0,
   manifest metadata keys, declared format EML, and the message body text
   preserved.
+level: agent-user
 category: opp-extraction
 instructions: |
   What to do:

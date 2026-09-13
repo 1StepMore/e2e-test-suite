@@ -1,0 +1,60 @@
+name: ol-xliff-handoff-structure
+description: >
+  OL XLIFF-stage input contract (tier 1, hermetic): the committed OPP -> OL
+  XLIFF handoff fixture parses as an XLIFF 1.2 document in the OASIS
+  namespace with en -> zh file metadata, exactly the declared number of
+  trans-units, a non-empty <source> per unit, and zero filled <target>
+  elements (the untranslated-input contract the stage consumes). No LLM,
+  no keys, no fake output.
+level: agent-user
+category: ol-structure
+tier: 1
+requires_env: []
+instructions: |
+  Hermetic OL XLIFF stage-structure bar. Proves the untranslated XLIFF
+  handoff OL receives is well-formed and matches its committed structure
+  manifest. No translation runs; quality is not asserted here.
+
+  What to check:
+  1. Parse scenarios/ol/_fixtures/source.xlf with the stdlib ElementTree
+     parser, then compare namespace, version, file metadata, trans-unit
+     count, source presence and empty-target count against
+     scenarios/ol/_fixtures/expected_xliff_structure.json.
+
+steps:
+  - name: 'Committed XLIFF fixture matches its expected structure'
+    kind: python
+    command: |
+      import json, pathlib, xml.etree.ElementTree as ET
+      exp = json.loads(pathlib.Path("scenarios/ol/_fixtures/expected_xliff_structure.json").read_text(encoding="utf-8"))
+      ns = {"xliff": exp["namespace"]}
+      root = ET.parse("scenarios/ol/_fixtures/source.xlf").getroot()
+      assert root.tag == "{%s}xliff" % exp["namespace"], root.tag
+      assert root.get("version") == exp["xliff_version"], root.get("version")
+      file_el = root.find("xliff:file", ns)
+      assert file_el is not None, "XLIFF <file> element missing"
+      assert file_el.get("source-language") == exp["source_language"]
+      assert file_el.get("target-language") == exp["target_language"]
+      units = file_el.findall(".//xliff:trans-unit", ns)
+      sources = [u.findtext("xliff:source", default="", namespaces=ns) for u in units]
+      targets = [u.findtext("xliff:target", default="", namespaces=ns) for u in units]
+      observed = {
+          "trans_units": len(units),
+          "units_with_source": sum(1 for s in sources if s.strip()),
+          "units_with_filled_target": sum(1 for t in targets if t.strip()),
+      }
+      print("observed=" + json.dumps(observed, sort_keys=True))
+      for key, value in observed.items():
+          assert value == exp[key], "%s: expected %r, actual %r" % (key, exp[key], value)
+      print("xliff_structure_match=true")
+    timeout_seconds: 30
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["xliff_structure_match=true"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      Parse the committed XLIFF fixture and compare every structural fact
+      against the committed expected-structure manifest; a mismatch means
+      the fixture and its manifest drifted apart.

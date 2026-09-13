@@ -1,7 +1,8 @@
 name: tool-ol-translate_file
 description: "OL translate_file runs the OPP-OL-ORF pipeline on a document (requires real LLM keys) and returns the shipped clean ORF_INPUT_MISSING defect error."
+level: agent-user
 category: agent-surface
-tier: 1
+tier: 2
 requires_env: [OPENAI_API_KEY, ZHIPU_API_KEY, AGNES_API_KEY, NVIDIA_NIM_API_KEY, OL_CONFIG_PATH, OPP_CONFIG_PATH, OPP_ALLOWED_DIRECTORIES]
 instructions: |
   Agent-user conformance (draft D13, mission axis 1): this scenario proves the

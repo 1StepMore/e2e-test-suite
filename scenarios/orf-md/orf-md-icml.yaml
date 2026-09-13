@@ -3,6 +3,7 @@ description: >-
   ORF apply-md backfill to ICML: run the real `orf apply-md` CLI on a
   synthetic translated MD and verify the output carries the ICML
   structural signature (contains ParagraphStyleRange (ORF E2E-07 ICML assertion)).
+level: agent-user
 category: orf-md
 tier: 1
 requires_env: []

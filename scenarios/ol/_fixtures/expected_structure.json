@@ -1,0 +1,12 @@
+{
+  "encoding": "utf-8",
+  "has_bom": false,
+  "h1": 1,
+  "h2": 2,
+  "bullet_items": 3,
+  "code_fences": 1,
+  "inline_code": 2,
+  "markdown_links": 1,
+  "markdown_images": 1,
+  "glossary_terms": ["API endpoint", "Deploy", "Meridian Robotics"]
+}

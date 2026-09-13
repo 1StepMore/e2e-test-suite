@@ -9,6 +9,7 @@ description: >
   silent cwd + /tmp fallback) and MUST NOT leak a stack trace.  This replaces
   the pre-d27cf14 OL_PATH_NOT_ALLOWED assertion; if the stable code is ever
   renamed or the fail-closed policy is loosened, this scenario turns RED.
+level: agent-user
 category: regression
 regression: true
 regression_issue: "renanzai40/OmniSuite_BackUp#8"

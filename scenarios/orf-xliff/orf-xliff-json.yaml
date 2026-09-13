@@ -8,6 +8,7 @@ description: >-
   input skeleton per the CLI signature but the channel derives content from
   the XLIFF, so the translated Chinese targets ARE present in the output by
   construction (unit 1 target = 水星机器人 — 产品概述).
+level: agent-user
 category: orf-xliff
 tier: 1
 requires_env: []

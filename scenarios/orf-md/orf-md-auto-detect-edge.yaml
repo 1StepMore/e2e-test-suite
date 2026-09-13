@@ -1,0 +1,100 @@
+name: orf-md-auto-detect-edge
+description: >
+  Stage edge (plan gap T-14, C2 edge; S3 ORF MD path). On a plain translated
+  markdown file with no manifest, `--target-format auto` auto-detects the
+  input as MD and resolves the target to 'md' — a token the apply-md output
+  whitelist does not contain. The real CLI must fail closed: non-zero exit,
+  a clear "Unsupported format 'md'" error naming the resolved value, and no
+  partial output artifact. This is the auto-resolution boundary, sibling to
+  the explicit-token failure. Tier 1 / hermetic.
+level: agent-user
+category: orf-md
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Remove the scenario dir, then write a plain MD with NO manifest and NO
+     frontmatter at /tmp/omni_val/t14-orf-md-auto/in.md.
+  2. Run `orf apply-md in.md --target-format auto -o out.md --no-cache`.
+     Auto-detection resolves MD -> 'md', which the output whitelist does not
+     include, so the CLI must raise before conversion: non-zero exit and a
+     clear error.
+  3. Re-run in a python step and assert exit code != 0, stderr names the
+     unsupported resolved format, and no output file exists (no artifact).
+
+  Tier 1: no API keys, no network; the failure happens before any converter
+  engine is invoked, deterministic.
+steps:
+  - name: Write the manifest-less MD input
+    kind: python
+    command: |
+      import pathlib, shutil
+      d = pathlib.Path("/tmp/omni_val/t14-orf-md-auto")
+      shutil.rmtree(d, ignore_errors=True)
+      d.mkdir(parents=True)
+      (d / "in.md").write_text("# Hello\n\nworld\n", encoding="utf-8")
+      print("WROTE", d / "in.md")
+    timeout_seconds: 30
+    expect:
+      exit_code: 0
+      stdout_has: ["WROTE"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Create a plain MD: no manifest.json and no YAML frontmatter, so
+      auto-detection cannot map to a real backfill target.
+  - name: apply-md auto-detects 'md' and fails closed on the unsupported target
+    kind: cli
+    command: orf apply-md /tmp/omni_val/t14-orf-md-auto/in.md --target-format auto -o /tmp/omni_val/t14-orf-md-auto/out.md --no-cache --json
+    timeout_seconds: 120
+    expect:
+      exit_code: 1
+      stderr_has: ["Unsupported format 'md'"]
+      stdout_not_has: ['"success": true']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      The CLI must not silently no-op or write a bogus file when auto-detect
+      lands on an unwritable target: it exits non-zero with a clear message
+      naming the unsupported resolved format.
+  - name: Assert non-zero exit and no artifact for the auto path
+    kind: python
+    command: |
+      import pathlib, subprocess, sys
+      out = pathlib.Path("/tmp/omni_val/t14-orf-md-auto/out.md")
+      proc = subprocess.run(
+          ["orf", "apply-md", "/tmp/omni_val/t14-orf-md-auto/in.md",
+           "--target-format", "auto", "-o", str(out), "--no-cache", "--json"],
+          capture_output=True, text=True,
+      )
+      ok = (
+          proc.returncode != 0
+          and "Unsupported format 'md'" in proc.stderr
+          and not out.exists()
+      )
+      if not ok:
+          print("MISMATCH rc=%s artifact=%s stderr=%s" % (
+              proc.returncode, out.exists(), proc.stderr[:200]))
+          sys.exit(1)
+      print("no_artifact=true rc=%d" % proc.returncode)
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["no_artifact=true"]
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      Re-run and assert the contract from the process: non-zero exit, the
+      stable unsupported-format message, and no output artifact. --no-cache
+      protects against a stale cached success masking the failure.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni_val/t14-orf-md-auto", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort cleanup of the temp inputs/outputs.

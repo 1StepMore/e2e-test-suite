@@ -3,6 +3,7 @@ description: >-
   ORF apply-md backfill to RTF: run the real `orf apply-md` CLI on a
   synthetic translated MD and verify the output carries the RTF
   structural signature (starts with an RTF group brace { and contains the pandoc \pard control word (this pandoc does NOT emit the \rtf1 header)).
+level: agent-user
 category: orf-md
 tier: 1
 requires_env: []

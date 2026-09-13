@@ -1,0 +1,306 @@
+name: red-team-path-traversal
+description: >
+  Red-team P4 (plan gap T-20b, agent-user level). Path traversal must fail
+  CLOSED on every file-taking server tool: each of the four shipped MCP
+  surfaces (OPP, OL, ORF, suite omni_mcp) is driven with a ".." traversal
+  and with an absolute out-of-allowlist path, and each must return its
+  stable typed denial — OPP_PATH_DENIED / OL_PATH_DENIED / PATH_NOT_ALLOWED
+  (ORF) / OMNI_PATH_DENIED — with success=false and NO file content egress
+  (no "root:x:0:0" from /etc/passwd). ORF additionally proves the
+  fail-CLOSED policy when no allowlist is configured: the tool refuses
+  (raises the documented fail-CLOSED error) instead of silently defaulting
+  to cwd. Hermetic (tier 1): deterministic subprocess calls, no LLM keys,
+  no network; the allowlists are set explicitly inside each snippet so the
+  scenario does not depend on the runner's environment. Standard mapping:
+  every denial claim is #path-security (path-taking tools deny access
+  outside the configured allowlist, fail-closed).
+category: red-team
+tier: 1
+level: agent-user
+instructions: |
+  What to do:
+  1. OPP extract_document on "../../etc/passwd" -> OPP_PATH_DENIED.
+  2. OL load_glossary / search_tm / verify_terms on a traversal path ->
+     OL_PATH_DENIED.
+  3. ORF apply_md and apply_xliff (xliff_path) on a traversal path ->
+     PATH_NOT_ALLOWED.
+  4. ORF with no allowlist configured -> fail-CLOSED refusal.
+  5. suite omni_mcp translate_file on a traversal path -> OMNI_PATH_DENIED.
+
+  Every step also asserts the denial body carries no /etc/passwd content
+  ("root:x:0:0") and no traceback on stdout. Tier 1: no API keys, no
+  network; the snippets set their own allowlists so the run is
+  self-contained.
+steps:
+  - name: 'OPP extract_document denies a traversal path with OPP_PATH_DENIED and no egress'
+    kind: python
+    command: |
+      import asyncio
+      import json
+      import os
+      import sys
+
+      os.environ["OPP_MCP_ALLOWED_DIRS"] = "/tmp"
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import extract_document
+
+      result = asyncio.run(
+          extract_document(file_path="../../etc/passwd", output_formats="md")
+      )
+      print(json.dumps(result, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false', 'OPP_PATH_DENIED']
+      stdout_not_has: ['root:x:0:0', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      With OPP_MCP_ALLOWED_DIRS=/tmp, call the real extract_document on a
+      ".." traversal path. The shared validator must reject it with the
+      stable OPP_PATH_DENIED code and success=false; /etc/passwd content
+      must never appear in the response and no traceback may land on
+      stdout.
+  - name: 'OL load_glossary denies a traversal path with OL_PATH_DENIED and no egress'
+    kind: python
+    command: |
+      import asyncio
+      import json
+      import os
+      import sys
+
+      os.environ["MCP_ALLOWED_DIRECTORIES"] = "/tmp"
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import LoadGlossaryInput, load_glossary
+
+      result = asyncio.run(
+          load_glossary(params=LoadGlossaryInput(path="../../etc/passwd"))
+      )
+      print(result)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false', 'OL_PATH_DENIED']
+      stdout_not_has: ['root:x:0:0', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      With MCP_ALLOWED_DIRECTORIES=/tmp, call load_glossary on a ".."
+      traversal path. Expect the stable OL_PATH_DENIED code,
+      success=false, no egress, no traceback.
+  - name: 'OL search_tm denies a traversal tmx_path with OL_PATH_DENIED'
+    kind: python
+    command: |
+      import asyncio
+      import os
+      import sys
+
+      os.environ["MCP_ALLOWED_DIRECTORIES"] = "/tmp"
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import SearchTMInput, search_tm
+
+      result = asyncio.run(
+          search_tm(
+              params=SearchTMInput(
+                  source_text="hello", tmx_path="../../etc/passwd"
+              )
+          )
+      )
+      print(result)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false', 'OL_PATH_DENIED']
+      stdout_not_has: ['root:x:0:0', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      Same allowlist; search_tm's tmx_path is a second file-taking OL tool.
+      The traversal must be denied with OL_PATH_DENIED before any TM file
+      is read.
+  - name: 'OL verify_terms denies a traversal glossary_path with OL_PATH_DENIED'
+    kind: python
+    command: |
+      import asyncio
+      import os
+      import sys
+
+      os.environ["MCP_ALLOWED_DIRECTORIES"] = "/tmp"
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import VerifyTermsInput, verify_terms
+
+      result = asyncio.run(
+          verify_terms(
+              params=VerifyTermsInput(
+                  source="alpha", target="beta", glossary_path="../../etc/passwd"
+              )
+          )
+      )
+      print(result)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false', 'OL_PATH_DENIED']
+      stdout_not_has: ['root:x:0:0', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      Same allowlist; verify_terms accepts a glossary_path and must deny the
+      traversal with OL_PATH_DENIED (this was the OL verify_terms bypass
+      called out in gap T-08).
+  - name: 'ORF apply_md denies a traversal input_md with PATH_NOT_ALLOWED'
+    kind: python
+    command: |
+      import os
+      import sys
+
+      os.environ["ORF_MCP_ALLOWED_DIRS"] = "/tmp"
+      sys.path.insert(0, "Omni_Re_Formatter/src")
+      import orf.mcp.common as common
+      common.reset_config_and_validator()
+      from orf.mcp.tools.apply_md import apply_md
+
+      result = apply_md(
+          input_md="../../etc/passwd",
+          target_format="html",
+          output_path="/tmp/omni-val-red-team/orf-traversal.html",
+      )
+      print(result)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false', 'PATH_NOT_ALLOWED']
+      stdout_not_has: ['root:x:0:0', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      With ORF_MCP_ALLOWED_DIRS=/tmp, apply_md must reject the traversal
+      input with PATH_NOT_ALLOWED (ORF is fail-closed) before the CLI runs.
+      No /etc/passwd content may appear and no traceback on stdout.
+  - name: 'ORF apply_xliff denies a traversal xliff_path with PATH_NOT_ALLOWED'
+    kind: python
+    command: |
+      import json
+      import os
+      import sys
+
+      os.environ["ORF_MCP_ALLOWED_DIRS"] = "/tmp"
+      sys.path.insert(0, "Omni_Re_Formatter/src")
+      from docx import Document
+      common_dir = "/tmp/omni-val-red-team"
+      os.makedirs(common_dir, exist_ok=True)
+      src = os.path.join(common_dir, "valid.docx")
+      doc = Document()
+      doc.add_heading("Red Team", level=1)
+      doc.add_paragraph("source document")
+      doc.save(src)
+
+      import orf.mcp.common as common
+      common.reset_config_and_validator()
+      from orf.mcp.tools.apply_xliff import apply_xliff
+
+      result = apply_xliff(
+          input_file=src,
+          xliff_path="../../etc/passwd",
+          output_path=os.path.join(common_dir, "traversal.docx"),
+          format="docx",
+      )
+      print(result)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false', 'PATH_NOT_ALLOWED']
+      stdout_not_has: ['root:x:0:0', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      apply_xliff takes two file paths. With a valid in-allowlist source
+      document, the out-of-allowlist xliff_path must be denied with
+      PATH_NOT_ALLOWED and no file content may egress.
+  - name: 'ORF fails CLOSED when no allowlist is configured'
+    kind: python
+    command: |
+      import json
+      import os
+      import sys
+
+      for key in ("ORF_MCP_ALLOWED_DIRS", "MCP_ALLOWED_DIRECTORIES"):
+          os.environ.pop(key, None)
+      sys.path.insert(0, "Omni_Re_Formatter/src")
+      import orf.mcp.common as common
+      common.reset_config_and_validator()
+      from orf.mcp.tools.apply_md import apply_md
+
+      try:
+          result = apply_md(
+              input_md="/tmp/omni-val-red-team/none.md",
+              target_format="html",
+              output_path="/tmp/omni-val-red-team/none.html",
+          )
+          report = {"denied": False, "result": result}
+      except Exception as exc:
+          report = {
+              "denied": True,
+              "error_type": type(exc).__name__,
+              "message": str(exc),
+          }
+      print(json.dumps(report, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"denied": true', 'fail-CLOSED security policy']
+      stdout_not_has: ['"denied": false', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      With no allowlist configured, ORF must refuse rather than silently
+      default to cwd: the tool raises the documented fail-CLOSED
+      ValueError naming MCP_ALLOWED_DIRECTORIES / ORF_MCP_ALLOWED_DIRS. The
+      report records denied=true and the message; denied=false (a silent
+      cwd default) fails the step.
+  - name: 'suite omni_mcp translate_file denies a traversal path with OMNI_PATH_DENIED'
+    kind: python
+    command: |
+      import asyncio
+      import json
+      import os
+
+      os.environ["MCP_ALLOWED_DIRECTORIES"] = "/tmp"
+      from omni_mcp.server import translate_file
+
+      result = asyncio.run(
+          translate_file(
+              file_path="../../etc/passwd",
+              source_lang="en",
+              target_lang="zh",
+              output_format="docx",
+          )
+      )
+      print(json.dumps(result, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false', 'OMNI_PATH_DENIED']
+      stdout_not_has: ['root:x:0:0', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      The suite orchestrator enforces its own fail-CLOSED allowlist before
+      any path reaches the sub-CLIs. With MCP_ALLOWED_DIRECTORIES=/tmp the
+      traversal must return the stable OMNI_PATH_DENIED code with no
+      egress.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni-val-red-team", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#path-security
+    instructions: Best-effort cleanup of the scenario temp inputs/outputs.

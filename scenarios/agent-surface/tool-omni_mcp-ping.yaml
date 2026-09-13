@@ -1,5 +1,6 @@
 name: tool-omni_mcp-ping
 description: "Suite omni_mcp ping reports module name and version; wrong-shaped call arguments produce a clean error."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

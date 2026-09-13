@@ -1,0 +1,158 @@
+name: orf-md-batch-partial-success
+description: >-
+  R-04 partial-success contract + policy (T-21). `orf convert-batch` on a
+  2-of-3-valid batch reports status "partial" with honest counts; without
+  `--allow-partial` it exits non-zero, and with the flag it exits 0. The
+  invalid member is graded as its own red step — the partial in
+  partial-success — and the scenario's `min_passing` / `pass_ratio` bar
+  accepts it, so the verdict is `partial-pass`: never `passed` and never a
+  misleading success. Tier 1 / hermetic.
+level: agent-user
+category: orf-md
+tier: 1
+requires_env: []
+min_passing: 2
+pass_ratio: 0.5
+instructions: |
+  What to do:
+  1. Provision a hermetic batch: two valid frontmatter MD files and one member
+     whose body carries invalid UTF-8 bytes (so its conversion deterministically
+     fails). Remove the temp dir first so no stale artifact can leak in.
+  2. Run `orf convert-batch ... --json --allow-partial`: exit 0, stdout is one
+     JSON object with status "partial", succeeded 2, failed 1.
+  3. Re-run without `--allow-partial`: exit non-zero while the JSON still says
+     status "partial" and failed 1 — the flag changes the exit code, never the
+     counts.
+  4. Convert the invalid member directly: it is the failed member by
+     construction, so this step is RED. The scenario accepts it via the
+     `min_passing: 2` / `pass_ratio: 0.5` partial bar (the R-04 policy under
+     test), which is why the verdict is `partial-pass`, not `failed`.
+  5. Adversarially re-run (2) and parse the JSON: exit 0 must never pair with
+     status "complete"; the failed member must leave no output artifact, and
+     the output dir holds exactly the two successful html files (no stale
+     `bad.html` from the red step).
+
+  Tier 1: no keys, no network, pure-Python HTML engine.
+steps:
+  - name: Provision the 2-valid/1-invalid batch (clean dir first)
+    kind: python
+    command: |
+      import pathlib, shutil
+      d = pathlib.Path("/tmp/omni_val/t21-orf-batch-partial")
+      shutil.rmtree(d, ignore_errors=True)
+      src = d / "src"
+      out = d / "out"
+      src.mkdir(parents=True)
+      out.mkdir(parents=True)
+      fm = "---\nsource_lang: en\ntarget_lang: zh\n---\n\n"
+      (src / "doc1.md").write_text(fm + "# Doc One\n\nbody one\n", encoding="utf-8")
+      (src / "doc2.md").write_text(fm + "# Doc Two\n\nbody two\n", encoding="utf-8")
+      # A batch member whose conversion must fail deterministically: valid
+      # frontmatter (so it is discovered) then bytes that are not valid UTF-8.
+      (src / "bad.md").write_bytes(
+          fm.encode("utf-8") + b"# Bad\n\n" + b"\xff\xfe\x00 broken bytes\n"
+      )
+      print("PROVISIONED", sorted(p.name for p in src.iterdir()))
+    timeout_seconds: 30
+    expect:
+      exit_code: 0
+      stdout_has: ["PROVISIONED", "bad.md", "doc1.md", "doc2.md"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Deterministically create the batch. bad.md carries valid frontmatter so
+      convert-batch discovers it, but invalid UTF-8 bytes so its HTML
+      conversion raises and is counted as failed (not a crash).
+  - name: Partial batch with --allow-partial exits 0 and reports partial
+    kind: cli
+    command: orf convert-batch /tmp/omni_val/t21-orf-batch-partial/src --target-format html --output-dir /tmp/omni_val/t21-orf-batch-partial/out --json --allow-partial
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ['"status": "partial"', '"succeeded": 2', '"failed": 1', '"total": 3']
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      The `--allow-partial` escape hatch downgrades a partial batch to exit 0,
+      but the JSON must stay honest: status "partial", succeeded 2, failed 1.
+      stdout is exactly one JSON object (T-03); human lines go to stderr.
+  - name: Partial batch without --allow-partial exits non-zero, counts unchanged
+    kind: cli
+    command: orf convert-batch /tmp/omni_val/t21-orf-batch-partial/src --target-format html --output-dir /tmp/omni_val/t21-orf-batch-partial/out --json
+    timeout_seconds: 120
+    expect:
+      exit_code: 1
+      stdout_has: ['"status": "partial"', '"failed": 1']
+      stdout_not_has: ['"status": "complete"']
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Without the flag the same partial batch exits 1 (STANDARDS.md#exit-codes)
+      while the JSON counts are unchanged — the exit code is the only thing the
+      flag may move.
+  - name: "Invalid member conversion is the red partial (accepted by the bar)"
+    kind: cli
+    command: orf apply-md /tmp/omni_val/t21-orf-batch-partial/src/bad.md --target-format html -o /tmp/omni_val/t21-orf-batch-partial/out/bad.html
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      This member is invalid by construction (invalid UTF-8), so the real CLI
+      fails (exit 1, no artifact) — this step is RED. It is the "partial" in
+      partial-success: the scenario's min_passing/pass_ratio bar accepts the
+      red instead of failing the whole scenario, yielding `partial-pass`.
+  - name: "Adversarial: exit 0 never means complete; failed member leaves no artifact"
+    kind: python
+    command: |
+      import json, os, subprocess, sys
+      cmd = [
+          "orf", "convert-batch",
+          "/tmp/omni_val/t21-orf-batch-partial/src",
+          "--target-format", "html",
+          "--output-dir", "/tmp/omni_val/t21-orf-batch-partial/out",
+          "--json", "--allow-partial",
+      ]
+      proc = subprocess.run(cmd, capture_output=True, text=True)
+      try:
+          obj = json.loads(proc.stdout)
+      except Exception as e:
+          print("MISMATCH: stdout is not a single JSON object: %s" % e)
+          sys.exit(1)
+      out = "/tmp/omni_val/t21-orf-batch-partial/out"
+      artifacts = sorted(os.listdir(out))
+      ok = (
+          proc.returncode == 0
+          and obj.get("status") == "partial"
+          and obj.get("status") != "complete"
+          and obj.get("succeeded") == 2
+          and obj.get("failed") == 1
+          and artifacts == ["doc1.html", "doc2.html"]
+      )
+      if not ok:
+          print("MISMATCH rc=%s status=%s succeeded=%s failed=%s out=%s" % (
+              proc.returncode, obj.get("status"), obj.get("succeeded"),
+              obj.get("failed"), artifacts))
+          sys.exit(1)
+      print("OK partial rc=0 status=partial artifacts=%s" % artifacts)
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK partial", "artifacts=['doc1.html', 'doc2.html']"]
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      The adversarial half (misleading_success_output): exit 0 must never be
+      reported as full success (status stays "partial", explicitly not
+      "complete"), the counts must match reality, and the failed member must
+      leave no artifact — the output dir holds exactly the two successful html
+      files (no stale bad.html from the red step).
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni_val/t21-orf-batch-partial", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort cleanup of the temp inputs/outputs.

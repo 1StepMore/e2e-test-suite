@@ -1,5 +1,6 @@
 name: tool-orf-apply_xliff
 description: "ORF apply_xliff backfills the translated XLIFF fixture into the DOCX fixture and denies bad XLIFF paths cleanly."
+level: agent-user
 category: agent-surface
 tier: 1
 requires_env: [ORF_MCP_ALLOWED_DIRS]

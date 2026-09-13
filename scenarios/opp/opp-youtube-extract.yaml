@@ -5,6 +5,7 @@ description: >
   YOUTUBE_NETWORK: transcription requires live network access to YouTube
   and a real video URL, so the scenario reports unconfigured in CI and
   never REDs for the missing network.
+level: agent-user
 category: opp-extraction
 requires_env: [YOUTUBE_NETWORK]
 tier: 3

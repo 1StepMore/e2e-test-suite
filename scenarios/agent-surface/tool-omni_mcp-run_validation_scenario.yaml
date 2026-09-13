@@ -1,5 +1,6 @@
 name: tool-omni_mcp-run_validation_scenario
 description: "Suite omni_mcp run_validation_scenario runs the real validation engine on a scenario filter and returns per-step check text + standard citations; invalid params produce a clean error."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

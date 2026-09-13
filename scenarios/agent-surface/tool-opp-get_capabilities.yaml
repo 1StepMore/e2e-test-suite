@@ -1,5 +1,6 @@
 name: tool-opp-get_capabilities
 description: "OPP get_capabilities reports module capabilities; wrong-shaped call arguments produce a clean error."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

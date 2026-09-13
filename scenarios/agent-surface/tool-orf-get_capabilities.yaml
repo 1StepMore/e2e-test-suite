@@ -1,5 +1,6 @@
 name: tool-orf-get_capabilities
 description: "ORF get_capabilities reports module capabilities; the MCP dispatch rejects unknown tools cleanly."
+level: agent-user
 category: agent-surface
 tier: 1
 requires_env: [ORF_MCP_ALLOWED_DIRS]

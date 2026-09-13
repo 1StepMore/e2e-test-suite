@@ -3,6 +3,7 @@ description: >-
   ORF apply-md backfill to SRT: run the real `orf apply-md` CLI on a
   synthetic translated MD and verify the output carries the SRT
   structural signature (non-empty passthrough of the MD content (no timing blocks in the input)).
+level: agent-user
 category: orf-md
 tier: 1
 requires_env: []

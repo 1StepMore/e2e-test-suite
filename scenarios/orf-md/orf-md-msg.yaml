@@ -3,6 +3,7 @@ description: >-
   ORF apply-md backfill to MSG: run the real `orf apply-md` CLI on a
   synthetic translated MD and verify the output carries the MSG
   structural signature (OLE compound document (.msg signature D0 CF 11 E0 A1 B1 1A E1) written by aspose MapiMessage.save). Requires aspose-email-foss; gated on ASPOSE_EMAIL (the un-gated run falls back to .eml).
+level: agent-user
 category: orf-md
 tier: 1
 requires_env: [ASPOSE_EMAIL]

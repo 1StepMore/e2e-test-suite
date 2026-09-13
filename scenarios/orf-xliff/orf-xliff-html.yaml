@@ -10,6 +10,7 @@ description: >-
   Chinese targets are NOT injected for this fixture. This scenario honestly
   asserts the channel contract that IS live: exit 0 + Created + template
   structure preserved (findings recorded in learnings.md).
+level: agent-user
 category: orf-xliff
 tier: 1
 requires_env: []

@@ -17,6 +17,45 @@ implementations from `scripts/omo_loop.py` (Q1-Q6, lines 191-299), and the
 format-engines reference copies `Omni_Re_Formatter/AGENTS.md:101-120` and
 `Omni_Pre_Processor/AGENTS.md:87`.
 
+## Fallbacks are never evidence {#fallbacks-never-evidence}
+
+Deterministic fallbacks — `OMNI_TEST_FAKE_LLM=1`,
+`OMNI_TEST_FAKE_PANDOC=1`, and every equivalent test seam in this class
+(`OMNI_TEST_FAKE_*`, monkey-patched engines, stub backends) — are **NEVER
+admissible as quality evidence**. A fallback emits synthetic, deterministic
+output; a green verdict obtained under one proves the plumbing ran, not that
+the result meets the human-quality bar.
+
+The engine enforces this in `omni_mcp/validation/engine.py`
+(`_fake_llm_reason`, lines 263-293), using the ONE family rule in
+`omni_mcp/validation/family.py` (prefix-first, anchor-fallback):
+
+- When `OMNI_TEST_FAKE_LLM=1` is active in the effective env and the
+  scenario is **human-quality** — its name carries the `pipeline-` prefix
+  OR any step cites a HUMAN-QUALITY anchor — the verdict is **`invalid`**,
+  not `passed` and not `failed`. `invalid` is a distinct status that can
+  never be reported as GREEN.
+- `--allow-fake` is the **contract-only escape hatch**: it re-admits a
+  fallback run ONLY when the scenario's family is all-`agent-user` AND
+  **every** step cites an AGENT-SURFACE anchor. An anchor-less step, a
+  single HUMAN-QUALITY citation, or an empty step list makes the scenario
+  ineligible — the escape hatch is non-vacuous by design.
+- Independently, any produced artifact carrying the fake-echo signature is
+  `invalid` — positive fake content cannot be waved away, even with
+  `--allow-fake`.
+
+`OMNI_TEST_FAKE_PANDOC` and the other module-level fallback seams
+(`Omni_Re_Formatter/src/orf/cli.py:221`) fall under the same admissibility
+rule: a fallback-active run is not admissible human-quality evidence
+regardless of which seam produced the synthetic output. The engine
+implements the `OMNI_TEST_FAKE_LLM` check today; the bar binds every
+fallback.
+
+**How to check:** a scenario that would produce a human-quality verdict
+while a fallback env var is set must report `invalid`; unset the fallback
+to obtain real evidence. Citable as `standard:
+STANDARDS.md#fallbacks-never-evidence`.
+
 ## AGENT-SURFACE
 
 Mission axis 1 (draft D13): validation proves every agent-facing surface —

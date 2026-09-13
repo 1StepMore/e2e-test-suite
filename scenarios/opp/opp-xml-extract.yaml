@@ -3,6 +3,7 @@ description: >
   OPP extracts an XML document to Markdown: runtime-generated synthetic
   XML catalog -> exit 0, manifest metadata keys, declared format XML, and
   the element text content preserved in markdown.
+level: agent-user
 category: opp-extraction
 instructions: |
   What to do:

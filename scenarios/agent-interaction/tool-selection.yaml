@@ -1,0 +1,234 @@
+name: tool-selection
+description: >
+  Agent-interaction C4 (plan gap T-18, agent-user level). Given a natural
+  language intent and the LIVE MCP tool list (imported from the four real
+  registries: opp.mcp.server._TOOL_SCHEMAS, ol_mcp.tools.TOOL_REGISTRY,
+  orf.mcp.server._TOOL_DISPATCH, omni_mcp.server._TOOL_SCHEMAS), a
+  deterministic selector must choose the expected (server, tool) pair. The
+  scenario pins the intent -> tool mapping AND the
+  `translate_file` OL-vs-Omni-MCP / `detect_format_tool` OPP-vs-ORF
+  disambiguation both in the live registries and in the namespacing doc
+  `docs/agent-pipeline-guide.md#tool-namespacing-and-disambiguation` (T-09):
+  the bare name is ambiguous across servers, so selection is by the
+  (server, tool) pair and the two registrations must stay structurally
+  distinct. Tier 1 / hermetic: reads the live registries and the shipped
+  doc only — no LLM, no network, no FAKE_LLM seam.
+category: agent-interaction
+tier: 1
+level: agent-user
+instructions: |
+  What to do:
+  1. Import the four live registries and build the (server, tool) surface
+     with each tool's declared parameter names. Assert the canonical counts
+     (OPP 9, OL 21, ORF 7, Omni 4 = 41) so a rename/removal turns this RED.
+  2. For each natural-language intent, run a name-token selector over the
+     live tool list for the named server; it must resolve to exactly one
+     tool, and that tool must be the expected one. A renamed tool no longer
+     matches its tokens (or collides with a sibling), so the scenario fails.
+  3. Resolve `translate_file` by server: it is registered on BOTH `ol` and
+     `omni_mcp`, so a bare name is ambiguous; assert the two registrations
+     stay structurally distinct (OL carries `glossary_path`/`keep_temp`,
+     the suite tool does not, both carry `pipeline`).
+  4. Read `docs/agent-pipeline-guide.md` and assert the shipped namespacing
+     section disambiguates `translate_file` (OL MCP vs Omni MCP) and
+     `detect_format_tool` (OPP) vs `detect_format` (ORF), and that every
+     expected tool from step 1 is listed there — so the intent -> documented
+     tool mapping cannot silently drift.
+
+  Hermetic (tier 1): the live registries are imported directly and the doc
+  is read from disk. No product code is edited; this scenario is the
+  downstream drift regression for T-09 (docs-only namespacing).
+steps:
+  - name: 'Natural-language intents resolve to the expected live (server, tool) pair'
+    kind: python
+    command: |
+      import json, os, sys
+      for _p in ("Omni_Pre_Processor/src", "Omni_Localizer/src", "Omni_Re_Formatter/src"):
+          sys.path.insert(0, _p)
+      os.environ.setdefault("MCP_ALLOWED_DIRECTORIES", "/tmp")
+
+      from opp.mcp.server import _TOOL_SCHEMAS as opp_schemas
+      from ol_mcp.tools import TOOL_REGISTRY as ol_registry
+      from orf.mcp.server import _TOOL_DISPATCH as orf_dispatch
+      from omni_mcp.server import _TOOL_SCHEMAS as omni_schemas
+
+      live = {
+          "opp": {s["name"]: set(s["inputSchema"].get("properties", {})) for s in opp_schemas},
+          "orf": {name: set() for name in orf_dispatch},
+          "omni_mcp": {s["name"]: set(s["inputSchema"].get("properties", {})) for s in omni_schemas},
+          "ol": {},
+      }
+      for _name, _entry in ol_registry.items():
+          _params = set()
+          if isinstance(_entry, tuple) and len(_entry) >= 2 and hasattr(_entry[1], "model_fields"):
+              _params = set(_entry[1].model_fields)
+          live["ol"][_name] = _params
+
+      cases = [
+          ("Extract the text and structure of a DOCX into markdown", "opp", {"extract", "document"}, "extract_document"),
+          ("Translate a plain markdown string from English to Chinese", "ol", {"translate", "md", "text"}, "translate_md_text"),
+          ("Translate an XLIFF file, preserving the layout", "ol", {"translate", "xliff"}, "translate_xliff"),
+          ("Backfill translated markdown into an HTML document", "orf", {"apply", "md"}, "apply_md"),
+          ("Backfill a translated XLIFF into a DOCX using the skeleton", "orf", {"apply", "xliff"}, "apply_xliff"),
+          ("Detect an input document's format before extraction, with a confidence score", "opp", {"detect", "format", "tool"}, "detect_format_tool"),
+          ("Detect a file's format on the backfill side (format name only)", "orf", {"detect", "format"}, "detect_format"),
+          ("Get document metadata: size, resource count, manifest status", "orf", {"info"}, "info"),
+          ("Run the whole OPP-OL-ORF pipeline from the OL server with OL config and glossary", "ol", {"translate", "file"}, "translate_file"),
+          ("Run the pipeline as one orchestration call from the suite aggregator", "omni_mcp", {"translate", "file"}, "translate_file"),
+          ("List the validation scenarios available in the suite", "omni_mcp", {"list", "validation", "scenarios"}, "list_validation_scenarios"),
+          ("Health-check a server", "orf", {"ping"}, "ping"),
+      ]
+
+      def choose(server, must):
+          return sorted(n for n in live[server] if must <= set(n.split("_")))
+
+      mismatches = []
+      for intent, server, must, expected in cases:
+          cands = choose(server, must)
+          chosen = cands[0] if len(cands) == 1 else None
+          if chosen != expected:
+              mismatches.append({"intent": intent, "server": server, "expected": expected, "candidates": cands})
+
+      print("opp_tools=" + str(len(live["opp"])))
+      print("ol_tools=" + str(len(live["ol"])))
+      print("orf_tools=" + str(len(live["orf"])))
+      print("omni_tools=" + str(len(live["omni_mcp"])))
+      print("registered_tools=" + str(sum(len(v) for v in live.values())))
+      print("intents_checked=" + str(len(cases)))
+      print("all_intents_resolved=" + str(not mismatches).lower())
+      print("mismatches=" + json.dumps(mismatches, sort_keys=True))
+    timeout_seconds: 180
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has:
+        - "opp_tools=9"
+        - "ol_tools=21"
+        - "orf_tools=7"
+        - "omni_tools=4"
+        - "registered_tools=41"
+        - "intents_checked=12"
+        - "all_intents_resolved=true"
+        - "mismatches=[]"
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >
+      What to check: the four live registries expose the canonical 9/21/7/4
+      (41) tools, every natural-language intent resolves to exactly one
+      tool on its server, and that tool is the expected one. A rename that
+      drops a routing token, or a removal that empties the candidate set,
+      makes `all_intents_resolved` false (or changes a count) and turns the
+      step RED. The live registry is the tool list — not a hardcoded table.
+  - name: 'translate_file is disambiguated by server, not by bare name'
+    kind: python
+    command: |
+      import json, os, sys
+      for _p in ("Omni_Pre_Processor/src", "Omni_Localizer/src", "Omni_Re_Formatter/src"):
+          sys.path.insert(0, _p)
+      os.environ.setdefault("MCP_ALLOWED_DIRECTORIES", "/tmp")
+
+      from ol_mcp.tools import TOOL_REGISTRY as ol_registry
+      from ol_mcp.tools import TranslateFileInput
+      from omni_mcp.server import _TOOL_SCHEMAS as omni_schemas
+
+      ol_params = set(TranslateFileInput.model_fields)
+      omni_tf = next(s for s in omni_schemas if s["name"] == "translate_file")
+      omni_params = set(omni_tf["inputSchema"].get("properties", {}))
+      servers_with_tf = []
+      if "translate_file" in ol_registry:
+          servers_with_tf.append("ol")
+      if any(s["name"] == "translate_file" for s in omni_schemas):
+          servers_with_tf.append("omni_mcp")
+
+      distinct = (
+          ("glossary_path" in ol_params and "glossary_path" not in omni_params)
+          and ("keep_temp" in ol_params and "keep_temp" not in omni_params)
+          and ("pipeline" in ol_params and "pipeline" in omni_params)
+      )
+      print("translate_file_servers=" + json.dumps(sorted(servers_with_tf)))
+      print("bare_name_ambiguous=" + str(len(servers_with_tf) > 1).lower())
+      print("ol_has_glossary_path=" + str("glossary_path" in ol_params).lower())
+      print("omni_has_glossary_path=" + str("glossary_path" in omni_params).lower())
+      print("ol_has_keep_temp=" + str("keep_temp" in ol_params).lower())
+      print("omni_has_keep_temp=" + str("keep_temp" in omni_params).lower())
+      print("both_offer_pipeline=" + str("pipeline" in ol_params and "pipeline" in omni_params).lower())
+      print("registrations_structurally_distinct=" + str(distinct).lower())
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has:
+        - 'translate_file_servers=["ol", "omni_mcp"]'
+        - "bare_name_ambiguous=true"
+        - "ol_has_glossary_path=true"
+        - "omni_has_glossary_path=false"
+        - "ol_has_keep_temp=true"
+        - "omni_has_keep_temp=false"
+        - "both_offer_pipeline=true"
+        - "registrations_structurally_distinct=true"
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >
+      What to check: `translate_file` is registered on both `ol` and
+      `omni_mcp`, so selecting by bare name is ambiguous — the selector
+      must resolve by the (server, tool) pair. The two registrations must
+      remain structurally distinct: OL's file entry carries
+      `glossary_path` and `keep_temp` (its config-driven end-to-end path),
+      the suite entry does not, while both accept `pipeline`. If a future
+      change makes the two schemas converge or renames one side, this step
+      turns RED — the downstream drift guard for the T-09 namespacing docs.
+  - name: 'Namespacing doc disambiguates translate_file and detect_format, and lists the resolved tools'
+    kind: python
+    command: |
+      import json
+      from pathlib import Path
+
+      guide = Path("docs/agent-pipeline-guide.md")
+      assert guide.is_file(), "namespacing doc docs/agent-pipeline-guide.md is missing"
+      text = guide.read_text(encoding="utf-8")
+
+      marker = "### Tool Namespacing and Disambiguation"
+      end = "### Per-Tool Parameters"
+      section = ""
+      if marker in text:
+          section = text.split(marker, 1)[1].split(end, 1)[0]
+
+      section_present = bool(section.strip())
+      translate_file_namespaced = all(t in section for t in ("translate_file", "OL MCP", "Omni MCP"))
+      detect_format_namespaced = all(t in section for t in ("detect_format_tool", "detect_format", "OPP", "ORF"))
+
+      expected_tools = [
+          "extract_document", "translate_md_text", "translate_xliff", "apply_md",
+          "apply_xliff", "detect_format_tool", "detect_format", "info",
+          "translate_file", "list_validation_scenarios", "ping",
+      ]
+      missing = [t for t in expected_tools if t not in text]
+
+      print("guide_namespacing_section=" + str(section_present).lower())
+      print("translate_file_namespaced=" + str(translate_file_namespaced).lower())
+      print("detect_format_namespaced=" + str(detect_format_namespaced).lower())
+      print("tools_documented=" + str(len(expected_tools) - len(missing)))
+      print("all_tools_documented=" + str(not missing).lower())
+      print("missing_documented_tools=" + json.dumps(missing))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has:
+        - "guide_namespacing_section=true"
+        - "translate_file_namespaced=true"
+        - "detect_format_namespaced=true"
+        - "tools_documented=11"
+        - "all_tools_documented=true"
+        - "missing_documented_tools=[]"
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >
+      What to check: `docs/agent-pipeline-guide.md` ships the "Tool
+      Namespacing and Disambiguation" section; inside it, `translate_file`
+      is disambiguated as OL MCP vs Omni MCP and `detect_format_tool` (OPP)
+      vs `detect_format` (ORF) are distinguished. Every tool the intent
+      selector resolves to in step 1 must be listed in the guide, so a
+      rename/removal that is not reflected in the doc turns this step RED.
+      This is the documented-half of the intent -> documented-tool mapping
+      (T-18), keeping the T-09 namespacing from silently drifting.

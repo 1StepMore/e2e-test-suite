@@ -1,0 +1,117 @@
+name: orf-xliff-cross-format-edge
+description: >
+  Stage edge (plan gap T-14, C2 edge; S3 ORF XLIFF path). XLIFF backfill is
+  format-preserving: a DOCX skeleton asked to backfill as PPTX (a cross-format
+  request) must be rejected without --force — non-zero exit, a clear error
+  naming the extension/format mismatch, and NO partial output artifact. This
+  is the boundary between supported format-preserving backfill and
+  cross-format conversion. Tier 1 / hermetic.
+level: agent-user
+category: orf-xliff
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Remove the scenario dir; build a valid DOCX skeleton and a valid
+     translated XLIFF at /tmp/omni_val/t14-orf-xliff-cross/.
+  2. Run `orf apply-xliff src.docx --xliff trans.xlf --format pptx` (no
+     --force) with --json --no-cache: expect a non-zero exit (2) and a clear
+     error on stderr naming the '.docx' skeleton vs the 'pptx' target.
+  3. Re-run in a python step and assert exit code != 0, the mismatch message,
+     and that no .pptx artifact exists.
+
+  Tier 1: no API keys, no network; the guard trips before any converter runs,
+  deterministic.
+steps:
+  - name: Build the DOCX skeleton and the translated XLIFF
+    kind: python
+    command: |
+      import pathlib, shutil
+      d = pathlib.Path("/tmp/omni_val/t14-orf-xliff-cross")
+      shutil.rmtree(d, ignore_errors=True)
+      d.mkdir(parents=True)
+      from docx import Document
+      doc = Document()
+      doc.add_paragraph("Hello world")
+      doc.save(d / "src.docx")
+      valid = (
+          '<?xml version="1.0" encoding="UTF-8"?>\n'
+          '<xliff version="1.2">\n'
+          '  <file source-language="en" target-language="zh" '
+          'datatype="plaintext" original="src.docx">\n'
+          '    <body>\n'
+          '      <trans-unit id="1"><source>Hello world</source>'
+          '<target>你好世界</target></trans-unit>\n'
+          '    </body>\n'
+          '  </file>\n'
+          '</xliff>\n'
+      )
+      (d / "trans.xlf").write_text(valid, encoding="utf-8")
+      print("WROTE", d / "src.docx", d / "trans.xlf")
+    timeout_seconds: 60
+    expect:
+      exit_code: 0
+      stdout_has: ["WROTE"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Build a valid DOCX skeleton and a valid XLIFF so the only defect is the
+      requested cross-format target, isolating the format-preservation guard.
+  - name: apply-xliff rejects DOCX-to-PPTX without --force
+    kind: cli
+    command: orf apply-xliff /tmp/omni_val/t14-orf-xliff-cross/src.docx --xliff /tmp/omni_val/t14-orf-xliff-cross/trans.xlf --format pptx -o /tmp/omni_val/t14-orf-xliff-cross/out.pptx --no-cache --json
+    timeout_seconds: 120
+    expect:
+      exit_code: 2
+      stderr_has: ["does not match --format 'pptx'", "format-preserving"]
+      stdout_not_has: ['"success": true']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Without --force the CLI must refuse the cross-format request: exit 2
+      and an error naming the extension/format mismatch plus the
+      format-preserving rule. A success envelope or an output file would
+      mean the guard was bypassed silently.
+  - name: Assert non-zero exit and no cross-format artifact
+    kind: python
+    command: |
+      import pathlib, subprocess, sys
+      out = pathlib.Path("/tmp/omni_val/t14-orf-xliff-cross/out.pptx")
+      proc = subprocess.run(
+          ["orf", "apply-xliff",
+           "/tmp/omni_val/t14-orf-xliff-cross/src.docx",
+           "--xliff", "/tmp/omni_val/t14-orf-xliff-cross/trans.xlf",
+           "--format", "pptx", "-o", str(out), "--no-cache", "--json"],
+          capture_output=True, text=True,
+      )
+      ok = (
+          proc.returncode != 0
+          and "does not match --format 'pptx'" in proc.stderr
+          and not out.exists()
+      )
+      if not ok:
+          print("MISMATCH rc=%s artifact=%s stderr=%s" % (
+              proc.returncode, out.exists(), proc.stderr[:200]))
+          sys.exit(1)
+      print("no_artifact=true rc=%d" % proc.returncode)
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["no_artifact=true"]
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      Re-run and assert from the process: non-zero exit, the mismatch message,
+      and no .pptx artifact. --no-cache prevents a stale cached success from
+      masking the guard.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni_val/t14-orf-xliff-cross", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort cleanup of the temp inputs/outputs.

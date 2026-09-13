@@ -1,0 +1,147 @@
+name: red-team-oversized-input
+description: >
+  Red-team P4 (plan gap T-20c, agent-user level). Oversized / decompression-
+  bomb input must be rejected in a bounded way, never expanded without a
+  guard. The scenario builds a high-compression-ratio DOCX carrier (a
+  ~5 MB XML part that compresses to ~5 KB on disk) and a plain oversized
+  markdown file, then drives the real OPP extract tool with a tight
+  OPP_MCP_MAX_FILE_SIZE cap and the real ORF apply_md tool with a tight
+  max_file_size_mb cap. OPP must return the stable typed OPP_PATH_DENIED
+  denial (the PathValidator size guard) and ORF must return a structured
+  bounded failure whose message names the size limit — neither may hang,
+  expand unbounded, or emit partial output. Tier 1 / hermetic: no LLM
+  keys, no network, deterministic. Standard mapping: the OPP size guard is
+  part of the #path-security boundary (PathValidator); the ORF bounded
+  failure is a #error-clarity requirement (a clear, parseable reason).
+category: red-team
+tier: 1
+level: agent-user
+instructions: |
+  What to do:
+  1. Build /tmp/omni-val-red-team/bomb.docx (a DEFLATE zip whose
+     word/document.xml is ~5 MB of repeated bytes but whose on-disk size is
+     a few KB) and /tmp/omni-val-red-team/big.md (~0.6 MB).
+  2. Run OPP extract_document on the bomb with OPP_MCP_MAX_FILE_SIZE=1000:
+     expect a typed OPP_PATH_DENIED rejection, not an unbounded expansion.
+  3. Run ORF apply_md on big.md with max_file_size_mb=0.001: expect a
+     structured success=false failure whose message names the size limit.
+
+  Tier 1: no API keys, no network; the size caps are the shipped guards
+  (OPP_MCP_MAX_FILE_SIZE for OPP, --max-file-size-mb for ORF).
+steps:
+  - name: 'Build the oversized / decompression-bomb payloads'
+    kind: python
+    command: |
+      import os
+      import zipfile
+
+      out_dir = "/tmp/omni-val-red-team"
+      os.makedirs(out_dir, exist_ok=True)
+      bomb = os.path.join(out_dir, "bomb.docx")
+      with zipfile.ZipFile(bomb, "w", zipfile.ZIP_DEFLATED) as zf:
+          zf.writestr(
+              "[Content_Types].xml",
+              '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+              '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+              "</Types>",
+          )
+          zf.writestr(
+              "word/document.xml",
+              '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+              "<w:body><w:p><w:r><w:t>" + ("A" * 5_000_000) + "</w:t></w:r></w:p></w:body></w:document>",
+          )
+      big_md = os.path.join(out_dir, "big.md")
+      with open(big_md, "w", encoding="utf-8") as fh:
+          fh.write("# big\n" + ("lorem ipsum " * 50000))
+      print(
+          "bomb_bytes=%d big_md_bytes=%d"
+          % (os.path.getsize(bomb), os.path.getsize(big_md))
+      )
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['bomb_bytes=', 'big_md_bytes=']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      Deterministically create the payloads. The bomb is intentionally
+      small on disk but expands to ~5 MB, so the only safe response is the
+      size guard.
+  - name: 'OPP rejects the oversized bomb with OPP_PATH_DENIED (size guard)'
+    kind: python
+    command: |
+      import asyncio
+      import json
+      import os
+      import sys
+
+      os.environ["OPP_MCP_ALLOWED_DIRS"] = "/tmp"
+      os.environ["OPP_MCP_MAX_FILE_SIZE"] = "1000"
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import extract_document
+
+      result = asyncio.run(
+          extract_document(
+              file_path="/tmp/omni-val-red-team/bomb.docx", output_formats="md"
+          )
+      )
+      print(json.dumps(result, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false', 'OPP_PATH_DENIED']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      With the cap at 1000 bytes, the bomb carrier (a few KB on disk,
+      ~5 MB uncompressed) must be denied by PathValidator's size check with
+      the stable OPP_PATH_DENIED code. A success here would mean the input
+      was expanded past the guard. No traceback on stdout.
+  - name: 'ORF bounded-fails the oversized markdown with a named size limit'
+    kind: python
+    command: |
+      import os
+      import sys
+
+      os.environ["ORF_MCP_ALLOWED_DIRS"] = "/tmp"
+      sys.path.insert(0, "Omni_Re_Formatter/src")
+      import orf.mcp.common as common
+      common.reset_config_and_validator()
+      from orf.mcp.tools.apply_md import apply_md
+
+      result = apply_md(
+          input_md="/tmp/omni-val-red-team/big.md",
+          target_format="html",
+          output_path="/tmp/omni-val-red-team/big.html",
+          max_file_size_mb=0.001,
+      )
+      print(result)
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"success": false', 'exceeds limit']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      The ORF CLI's --max-file-size-mb guard refuses the 0.6 MB markdown
+      against a 0.001 MB cap. The MCP wrapper returns a structured
+      success=false failure whose message names the size limit — a bounded
+      failure, not a hang or a partial artifact.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni-val-red-team", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#path-security
+    instructions: Best-effort cleanup of the scenario temp inputs/outputs.

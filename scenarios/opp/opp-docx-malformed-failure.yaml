@@ -1,0 +1,116 @@
+name: opp-docx-malformed-failure
+description: >
+  Stage edge/failure (plan gap T-14, C3 failure; S1 OPP). A DOCX whose bytes
+  are not an OOXML/ZIP container at all (a renamed text file) must be
+  rejected by the real OPP CLI with a NON-ZERO exit and a single structured
+  JSON failure object — never a "success": true envelope, never a partial
+  .md/.xlf artifact. This is the malformed-DOCX failure case; the missing-part
+  boundary case is the sibling edge scenario. Tier 1 / hermetic: no LLM
+  keys, no network, deterministic.
+level: agent-user
+category: opp-extraction
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Remove the scenario dir (stale-state guard), then write
+     /tmp/omni_val/t14-opp-malformed/bad.docx containing bytes that are not
+     a ZIP archive. This is the malformed DOCX the CLI must reject.
+  2. Run the real `opp` CLI with --json: expect a non-zero exit and a single
+     JSON object with success false whose error names the extraction failure.
+  3. Re-run the CLI inside a python step and strictly parse stdout with
+     json.loads — the whole stdout must be one object; assert exit code != 0,
+     success false, and that the output dir holds no .md/.xlf artifact (no
+     partial artifact). A misleading success:true, a trailing human banner,
+     or a leftover artifact turns this red.
+
+  Tier 1: no API keys, no network, deterministic (the input is synthetic).
+steps:
+  - name: Write the malformed DOCX (non-ZIP bytes)
+    kind: python
+    command: |
+      import pathlib, shutil
+      d = pathlib.Path("/tmp/omni_val/t14-opp-malformed")
+      shutil.rmtree(d, ignore_errors=True)
+      d.mkdir(parents=True)
+      (d / "bad.docx").write_bytes(b"this is not an OOXML container at all\n" * 4)
+      print("WROTE", d / "bad.docx")
+    timeout_seconds: 30
+    expect:
+      exit_code: 0
+      stdout_has: ["WROTE"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Create the malformed DOCX deterministically. The directory is removed
+      first so no stale artifact from a previous run can masquerade as this
+      run's output.
+  - name: OPP rejects the malformed DOCX with a non-zero exit and JSON failure
+    kind: cli
+    command: opp /tmp/omni_val/t14-opp-malformed/bad.docx --target-format md --output-dir /tmp/omni_val/t14-opp-malformed/out --json
+    timeout_seconds: 120
+    expect:
+      exit_code: 1
+      stdout_has: ['"success": false', 'Extraction failed']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/t14-opp-malformed/bad.docx
+    instructions: >-
+      The real CLI must exit 1 (not 0) and emit one JSON object with
+      success=false. "Extraction failed" is the stable English reason token;
+      no Python traceback is allowed on stderr.
+  - name: Strictly parse the failure and assert no partial artifact
+    kind: python
+    command: |
+      import json, pathlib, subprocess, sys
+      out_dir = pathlib.Path("/tmp/omni_val/t14-opp-malformed/out")
+      proc = subprocess.run(
+          ["opp", "/tmp/omni_val/t14-opp-malformed/bad.docx",
+           "--target-format", "md", "--output-dir", str(out_dir), "--json"],
+          capture_output=True, text=True,
+      )
+      body = json.loads(proc.stdout)
+      artifacts = []
+      if out_dir.exists():
+          artifacts = sorted(p.name for p in out_dir.glob("*.md")) + sorted(
+              p.name for p in out_dir.glob("*.xlf")
+          )
+      ok = (
+          proc.returncode != 0
+          and isinstance(body, dict)
+          and body.get("success") is False
+          and "Extraction failed" in str(body.get("error", ""))
+          and not artifacts
+      )
+      if not ok:
+          print("MISMATCH rc=%s success=%s artifacts=%s" % (
+              proc.returncode, body.get("success"), artifacts))
+          sys.exit(1)
+      print(json.dumps({
+          "exit_code": proc.returncode,
+          "success": body["success"],
+          "artifacts": artifacts,
+      }))
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ['"success": false', '"artifacts": []']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      json.loads over the WHOLE stdout must yield a single object with
+      success=false, and the output dir must contain no .md/.xlf. The snippet
+      exits non-zero if any half of the contract is violated, so the outer
+      step can only pass when the failure is honest and leaves no artifact.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni_val/t14-opp-malformed", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort cleanup of the temp inputs/outputs.

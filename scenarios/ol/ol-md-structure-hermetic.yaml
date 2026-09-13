@@ -1,0 +1,81 @@
+name: ol-md-structure-hermetic
+description: >
+  OL MD-stage input contract (tier 1, hermetic): the committed OPP -> OL
+  markdown handoff fixture parses as valid UTF-8 markdown, and its
+  structural facts (H1/H2 headings, bullet items, code fences, inline
+  code, links, images) equal the committed expected-structure fixture.
+  No LLM and no keys: this proves the shape OL receives, never the
+  translation quality (which needs real keys and lives at tier 2).
+level: agent-user
+category: ol-structure
+tier: 1
+requires_env: []
+instructions: |
+  Hermetic OL stage-structure bar. The fixture the OL stage consumes is
+  well-formed and its committed structure manifest matches the bytes on
+  disk. This is a contract/structure proof only — no fake LLM, no
+  translation, no quality verdict.
+
+  What to check:
+  1. Step 1 decodes scenarios/ol/_fixtures/source.md as UTF-8 (no BOM)
+     and counts the structural facts, comparing every number against
+     scenarios/ol/_fixtures/expected_structure.json.
+  2. Step 2 confirms the fixture still carries the glossary-bearing terms
+     the tier-2 glossary scenario relies on, so the fixture cannot
+     silently drift away from that contract.
+
+steps:
+  - name: 'Committed markdown fixture matches its expected structure'
+    kind: python
+    command: |
+      import json, pathlib, re
+      src = pathlib.Path("scenarios/ol/_fixtures/source.md")
+      exp = json.loads(pathlib.Path("scenarios/ol/_fixtures/expected_structure.json").read_text(encoding="utf-8"))
+      raw = src.read_bytes()
+      text = raw.decode("utf-8")
+      observed = {
+          "h1": len(re.findall(r"(?m)^# ", text)),
+          "h2": len(re.findall(r"(?m)^## ", text)),
+          "bullet_items": len(re.findall(r"(?m)^- ", text)),
+          "code_fences": text.count("```") // 2,
+          "inline_code": len(re.findall(r"`[^`]+`", text)),
+          "markdown_links": len(re.findall(r"(?<!!)\[[^\]]+\]\([^)]+\)", text)),
+          "markdown_images": len(re.findall(r"!\[[^\]]*\]\([^)]+\)", text)),
+          "has_bom": raw.startswith(b"\xef\xbb\xbf"),
+      }
+      print("observed=" + json.dumps(observed, sort_keys=True))
+      for key, value in observed.items():
+          assert value == exp[key], "%s: expected %r, actual %r" % (key, exp[key], value)
+      print("md_structure_match=true")
+    timeout_seconds: 30
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["md_structure_match=true"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      Decode the committed markdown fixture and compare every structural
+      count against the committed expected-structure manifest; a mismatch
+      means the fixture and its manifest drifted apart.
+  - name: 'Fixture carries the glossary-bearing terms the tier-2 scenario needs'
+    kind: python
+    command: |
+      import json, pathlib
+      text = pathlib.Path("scenarios/ol/_fixtures/source.md").read_text(encoding="utf-8")
+      exp = json.loads(pathlib.Path("scenarios/ol/_fixtures/expected_structure.json").read_text(encoding="utf-8"))
+      missing = [t for t in exp["glossary_terms"] if t not in text]
+      print("glossary_terms_missing=%d" % len(missing))
+      assert not missing, "fixture lost glossary terms: %r" % missing
+      print("glossary_terms_present=true")
+    timeout_seconds: 30
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["glossary_terms_missing=0", "glossary_terms_present=true"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      Every glossary term named by the expected-structure manifest must
+      still appear in the fixture — the tier-2 glossary scenario depends on
+      those terms being present.

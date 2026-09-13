@@ -1,0 +1,143 @@
+name: md-msg-eml-fallback-known-gap
+description: >-
+  MSG target fallback contract (T-15), recorded as a KNOWN GAP. `orf
+  apply-md --target-format msg` is Aspose-gated (aspose-email-foss, a
+  commercial/GPLv3 dependency that is not installed in this environment).
+  The documented fallback (README, AGENTS.md, ORF md2msg.py) is: exit 0,
+  a MISSING_DEPENDENCY warning, and a non-empty .eml artifact at the
+  returned path. This scenario asserts that literal contract and is marked
+  known_gap: true because the shipped CLI does NOT honor it: with Aspose
+  absent it reports success and prints `Created .../out.msg` while actually
+  writing a hidden temp .eml, and the --json envelope returns
+  output_path=.../out.msg with metadata.format="eml" (adversarial
+  misleading_success_output). MSG structure is deliberately NOT asserted.
+  Hermetic (tier 1): no LLM, deterministic fallback.
+level: agent-user
+category: pipeline
+tier: 1
+requires_env: []
+known_gap: true
+instructions: |-
+  This scenario documents and asserts the ORF MSG fallback contract, and
+  records the gap between the documented contract and the shipped behavior.
+
+  What to do:
+  1. Write a synthetic translated MD (frontmatter + heading + body).
+  2. Run the real `orf apply-md --target-format msg --json` and assert the
+     graceful fallback signal: exit 0 and a MISSING_DEPENDENCY warning in
+     the JSON envelope (the documented degradation, not a hard failure).
+  3. Re-run to a clean output path and assert the DOCUMENTED contract: when
+     the envelope reports metadata.format == "eml", the returned
+     output_path must itself be the .eml fallback and must exist non-empty.
+     This step is the recorded gap — the shipped CLI returns the requested
+     .msg path instead and writes a hidden temp .eml, so the literal
+     assertion fails and is excluded from the pass bar via the
+     scenario-level known_gap. The OBSERVED line prints the actual
+     output_path / suffix / existence / warning codes for the record.
+
+  Adversarial notes:
+  - misleading_success_output: PROBED — non-JSON stdout prints
+    "Created .../out.msg" while no out.msg exists; the --json envelope's
+    output_path is .../out.msg but metadata.format is "eml".
+  - stale_state: PROBED — the fallback writes a hidden .out.<hash>.eml temp
+    that is left behind after exit 0; the T-15 format scenarios therefore
+    pass --no-cache to avoid cache-served stale artifacts.
+  - malformed_input: NOT APPLICABLE to the fallback branch (the fallback is
+    triggered by a missing optional dependency, not by bad input). The
+    paired failure path (nonexistent input) is covered by
+    scenarios/orf-md/orf-md-unsupported-target-failure.yaml.
+
+  Do NOT assert MSG-specific structure (OLE compound document) — that
+  requires Aspose and is out of scope for the fallback contract.
+steps:
+  - name: Write synthetic translated MD
+    kind: python
+    command: |-
+      import pathlib
+      d = pathlib.Path("/tmp/omni_val/pipeline-md-msg")
+      d.mkdir(parents=True, exist_ok=True)
+      md = """---
+      source_lang: zh
+      target_lang: en
+      original_file: synthetic_test.md
+      processor: "test"
+      version: "0.0.1"
+      translated_at: 2026-06-19T00:00:00Z
+      ---
+
+      # Synthetic Document
+
+      ## Introduction
+
+      This is a synthetic markdown file for the MSG fallback contract.
+
+      ## Contact
+
+      support@example.com
+      """
+      (d / "in.md").write_text(md, encoding="utf-8")
+      print("OK: msg fixture written")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: msg fixture written"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Generate the MSG fallback input MD at runtime (no committed fixture).
+      Check: exit 0 + "OK: msg fixture written".
+  - name: MSG target degrades to the documented fallback with a MISSING_DEPENDENCY warning
+    kind: cli
+    command: orf apply-md /tmp/omni_val/pipeline-md-msg/in.md --target-format msg -o /tmp/omni_val/pipeline-md-msg/out.msg --json
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["MISSING_DEPENDENCY"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Run the real ORF CLI on the synthetic MD with --target-format msg
+      --json. With Aspose absent ORF catches the ImportError and returns a
+      ConversionResult carrying a MISSING_DEPENDENCY warning instead of
+      failing. Check: exit 0 and "MISSING_DEPENDENCY" present in the JSON
+      envelope on stdout (the documented graceful fallback).
+  - name: Assert the documented returned-path fallback contract (recorded gap)
+    kind: python
+    command: |-
+      import json, subprocess, sys
+      from pathlib import Path
+      out = Path("/tmp/omni_val/pipeline-md-msg/out2.msg")
+      proc = subprocess.run(
+          ["orf", "apply-md", "/tmp/omni_val/pipeline-md-msg/in.md",
+           "--target-format", "msg", "-o", str(out), "--json"],
+          capture_output=True, text=True, timeout=180,
+      )
+      if proc.returncode != 0:
+          print("ERROR: msg fallback exited %d: %s" % (proc.returncode, (proc.stderr or proc.stdout)[-300:]))
+          sys.exit(1)
+      env = json.loads(proc.stdout)
+      fmt = (env.get("metadata") or {}).get("format")
+      returned = Path(env["output_path"])
+      codes = [w.get("code") for w in env.get("warnings", [])]
+      print("OBSERVED: metadata.format=%s output_path=%s suffix=%s exists=%s bytes=%s warnings=%s" % (
+          fmt, returned, returned.suffix, returned.exists(),
+          returned.stat().st_size if returned.exists() else 0, codes))
+      if fmt == "eml":
+          assert returned.suffix == ".eml", "documented .eml fallback not honored: output_path=%s" % returned
+          assert returned.exists() and returned.stat().st_size > 0, "fallback artifact missing/empty at %s" % returned
+          print("OK: documented .eml fallback at returned path")
+      else:
+          assert returned.suffix == ".msg" and returned.exists(), "expected .msg artifact at %s" % returned
+          print("OK: .msg artifact at returned path")
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["OBSERVED:"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Re-run the fallback to a clean path and assert the DOCUMENTED contract:
+      when metadata.format == "eml", the returned output_path must have an
+      .eml suffix and exist non-empty. The shipped CLI instead returns the
+      requested out2.msg path (which does not exist) and writes a hidden
+      temp .eml — so this literal assertion fails and is recorded as the
+      known gap; the scenario verdict is known-gap, never a blocker. The
+      OBSERVED line is the evidence for the gap record (output_path, suffix,
+      existence, size, warning codes).

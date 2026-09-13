@@ -1,5 +1,6 @@
 name: tool-ol-shield_md_text
 description: "OL shield_md_text shields code/link spans into [OL:...] markers and returns clean errors for bad input."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

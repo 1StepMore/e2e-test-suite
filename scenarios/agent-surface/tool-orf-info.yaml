@@ -1,5 +1,6 @@
 name: tool-orf-info
 description: "ORF info reports format and size for a DOCX fixture and denies system-directory paths cleanly."
+level: agent-user
 category: agent-surface
 tier: 1
 requires_env: [ORF_MCP_ALLOWED_DIRS]

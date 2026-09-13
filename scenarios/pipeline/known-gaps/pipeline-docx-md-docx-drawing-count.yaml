@@ -1,0 +1,159 @@
+name: pipeline-docx-md-docx-drawing-count-known-gap
+description: >-
+  KNOWN GAP (T13-02 / T17). The published #drawing-count bar is
+  `src == out` (STANDARDS.md#drawing-count, scripts/omo_loop.py:208-227).
+  The shipped OL duplicates every ![..](..) image reference in
+  translate-md (level4_safe_fallback placeholder re-insertion — verified
+  2 refs in -> 4 out, 12 -> 24), so a strict DOCX drawing-count equality
+  cannot be met on any image-bearing document. This scenario records ONLY
+  the shipped weakened observation (out >= src, both > 0) so the gap is
+  documented without polluting the pass bar. Marked known_gap: true —
+  excluded from the pass bar; its verdict is KNOWN-GAP, never GREEN, and
+  its output never prints a pass-looking OK. Full context:
+  ACCEPTED_GAPS.md.
+level: human-quality
+category: pipeline
+tier: 2
+known_gap: true
+requires_env:
+  - OPENAI_API_KEY
+  - ZHIPU_API_KEY
+  - AGNES_API_KEY
+  - NVIDIA_NIM_API_KEY
+  - OPENCODE_GO_KEY
+  - OPENCODE_GO_BASE_URL
+instructions: |-
+  This is NOT a pass-bar scenario. It asserts the shipped weakened
+  behavior (no image LOST) for the drawing-count gate; it never claims the
+  published `src == out` bar. The strict published bar is asserted (and
+  its failure recorded) by the step-level known-gap step in
+  scenarios/pipeline/pipeline-docx-md-docx.yaml. See ACCEPTED_GAPS.md
+  (T13-02). Run with real LLM keys; with keys scrubbed it reports
+  unconfigured, never pass/fail.
+steps:
+  - name: Generate synthetic Chinese image-bearing DOCX fixture
+    kind: python
+    command: |-
+      import io, pathlib, shutil, sys, zipfile
+      from docx import Document
+      from docx.shared import Inches
+      BASE = pathlib.Path("/tmp/omni_val/known-gap-drawing")
+      shutil.rmtree(BASE, ignore_errors=True)
+      BASE.mkdir(parents=True)
+      doc = Document()
+      for t in ["全球智造科技有限公司成立于2008年，专注于工业自动化系统的研发与制造。",
+                "公司总部位于上海，在苏州、深圳和成都设有三个生产基地，产品远销全球四十多个国家和地区。",
+                "我们的核心产品包括协作机器人、视觉引导装配单元和人工智能驱动的质量检测平台。",
+                "经过十五年的发展，公司已经建立了完整的研发、生产、销售和服务体系。",
+                "公司的愿景是通过智能制造技术，帮助全球制造业客户实现数字化转型。",
+                "我们相信，技术创新是企业持续发展的根本动力。"]:
+          doc.add_paragraph(t)
+      media = zipfile.ZipFile("test_corpus/complex.docx")
+      img = media.read("word/media/image1.png")
+      for _ in range(2):
+          doc.add_picture(io.BytesIO(img), width=Inches(2.0))
+      doc.save(BASE / "source.docx")
+      print("OK: fixture written")
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: fixture written"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Same zh-source / 2-image fixture as the pass-bar scenario.
+  - name: Extract DOCX to MD + XLIFF via real OPP CLI
+    kind: cli
+    command: opp /tmp/omni_val/known-gap-drawing/source.docx --target-format both --source-lang zh --target-lang en --output-dir /tmp/omni_val/known-gap-drawing/opp_out -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Real OPP extraction; -v stderr marker is the success signal.
+  - name: Stage images next to OL output directory
+    kind: python
+    command: |-
+      import pathlib, shutil
+      BASE = pathlib.Path("/tmp/omni_val/known-gap-drawing")
+      (BASE / "ol_out").mkdir(parents=True, exist_ok=True)
+      shutil.copytree(BASE / "opp_out" / "source_images", BASE / "ol_out" / "source_images", dirs_exist_ok=True)
+      print("OK: images staged next to OL output")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: images staged"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Copy OPP's source_images/ next to the translated MD so backfill resolves refs.
+  - name: Translate MD with real LLM (ol translate-md)
+    kind: cli
+    command: ol translate-md /tmp/omni_val/known-gap-drawing/opp_out/source.md -s zh -t en -o /tmp/omni_val/known-gap-drawing/ol_out -c Omni_Localizer/config/default.yaml
+    timeout_seconds: 600
+    expect:
+      exit_code: 0
+      stdout_has: ["Translated"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Real-LLM translation; this is the step that duplicates image refs (T13-02).
+  - name: Normalize image references in translated MD
+    kind: python
+    command: |-
+      import pathlib, re
+      BASE = pathlib.Path("/tmp/omni_val/known-gap-drawing")
+      md = BASE / "ol_out" / "source.md"
+      staged = list((BASE / "ol_out" / "source_images").iterdir())
+      fixed = 0
+      def _norm(m):
+          alt, path = m.group(1), m.group(2)
+          want = pathlib.Path(path).name.replace("_", "")
+          for f in staged:
+              if f.name.replace("_", "") == want:
+                  return "![%s](%s)" % (alt, f)
+          return m.group(0)
+      new = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", _norm, md.read_text(encoding="utf-8"))
+      md.write_text(new, encoding="utf-8")
+      print("OK: image refs normalized")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: image refs normalized"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Point refs at the actually-staged files (T13-02b path mangling).
+  - name: Backfill translated MD to DOCX via real ORF CLI
+    kind: cli
+    command: orf apply-md /tmp/omni_val/known-gap-drawing/ol_out/source.md --target-format docx -o /tmp/omni_val/known-gap-drawing/out.docx --no-separate-images --no-cache
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni_val/known-gap-drawing/out.docx"]
+    standard: STANDARDS.md#exit-codes
+    instructions: --no-separate-images so pandoc embeds the images.
+  - name: KNOWN GAP — shipped behavior asserts no image loss (weakened)
+    kind: python
+    command: |-
+      import sys, zipfile
+      def _count_drawings(p):
+          try:
+              with zipfile.ZipFile(p) as z:
+                  if "word/document.xml" not in z.namelist():
+                      return 0
+                  return z.read("word/document.xml").decode("utf-8", errors="ignore").count("<w:drawing")
+          except Exception:
+              return 0
+      src = _count_drawings("/tmp/omni_val/known-gap-drawing/source.docx")
+      out = _count_drawings("/tmp/omni_val/known-gap-drawing/out.docx")
+      if src == 0:
+          print("ERROR: source has 0 drawings; cannot compare")
+          sys.exit(1)
+      print("KNOWN-GAP: drawings src=%d out=%d — shipped behavior asserts out >= src; published bar (#drawing-count) is src == out (T13-02); see ACCEPTED_GAPS.md" % (src, out))
+      if out < src:
+          print("ERROR: drawings src=%d out=%d (images LOST — even the weakened observation fails)" % (src, out))
+          sys.exit(1)
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["KNOWN-GAP: drawings"]
+    standard: STANDARDS.md#drawing-count
+    instructions: |-
+      Weakened observation only: source must have > 0 drawings and the output
+      must not have LOST any (out >= src). It deliberately does NOT assert
+      the published `src == out` equality — that strict bar is asserted by
+      the step-level known-gap in pipeline-docx-md-docx.yaml and recorded
+      here as the gap. The output marker is KNOWN-GAP, never OK.

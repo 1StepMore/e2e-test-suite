@@ -3,6 +3,7 @@ description: >
   OPP extracts an HTML page to Markdown: runtime-generated synthetic HTML
   (headings, paragraphs, lists) -> exit 0, manifest metadata keys,
   declared format HTML, and heading/list structure preserved as markdown.
+level: agent-user
 category: opp-extraction
 instructions: |
   What to do:

@@ -1,0 +1,76 @@
+name: ol-extract-warnings-contract
+description: >
+  OL warning-extraction contract (tier 1, hermetic): the REAL
+  ol_mcp.tools.extract_warnings reads the committed translated-output
+  fixture and returns one structured WarningEntry per committed
+  `<!-- OL_WARN: ... -->` marker (count 2, both type md), and denies an
+  out-of-allowlist path with the stable OL_PATH_DENIED code instead of a
+  traceback. Deterministic — no LLM, no keys.
+level: agent-user
+category: ol-structure
+tier: 1
+requires_env: []
+instructions: |
+  Hermetic proof of the OL stage's structured-output tooling. Warning
+  extraction is a regex read over a committed artifact; the allowlist is
+  supplied inside the step, so the scenario needs no external env.
+
+  What to check:
+  1. Step 1 sets MCP_ALLOWED_DIRECTORIES to the repo root and calls the
+     REAL ol_mcp.tools.extract_warnings on the committed
+     scenarios/ol/_fixtures/output_with_warnings.md. Expect success, a
+     count of 2 and every entry typed md.
+  2. Step 2 calls the same tool on /etc/shadow and asserts the stable
+     OL_PATH_DENIED denial — never a traceback and never a silent read.
+
+steps:
+  - name: 'extract_warnings returns one structured entry per committed marker'
+    kind: python
+    command: |
+      import asyncio, json, os, sys
+      os.environ["MCP_ALLOWED_DIRECTORIES"] = os.getcwd()
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import ExtractWarningsInput, extract_warnings
+      result = json.loads(asyncio.run(extract_warnings(params=ExtractWarningsInput(
+          file_path="scenarios/ol/_fixtures/output_with_warnings.md"))))
+      assert result["success"] is True, result
+      content = result["content"]
+      print("warning_count=%d" % content["count"])
+      print("warning_types=%s" % sorted({w["warning_type"] for w in content["warnings"]}))
+      assert content["count"] == 2, content["count"]
+      assert all(w["warning_type"] == "md" for w in content["warnings"])
+      assert all(w["file_path"].endswith("output_with_warnings.md") for w in content["warnings"])
+      print("warnings_contract_ok=true")
+    timeout_seconds: 60
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["warning_count=2", "warnings_contract_ok=true"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      Read the committed warning fixture through the real tool and assert
+      the structured count and entry type.
+  - name: 'extract_warnings denies an out-of-allowlist path cleanly'
+    kind: python
+    command: |
+      import asyncio, json, os, sys
+      os.environ["MCP_ALLOWED_DIRECTORIES"] = os.getcwd()
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import ExtractWarningsInput, extract_warnings
+      result = json.loads(asyncio.run(extract_warnings(params=ExtractWarningsInput(
+          file_path="/etc/shadow"))))
+      print("denied=%s" % (result.get("success") is False))
+      assert result["success"] is False, result
+      assert result["error"]["code"] == "OL_PATH_DENIED", result["error"]
+      print("path_denied_ok=true")
+    timeout_seconds: 60
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["denied=True", "path_denied_ok=true"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#path-security
+    instructions: >-
+      Call with /etc/shadow (a system dir the validator always denies);
+      expect the stable OL_PATH_DENIED code with success false.

@@ -1,5 +1,6 @@
 name: tool-ol-unshield_md_text
 description: "OL unshield_md_text restores [OL:...] markers from a shield_map and returns clean errors for bad input."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

@@ -1,5 +1,6 @@
 name: tool-orf-ping
 description: "ORF ping reports module name and version; the MCP dispatch rejects unknown tools cleanly."
+level: agent-user
 category: agent-surface
 tier: 1
 requires_env: [ORF_MCP_ALLOWED_DIRS]

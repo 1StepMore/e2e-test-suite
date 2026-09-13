@@ -1,0 +1,206 @@
+name: red-team-xliff-entity-injection
+description: >
+  Red-team P4 (plan gap T-20d, agent-user level). A malformed XLIFF that
+  injects an external XML entity must be REJECTED, never parsed with entity
+  resolution, and no external file content may reach an output artifact.
+  The scenario builds an XLIFF carrying
+  <!DOCTYPE xliff [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]> and uses
+  &xxe; inside a trans-unit, then (1) drives the real OPP validate_xliff
+  tool inline and by file_path — both must report is_valid=false with a
+  schema error naming the undefined entity and must never emit "root:x:0:0"
+  — and (2) drives the real ORF apply_xliff producer on the same malicious
+  XLIFF against a valid DOCX, then scans every XML part of the produced
+  artifact to prove the external entity was never resolved (no egress). If
+  the parser ever resolves the entity, the payload appears in the artifact
+  scan and the red-team scenario turns RED. Tier 1 / hermetic: no LLM keys,
+  no network. Standard mapping: the structured rejection is #error-clarity;
+  "no partial artifact" is asserted as #json-parseable (the rejection is a
+  parseable structured body) plus the artifact scan.
+category: red-team
+tier: 1
+level: agent-user
+instructions: |
+  What to do:
+  1. Write /tmp/omni-val-red-team/xxe.xlf: an XLIFF whose DOCTYPE declares
+     an external SYSTEM entity pointing at file:///etc/passwd and whose
+     first trans-unit source is &xxe;.
+  2. OPP validate_xliff with the inline content: expect is_valid=false and
+     the schema error "Entity 'xxe' not defined"; no "root:x:0:0".
+  3. OPP validate_xliff by file_path: same rejection.
+  4. ORF apply_xliff the same malicious XLIFF into a valid DOCX, then scan
+     the artifact's XML parts: the external entity must NOT have been
+     resolved (no "root:x:0:0").
+
+  Tier 1: no API keys, no network; deterministic subprocess calls.
+steps:
+  - name: 'Build the malicious XLIFF (external entity injection)'
+    kind: python
+    command: |
+      import os
+
+      out_dir = "/tmp/omni-val-red-team"
+      os.makedirs(out_dir, exist_ok=True)
+      path = os.path.join(out_dir, "xxe.xlf")
+      xxe = (
+          '<?xml version="1.0" encoding="utf-8"?>\n'
+          '<!DOCTYPE xliff [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]>\n'
+          '<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">\n'
+          '<file original="a" source-language="en" target-language="zh"><body>\n'
+          '<trans-unit id="1"><source>&xxe;</source><target>ok</target></trans-unit>\n'
+          "</body></file></xliff>\n"
+      )
+      with open(path, "w", encoding="utf-8") as fh:
+          fh.write(xxe)
+      print("wrote xxe.xlf bytes=%d" % os.path.getsize(path))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['wrote xxe.xlf']
+      stdout_not_has: ['Traceback (most recent call last)']
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      Deterministically write the external-entity XLIFF. Nothing resolves
+      the entity yet.
+  - name: 'OPP validate_xliff rejects the inline entity injection'
+    kind: python
+    command: |
+      import asyncio
+      import json
+      import os
+      import sys
+
+      os.environ["OPP_MCP_ALLOWED_DIRS"] = "/tmp"
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import validate_xliff
+
+      with open(
+          "/tmp/omni-val-red-team/xxe.xlf", encoding="utf-8"
+      ) as fh:
+          malicious = fh.read()
+      result = asyncio.run(validate_xliff(xliff_content=malicious))
+      print(json.dumps(result, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"is_valid": false', '"schema_valid": false', "Entity 'xxe' not defined"]
+      stdout_not_has: ['root:x:0:0', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      The inline validator must reject the entity injection: is_valid and
+      schema_valid are false and the schema error names the undefined
+      entity. The response must not contain /etc/passwd content.
+  - name: 'OPP validate_xliff rejects the entity injection by file_path'
+    kind: python
+    command: |
+      import asyncio
+      import json
+      import os
+      import sys
+
+      os.environ["OPP_MCP_ALLOWED_DIRS"] = "/tmp"
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import validate_xliff
+
+      result = asyncio.run(
+          validate_xliff(file_path="/tmp/omni-val-red-team/xxe.xlf")
+      )
+      print(json.dumps(result, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"is_valid": false', "Entity 'xxe' not defined"]
+      stdout_not_has: ['root:x:0:0', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      The file-taking validator surface must reject the same malicious
+      XLIFF (allowlisted path), with no entity resolution and no egress.
+  - name: 'ORF producer never resolves the external entity into the artifact'
+    kind: python
+    command: |
+      import json
+      import os
+      import sys
+      import zipfile
+
+      os.environ["ORF_MCP_ALLOWED_DIRS"] = "/tmp"
+      sys.path.insert(0, "Omni_Re_Formatter/src")
+      from docx import Document
+
+      out_dir = "/tmp/omni-val-red-team"
+      src = os.path.join(out_dir, "source.docx")
+      doc = Document()
+      doc.add_heading("Source", level=1)
+      doc.add_paragraph("legitimate body text")
+      doc.save(src)
+
+      with open(os.path.join(out_dir, "xxe.xlf"), encoding="utf-8") as fh:
+          malicious = fh.read()
+
+      import orf.mcp.common as common
+      common.reset_config_and_validator()
+      from orf.mcp.tools.apply_xliff import apply_xliff
+
+      out = os.path.join(out_dir, "entity_out.docx")
+      if os.path.exists(out):
+          os.remove(out)
+      apply_xliff(
+          input_file=src,
+          xliff_path="",
+          xliff_content=malicious,
+          output_path=out,
+          format="docx",
+      )
+
+      egress = False
+      if os.path.exists(out):
+          with zipfile.ZipFile(out) as zf:
+              for name in zf.namelist():
+                  if not name.endswith((".xml", ".rels")):
+                      continue
+                  try:
+                      text = zf.read(name).decode("utf-8", "replace")
+                  except Exception:
+                      continue
+                  if "root:x:0:0" in text:
+                      egress = True
+      report = {
+          "ran": True,
+          "artifact_exists": os.path.exists(out),
+          "external_entity_egress": egress,
+      }
+      print(json.dumps(report, ensure_ascii=False))
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['"ran": true', '"external_entity_egress": false']
+      stdout_not_has: ['root:x:0:0', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      Backfill a valid DOCX from the malicious XLIFF, then scan every XML/
+      rels part of the produced artifact for the file:///etc/passwd payload.
+      The external entity must never be resolved: external_entity_egress
+      must be false. If the converter refuses outright, no artifact is
+      produced and the scan still finds no payload — either way no partial
+      artifact carries the injected file content.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni-val-red-team", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#error-clarity
+    instructions: Best-effort cleanup of the scenario temp inputs/outputs.

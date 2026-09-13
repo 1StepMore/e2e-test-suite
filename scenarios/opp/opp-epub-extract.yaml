@@ -4,6 +4,7 @@ description: >
   runtime-generated minimal EPUB (zip + container.xml + content.opf +
   chapter) -> exit 0, manifest metadata keys, declared format EPUB,
   chapter content preserved, and XLIFF trans-units for the zh target.
+level: agent-user
 category: opp-extraction
 instructions: |
   What to do:

@@ -1,5 +1,6 @@
 name: tool-ol-search_tm
 description: "OL search_tm searches the TMX fixture for similar translations (needs the hypomnema model stack online) and denies bad paths cleanly."
+level: agent-user
 category: agent-surface
 tier: 1
 requires_env: [OMNI_TM_NETWORK, MCP_ALLOWED_DIRECTORIES]

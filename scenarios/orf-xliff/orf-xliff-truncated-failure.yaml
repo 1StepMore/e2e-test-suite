@@ -1,0 +1,130 @@
+name: orf-xliff-truncated-failure
+description: >
+  Stage failure (plan gap T-14, C3 failure; S3 ORF XLIFF path). A truncated
+  XLIFF — a valid-XLIFF prefix cut before its root element, so the file has
+  no parseable root — must be rejected by the real `orf apply-xliff` CLI:
+  non-zero exit, a typed CONVERSION_ERROR in the JSON envelope naming an
+  XLIFF parse error, and NO partial output artifact. Tier 1 / hermetic.
+level: agent-user
+category: orf-xliff
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Remove the scenario dir; build a valid source DOCX with python-docx and
+     a truncated XLIFF at /tmp/omni_val/t14-orf-xliff-trunc/trunc.xlf (the
+     bytes up to but not including the root <xliff> element).
+  2. Run the real `orf apply-xliff` CLI with --json --no-cache: expect exit 1
+     and a single JSON object with success false whose errors carry the
+     typed code CONVERSION_ERROR and an "XLIFF parse error" message.
+  3. Re-run in a python step, strict-parse stdout, and assert exit code != 0,
+     success false, error code CONVERSION_ERROR, and that the output file was
+     never created (no partial artifact).
+
+  Tier 1: no API keys, no network, deterministic. --no-cache prevents a
+  stale cached success from masking the failure.
+steps:
+  - name: Build the source DOCX and the truncated XLIFF
+    kind: python
+    command: |
+      import pathlib, shutil
+      d = pathlib.Path("/tmp/omni_val/t14-orf-xliff-trunc")
+      shutil.rmtree(d, ignore_errors=True)
+      d.mkdir(parents=True)
+      from docx import Document
+      doc = Document()
+      doc.add_paragraph("Hello world")
+      doc.save(d / "src.docx")
+      valid = (
+          '<?xml version="1.0" encoding="UTF-8"?>\n'
+          '<xliff version="1.2">\n'
+          '  <file source-language="en" target-language="zh" '
+          'datatype="plaintext" original="src.docx">\n'
+          '    <body>\n'
+          '      <trans-unit id="1"><source>Hello world</source>'
+          '<target>你好世界</target></trans-unit>\n'
+          '    </body>\n'
+          '  </file>\n'
+          '</xliff>\n'
+      )
+      truncated = valid[: valid.index("<xliff")]
+      (d / "trunc.xlf").write_text(truncated, encoding="utf-8")
+      assert "<xliff" not in truncated, "truncation must have lost the root element"
+      print("WROTE", d / "src.docx", "trunc_bytes=%d" % len(truncated))
+    timeout_seconds: 60
+    expect:
+      exit_code: 0
+      stdout_has: ["WROTE", "trunc_bytes="]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Build both inputs deterministically and assert the defining property of
+      the truncated file: it is a prefix of a valid XLIFF but contains no
+      root <xliff> element, so no XML parser can resolve it.
+  - name: apply-xliff rejects the truncated XLIFF with a typed CONVERSION_ERROR
+    kind: cli
+    command: orf apply-xliff /tmp/omni_val/t14-orf-xliff-trunc/src.docx --xliff /tmp/omni_val/t14-orf-xliff-trunc/trunc.xlf -o /tmp/omni_val/t14-orf-xliff-trunc/out.docx --no-cache --json
+    timeout_seconds: 180
+    expect:
+      exit_code: 1
+      stdout_has: ['"success": false', 'CONVERSION_ERROR', 'XLIFF parse error']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      The real CLI must exit 1 and emit a structured failure whose errors[]
+      carries the typed code CONVERSION_ERROR and a parse-error message. A
+      success envelope here would mean a lost root was silently accepted.
+  - name: Strictly parse the failure and assert no partial artifact
+    kind: python
+    command: |
+      import json, pathlib, subprocess, sys
+      out = pathlib.Path("/tmp/omni_val/t14-orf-xliff-trunc/out.docx")
+      proc = subprocess.run(
+          ["orf", "apply-xliff",
+           "/tmp/omni_val/t14-orf-xliff-trunc/src.docx",
+           "--xliff", "/tmp/omni_val/t14-orf-xliff-trunc/trunc.xlf",
+           "-o", str(out), "--no-cache", "--json"],
+          capture_output=True, text=True,
+      )
+      body = json.loads(proc.stdout)
+      errors = body.get("errors") or []
+      codes = [e.get("code") for e in errors]
+      ok = (
+          proc.returncode != 0
+          and isinstance(body, dict)
+          and body.get("success") is False
+          and "CONVERSION_ERROR" in codes
+          and any("XLIFF parse error" in str(e.get("message", "")) for e in errors)
+          and not out.exists()
+      )
+      if not ok:
+          print("MISMATCH rc=%s success=%s codes=%s artifact=%s" % (
+              proc.returncode, body.get("success"), codes, out.exists()))
+          sys.exit(1)
+      print(json.dumps({
+          "exit_code": proc.returncode,
+          "success": body["success"],
+          "codes": codes,
+          "artifacts": [],
+      }))
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ['"success": false', 'CONVERSION_ERROR', '"artifacts": []']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      json.loads over the whole stdout must yield one object with success
+      false and a CONVERSION_ERROR entry; the output file must not exist. The
+      snippet exits non-zero if any half fails.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni_val/t14-orf-xliff-trunc", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort cleanup of the temp inputs/outputs.

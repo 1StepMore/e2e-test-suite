@@ -3,6 +3,7 @@ description: >-
   ORF apply-md backfill to DOCX: run the real `orf apply-md` CLI on a
   synthetic translated MD and verify the output carries the DOCX
   structural signature (OOXML zip archive with word/document.xml; python-docx opens it with >= 1 paragraph).
+level: human-quality
 category: orf-md
 tier: 1
 requires_env: []

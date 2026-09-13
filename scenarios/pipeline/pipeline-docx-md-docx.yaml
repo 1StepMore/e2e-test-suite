@@ -5,8 +5,14 @@ description: >-
   OL translation, real ORF backfill, then six separate quality-gate steps
   (opens in python-docx, drawing count preserved, paragraph ratio within
   +-5%, CJK density < 5%, zero Chinese punctuation, LQA >= 4.0/5 via OL
-  JudgeService). Requires real LLM keys -> unconfigured in key-less CI,
-  GREEN in nightly (D11).
+  JudgeService). Two of those bars are asserted at their LITERAL published
+  threshold — #drawing-count (src == out) and #lqa-threshold
+  (judge_overall >= 4.0) — flagged step-level ``known_gap: true`` because
+  the shipped pipeline cannot yet meet them (T13-02 / T13-01); their
+  weakened observations live under scenarios/pipeline/known-gaps/ and are
+  excluded from the pass bar. Requires real LLM keys -> unconfigured in
+  key-less CI, GREEN in nightly (D11).
+level: human-quality
 category: pipeline
 tier: 2
 requires_env:
@@ -48,19 +54,23 @@ instructions: |-
   scripts/omo_loop.py (Q1 :191-205, Q4 :208-227, Q6 :255-273, Q3 :276-299,
   Q5 :230-252, Q2 :302-396).
 
-  Known shipped-behavior caveats (pinned in .omo/notepads/validation-framework/learnings.md):
-  - T13-01: OL's LLM judge prompt never asks for terminology_consistency /
-    format_preservation but RUBRIC_WEIGHTS gives them 0.35 combined weight,
-    so judge_overall_score is capped at 3.25/5. The LQA step therefore
-    averages the four dimensions the LLM is actually asked to score
-    (adequacy/fluency/accuracy/score) and ALSO prints the rubric-weighted
-    average for evidence.
-  - T13-02: ol translate-md duplicates every ![..](..) image reference
-    (level4_safe_fallback placeholder re-insertion; 2 refs in -> 4 out,
-    12 -> 24 verified). Strict src == out drawing equality therefore fails
-    on any image-bearing document. The drawing-count step asserts the
-    bar's protective intent — no image LOST (out >= src, both > 0) — and
-    prints both counts.
+  Known-gap isolation (T-17, Wave-0 decision C-05): TWO gates are asserted
+  at the LITERAL published bar in this scenario but flagged step-level
+  ``known_gap: true`` because the shipped pipeline cannot yet meet them —
+  their failure is recorded (proving the gap) yet excluded from this
+  scenario's verdict, so the pass bar is never silently weakened:
+  - #drawing-count (T13-02): ol translate-md duplicates every ![..](..)
+    image reference (level4_safe_fallback placeholder re-insertion; 2 refs
+    in -> 4 out, 12 -> 24 verified), so `src == out` fails on any
+    image-bearing document.
+  - #lqa-threshold (T13-01): OL's LLM judge prompt never asks for
+    terminology_consistency / format_preservation but RUBRIC_WEIGHTS gives
+    them 0.35 combined weight, so judge_overall_score is capped at 3.25/5.
+  The SHIPPED weakened observations for both (drawing `out >= src`; the
+  four-dimension LQA average) live under scenarios/pipeline/known-gaps/
+  marked ``known_gap: true`` and are excluded from the pass bar; both gaps
+  are recorded in ACCEPTED_GAPS.md. When the product fixes a defect, the
+  literal step here turns green and the known-gap marker can be dropped.
   Run it with the real key env (suite-root .env + Omni_Localizer/.env
   loaded) — with keys scrubbed it must report unconfigured, never
   pass/fail.
@@ -245,7 +255,7 @@ steps:
       Q1 functional floor (scripts/omo_loop.py:191-205): the pipeline
       exited 0, out.docx exists, python-docx opens it and it has >= 1
       paragraph. Check: exit 0 + "OK: python-docx opens, N paragraphs".
-  - name: Assert drawing count preserved — no image loss (Q4)
+  - name: Assert drawing count preserved — published bar src == out (Q4)
     kind: python
     command: |-
       import sys, zipfile
@@ -262,25 +272,28 @@ steps:
       if src == 0:
           print("ERROR: source has 0 drawings; cannot compare")
           sys.exit(1)
-      if out < src:
-          print("ERROR: drawings src=%d out=%d (images lost)" % (src, out))
+      if out != src:
+          print("KNOWN-GAP: drawings src=%d out=%d — published bar (#drawing-count) is src == out; see ACCEPTED_GAPS.md (T13-02)" % (src, out))
           sys.exit(1)
-      print("OK: drawings src=%d out=%d (no image loss)" % (src, out))
+      print("OK: drawings src=%d out=%d (match)" % (src, out))
     timeout_seconds: 180
+    known_gap: true
     expect:
       exit_code: 0
       stdout_has: ["OK: drawings src="]
     standard: STANDARDS.md#drawing-count
     instructions: |-
-      Q4 drawing-count intent (scripts/omo_loop.py:208-227): count
-      <w:drawing in word/document.xml of source vs output; source must
-      have > 0 drawings and the output must not have LOST any. CAVEAT
-      (finding T13-02): ol translate-md duplicates every ![..](..) image
-      reference (level4_safe_fallback placeholder re-insertion — verified
-      2->4 and 12->24), so strict src == out equality is impossible
-      through the shipped OL; the step enforces the bar's protective
-      intent (no image lost) and prints both counts. Restore strict
-      equality once OL fixes the duplication.
+      Q4 drawing-count, the LITERAL published bar (scripts/omo_loop.py:208-227):
+      count <w:drawing in word/document.xml of source vs output; source must
+      have > 0 drawings and the counts must be EQUAL (STANDARDS.md#drawing-count).
+      This step is flagged ``known_gap: true``: ol translate-md duplicates every
+      ![..](..) image reference today (level4_safe_fallback placeholder
+      re-insertion — verified 2->4 and 12->24, finding T13-02), so strict
+      equality cannot be met by the shipped OL. The failure is recorded here
+      (proving the gap) but excluded from this scenario's verdict; the shipped
+      weakened observation (out >= src) lives in
+      scenarios/pipeline/known-gaps/. When OL stops duplicating, this step
+      turns green and the known-gap marker can be dropped.
   - name: Assert paragraph ratio within +-5% (Q6)
     kind: python
     command: |-
@@ -353,7 +366,7 @@ steps:
       (Chinese curly quotes, full-width comma/period/colon/semicolon/
       exclamation/question). Check: exit 0 + "OK: 0 Chinese punctuation
       chars".
-  - name: Assert LQA >= 4.0/5 via OL JudgeService (Q2)
+  - name: Assert LQA judge_overall >= 4.0/5 — published bar (Q2)
     kind: python
     command: |-
       import os, re, sys, asyncio
@@ -391,28 +404,32 @@ steps:
       if not scores:
           print("ERROR: all %d judge calls failed (transport errors)" % len(results))
           sys.exit(1)
-      avg5 = sum(sum(s) for s in scores) / (len(scores) * len(dims)) / 2.0
+      dim_avg5 = sum(sum(s) for s in scores) / (len(scores) * len(dims)) / 2.0
       overall5 = sum(overalls) / len(overalls) / 2.0
-      print("LQA avg_5=%.2f n=%d rubric_overall_avg_5=%.2f (T13-01 ceiling)" % (avg5, len(scores), overall5))
-      if avg5 < 4.0:
-          print("ERROR: LQA %.2f/5 below threshold 4.0/5" % avg5)
+      print("LQA judge_overall_avg_5=%.2f dim_avg_5=%.2f n=%d (T13-01 rubric ceiling)" % (overall5, dim_avg5, len(scores)))
+      if overall5 < 4.0:
+          print("KNOWN-GAP: judge_overall %.2f/5 < 4.0/5 published bar (#lqa-threshold); see ACCEPTED_GAPS.md (T13-01)" % overall5)
           sys.exit(1)
-      print("OK: LQA %.2f/5 >= 4.0/5 (n=%d)" % (avg5, len(scores)))
+      print("OK: judge_overall %.2f/5 >= 4.0/5 (n=%d)" % (overall5, len(scores)))
     timeout_seconds: 300
+    known_gap: true
     expect:
       exit_code: 0
-      stdout_has: ["OK: LQA"]
+      stdout_has: ["OK: judge_overall"]
     standard: STANDARDS.md#lqa-threshold
     instructions: |-
-      Q2 LLM-judged quality (scripts/omo_loop.py:302-396), faithful:
-      parse the first <= 50 scorable trans-unit pairs from the translated
-      XLIFF (whitespace-only / unchanged targets skipped), judge each via
-      OL JudgeService with the real model pool (config/default.yaml), and
-      require the average >= 4.0/5. CAVEAT (finding T13-01): OL's judge
-      prompt never returns terminology_consistency/format_preservation
-      while RUBRIC_WEIGHTS gives them 0.35 combined weight, so
-      judge_overall_score is capped at 3.25/5 on perfect scores; the step
-      therefore averages the four dimensions the LLM is actually asked to
-      score (adequacy/fluency/accuracy/score) and prints the rubric
-      average alongside for evidence. Restore the strict judge_overall
-      form once OL fixes the rubric/prompt mismatch.
+      Q2 LLM-judged quality, the LITERAL published bar
+      (scripts/omo_loop.py:302-396): parse the first <= 50 scorable
+      trans-unit pairs from the translated XLIFF, judge each via OL
+      JudgeService with the real model pool, and require the average of
+      ``judge_overall_score`` (0-1, rescored to /5) >= 4.0/5
+      (STANDARDS.md#lqa-threshold). This step is flagged
+      ``known_gap: true``: OL's judge prompt never asks for
+      terminology_consistency / format_preservation while RUBRIC_WEIGHTS
+      gives them 0.35 combined weight, so judge_overall_score is
+      mathematically capped at 3.25/5 on perfect scores (finding T13-01).
+      The failure is recorded here (proving the gap) but excluded from
+      this scenario's verdict; the shipped weakened observation (the
+      four-dimension average) lives in scenarios/pipeline/known-gaps/.
+      When OL fixes the rubric/prompt mismatch, this step turns green and
+      the known-gap marker can be dropped.

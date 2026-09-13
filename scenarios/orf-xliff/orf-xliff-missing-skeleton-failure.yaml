@@ -1,0 +1,130 @@
+name: orf-xliff-missing-skeleton-failure
+description: >
+  Stage failure (plan gap T-14, C3 failure; S3 ORF XLIFF path). A translated
+  XLIFF handed to `orf apply-xliff` with a skeleton that has no document
+  structure (an empty .zip — the "missing skeleton" case) must fail closed:
+  non-zero exit, a typed CONVERSION_ERROR saying the skeleton is unknown,
+  and NO partial output artifact. Tier 1 / hermetic.
+level: agent-user
+category: orf-xliff
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Remove the scenario dir; write a valid translated XLIFF and an EMPTY
+     skeleton.zip (a readable ZIP with no word/document.xml / ppt structure)
+     at /tmp/omni_val/t14-orf-xliff-noskel/.
+  2. Run `orf apply-xliff skeleton.zip --xliff trans.xlf --format docx`
+     with --json --no-cache: expect exit 1 and a JSON success=false whose
+     errors carry CONVERSION_ERROR and a "Skeleton is unknown format" reason.
+  3. Re-run in a python step, strict-parse stdout, and assert exit code != 0,
+     success false, CONVERSION_ERROR, and that the output file was never
+     created (no partial artifact).
+
+  Tier 1: no API keys, no network, deterministic. --no-cache prevents a stale
+  cached success from masking the missing-skeleton failure.
+steps:
+  - name: Build the valid XLIFF and the empty skeleton
+    kind: python
+    command: |
+      import pathlib, shutil, zipfile
+      d = pathlib.Path("/tmp/omni_val/t14-orf-xliff-noskel")
+      shutil.rmtree(d, ignore_errors=True)
+      d.mkdir(parents=True)
+      valid = (
+          '<?xml version="1.0" encoding="UTF-8"?>\n'
+          '<xliff version="1.2">\n'
+          '  <file source-language="en" target-language="zh" '
+          'datatype="plaintext" original="src.docx">\n'
+          '    <body>\n'
+          '      <trans-unit id="1"><source>Hello world</source>'
+          '<target>你好世界</target></trans-unit>\n'
+          '    </body>\n'
+          '  </file>\n'
+          '</xliff>\n'
+      )
+      (d / "trans.xlf").write_text(valid, encoding="utf-8")
+      with zipfile.ZipFile(d / "skeleton.zip", "w"):
+          pass
+      assert zipfile.is_zipfile(d / "skeleton.zip"), "skeleton must be a readable zip"
+      names = zipfile.ZipFile(d / "skeleton.zip").namelist()
+      assert "word/document.xml" not in names, "skeleton must have no document part"
+      print("WROTE", d / "skeleton.zip", "parts=%d" % len(names))
+    timeout_seconds: 60
+    expect:
+      exit_code: 0
+      stdout_has: ["WROTE", "parts=0"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Build the inputs deterministically: a valid XLIFF (so the failure is
+      the skeleton, not the XLIFF) and a readable but structurally empty
+      skeleton.zip. The assertions pin the fixture's defining property.
+  - name: apply-xliff fails closed on the missing skeleton structure
+    kind: cli
+    command: orf apply-xliff /tmp/omni_val/t14-orf-xliff-noskel/skeleton.zip --xliff /tmp/omni_val/t14-orf-xliff-noskel/trans.xlf --format docx -o /tmp/omni_val/t14-orf-xliff-noskel/out.docx --no-cache --json
+    timeout_seconds: 180
+    expect:
+      exit_code: 1
+      stdout_has: ['"success": false', 'CONVERSION_ERROR', 'Skeleton is unknown format']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      The CLI must not invent a document from an empty skeleton: it exits 1
+      with a structured success=false body carrying the typed CONVERSION_ERROR
+      code and a reason that names the missing/unknown skeleton.
+  - name: Strictly parse the failure and assert no partial artifact
+    kind: python
+    command: |
+      import json, pathlib, subprocess, sys
+      out = pathlib.Path("/tmp/omni_val/t14-orf-xliff-noskel/out.docx")
+      proc = subprocess.run(
+          ["orf", "apply-xliff",
+           "/tmp/omni_val/t14-orf-xliff-noskel/skeleton.zip",
+           "--xliff", "/tmp/omni_val/t14-orf-xliff-noskel/trans.xlf",
+           "--format", "docx", "-o", str(out), "--no-cache", "--json"],
+          capture_output=True, text=True,
+      )
+      body = json.loads(proc.stdout)
+      errors = body.get("errors") or []
+      codes = [e.get("code") for e in errors]
+      ok = (
+          proc.returncode != 0
+          and isinstance(body, dict)
+          and body.get("success") is False
+          and "CONVERSION_ERROR" in codes
+          and any("Skeleton is unknown format" in str(e.get("message", ""))
+                  for e in errors)
+          and not out.exists()
+      )
+      if not ok:
+          print("MISMATCH rc=%s success=%s codes=%s artifact=%s" % (
+              proc.returncode, body.get("success"), codes, out.exists()))
+          sys.exit(1)
+      print(json.dumps({
+          "exit_code": proc.returncode,
+          "success": body["success"],
+          "codes": codes,
+          "artifacts": [],
+      }))
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ['"success": false', 'CONVERSION_ERROR', '"artifacts": []']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#json-parseable
+    instructions: >-
+      json.loads over the whole stdout must yield one object with success
+      false and a CONVERSION_ERROR entry naming the unknown skeleton; the
+      output file must not exist. Any half failing exits non-zero.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni_val/t14-orf-xliff-noskel", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort cleanup of the temp inputs/outputs.

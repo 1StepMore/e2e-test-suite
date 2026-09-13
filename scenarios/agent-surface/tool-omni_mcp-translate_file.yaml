@@ -1,7 +1,9 @@
 name: tool-omni_mcp-translate_file
 description: "Suite omni_mcp translate_file rejects bad and empty paths with clean errors (the full keyed pipeline is a nightly scenario)."
+level: agent-user
 category: agent-surface
 tier: 1
+requires_env: [MCP_ALLOWED_DIRECTORIES]
 instructions: |
   Agent-user conformance (draft D13, mission axis 1): this scenario proves the
   live tool responds as an agent-user expects — schema-shaped arguments accepted,
@@ -15,7 +17,7 @@ steps:
     kind: mcp
     tool: omni_mcp.server.translate_file
     arguments:
-      file_path: /nonexistent/nope.docx
+      file_path: /tmp/omni-agent-surface/nonexistent-source.docx
       source_lang: en
       target_lang: zh
       output_format: docx

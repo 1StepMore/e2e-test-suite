@@ -1,5 +1,6 @@
 name: tool-ol-verify_terms
 description: "OL verify_terms verifies glossary term usage in translated text without an LLM and returns clean errors for bad input."
+level: agent-user
 category: agent-surface
 tier: 1
 instructions: |

@@ -1,0 +1,102 @@
+name: orf-md-unsupported-target-failure
+description: >
+  Stage failure (plan gap T-14, C3 failure; S3 ORF MD path). An explicit
+  unsupported --target-format token ('bogus') must be rejected by the real
+  `orf apply-md` CLI before any conversion work: non-zero exit, a clear
+  parseable error naming the bad value, and NO partial output artifact. This
+  locks the CLI's format whitelist boundary so an agent cannot silently get a
+  file in an unexpected format. Tier 1 / hermetic.
+level: agent-user
+category: orf-md
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Remove the scenario dir, then write a minimal translated MD at
+     /tmp/omni_val/t14-orf-md-bogus/in.md.
+  2. Run the real `orf apply-md` CLI with --target-format bogus. Click's
+     Choice must reject it at parse time: exit code 2, an error on stderr
+     naming the invalid value, nothing on stdout.
+  3. Re-run the CLI in a python step and assert exit code != 0, the stderr
+     names the invalid value, and the output file was never created (no
+     partial artifact).
+
+  Tier 1: no API keys, no network, no converter engine invoked (the value is
+  rejected before conversion), deterministic.
+steps:
+  - name: Write the minimal MD input
+    kind: python
+    command: |
+      import pathlib, shutil
+      d = pathlib.Path("/tmp/omni_val/t14-orf-md-bogus")
+      shutil.rmtree(d, ignore_errors=True)
+      d.mkdir(parents=True)
+      (d / "in.md").write_text("# Hello\n\nworld\n", encoding="utf-8")
+      print("WROTE", d / "in.md")
+    timeout_seconds: 30
+    expect:
+      exit_code: 0
+      stdout_has: ["WROTE"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Deterministically create the MD input; remove the dir first so no stale
+      artifact can be mistaken for this run's output.
+  - name: apply-md rejects the unsupported target format
+    kind: cli
+    command: orf apply-md /tmp/omni_val/t14-orf-md-bogus/in.md --target-format bogus -o /tmp/omni_val/t14-orf-md-bogus/out.bogus --json
+    timeout_seconds: 120
+    expect:
+      exit_code: 2
+      stdout_not_has: ['"success": true']
+      stderr_has: ["Invalid value for '--target-format'", "'bogus' is not one of"]
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      The real CLI must reject the unknown format at parse time: exit 2 is
+      the non-zero failure signal, and stderr names both the option and the
+      invalid value so an agent can correct it. No success envelope is
+      allowed on stdout.
+  - name: Assert the error is non-zero and no artifact was created
+    kind: python
+    command: |
+      import pathlib, subprocess, sys
+      out = pathlib.Path("/tmp/omni_val/t14-orf-md-bogus/out.bogus")
+      proc = subprocess.run(
+          ["orf", "apply-md", "/tmp/omni_val/t14-orf-md-bogus/in.md",
+           "--target-format", "bogus", "-o", str(out), "--json"],
+          capture_output=True, text=True,
+      )
+      ok = (
+          proc.returncode != 0
+          and "Invalid value for '--target-format'" in proc.stderr
+          and "'bogus' is not one of" in proc.stderr
+          and not out.exists()
+      )
+      if not ok:
+          print("MISMATCH rc=%s artifact=%s stderr=%s" % (
+              proc.returncode, out.exists(), proc.stderr[:200]))
+          sys.exit(1)
+      print("no_artifact=true rc=%d" % proc.returncode)
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["no_artifact=true"]
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      Re-run the command and assert the contract directly from the process:
+      non-zero exit, a clear error naming the bad format, and no output
+      artifact (the rejection happens before conversion, so nothing is
+      written — not even a partial file).
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni_val/t14-orf-md-bogus", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort cleanup of the temp inputs/outputs.

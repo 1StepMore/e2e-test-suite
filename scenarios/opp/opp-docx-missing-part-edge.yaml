@@ -1,0 +1,121 @@
+name: opp-docx-missing-part-edge
+description: >
+  Stage edge (plan gap T-14, C2 edge; S1 OPP). A structurally truncated DOCX
+  — a VALID ZIP archive that is missing the required word/document.xml part
+  — sits on the boundary between "container is readable" and "document is
+  extractable". The real OPP CLI must reject it with a NON-ZERO exit and a
+  structured JSON failure, leaving no partial .md/.xlf artifact. Sibling to
+  opp-docx-malformed-failure (C3). Tier 1 / hermetic.
+level: agent-user
+category: opp-extraction
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Remove the scenario dir, then build /tmp/omni_val/t14-opp-edge/edge.docx
+     as a VALID ZIP archive (zipfile can read it) that contains
+     [Content_Types].xml but is missing the required word/document.xml part.
+  2. Run the real `opp` CLI with --json: expect a non-zero exit and a single
+     JSON object with success false.
+  3. Re-run the CLI in a python step and strictly parse stdout: exit code
+     != 0, success false, and no .md/.xlf under the output dir. Also assert
+     the fixture really is a readable ZIP (so the case is the missing-part
+     boundary, not a corrupt container).
+
+  Tier 1: no API keys, no network, deterministic (the fixture is synthetic).
+steps:
+  - name: Build the valid-ZIP / missing-part DOCX boundary fixture
+    kind: python
+    command: |
+      import pathlib, shutil, zipfile
+      d = pathlib.Path("/tmp/omni_val/t14-opp-edge")
+      shutil.rmtree(d, ignore_errors=True)
+      d.mkdir(parents=True)
+      with zipfile.ZipFile(d / "edge.docx", "w") as zf:
+          zf.writestr(
+              "[Content_Types].xml",
+              '<?xml version="1.0"?><Types '
+              'xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+          )
+          zf.writestr("docProps/core.xml", "<core/>")
+      assert zipfile.is_zipfile(d / "edge.docx"), "fixture must be a readable ZIP"
+      names = zipfile.ZipFile(d / "edge.docx").namelist()
+      assert "word/document.xml" not in names, "fixture must be missing the part"
+      print("WROTE", d / "edge.docx", "parts=%d" % len(names))
+    timeout_seconds: 30
+    expect:
+      exit_code: 0
+      stdout_has: ["WROTE", "parts=2"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Build the boundary fixture and assert its defining property: the ZIP is
+      readable but word/document.xml is absent. This is what separates the
+      edge case from the corrupt-container failure case.
+  - name: OPP rejects the missing-part DOCX with a non-zero exit and JSON failure
+    kind: cli
+    command: opp /tmp/omni_val/t14-opp-edge/edge.docx --target-format md --output-dir /tmp/omni_val/t14-opp-edge/out --json
+    timeout_seconds: 120
+    expect:
+      exit_code: 1
+      stdout_has: ['"success": false', 'Extraction failed']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/t14-opp-edge/edge.docx
+    instructions: >-
+      A readable ZIP with no document part must still fail honestly: exit 1
+      and a JSON success=false body. Any 0 exit or success=true would mean
+      OPP silently produced empty output for a structurally incomplete DOCX.
+  - name: Strictly parse the failure and assert no partial artifact
+    kind: python
+    command: |
+      import json, pathlib, subprocess, sys
+      out_dir = pathlib.Path("/tmp/omni_val/t14-opp-edge/out")
+      proc = subprocess.run(
+          ["opp", "/tmp/omni_val/t14-opp-edge/edge.docx",
+           "--target-format", "md", "--output-dir", str(out_dir), "--json"],
+          capture_output=True, text=True,
+      )
+      body = json.loads(proc.stdout)
+      artifacts = []
+      if out_dir.exists():
+          artifacts = sorted(p.name for p in out_dir.glob("*.md")) + sorted(
+              p.name for p in out_dir.glob("*.xlf")
+          )
+      ok = (
+          proc.returncode != 0
+          and isinstance(body, dict)
+          and body.get("success") is False
+          and not artifacts
+      )
+      if not ok:
+          print("MISMATCH rc=%s success=%s artifacts=%s" % (
+              proc.returncode, body.get("success"), artifacts))
+          sys.exit(1)
+      print(json.dumps({
+          "exit_code": proc.returncode,
+          "success": body["success"],
+          "artifacts": artifacts,
+      }))
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ['"success": false', '"artifacts": []']
+      stderr_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      Strict-parse the failure (json.loads over the whole stdout) and assert
+      the output dir is clean of .md/.xlf. A readable ZIP missing its document
+      part must not leave a partial artifact behind.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni_val/t14-opp-edge", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort cleanup of the temp inputs/outputs.

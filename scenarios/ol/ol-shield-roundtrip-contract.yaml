@@ -1,0 +1,83 @@
+name: ol-shield-roundtrip-contract
+description: >
+  OL content-shield contract (tier 1, hermetic): the REAL
+  ol_mcp.tools.shield_md_text replaces the fixture's fenced code, inline
+  code, link and image with [OL:...] markers (marker_count == 4, no raw
+  URL left in the shielded text), and the REAL unshield_md_text restores
+  every protected payload with no marker left behind. Deterministic — no
+  LLM, no keys, no fake model.
+level: agent-user
+category: ol-structure
+tier: 1
+requires_env: []
+instructions: |
+  Hermetic proof of the OL stage's content-preservation seam. The shield
+  and unshield tools are pure text transforms (no model call), so this is
+  admissible tier-1 structure evidence — it asserts marker structure and
+  payload restoration, never translation quality.
+
+  What to check:
+  1. Step 1 calls the REAL ol_mcp.tools.shield_md_text on the committed
+     markdown fixture and asserts the marker contract: marker_count 4,
+     markers present, and the raw deployment URL absent from the shielded
+     text.
+  2. Step 2 runs shield -> unshield on the same fixture and asserts every
+     protected payload (URL, image path, inline code text, fenced body)
+     comes back and no [OL: marker remains.
+
+steps:
+  - name: 'shield_md_text replaces code/link/image with markers'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import ShieldMdInput, shield_md_text
+      content = open("scenarios/ol/_fixtures/source.md", encoding="utf-8").read()
+      result = json.loads(asyncio.run(shield_md_text(params=ShieldMdInput(content=content))))
+      assert result["success"] is True, result
+      payload = result["content"]
+      print("marker_count=%d" % payload["marker_count"])
+      print("shielded_has_markers=%s" % ("[OL:" in payload["shielded_text"]))
+      assert payload["marker_count"] == 4, payload["marker_count"]
+      assert "[OL:" in payload["shielded_text"]
+      assert "https://example.com/deploy" not in payload["shielded_text"]
+      print("shield_contract_ok=true")
+    timeout_seconds: 60
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["marker_count=4", "shielded_has_markers=True", "shield_contract_ok=true"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      Shield the committed fixture and assert the four protected
+      constructs become markers and the raw URL no longer appears.
+  - name: 'unshield_md_text restores every protected payload with no marker left'
+    kind: python
+    command: |
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import ShieldMdInput, UnshieldMdInput, shield_md_text, unshield_md_text
+      content = open("scenarios/ol/_fixtures/source.md", encoding="utf-8").read()
+      shielded = json.loads(asyncio.run(shield_md_text(params=ShieldMdInput(content=content))))["content"]
+      restored = json.loads(asyncio.run(unshield_md_text(params=UnshieldMdInput(
+          content=shielded["shielded_text"], shield_map=shielded["shield_map"]))))
+      assert restored["success"] is True, restored
+      text = restored["content"]["restored_text"]
+      payloads = ["https://example.com/deploy", "assets/architecture.png", "config.yaml", "telemetry:"]
+      missing = [p for p in payloads if p not in text]
+      print("restored_payloads_missing=%d" % len(missing))
+      print("no_markers_left=%s" % ("[OL:" not in text))
+      assert not missing, "restored text lost payloads: %r" % missing
+      assert "[OL:" not in text
+      print("unshield_contract_ok=true")
+    timeout_seconds: 60
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["restored_payloads_missing=0", "no_markers_left=True", "unshield_contract_ok=true"]
+      stdout_not_has: ["Traceback (most recent call last)"]
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      Round-trip the fixture through shield then unshield; every protected
+      payload must be restored and no placeholder may survive.

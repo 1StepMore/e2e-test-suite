@@ -1,0 +1,167 @@
+name: orf-missing-engine-recovery
+description: >-
+  Failure injection + recovery (R-05b, missing optional engine). `orf apply-md
+  --target-format msg` needs the optional, commercial `aspose-email-foss`
+  engine. When it is absent the shipped CLI cannot produce the requested
+  artifact at the returned path, so the primary step is RED; its
+  `recovery_steps` then apply the documented recovery — the fully-supported
+  open alternative `.eml` — and assert a real MIME message at the requested
+  path. The primary RED stays in the trace; the step flips to `recovered`. If
+  the engine IS present the native `.msg` is produced and the primary passes
+  (no recovery needed). Hermetic tier 1: pure-Python email channel, no keys,
+  no network.
+level: agent-user
+category: recovery
+tier: 1
+requires_env: []
+instructions: |
+  What to do:
+  1. Provision a synthetic translated MD (frontmatter + heading + body).
+  2. Primary: run the real `orf apply-md --target-format msg --json` and assert
+     the full-feature contract — the requested `.msg` exists non-empty at the
+     returned path. With the optional Aspose engine absent the CLI degrades
+     (a MISSING_DEPENDENCY warning, metadata.format "eml") and writes a hidden
+     temp `.eml` instead, so the requested path does not exist and the primary
+     is RED. The OBSERVED line records the actual fallback facts.
+  3. Recovery: the documented open alternative — re-run with
+     `--target-format eml` — and assert a real, non-empty `.eml` with MIME
+     headers at the returned path.
+  4. Final: assert a non-empty artifact exists (the recovered `.eml` when the
+     engine was absent, the native `.msg` when it was present).
+
+  Tier 1: no keys, no network, deterministic.
+steps:
+  - name: Provision a synthetic translated MD
+    kind: python
+    command: |
+      import pathlib, shutil
+      d = pathlib.Path("/tmp/omni_val/r05-missing-engine")
+      shutil.rmtree(d, ignore_errors=True)
+      d.mkdir(parents=True)
+      (d / "in.md").write_text(
+          "---\nsource_lang: en\ntarget_lang: zh\n---\n\n"
+          "# Missing engine\n\nbody text\n",
+          encoding="utf-8",
+      )
+      print("PROVISIONED", d / "in.md")
+    timeout_seconds: 30
+    expect:
+      exit_code: 0
+      stdout_has: ["PROVISIONED"]
+    standard: STANDARDS.md#exit-codes
+    instructions: >-
+      Clean the temp dir and write the MD input. Deterministic, hermetic.
+  - name: MSG target without its optional engine cannot produce the requested artifact
+    kind: python
+    command: |
+      import json, pathlib, subprocess, sys
+      d = pathlib.Path("/tmp/omni_val/r05-missing-engine")
+      proc = subprocess.run(
+          ["orf", "apply-md", str(d / "in.md"), "--target-format", "msg",
+           "-o", str(d / "out.msg"), "--json"],
+          capture_output=True, text=True, timeout=180,
+      )
+      if proc.returncode != 0:
+          print("ERROR: msg conversion exited %s" % proc.returncode)
+          sys.exit(1)
+      env = json.loads(proc.stdout)
+      codes = [w.get("code") for w in env.get("warnings", [])]
+      meta = env.get("metadata") or {}
+      requested = pathlib.Path(env["output_path"])
+      print(
+          "OBSERVED format=%s output_path=%s exists=%s bytes=%s warnings=%s recommended=%s"
+          % (
+              meta.get("format"), requested, requested.exists(),
+              requested.stat().st_size if requested.exists() else 0,
+              codes, meta.get("recommended"),
+          )
+      )
+      assert requested.exists() and requested.stat().st_size > 0, (
+          "optional .msg engine unavailable (warnings=%s); requested artifact %s "
+          "was not produced — recover with the documented open alternative" % (codes, requested)
+      )
+      print("ENGINE PRESENT: native .msg produced at the returned path")
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["OBSERVED"]
+    recovery_steps:
+      - name: Recover - use the documented open .eml alternative
+        kind: python
+        command: |
+          import json, pathlib, subprocess, sys
+          d = pathlib.Path("/tmp/omni_val/r05-missing-engine")
+          proc = subprocess.run(
+              ["orf", "apply-md", str(d / "in.md"), "--target-format", "eml",
+               "-o", str(d / "out.eml"), "--json"],
+              capture_output=True, text=True, timeout=180,
+          )
+          if proc.returncode != 0:
+              print("RECOVERY FAILED rc=%s stderr=%s" % (proc.returncode, proc.stderr[-300:]))
+              sys.exit(1)
+          env = json.loads(proc.stdout)
+          out = pathlib.Path(env["output_path"])
+          if not (out.exists() and out.stat().st_size > 0 and out.suffix == ".eml"):
+              print("RECOVERY FAILED: no real .eml at %s" % out)
+              sys.exit(1)
+          data = out.read_text(encoding="utf-8")
+          if "MIME-Version" not in data or "Subject:" not in data:
+              print("RECOVERY FAILED: .eml lacks MIME headers")
+              sys.exit(1)
+          print(
+              "RECOVERY OK documented eml fallback artifact=%d bytes format=%s"
+              % (out.stat().st_size, (env.get("metadata") or {}).get("format"))
+          )
+        timeout_seconds: 180
+        expect:
+          exit_code: 0
+          stdout_has: ["RECOVERY OK documented eml fallback"]
+        standard: STANDARDS.md#exit-codes
+        instructions: >-
+          The documented recovery: switch to the open `.eml` target, which the
+          pure-Python email channel always supports. Assert the returned path
+          is a real MIME message, then the step passes and the primary is
+          marked `recovered`.
+    standard: STANDARDS.md#error-clarity
+    instructions: >-
+      The injected condition: the optional MSG engine is absent. The primary
+      asserts the full-feature contract (requested `.msg` exists) and is RED,
+      recording the graceful degradation (MISSING_DEPENDENCY + metadata
+      format/recommended) before failing on the missing artifact.
+  - name: Assert a non-empty artifact exists after recovery
+    kind: python
+    command: |
+      import pathlib, sys
+      d = pathlib.Path("/tmp/omni_val/r05-missing-engine")
+      eml = d / "out.eml"
+      msg = d / "out.msg"
+      if eml.exists() and eml.stat().st_size > 0:
+          print("FINAL OK recovered .eml artifact=%d bytes" % eml.stat().st_size)
+      elif msg.exists() and msg.stat().st_size > 0:
+          print("FINAL OK native .msg artifact=%d bytes" % msg.stat().st_size)
+      else:
+          print("ERROR: neither a native .msg nor a recovered .eml artifact exists")
+          sys.exit(1)
+    timeout_seconds: 30
+    expect:
+      exit_code: 0
+      stdout_has: ["FINAL OK"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/r05-missing-engine/out.eml
+    instructions: >-
+      Independent final observation: after recovery there is a non-empty
+      artifact at the requested path — the recovered `.eml` when the optional
+      engine was absent, the native `.msg` when it was present.
+cleanup_steps:
+  - name: Remove the scenario temp dir
+    kind: python
+    command: |
+      import shutil
+      shutil.rmtree("/tmp/omni_val/r05-missing-engine", ignore_errors=True)
+      print("cleaned")
+    expect:
+      exit_code: 0
+      stdout_has: ["cleaned"]
+    standard: STANDARDS.md#exit-codes
+    instructions: Best-effort removal of the temp input/outputs (incl. hidden temp .eml).

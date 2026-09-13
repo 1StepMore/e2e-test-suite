@@ -11,6 +11,7 @@ description: >-
   finds no unit and the Chinese targets are not injected. This scenario
   honestly asserts the channel contract that IS live: exit 0 + Created + valid
   ODF structure (finding recorded in learnings.md).
+level: agent-user
 category: orf-xliff
 tier: 1
 requires_env: []

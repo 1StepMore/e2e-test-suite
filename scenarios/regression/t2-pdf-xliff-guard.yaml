@@ -12,6 +12,7 @@ description: >
   the command.  This scenario is the flywheel seed: if the guard is ever
   bypassed or removed, this scenario turns RED (exit 0 -> expect exit_code
   1 fails).
+level: agent-user
 category: regression
 regression: true
 regression_issue: "#T2"
