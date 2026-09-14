@@ -35,6 +35,17 @@
 
 ## 循环事件（major events，newest on top）
 
+### 2026-09-14 4-repo PR/issue 清账 + #16/#17 定性 + uv lock guard
+
+- Date: 2026-09-14, round: 4-repo PR/issue 清账（backup mirrors：renanzai40/*_BackUp）
+- Scope: 12 个已开 PR（suite #15/#18、ORF #7/#10/#11/#13、OL #12、OPP #9/#11/#13）+ 13 issue；#16 场景解钉；#17 CI-only 定性；ORF #9 / OPP #8 lock guard
+- Result: 12 PR 全部落入 `backup/main`（GitHub 自动标记 Merged），13 issue 自动 close；三处曾红场景单跑各 3/3 passed（tool-orf-batch_convert / opp-docx-malformed-failure / opp-docx-missing-part-edge）。`uv --no-config lock --check` 在 suite/OPP/ORF 均 rc=0；OPP `uv lock` 在一次性 worktree 实测零 diff → 无需重生成。
+- **#16 定性**：step 2 钉的是 ORF #8 已修缺陷（旧断言 `data_has: ['JSON_PARSE_ERROR']`）。RED（ORF 无 #11 时 `data.success=None`）→ 合入 ORF #11 后 GREEN；真实 payload 形态 = `data{success, content{success, status:"complete", succeeded:1}}`。场景断言改为钉**当前真实行为**并删除 "KNOWN DEFECT" 措辞。
+- **#17 定性（置信 HIGH，产品 bug）**：OPP `import fitz` 在 PyMuPDF ≥1.28 会把 deprecation banner 打到 **stdout**，污染 `opp --json`；场景 step 3 严格 `json.loads(stdout)` 崩 → 恰好 `failed — 3 step(s), 2 passed`。CI-only 的机制 = editable `uv pip install -e` 越过 `uv.lock` 把 pymupdf 1.27.2.3 升到 1.28.2（本机 .venv_ol 停在静默版本）。已由 OPP `52d969b`（`import pymupdf as fitz`）修复；忠实 CI 复现（宿主换 files.pythonhosted 绕开 tuna 403）+ 逐版本对照确认因果。
+- **#8/#9 lock guard**：5 个 `uv sync` workflow 固定 `setup-uv` 到 `0.11.8`、`uv sync --frozen`→`--locked`，并在 OPP/ORF 加显式 `uv --no-config lock --check` 守卫。
+- **下次迭代对照的新坑（本日新发现，尚未 gate）**：(1) CI 的 editable 安装未用 `--no-deps`，`uv pip install -e` 会无视 lock 重解析 → 本机/CI 依赖漂移（正是 #17 的机制；建议改 `--no-deps` 或 pin），(2) 套件 `uv.lock` 100% 指向 TUNA 本地镜像（本机配置泄漏；CI runner 直连该源），(3) pre-commit `omni-contract-smoke` 在本机 pytest 阶段挂起（无单个子命令挂起，pytest 特有；本次以 `SKIP=omni-contract-smoke` 绕过），(4) ORF `.venv_ol` 元数据 0.4.4 vs pyproject 0.4.17（仅环境，非 tracked），(5) 仍有 "KNOWN DEFECT" 钉未解：`tool-ol-generate_report.yaml` / `tool-ol-translate_file.yaml`。
+- Conclusion: 本轮 35 项（12 PR + 13 issue + #16 + #17 + #8/#9 guard 收尾）清账完成；无代码回归（3 目标场景 3/3，覆盖审计 37 工具口径不变）。
+
 ### 2026-09-04 omni-suite-open-source-plan tier-1 regression
 
 - Date: 2026-09-04, round: omni-suite-open-source-plan tier-1 regression
