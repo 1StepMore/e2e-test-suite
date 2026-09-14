@@ -33,9 +33,9 @@ clone_submodules_if_needed() {
     local ws
     ws="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
     local -a subs=(
-        "Omni_Pre_Processor|${OMNI_OPP_URL:-https://github.com/1StepMore/Omni_Pre_Processor.git}"
-        "Omni_Localizer|${OMNI_OL_URL:-https://github.com/1StepMore/Omni_Localizer.git}"
-        "Omni_Re_Formatter|${OMNI_ORF_URL:-https://github.com/1StepMore/Omni_Re_Formatter.git}"
+        "Omni_Pre_Processor|${OMNI_OPP_URL:-https://github.com/renanzai40/OPP_BackUp.git}"
+        "Omni_Localizer|${OMNI_OL_URL:-https://github.com/renanzai40/OL_BackUp.git}"
+        "Omni_Re_Formatter|${OMNI_ORF_URL:-https://github.com/renanzai40/ORF_BackUp.git}"
     )
     for entry in "${subs[@]}"; do
         local name="${entry%%|*}"

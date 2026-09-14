@@ -62,7 +62,7 @@ jobs:
         run: pip install --upgrade sacrebleu litellm opentelemetry-api opentelemetry-sdk
       - name: Install OL for translate_md_text
         run: |
-          git clone --depth 1 https://github.com/1StepMore/Omni_Localizer.git /tmp/ol
+          git clone --depth 1 https://github.com/renanzai40/OL_BackUp.git /tmp/ol
           pip install -e "/tmp/ol[mcp]"
       - name: Regenerate candidate + score
         env:
