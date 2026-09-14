@@ -1,5 +1,5 @@
 name: tool-orf-batch_convert
-description: "ORF batch_convert returns the shipped clean conversion error on a fixture dir (known defect) and denies out-of-allowlist dirs."
+description: "ORF batch_convert converts the frontmatter-marked fixture dir to HTML with a structured success payload, and denies out-of-allowlist dirs."
 level: agent-user
 category: agent-surface
 tier: 1
@@ -48,7 +48,7 @@ steps:
       exit_code: 0
     standard: STANDARDS.md#tool-contract
     instructions: 'Write the hermetic fixture set including sample_fm.md (frontmatter-marked so convert-batch accepts it) under /tmp/omni-agent-surface.'
-  - name: 'batch_convert on the fixture dir returns the shipped clean error'
+  - name: 'batch_convert converts the fixture dir and reports structured success'
     kind: mcp
     tool: orf.mcp.server.batch_convert
     arguments:
@@ -56,10 +56,14 @@ steps:
       target_format: html
     timeout_seconds: 120
     expect:
-      success: false
-      data_has: ['JSON_PARSE_ERROR']
-    standard: STANDARDS.md#error-clarity
-    instructions: "KNOWN DEFECT (finding): the ORF CLI prints a 'Completed: N succeeded, M failed' progress line to stdout BEFORE its JSON payload, so the MCP layer's json.loads always fails with JSON_PARSE_ERROR — the tool cannot report success as shipped. This step pins the REAL behavior: a clean agent-readable error, no traceback. Report the defect to the ORF bug track."
+      success: true
+      data_has: ['"success": true', '"status": "complete"', '"succeeded": 1']
+      json_has:
+        - {path: data.success, value: true}
+        - {path: data.content.status, value: complete}
+        - {path: data.content.succeeded, value: 1}
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Call batch_convert on the fixture dir; the ORF CLI emits a pure-JSON payload (its progress line goes to stderr) so the MCP layer parses it and the response reports structured success — data.success true, data.status "complete", data.succeeded 1, with no spurious error envelope. The tool must return an agent-readable success payload, never a raw stack trace.'
   - name: 'batch_convert denies an out-of-allowlist directory'
     kind: mcp
     tool: orf.mcp.server.batch_convert
