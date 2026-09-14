@@ -22,9 +22,9 @@ set -euo pipefail
 ws="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 declare -a subs=(
-    "Omni_Pre_Processor|${OMNI_OPP_URL:-https://github.com/1StepMore/Omni_Pre_Processor.git}|${OMNI_OPP_REF:-main}"
-    "Omni_Localizer|${OMNI_OL_URL:-https://github.com/1StepMore/Omni_Localizer.git}|${OMNI_OL_REF:-main}"
-    "Omni_Re_Formatter|${OMNI_ORF_URL:-https://github.com/1StepMore/Omni_Re_Formatter.git}|${OMNI_ORF_REF:-main}"
+    "Omni_Pre_Processor|${OMNI_OPP_URL:-https://github.com/renanzai40/OPP_BackUp.git}|${OMNI_OPP_REF:-main}"
+    "Omni_Localizer|${OMNI_OL_URL:-https://github.com/renanzai40/OL_BackUp.git}|${OMNI_OL_REF:-main}"
+    "Omni_Re_Formatter|${OMNI_ORF_URL:-https://github.com/renanzai40/ORF_BackUp.git}|${OMNI_ORF_REF:-main}"
 )
 
 for entry in "${subs[@]}"; do

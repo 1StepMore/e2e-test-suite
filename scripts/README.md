@@ -30,9 +30,9 @@ Clone URLs can be overridden via environment variables:
 
 | Env Var | Default |
 |---------|---------|
-| `OMNI_OPP_URL` | `https://github.com/1StepMore/Omni_Pre_Processor.git` |
-| `OMNI_OL_URL` | `https://github.com/1StepMore/Omni_Localizer.git` |
-| `OMNI_ORF_URL` | `https://github.com/1StepMore/Omni_Re_Formatter.git` |
+| `OMNI_OPP_URL` | `https://github.com/renanzai40/OPP_BackUp.git` |
+| `OMNI_OL_URL` | `https://github.com/renanzai40/OL_BackUp.git` |
+| `OMNI_ORF_URL` | `https://github.com/renanzai40/ORF_BackUp.git` |
 
 Set any of these to point to a fork, a local path (for offline testing), or a mirror:
 
