@@ -39,7 +39,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
-          version: "latest"
+          version: "0.11.8"
 
       - name: Install system deps (pandoc for ORF MD conversions)
         run: |
@@ -67,7 +67,7 @@ jobs:
           bash scripts/install_md2pptx.sh
 
       - name: uv sync (root workspace installs all 3 submodules via [tool.uv.workspace])
-        run: uv sync --frozen
+        run: uv sync --locked
 
       - name: Install test deps (pytest + docx/pptx/pandoc + structlog/otel + psutil + pytest-timeout + weasyprint for CI-G3)
         run: uv pip install --python .venv/bin/python pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout weasyprint nbformat markdownify chardet openpyxl lxml boto3 azure-storage-blob moto yake fastmcp
@@ -192,7 +192,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
-          version: "latest"
+          version: "0.11.8"
 
       - name: Install system deps
         run: |
@@ -203,7 +203,7 @@ jobs:
         run: bash scripts/install_md2pptx.sh
 
       - name: uv sync
-        run: uv sync --frozen
+        run: uv sync --locked
 
       - name: Install test deps
         run: uv pip install pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio
