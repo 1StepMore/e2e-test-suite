@@ -129,6 +129,14 @@ jobs:
       - name: 'Gate 4 — Contract + validation engine tests'
         run: .venv_ol/bin/python -m pytest tests/contract tests/validation -q
 
+      - name: Upload validation runs (per-step failure detail)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-runs-structural
+          path: validation-runs/
+          if-no-files-found: ignore
+
   # -------------------------------------------------------------------------
   # Job 2: Nightly validation with REAL LLM keys (D11).
   # Schedule + manual dispatch only — never blocks PRs. Missing secrets
