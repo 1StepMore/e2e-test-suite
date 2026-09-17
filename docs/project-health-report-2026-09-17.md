@@ -1638,7 +1638,7 @@ pytest tests/validation/test_coverage_audit.py -q       ->  26 passed, 1 failed
 
 ### 21.3 本轮实测数字（可复现）
 
-在套件根配置下 in-place 测量，ruff **0.15.21**（本机无法安装 pin 的 0.15.11——PyPI 索引 403）：
+在套件根配置下 in-place 测量。先用本机可得的 ruff **0.15.21**，随后又从 wheel 装到 pin 的 **0.15.11** 复核（见 21.6），**两者数字完全一致**：
 
 ```
 OPP src 全规则集 E,F,I,B,UP,N
@@ -1670,6 +1670,19 @@ OPP tests F 类: 132（不动；门禁不取 tests/）
 | `7328591` | OPP | 新增 F 类 lint 门禁 + `src` 13 条 F 清零（9 文件：8 src + ci.yml） |
 | `07b5e7f` | OL | lint 依赖从 unpinned 固定到 `ruff==0.15.16`（= uv.lock） |
 | — | ORF | 无提交：其唯一改动（`check-secrets` 钩子写法）属 21.4 的未通过项，按规则**不提交** |
+
+### 21.6 附带发现：「索引 403」是本机镜像配置，不是外部阻塞
+
+为复核 21.3 需要 pin 的 ruff 0.15.11，实测发现 403 的来源是**本机 pip 全局配置的 Tsinghua 镜像**，而非公网不可达：
+
+```
+pip config list                                              -> global.index-url='https://pypi.tuna.tsinghua.edu.cn/simple'
+curl -o /dev/null -w '%{http_code}' https://pypi.tuna.tsinghua.edu.cn/simple/ruff/  -> 403
+curl -o /dev/null -w '%{http_code}' https://pypi.org/simple/ruff/                    -> 200
+pip download ruff==0.15.11 -i https://pypi.org/simple                                -> 下载成功
+```
+
+含义（**登记，不据此宣称 §5 #2 已完成**）：§5 #2 Phase 2 一直被记为「外部阻塞：索引返回 403」。该 403 只出现在**本机配置的镜像**上，公网 PyPI 可达且可下载。所以这更像**本地环境问题（镜像不可用）**，而非「外部状态」。切公网索引后 Phase 2 大概率可推进，但它要重生成 `uv.lock`、动跨仓库依赖，属独立任务；本轮只做登记，是否推进由用户定夺（且需先确认镜像 403 是否持续）。
 
 ---
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
