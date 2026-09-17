@@ -1456,7 +1456,7 @@ OPP 全量：1035 passed, 10 failed（10 个失败已用同一 A/B 证明在 HEA
 | 项 | 状态 |
 |---|---|
 | ruff 0.16.8 比 pin 版本多报的 20 条（`UP045`×6、`B023`×4 等） | 未处理；`B023`（闭包捕获循环变量）是真实 bug 类，建议升级 pin 时同步清 |
-| 子仓库侧无 lint/test 钩子（§18.4） | 未处理 |
+| 子仓库侧无 lint/test 钩子（§18.4） | **已于第十三轮处理，见 §21**（OPP 补 F 类 lint 门禁；OL 固定 ruff 版本；ORF 与 lock 一致不动）；§18.4「门禁只在套件侧」的结论已被 **§21.1 更正** |
 | 报告 §3.4 `sys.path` 注入 / `mcp_bridge.py` 职责重叠 | **已于第十一轮处理，见 §19** |
 | `coverage_audit.py` 无友好降级 | **已于第十二轮处理并更正判断，见 §20.2**（原有逐模块 SERVER ERROR 行；只补一行 ROOT CAUSE 摘要） |
 | 报告 §5 #2 Phase 2、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
@@ -1529,7 +1529,7 @@ doc_inventory --check                                   ->  先红后绿：
 
 | 项 | 状态 |
 |---|---|
-| 三个子仓库的本地 git 钩子只有 secrets 类（§18.4） | 未处理（下一轮候选） |
+| 三个子仓库的本地 git 钩子只有 secrets 类（§18.4） | 本地钩子仍未接 pre-commit（候选）；但 §18.4「lint/test 门禁只在套件侧」已被 **§21.1 更正**——OL/ORF 的 CI 一直有 ruff |
 | `coverage_audit.py` 无友好降级 | **已于第十二轮处理并更正判断，见 §20.2**（原有逐模块 SERVER ERROR 行；只补一行 ROOT CAUSE 摘要） |
 | ruff pin 升级（0.16.8 多报的 `UP045`×6、`B023`×4 等） | 未处理 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
@@ -1606,13 +1606,75 @@ pytest tests/validation/test_coverage_audit.py -q       ->  26 passed, 1 failed
 | 项 | 状态 |
 |---|---|
 | §5 #2 Phase 2（外部索引 403）、§5 #8（tier-2 真 LLM 复验） | **外部阻塞**，需外部状态变化，不可伪绿 |
-| 三个子仓库的本地 git 钩子只有 secrets 类（§18.4） | 未处理（报告之外的自发现问题，候选下一轮） |
+| 三个子仓库的本地 git 钩子只有 secrets 类（§18.4） | **主体已于第十三轮处理，见 §21**（OPP 补 lint 门禁 + OL 固定版本 + 结论更正）；pre-commit 本地安装/钩子写法仍待定（§21.4） |
 | ruff pin 升级（0.16.8 多报的 `UP045`×6、`B023`×4 等） | 未处理（候选下一轮） |
 | `coverage_audit` / `contract` 在本机的执行型失败（WinError 1920） | 环境限制，CI（Linux）为准 |
 
 ---
+
+## 二十一、第十三轮：子仓库门禁补齐 + 第四处自我更正（2026-09-18）
+
+### 21.1 第四处自我更正：子仓库并非「没有 lint/test 门禁」
+
+§18.4 与 §19.5 写「lint/test 门禁只存在于套件侧，且只覆盖 changed files」——**前半句是错的**。逐仓库实测（直接读各自的 `.github/workflows/`）：
+
+| 仓库 | lint 门禁（本轮实测） | 处置 |
+|---|---|---|
+| OPP | **无 lint 步骤**；CI 只跑 pytest | 新增 `ruff check --select F src/`（pin `ruff==0.15.11`，与套件 pre-commit / CI 同版本） |
+| OL | 有 `ruff check src/ tests/`，但 `pip install ruff` **未固定版本** | 固定为 `ruff==0.15.16`（= `Omni_Localizer/uv.lock` 实测解析版本） |
+| ORF | 有 `ruff check src/orf/`，pin `ruff==0.15.14`，**与其 `uv.lock` 一致**（实测 lock `ruff` = 0.15.14） | **不动**（改它要动 `uv.lock`，正撞索引 403 的外部阻塞） |
+
+§18.4 说对的是这一半：三个子仓库的**本地 git 钩子**确实只有 secrets 类（三份 `.git/hooks/pre-commit` 内容相同，是纯 bash + grep，只扫 staged 的密钥模式；且三仓库都未安装 pre-commit 框架）。错的是由此推出的「lint/test 门禁只存在于套件侧」——OL/ORF 的 CI 一直有 ruff，只是**版本未全部固定**、且**不在本地提交路径上**。§14.2 的「门禁只覆盖 changed files」同样只适用于**套件侧变更文件门禁**，不能推广成「子仓库无门禁」。
+
+### 21.2 OPP：补上第一个 lint 门禁（此前完全没有）
+
+落点 `.github/workflows/ci.yml`，范围刻意取 `src/` + F 类（pyflakes），理由写进 workflow 注释：
+
+- F 是项目选定的「类 bug」底线（套件 pre-commit 对变更文件用的也是同一规则集）；
+- `tests/` 有 **132** 条既有 F（含 1 个 `invalid-syntax`：`tests/fixtures/ipynb/sample.ipynb` 缺 `outputs` 字段），政策是不成批修既有债，故不纳入；
+- `src/` 在套件全规则集（E,F,I,B,UP,N）下**清理后仍有 253 条**（见 21.3），全规则集门禁会先天红；清干净的 F 类才能开门即绿。
+
+同轮把 `src/` 的 13 条 F 清零：11 条未使用导入（F401，自动修）+ 2 条死局部变量（`commands/batch.py` 的 `detected_format`、`logger.py` 的 `json_mode`，手修；均为纯读、无副作用、无外部引用）。
+
+### 21.3 本轮实测数字（可复现）
+
+在套件根配置下 in-place 测量，ruff **0.15.21**（本机无法安装 pin 的 0.15.11——PyPI 索引 403）：
+
+```
+OPP src 全规则集 E,F,I,B,UP,N
+  f3c1739（清理前）: 265 = 102 E501 + 39 B904 + 38 I001 + 32 UP045 + 24 E402
+                          + 11 F401 + 8 UP015 + 3 UP037 + 2 UP035 + 2 F841
+                          + 1 UP024 + 1 N818 + 1 N806 + 1 B905
+  清理后          : 253 = 同上去掉 11 F401、2 F841，且 I001 38 -> 39
+                         （删导入后有一个 import block 变成待排序）
+OPP src   F 类: 13 -> 0
+OPP tests F 类: 132（不动；门禁不取 tests/）
+```
+
+`265 → 253` 与 §20 之前的记录一致：13 条 F 清掉、1 条 I001 因导入块重排而出现。无论取哪个数，全规则集都先天红，故门禁取 F 类。
+
+### 21.4 一项**未提交**的尝试：`.pre-commit-config.yaml` 的 `language: python`
+
+三个子仓库的 `check-secrets` 钩子原先写 `entry: python3 …` + `language: system`（Windows 下 `python3` 命中 Microsoft Store 占位程序、exit 49）。本轮试图改成 `entry: python …` + `language: python`，**验证未通过，故该文件留在工作树未提交**（本报告不把它记为已完成）：
+
+- 实测（离线、仅含该钩子的最小 config）：`language: python` 会让 pre-commit 对 `repo: local` 执行 `python -m pip install .`——对子仓库本身做构建 + 隔离安装。本机索引 403 → 取不到 `setuptools>=40.8.0` → **环境创建失败**，钩子根本跑不起来。
+- 这恰好背离该钩子的设计目的（其 docstring 明写：gitleaks 拉不下来时它仍应能跑）。改成 `language: python` 会把它从「离线可用的 stdlib 扫描」变成「需要访问索引 + 把整个子仓库依赖装进钩子环境」。
+- 更早那次 `subrepo_hook_out.txt` 其实没走到这一步：它在 pre-commit 拉 gitleaks 仓库时就被网络断连挂掉（`Connection was reset` / `Could not connect to server`），且其 `python3` 对照组取的是 `tail` 的 rc 而非 `python3` 的——那次运行不构成证据。
+- 事实澄清：子仓库**真实生效的提交钩子**是那份手写 bash 脚本（纯 grep，无 python3），所以**今天的真实提交路径不受 `python3` 缺陷影响**；有问题的只是尚未生效的 pre-commit 配置。
+- 候选修法（未实施，待定）：(a) 回退到 `language: system` + `python3`；(b) 复用套件的 `scripts/pre_commit_python.sh` 解释器解析器（三个子仓库目前都没有此文件）；(c) 先给三仓库装 pre-commit（§2.7 的自发现问题）。
+
+### 21.5 本轮落地的提交
+
+| commit | 仓库 | 内容 |
+|---|---|---|
+| `7328591` | OPP | 新增 F 类 lint 门禁 + `src` 13 条 F 清零（9 文件：8 src + ci.yml） |
+| `07b5e7f` | OL | lint 依赖从 unpinned 固定到 `ruff==0.15.16`（= uv.lock） |
+| — | ORF | 无提交：其唯一改动（`check-secrets` 钩子写法）属 21.4 的未通过项，按规则**不提交** |
+
+---
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
 *第二十节追加：2026-09-18 · 完成度审计 + 第三处自我更正*
+*第二十一节追加：2026-09-18 · 子仓库门禁补齐 + 第四处自我更正*
 *第十九节追加：2026-09-18 · §3.4 收口 + 第二处因果更正*
 *第十八节追加：2026-09-17（同日续做，第十轮）· §3.3 落地 + 因果更正*
 *第十七节追加：2026-09-17（同日续做，第九轮）· 根目录样本守卫*
