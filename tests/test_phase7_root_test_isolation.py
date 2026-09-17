@@ -69,18 +69,47 @@ class TestP7T1OppSkipsConvertedToXfail:
             "test_opp_ol_orf_contracts.py: module-level pytest.skip() still present"
         )
 
-    def test_security_windows_test_uses_xfail(self):
+    def test_security_platform_scoping_is_explicit(self):
+        """test_security.py 的平台门必须「显式限定 + 有反向补位用例」。
+
+        2026-07-03 的 P7-T1 追求「失败可见」，把 ``skipif(os.name == "nt")`` 换成
+        了 ``xfail(os.name != "nt")`` —— 但方向写反了。该用例的参数全是 POSIX
+        目录（``/etc``/``/usr``/``/var``/``/System``/``/Library``，见
+        ``opp/utils/security.py`` 的 SYSTEM_DIRS），它们在 POSIX 上**本就该通过**，
+        于是 marker 在 POSIX 上把通过标成 XPASS（默认 strict=False 不计失败，只是
+        噪音），在 Windows 上反而失效。OPP 已于 2026-09-17（commit 3f92ee0）改为
+        平台反向跳过，并保留 ``test_windows_paths_on_unix`` 覆盖 Windows 盘符形态。
+
+        本用例从此守真正的不变量，而不是 marker 的名字：
+        (1) 方向写反的平台 xfail 不得回归；(2) 被跳过的平台必须有补位用例 ——
+        即 P7-T1 真正要防的「用跳过把覆盖悄悄抹掉」，而不是「必须叫 xfail」。
+        """
         test_file = REPO_ROOT / "Omni_Pre_Processor" / "tests" / "mcp" / "test_security.py"
         if not test_file.exists():
             pytest.skip(f"File not found (sub-repo not cloned?): {test_file}")
 
         content = test_file.read_text(encoding="utf-8")
-        assert "@pytest.mark.xfail" in content, (
-            "test_security.py: test_system_dirs_blocked should use @pytest.mark.xfail"
+        # 只检查**生效的 marker 行**：OPP 的 docstring 会引用旧写法作为说明
+        # （"这里原本是 xfail(os.name != "nt", ...)"），按整文件子串匹配会误伤。
+        marker_lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip().startswith("@pytest.mark.xfail")
+        ]
+        assert not any('os.name != "nt"' in line for line in marker_lines), (
+            "test_security.py: 方向写反的平台 xfail 回归了 —— POSIX 参数在 POSIX 上"
+            "本应通过（恒 XPASS），而 Windows 上 marker 失效。\n"
+            + "\n".join(marker_lines)
         )
-        assert "@pytest.mark.skipif" not in content, (
-            "test_security.py: @pytest.mark.skipif should be converted to @pytest.mark.xfail"
+        assert "def test_windows_paths_on_unix" in content, (
+            "test_security.py: POSIX 目录用例在 Windows 上被跳过，必须保留 "
+            "test_windows_paths_on_unix 覆盖 Windows 盘符形态 —— 跳过不等于放弃覆盖。"
         )
+        if "@pytest.mark.skipif" in content:
+            assert 'os.name == "nt"' in content, (
+                "test_security.py: skipif 必须是显式的平台限定（os.name == \"nt\"），"
+                "不得无条件跳过。"
+            )
 
 
 def test_p7_t2_e2e_tests_yml_no_baudu_typo():

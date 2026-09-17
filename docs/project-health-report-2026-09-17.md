@@ -1244,7 +1244,88 @@ ENTRY_CHECK_EXIT=0
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 
 ---
+
+## 十六、第八轮：两项测试漂移修复（Windows 参数化 id / 平台反向 xfail）（2026-09-17）
+
+§15 收尾后跑受影响的三个测试文件，暴露两项**既有**红测（均与本轮 4 个改动文件无关，定性见 16.3）。
+
+### 16.1 `artifact_dir` 把参数化 id 当目录名 → Windows `WinError 123`
+
+复现（`tests/test_doc_inventory.py` 的模块文档 claim 用例）：
+
+```
+ERROR tests/test_doc_inventory.py::test_check_rejects_module_doc_stale_tool_claim[Omni_Localizer/docs/ARCHITECTURE.md-ol-8 tools, all in `TOOL_REGISTRY`:]
+tests\conftest.py:279: in artifact_dir
+    test_dir.mkdir(parents=True, exist_ok=True)
+E   OSError: [WinError 123] 文件名、目录名或卷标语法不正确。:
+    '.../test_doc_inventory__test_check_rejects_mo..._8tools,allin`TOOL_REGISTRY`:'      ← 反引号 + 冒号
+```
+
+根因：`tests/conftest.py` 的 `artifact_dir`（autouse 链路 `_copy_component_logs_to_artifact_dir` 依赖它，故**每个**用例都会建目录）把 `request.node.nodeid` 直接当目录名，只替换了 `::` `/` `.py` `[` `]` 空格 —— 而参数化 id 可以含**任意**字符。`MODULE_DOC_STALE_CASES` 里那条待检 claim 原文带反引号与结尾冒号，NTFS 不允许 `:`，于是 **Linux/CI 永远绿、Windows 上必然红**。
+
+修复（`tests/conftest.py`，入口处收敛一次）：
+
+```python
+safe_id = re.sub(r'[<>:"\\|?*`\x00-\x1f]+', "_", safe_id).strip("._") or "test"
+```
+
+覆盖 NTFS 全部非法字符 `<>:"/\|?*` + 控制字符 + 反引号，并处理「不得以点/空格结尾」；`\w` 保留中文（产物目录本就 `gitignore`，见 `.gitignore:82`）。**不改**参数化 id 本身——id 是给人看的断言说明，不该为文件系统让路。
+
+验证：修复前 `1 failed, 36 passed, 1 error` → 修复后 **`38 passed`**（同一条命令）。已复核无其它消费者依赖目录命名（`grep safe_id` 仅命中 conftest 自身，无任何用例断言该命名方案）。
+
+### 16.2 OPP `test_security.py` 平台门：suite 侧断言过期
+
+`tests/test_phase7_root_test_isolation.py::test_security_windows_test_uses_xfail` 要求 OPP 该文件**必须**含 `@pytest.mark.xfail` 且**不得**含 `@pytest.mark.skipif`。该断言写死于 **2026-07-03**（`c004359`）；OPP 在**今天** `3f92ee0` 把它改成 `skipif(os.name == "nt")`，并在 docstring 里写明理由。
+
+先独立复核 OPP 的理由是否成立（不轻信注释）：
+
+- 用例参数全是 POSIX 目录 `/etc` `/usr` `/var` `/System` `/Library`；
+- `Omni_Pre_Processor/src/opp/utils/security.py:24-34` 的 `SYSTEM_DIRS` 里**确有** `/etc` 等；
+- 故在 POSIX 上 `validate_path("/etc/some/file.txt")` 必然命中 system-directory 拦截 → **该用例在 POSIX 上本就通过**；
+- 而 marker 是 `xfail(os.name != "nt")` → POSIX 上恒为 XPASS（默认 `strict=False` 不计失败，纯噪音），Windows 上 marker 反而失效。
+
+**方向确实写反** → OPP 的修正是对的，过期的是 suite 侧断言。
+
+修复：把断言从「marker 叫什么名字」改成守 P7-T1 真正要防的两条不变量 ——
+
+| 不变量 | 断言 |
+|---|---|
+| 方向写反的平台 xfail 不得回归 | 只在**生效的 marker 行**里搜 `os.name != "nt"`（不看 docstring 散文，OPP 的说明里正引用了旧写法） |
+| 跳过 ≠ 放弃覆盖 | 必须保留 `def test_windows_paths_on_unix` 作为被跳过平台的反向补位用例 |
+| 跳过必须显式限定平台 | 若出现 `skipif`，必须写明 `os.name == "nt"`，不得无条件跳过 |
+
+可证伪性自检（`STANDARDS.md` 对 `expect` 的要求：必须能被证伪）：
+
+```
+regressed sample -> True     # @pytest.mark.xfail(os.name != "nt", reason="x")
+current sample   -> False    # 「这里原本是 xfail(os.name != "nt", ...)」这类说明不算
+plain xfail      -> False    # @pytest.mark.xfail(os.name == "nt", ...) 合法
+```
+
+### 16.3 反例澄清：本机 77 个 MCP 执行型失败**不是**本轮回归
+
+为扩大验证面，同机跑 `tests/{observability,error_scenarios,validation,distributed_tracing}` → `77 failed, 504 passed`。定性证据（非推测）：
+
+```
+tests\error_scenarios\test_exit_code_matrix.py:72: in _run
+    return subprocess.run(
+        cmd = ['D:\\贯维\\Omni_Suite\\.venv_ol\\bin\\opp', ...]
+```
+
+即「在 Windows 上直接执行 `.venv_ol`（Linux venv）的 console script」→ `WinError 1920`。这是 `docs/dev/validation-loop-log.md:29` 早已记录的已知限制（原生 Windows 上拿执行型证据必须走 WSL），与 `artifact_dir` 命名毫无关系，且**在本轮改动之前就存在**。故本轮不把它算作回归，也不伪绿。
+
+### 16.4 本轮遗留
+
+| 项 | 状态 |
+|---|---|
+| 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | 仍未加 |
+| 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py`、`coverage_audit.py` 友好降级 | 未处理 |
+| 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
+| 4 个 `.venv_ol` 依赖测试目录在原生 Windows 上不可执行（77 failed） | 环境限制，已由 loop-log 记录；CI（Linux）为准 |
+
+---
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
+*第十六节追加：2026-09-17（同日续做，第八轮）· 两项测试漂移修复*
 *第十五节追加：2026-09-17（同日续做，第七轮）· make doctor 静默失效修复 + doctor 门禁转阻塞*
 *第十四节追加：2026-09-17（同日续做，第六轮）· 门禁实盘化 + 测试漂移修复*
 *第十三节追加：2026-09-17（同日续做，第五轮）· §3.7 仓库卫生收尾*

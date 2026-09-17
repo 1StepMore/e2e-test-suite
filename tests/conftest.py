@@ -5,6 +5,7 @@ OPP → OL → ORF localization pipeline.
 """
 
 import os
+import re
 import sys
 import shutil
 import tempfile
@@ -275,6 +276,13 @@ def artifact_dir(request) -> Path:
         .replace("]", "")
         .replace(" ", "")
     )
+    # 上面的替换不足以让 nodeid 成为合法文件名：参数化 id 可以含任意字符
+    # （实测 tests/test_doc_inventory.py 的 MODULE_DOC_STALE_CASES 带反引号与
+    # 冒号），而 nodeid 直接被当作目录名。NTFS 禁止 < > : " / \ | ? * 与控制
+    # 字符，也不接受以点或空格结尾 —— 于是 Linux/CI 全绿，Windows 上 mkdir
+    # 直接抛 OSError WinError 123（文件名、目录名或卷标语法不正确）。
+    # 统一收敛到文件系统安全字符集（\w 保留中文，产物目录本就 gitignore）。
+    safe_id = re.sub(r'[<>:"\\|?*`\x00-\x1f]+', "_", safe_id).strip("._") or "test"
     test_dir = _ARTIFACTS_ROOT / "runs" / session_id / safe_id
     test_dir.mkdir(parents=True, exist_ok=True)
     return test_dir
