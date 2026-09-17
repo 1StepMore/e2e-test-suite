@@ -51,6 +51,7 @@ import re
 import subprocess
 import time
 import uuid
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -220,9 +221,14 @@ def collect_run_meta(repos: list[str]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _effective_env(env: dict[str, str] | None) -> dict[str, str]:
+def _effective_env(env: dict[str, str] | None) -> Mapping[str, str]:
     """The environment the gate and the dispatched steps share: the
-    explicit *env* when given, else the parent ``os.environ``."""
+    explicit *env* when given, else the parent ``os.environ``.
+
+    Returns ``Mapping`` (not ``dict``): ``os.environ`` is a
+    ``MutableMapping`` view, not a ``dict``, and every caller here only
+    reads.  Annotating it as ``dict`` was a lie mypy rejected.
+    """
     return env if env is not None else os.environ
 
 
@@ -572,7 +578,7 @@ def _dirs_to_repo_keys(dirs: list[str | Path]) -> list[str]:
 
 
 def run_scenarios(
-    scenarios_dir: str | Path | list[str | Path] = "scenarios",
+    scenarios_dir: str | Path | Sequence[str | Path] = "scenarios",
     filters: list[str] | str | None = None,
     env: dict[str, str] | None = None,
     *,
@@ -626,7 +632,9 @@ def run_scenarios(
         load-time rejection is loud by design (loader.py, guide §2.4).
     """
     dirs: list[str | Path] = (
-        list(scenarios_dir) if isinstance(scenarios_dir, list) else [scenarios_dir]
+        [scenarios_dir]
+        if isinstance(scenarios_dir, (str, Path))
+        else list(scenarios_dir)
     )
     loaded: list[dict[str, Any]] = []
     for d in dirs:

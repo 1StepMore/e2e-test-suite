@@ -49,6 +49,7 @@ import importlib.util
 import re
 import sys
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -146,7 +147,8 @@ def _lint_step(
                 f"{scope}missing non-empty 'expect' (every step must be falsifiable)",
             )
         )
-    command = step.get("command") if isinstance(step.get("command"), str) else ""
+    command = step.get("command")
+    command = command if isinstance(command, str) else ""
     if _SELF_ECHO_RE.search(command):
         findings.append(
             LintFinding(
@@ -296,7 +298,7 @@ def _name_of(path: Path) -> str:
 
 def _select_names(
     loaded: list[dict[str, Any]],
-    scenarios_dirs: str | Path | list[str | Path],
+    scenarios_dirs: str | Path | Sequence[str | Path],
     scenario_substr: str | None,
     tier: int | None,
     category: str | None = None,
@@ -323,10 +325,10 @@ def _select_names(
         if not tier_names:
             empty_filters.append(f"tier {tier}")
     if scenario_substr is not None:
-        dirs_list = (
-            list(scenarios_dirs)
-            if isinstance(scenarios_dirs, list)
-            else [scenarios_dirs]
+        dirs_list: list[str | Path] = (
+            [scenarios_dirs]
+            if isinstance(scenarios_dirs, (str, Path))
+            else list(scenarios_dirs)
         )
         all_stems: set[str] = set()
         for d in dirs_list:
@@ -596,8 +598,8 @@ def main(argv: list[str] | None = None) -> int:
         loaded, dirs, args.scenario, args.tier, args.category,
         None if args.artifacts else args.module,
     )
-    for f in empty_filters:
-        print(f"WARNING: no scenarios match {f}")
+    for flt in empty_filters:
+        print(f"WARNING: no scenarios match {flt}")
     if empty_filters:
         return 0
 
@@ -669,10 +671,13 @@ def main(argv: list[str] | None = None) -> int:
                     "validation_report", "scripts/validation/validation_report.py"
                 )
                 report_scenarios_dir = args.scenarios_dir if args.repo is None else dirs[0]
+                run_dir = run.run_dir
+                if run_dir is None:
+                    raise RuntimeError("run directory was not persisted")
                 _report_mod.write_report(
-                    str(Path(run.run_dir) / "scenarios.json"), report_scenarios_dir
+                    str(Path(run_dir) / "scenarios.json"), report_scenarios_dir
                 )
-                print(f"MATRIX: {Path(run.run_dir) / 'report.md'}")
+                print(f"MATRIX: {Path(run_dir) / 'report.md'}")
             except Exception as exc:  # report generation must not fail the run
                 print(f"WARNING: report generation failed: {exc}", file=sys.stderr)
 

@@ -1,7 +1,9 @@
 """Tests for omni-mcp security warning logging.
 
-Verifies that ``translate_file()`` logs a SECURITY warning on every call,
-since omni_mcp bypasses sub-module MCP path security (PathValidator).
+Verifies that ``translate_file()`` logs a SECURITY warning on every call: the
+orchestrator starts the module CLIs directly, so it never reaches a sub-module
+``PathValidator`` and enforces its own copy of the shared path policy instead
+(ADR 0007 — fail-CLOSED allowlist + SYSTEM_DIRS + BLOCKED_EXTENSIONS).
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ class TestSecurityWarning:
 
     @patch("omni_mcp.orchestrator._run_cli")
     def test_warning_logged_on_every_call(self, mock_cli, tmp_path: Path, caplog):
-        """translate_file logs a WARNING about bypassing PathValidator."""
+        """translate_file logs a WARNING naming the PathValidator bypass."""
         from omni_mcp.orchestrator import translate_file
 
         # Create a dummy source file so the FILE_NOT_FOUND early-return

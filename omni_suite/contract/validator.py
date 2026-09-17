@@ -5,7 +5,11 @@ import re
 from pathlib import Path
 from typing import Any
 
-from omni_suite.contract.models import DocumentFormat, TranslationDocument
+from omni_suite.contract.models import (
+    DocumentFormat,
+    TranslationDocument,
+    TranslationSegment,
+)
 
 # Map OPP/ORF format strings to DocumentFormat enum
 FORMAT_STRING_MAP = {
@@ -70,7 +74,9 @@ def validate_md_output(
         return None
 
     segments_data = _parse_segments(body)
-    segments = [{"id": s["id"], "source": s["source"]} for s in segments_data]
+    segments = [
+        TranslationSegment(id=s["id"], source=s["source"]) for s in segments_data
+    ]
 
     try:
         return TranslationDocument(
@@ -112,7 +118,7 @@ def validate_xliff_output(
 
     fmt = DocumentFormat.XLIFF
     segments = [
-        {"id": str(i), "source": f"<trans-unit #{i}>"}
+        TranslationSegment(id=str(i), source=f"<trans-unit #{i}>")
         for i in range(trans_unit_count)
     ]
 

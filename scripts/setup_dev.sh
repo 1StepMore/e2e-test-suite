@@ -90,6 +90,19 @@ case "$OS_NAME" in
 esac
 ok "OS detected: $OS_NAME ($OS_FAMILY)"
 
+# Native Windows (Git Bash / MSYS / Cygwin) cannot use this script: the shared
+# .venv_ol/ is a Linux venv (pyvenv.cfg -> .../cpython-3.13-linux-*), so
+# `source .venv_ol/bin/activate` and the `bin/` layout both fail. Windows users
+# have a dedicated entry point instead — see scripts/setup_dev.ps1.
+if [ "$OS_FAMILY" = "windows" ]; then
+    err "Native Windows detected ($OS_NAME)."
+    err "  .venv_ol/ is a Linux venv shared with WSL/CI and cannot be activated here."
+    err "  Use the PowerShell entry point instead:"
+    err "    powershell -ExecutionPolicy Bypass -File scripts/setup_dev.ps1"
+    err "  Or run this script inside WSL (uname -s reports Linux* there)."
+    exit 1
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Step 1.5 — Auto-clone sub-repos (if missing from a fresh git clone)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -184,8 +197,18 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 COMPAT_FILE="$PROJECT_ROOT/COMPATIBILITY.md"
 if [ -f "$COMPAT_FILE" ]; then
-    # Extract expected versions from the first table row
-    EXPECTED_LINE=$(grep -E '^\| 0\.' "$COMPAT_FILE" | head -1)
+    # Extract the row matching the CURRENT suite version. COMPATIBILITY.md lists
+    # historical versions first and may repeat the same suite version on several
+    # rows (patch rows), so `head -1` used to match an OLD row (0.2.0) and made
+    # this check report a mismatch on every run. Take the LAST matching row.
+    SUITE_VERSION="$(
+        grep -v '^[[:space:]]*#' "$PROJECT_ROOT/VERSION" 2>/dev/null \
+            | grep -v '^[[:space:]]*$' | tail -1 | tr -d '[:space:]'
+    )"
+    EXPECTED_LINE=""
+    if [ -n "$SUITE_VERSION" ]; then
+        EXPECTED_LINE=$(grep -E "^\| ${SUITE_VERSION} \|" "$COMPAT_FILE" | tail -1)
+    fi
     if [ -n "$EXPECTED_LINE" ]; then
         EXPECTED_OL=$(echo "$EXPECTED_LINE" | awk -F'|' '{print $3}' | tr -d ' ')
         EXPECTED_OPP=$(echo "$EXPECTED_LINE" | awk -F'|' '{print $4}' | tr -d ' ')

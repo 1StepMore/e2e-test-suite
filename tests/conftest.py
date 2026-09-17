@@ -7,6 +7,7 @@ OPP → OL → ORF localization pipeline.
 import os
 import sys
 import shutil
+import tempfile
 import zipfile
 import json
 import types
@@ -25,7 +26,17 @@ os.environ.setdefault("DISABLE_LITELLM_TELEMETRY", "True")
 os.environ.setdefault("LITELLM_TELEMETRY", "False")
 # 2026-06-20: ORF MCP PathValidator allowlist (must include test dirs).
 # Without this, every ORF MCP tool call in tests returns PATH_NOT_ALLOWED.
-os.environ.setdefault("ORF_MCP_ALLOWED_DIRS", "/tmp:/mnt/d/贯维/Omni_Suite")
+# 2026-09-17 (ADR 0007): build the value with ``os.pathsep`` and real platform
+# dirs. The old literal "/tmp:/mnt/d/贯维/Omni_Suite" only ever "worked" on
+# Windows as an accident of the previous "always split on ':'" parser (which
+# also mangled every Windows drive-letter path); OPP/ORF config now follow the
+# platform separator, so the fixture must be platform-correct too. On POSIX the
+# produced string is byte-identical to the old literal.
+_SUITE_ROOT = Path(__file__).resolve().parents[1]
+os.environ.setdefault(
+    "ORF_MCP_ALLOWED_DIRS",
+    os.pathsep.join([tempfile.gettempdir(), str(_SUITE_ROOT)]),
+)
 
 # 2026-06-24: Dummy API keys (same set as Omni_Localizer/tests/conftest.py).
 # FAKE_LLM mode creates _FakeModelPool and ignores these values; config

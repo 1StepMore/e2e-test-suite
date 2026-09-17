@@ -19,14 +19,25 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
 
 # ORF MCP is fail-closed: without an allowlist the PathValidator refuses every
-# path. pytest's tmp_path lives under /tmp.
-os.environ.setdefault("ORF_MCP_ALLOWED_DIRS", "/tmp")
-os.environ.setdefault("MCP_ALLOWED_DIRECTORIES", "/tmp")
+# path. `tests/conftest.py` already owns that allowlist (tempdir + suite root,
+# built with os.pathsep) — it must stay the single owner.
+#
+# 2026-09-17 fix (same family as the POSIX-literal cleanup in the parity round):
+# this module used to `setdefault("MCP_ALLOWED_DIRECTORIES", "/tmp")` at import
+# time. Because pytest imports every test module before running any test, that
+# value *overrode* conftest's broader allowlist process-wide, and on Windows
+# `Path("/tmp")` resolves to `<current drive>:\tmp`, which is not pytest's
+# tmp_path — so the orchestrator denied paths that conftest had explicitly
+# allowed, and four tests in this very file failed for an environment reason.
+# The name is also higher priority than ORF_MCP_ALLOWED_DIRS in every reader,
+# so dropping it here restores conftest as the one source of truth.
+os.environ.setdefault("ORF_MCP_ALLOWED_DIRS", os.pathsep.join([tempfile.gettempdir()]))
 
 
 def _sha256(path: Path) -> str:

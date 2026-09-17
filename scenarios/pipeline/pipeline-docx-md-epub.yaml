@@ -397,10 +397,14 @@ steps:
       JudgeService with the real model pool (config/default.yaml), and
       require the average of ``judge_overall_score`` (0-1, rescored to /5)
       >= 4.0/5 (STANDARDS.md#lqa-threshold). Flagged ``known_gap: true``:
-      OL's judge prompt never asks for terminology_consistency /
-      format_preservation while RUBRIC_WEIGHTS gives them 0.35 combined
-      weight, so judge_overall_score is capped at 3.25/5 (finding T13-01).
-      The failure is recorded here but excluded from this scenario's
-      verdict; the shipped weakened four-dimension average lives under
-      scenarios/pipeline/known-gaps/. When OL fixes the rubric/prompt
-      mismatch, this step turns green and the marker can be dropped.
+      the T13-01 mismatch (OL's judge prompt never asked for
+      terminology_consistency / format_preservation while RUBRIC_WEIGHTS
+      gives them 0.35 combined weight, and _remap_llm_fields padded the
+      absent dimensions with 0, capping judge_overall_score at 3.25/5) is
+      FIXED IN CODE as of 2026-09-17 (Omni_Localizer src/ol_lqa/judge.py
+      and src/ol_pool/router.py; regression tests/test_lqa_judge.py). The
+      marker is KEPT until a tier-2 real-key run re-verifies this literal
+      bar — dropping it on hermetic/unit evidence alone would be a false
+      green. The failure (if any) is recorded here but excluded from this
+      scenario's verdict; the shipped weakened four-dimension average lives
+      under scenarios/pipeline/known-gaps/.

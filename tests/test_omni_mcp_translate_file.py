@@ -10,11 +10,11 @@ Covers:
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
+import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -27,13 +27,33 @@ os.environ.setdefault("OMNI_TEST_FAKE_LLM", "1")
 # ---------------------------------------------------------------------------
 
 _SUITE_ROOT = Path(__file__).resolve().parents[1]
-_VENV_BIN = _SUITE_ROOT / ".venv_ol" / "bin"
+
+
+def _venv_scripts_dir() -> Path:
+    """当前平台的项目 venv 可执行目录（Windows ``Scripts`` / POSIX ``bin``）。
+
+    修复（2026-09-17，与 ``tests/test_pipeline_contract_smoke.py`` +
+    ``scripts/pre_commit_python.sh`` 同族）：原实现固定 ``.venv_ol/bin`` —— 那是
+    Linux 布局。在原生 Windows 上该目录**存在**，但 ``opp``/``ol``/``orf`` 是带
+    Linux shebang 的脚本，``subprocess`` 报 ``WinError 193``（不是有效的 Win32
+    应用程序），于是整个集成类被判红 —— 而它们正是"OPP→OL→ORF 跨模块链路真的能跑"
+    的本地证据。按平台取目录，语义在 Linux/CI 上与修复前逐字一致。
+
+    Returns:
+        该平台的 venv 可执行目录（不保证存在）。
+    """
+    if os.name == "nt":
+        return _SUITE_ROOT / ".venv_win" / "Scripts"
+    return _SUITE_ROOT / ".venv_ol" / "bin"
 
 
 def _cli(name: str) -> str:
     """Return the absolute path to a CLI binary in the venv, or the bare name."""
-    p = _VENV_BIN / name
-    return str(p) if p.exists() else shutil.which(name) or name
+    scripts = _venv_scripts_dir()
+    for candidate in (scripts / name, scripts / f"{name}.exe"):
+        if candidate.exists():
+            return str(candidate)
+    return shutil.which(name) or name
 
 
 # ---------------------------------------------------------------------------
@@ -274,8 +294,11 @@ class TestMCPServerTools:
     async def test_translate_file_nonexistent(self):
         from omni_mcp.server import translate_file
 
+        # 平台中性的临时目录：写成 "/tmp/..." 在 Windows 上会解析成 <当前盘符>:\tmp，
+        # 落在 allowlist（tests/conftest.py 的 tempdir + 套件根）之外，于是拿到的是
+        # OMNI_PATH_DENIED 而不是本用例要断言的 FILE_NOT_FOUND。
         result = await translate_file(
-            file_path="/tmp/nonexistent_file_12345.docx",
+            file_path=os.path.join(tempfile.gettempdir(), "nonexistent_file_12345.docx"),
             source_lang="en",
             target_lang="zh",
             output_format="docx",

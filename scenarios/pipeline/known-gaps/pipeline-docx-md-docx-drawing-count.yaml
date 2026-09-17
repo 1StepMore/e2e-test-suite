@@ -2,15 +2,21 @@ name: pipeline-docx-md-docx-drawing-count-known-gap
 description: >-
   KNOWN GAP (T13-02 / T17). The published #drawing-count bar is
   `src == out` (STANDARDS.md#drawing-count, scripts/omo_loop.py:208-227).
-  The shipped OL duplicates every ![..](..) image reference in
-  translate-md (level4_safe_fallback placeholder re-insertion — verified
-  2 refs in -> 4 out, 12 -> 24), so a strict DOCX drawing-count equality
-  cannot be met on any image-bearing document. This scenario records ONLY
-  the shipped weakened observation (out >= src, both > 0) so the gap is
-  documented without polluting the pass bar. Marked known_gap: true —
-  excluded from the pass bar; its verdict is KNOWN-GAP, never GREEN, and
-  its output never prints a pass-looking OK. Full context:
-  ACCEPTED_GAPS.md.
+  Upstream root cause: OL duplicated every ![..](..) image reference in
+  translate-md — the MD channel runs `unshield_markdown()` BEFORE
+  `MDRepairPipeline.repair()`, but `is_complete()` / `missing` keyed
+  presence on the shield_map KEY (`image_0000`), which never appears
+  post-unshield, so every entry looked missing and `level4_safe_fallback`
+  re-appended it (verified 2 refs in -> 4 out, 12 -> 24). FIXED IN CODE
+  2026-09-17 (`Omni_Localizer/src/ol_md/pipeline.py` is_complete/missing
+  now accept the restored original value; regression
+  tests/test_md_repair_pipeline.py::TestShieldValueAwareCompleteness).
+  This scenario records ONLY the shipped weakened observation (out >= src,
+  both > 0) so the gap is documented without polluting the pass bar.
+  Marked known_gap: true — excluded from the pass bar; its verdict is
+  KNOWN-GAP, never GREEN, and its output never prints a pass-looking OK.
+  Kept (not dropped) until a tier-2 real-key run re-verifies the literal
+  `src == out` bar. Full context: ACCEPTED_GAPS.md.
 level: human-quality
 category: pipeline
 tier: 2
@@ -91,7 +97,7 @@ steps:
       exit_code: 0
       stdout_has: ["Translated"]
     standard: STANDARDS.md#exit-codes
-    instructions: Real-LLM translation; this is the step that duplicates image refs (T13-02).
+    instructions: Real-LLM translation; this was the step that duplicated image refs (T13-02, fixed in code 2026-09-17 — see ACCEPTED_GAPS.md).
   - name: Normalize image references in translated MD
     kind: python
     command: |-
@@ -142,7 +148,7 @@ steps:
       if src == 0:
           print("ERROR: source has 0 drawings; cannot compare")
           sys.exit(1)
-      print("KNOWN-GAP: drawings src=%d out=%d — shipped behavior asserts out >= src; published bar (#drawing-count) is src == out (T13-02); see ACCEPTED_GAPS.md" % (src, out))
+      print("KNOWN-GAP: drawings src=%d out=%d — shipped behavior asserts out >= src; published bar (#drawing-count) is src == out (T13-02, fixed in code 2026-09-17); see ACCEPTED_GAPS.md" % (src, out))
       if out < src:
           print("ERROR: drawings src=%d out=%d (images LOST — even the weakened observation fails)" % (src, out))
           sys.exit(1)

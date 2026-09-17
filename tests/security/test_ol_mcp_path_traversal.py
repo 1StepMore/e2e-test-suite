@@ -6,6 +6,7 @@ security audit where ``load_glossary``, ``search_tm``, and
 ``translate_xliff`` accepted file paths with zero validation.
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -60,6 +61,21 @@ def env_allowed(allowed_dir, monkeypatch):
     return allowed_dir
 
 
+def _assert_path_denied(parsed: dict) -> None:
+    """断言工具层返回了统一的路径拒绝错误码。
+
+    2026-09-17 校正：fail-closed 改造（suite commit 5a93c66）把拒绝形态从
+    ``warnings: ["OL_PATH_NOT_ALLOWED"]`` 改成结构化 ``error_code``
+    （``OL_PATH_DENIED``，见 docs/ERROR_CODES.md）。本文件此前仍断言旧形态，
+    7 个用例恒红 —— 断言的是历史实现，而不是当前契约。
+
+    Args:
+        parsed: MCP 工具返回的 JSON 解析结果。
+    """
+    assert parsed["success"] is False, parsed
+    assert parsed["error_code"] == "OL_PATH_DENIED", parsed
+
+
 # ---------------------------------------------------------------------------
 # Unit tests: PathValidator
 # ---------------------------------------------------------------------------
@@ -87,8 +103,20 @@ class TestPathValidatorUnit:
         assert "not within allowed directories" in result.error.lower()
 
     def test_system_directory_rejected(self, tmp_path):
-        v = PathValidator(allowed_directories=[Path("/")])
-        result = v.validate_path("/etc/passwd")
+        """系统目录必须在 containment 之前被拦。
+
+        2026-09-17（ADR 0007）：原用例硬编码 ``/etc/passwd``，在 Windows 上
+        ``Path("/etc/passwd")`` 解析到当前盘符下的 ``\\etc\\passwd``，既不落在
+        allowlist 也不命中系统目录前缀，报的是 "not within allowed directories" ——
+        断言的是平台而不是策略。现在按平台选取真实系统目录，allowlist 取该路径的
+        锚点（POSIX ``/``、Windows ``C:\\``），使拒绝原因必然来自系统目录检查。
+        """
+        if os.name == "nt":
+            probe = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+        else:
+            probe = Path("/etc")
+        v = PathValidator(allowed_directories=[Path(probe.anchor)])
+        result = v.validate_path(str(probe / "passwd"))
         assert result.success is False
         assert "system directory" in result.error.lower()
 
@@ -140,7 +168,12 @@ class TestPathValidatorUnit:
         assert "exceeds limit" in result.error.lower()
 
     def test_allowed_extensions_defined(self):
-        expected = {".json", ".tmx", ".xlf", ".xliff", ".md"}
+        """OL 白名单冻结为 7 项（2026-09-17 校正：``.yaml``/``.yml`` 早已加入）。
+
+        该集合同时被 ``tests/security/test_path_policy_parity.py`` 的
+        ``OL_ALLOWED_EXTENSIONS`` 冻结，改动必须显式改两处。
+        """
+        expected = {".json", ".tmx", ".xlf", ".xliff", ".md", ".yaml", ".yml"}
         assert PathValidator.ALLOWED_EXTENSIONS == expected
 
     def test_blocked_extensions_defined(self):
@@ -169,11 +202,18 @@ class TestPathValidatorUnit:
 class TestGetDefaultValidator:
     """Env-var-driven default validator construction."""
 
-    def test_empty_env_uses_cwd(self, monkeypatch):
-        monkeypatch.delenv("OL_ALLOWED_DIRECTORIES", raising=False)
-        v = get_default_validator()
-        assert len(v.allowed_directories) == 1
-        assert v.allowed_directories[0] == Path.cwd().resolve()
+    def test_empty_env_fails_closed(self, monkeypatch):
+        """未配置 allowlist 时必须 fail-CLOSED（不得回退到 cwd）。
+
+        2026-09-17 校正：``get_default_validator()`` 已改为 fail-CLOSED —— 三个
+        allowlist 环境变量全未设置时抛 ``ValueError``，而不是默默把 cwd 当白名单。
+        原用例断言的是旧行为（``allowed_directories == [cwd]``），即"未配置 =
+        允许当前目录"，那正是要消除的不安全默认。
+        """
+        for var in ("MCP_ALLOWED_DIRECTORIES", "OL_MCP_ALLOWED_DIRS", "OL_ALLOWED_DIRECTORIES"):
+            monkeypatch.delenv(var, raising=False)
+        with pytest.raises(ValueError, match="fail-CLOSED"):
+            get_default_validator()
 
     def test_single_dir(self, monkeypatch, tmp_path):
         monkeypatch.setenv("OL_ALLOWED_DIRECTORIES", str(tmp_path))
@@ -213,8 +253,7 @@ class TestLoadGlossaryPathValidation:
         result = await load_glossary(params)
         import json
         parsed = json.loads(result)
-        assert parsed["success"] is False
-        assert "OL_PATH_NOT_ALLOWED" in str(parsed.get("warnings", []))
+        _assert_path_denied(parsed)
 
     @pytest.mark.asyncio
     async def test_outside_allowlist_rejected(self, env_allowed, outside_dir):
@@ -223,8 +262,7 @@ class TestLoadGlossaryPathValidation:
         result = await load_glossary(params)
         import json
         parsed = json.loads(result)
-        assert parsed["success"] is False
-        assert "OL_PATH_NOT_ALLOWED" in str(parsed.get("warnings", []))
+        _assert_path_denied(parsed)
 
 
 class TestSearchTMPathValidation:
@@ -238,8 +276,7 @@ class TestSearchTMPathValidation:
         result = await search_tm(params)
         import json
         parsed = json.loads(result)
-        assert parsed["success"] is False
-        assert "OL_PATH_NOT_ALLOWED" in str(parsed.get("warnings", []))
+        _assert_path_denied(parsed)
 
     @pytest.mark.asyncio
     async def test_outside_allowlist_rejected(self, env_allowed, outside_dir):
@@ -251,18 +288,18 @@ class TestSearchTMPathValidation:
         result = await search_tm(params)
         import json
         parsed = json.loads(result)
-        assert parsed["success"] is False
-        assert "OL_PATH_NOT_ALLOWED" in str(parsed.get("warnings", []))
+        _assert_path_denied(parsed)
 
 
 class TestTranslateXliffPathValidation:
     """translate_xliff must reject paths outside the allowlist."""
 
     @pytest.mark.asyncio
-    async def test_traversal_input_path_rejected(self, env_allowed, allowed_dir, tmp_path):
+    async def test_traversal_input_path_rejected(self, env_allowed, allowed_dir):
+        """输出路径也放在 allowlist 内，使唯一违规点是 input_path（断言更精确）。"""
         from ol_mcp.tools import TranslateXliffInput, translate_xliff
         evil = str(allowed_dir / ".." / ".." / "etc" / "passwd.xlf")
-        out = str(tmp_path / "out.xlf")
+        out = str(allowed_dir / "out.xlf")
         params = TranslateXliffInput(
             input_path=evil,
             output_path=out,
@@ -272,13 +309,13 @@ class TestTranslateXliffPathValidation:
         result = await translate_xliff(params)
         import json
         parsed = json.loads(result)
-        assert parsed["success"] is False
-        assert "OL_PATH_NOT_ALLOWED" in str(parsed.get("warnings", []))
+        _assert_path_denied(parsed)
 
     @pytest.mark.asyncio
-    async def test_outside_allowlist_input_rejected(self, env_allowed, outside_dir, tmp_path):
+    async def test_outside_allowlist_input_rejected(self, env_allowed, allowed_dir, outside_dir):
+        """同上传入路径越界：输出仍在 allowlist 内。"""
         from ol_mcp.tools import TranslateXliffInput, translate_xliff
-        out = str(tmp_path / "out.xlf")
+        out = str(allowed_dir / "out.xlf")
         params = TranslateXliffInput(
             input_path=str(outside_dir / "secret.xlf"),
             output_path=out,
@@ -288,22 +325,40 @@ class TestTranslateXliffPathValidation:
         result = await translate_xliff(params)
         import json
         parsed = json.loads(result)
-        assert parsed["success"] is False
-        assert "OL_PATH_NOT_ALLOWED" in str(parsed.get("warnings", []))
+        _assert_path_denied(parsed)
 
     @pytest.mark.asyncio
-    async def test_glossary_path_outside_allowlist_warns_not_crashes(
-        self, env_allowed, allowed_dir, outside_dir, tmp_path
+    async def test_glossary_path_outside_allowlist_warns_not_denies(
+        self, env_allowed, allowed_dir, outside_dir
     ):
-        """If glossary_path is outside allowlist, warn but don't crash
-        (glossary is optional, translation still proceeds)."""
+        """越界的**可选** glossary 只降级为 warning，不得让整次调用被拒。
+
+        2026-09-17 校正（ADR 0007 相邻发现）：原用例断言
+        ``"OL_PATH_NOT_ALLOWED" in warnings``，而当前实现写的是
+        ``f"{OL_PATH_DENIED}: {error}"``（``ol_mcp/translate_xliff.py:282``），
+        字符串早已改名 —— 用例断言的是历史实现。这里按当前契约重写：
+
+        * 必填参数（input/output）越界 → 整次拒绝（见本类其他用例）；
+        * 可选参数（glossary）越界 → 记 warning、glossary 置空、流程继续。
+
+        输入/输出都放在 allowlist 内，使 glossary_path 成为唯一违规点。glossary
+        分支在解析出 trans-unit 之后才执行，故这里给一个最小合法 XLIFF；翻译阶段
+        是否成功取决于环境（CI 用 FAKE_LLM），所以"未被拒"在所有环境都断言，
+        warning 只在调用成功时可观察。
+        """
         from ol_mcp.tools import TranslateXliffInput, translate_xliff
         in_path = allowed_dir / "doc.xlf"
-        in_path.write_text("<xliff/>")
-        out = str(tmp_path / "out.xlf")
+        in_path.write_text(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">'
+            '<file source-language="en" target-language="zh" original="doc.md">'
+            '<body><trans-unit id="1"><source>Hello</source></trans-unit></body>'
+            "</file></xliff>",
+            encoding="utf-8",
+        )
         params = TranslateXliffInput(
             input_path=str(in_path),
-            output_path=out,
+            output_path=str(allowed_dir / "out.xlf"),
             glossary_path=str(outside_dir / "secret.json"),
             source_lang="en",
             target_lang="zh",
@@ -311,6 +366,12 @@ class TestTranslateXliffPathValidation:
         result = await translate_xliff(params)
         import json
         parsed = json.loads(result)
-        # Glossary was rejected (warning), but translation may still
-        # proceed. The key is no crash.
-        assert "OL_PATH_NOT_ALLOWED" in str(parsed.get("warnings", []))
+        assert parsed.get("error_code") != "OL_PATH_DENIED", (
+            f"可选 glossary 越界不得导致整次调用被拒：{parsed}"
+        )
+        if parsed.get("success"):
+            # 成功响应把 warning 放在 content.warnings（不在顶层）。
+            warnings = (parsed.get("content") or {}).get("warnings", [])
+            assert any("OL_PATH_DENIED" in w for w in warnings), (
+                f"glossary 越界必须留下 warning：{parsed}"
+            )

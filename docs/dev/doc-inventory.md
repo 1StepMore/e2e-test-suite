@@ -13,16 +13,16 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 44 |
-| Total lines | 24308 |
-| Active files | 36 |
+| Total files | 46 |
+| Total lines | 25248 |
+| Active files | 38 |
 | Archived files | 8 |
 | Category — archive | 8 files / 14157 lines |
 | Category — expectations | 4 files / 2514 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 17 files / 2506 lines |
-| Category — docs/root | 12 files / 3791 lines |
+| Category — docs/dev | 18 files / 2728 lines |
+| Category — docs/root | 13 files / 4509 lines |
 
 ## Inventory
 
@@ -48,7 +48,8 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `adr/0004-manifest-skeleton-handoff.md` | 57 | docs/dev | active | — |
 | `adr/0005-pdf-xliff-blocked.md` | 54 | docs/dev | active | — |
 | `adr/0006-fake-llm-hermetic-seam.md` | 53 | docs/dev | active | — |
-| `adr/README.md` | 39 | docs/dev | active | — |
+| `adr/0007-path-security-convergence.md` | 170 | docs/dev | active | — |
+| `adr/README.md` | 40 | docs/dev | active | — |
 | `adr/TEMPLATE.md` | 36 | docs/dev | active | — |
 | `agent-pipeline-guide.md` | 344 | docs/root | active | — |
 | `agent-tester-validation-guide.md` | 1496 | docs/root | active | — |
@@ -66,9 +67,10 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/per-repo-validation-delivery.md` | 187 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 279 | docs/dev | active | — |
-| `dev/validation-loop-log.md` | 111 | docs/dev | active | — |
+| `dev/validation-loop-log.md` | 162 | docs/dev | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |
 | `observability/README.md` | 136 | docs/observability | active | — |
 | `project-evaluation-pain-points-2026-09-06.md` | 311 | docs/root | active | — |
+| `project-health-report-2026-09-17.md` | 718 | docs/root | active | — |
 | `七阶段AI开发流程-用CodingAgent交付成品的方法论.md` | 230 | docs/root | active | — |

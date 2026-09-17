@@ -50,9 +50,12 @@ build/
 .pytest_cache/
 
 # ---- Virtualenvs ----
+# .venv/ and .venv_ol/ are Linux (uv) venvs shared with WSL/CI — do not touch.
+# .venv_win/ is the native-Windows venv created by scripts/setup_dev.ps1.
 .venv/
 .venv_ol/
 .venv312/
+.venv_win/
 .env/
 
 # ---- Test outputs / logs ----
@@ -77,6 +80,9 @@ Thumbs.db
 mcp_resources/
 resources/
 test_artifacts/
+
+# ---- Local tooling / validation scratch workspace (6GB+, never source) ----
+99-Tools/
 
 # ---- Validation framework engine run persistence (never commit run output;
 #      only the deliberate coverage-snapshot.json is tracked via -f) ----

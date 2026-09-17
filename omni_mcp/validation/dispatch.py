@@ -129,11 +129,11 @@ def _patched_environ(env: dict[str, str] | None) -> Iterator[None]:
     try:
         yield
     finally:
-        for key, value in saved.items():
-            if value is None:
+        for key, previous in saved.items():
+            if previous is None:
                 os.environ.pop(key, None)
             else:
-                os.environ[key] = value
+                os.environ[key] = previous
 
 
 # ---------------------------------------------------------------------------

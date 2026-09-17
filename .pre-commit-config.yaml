@@ -23,11 +23,22 @@ repos:
   # Smoke contract test — runs the OPP/OL/ORF pipeline-contract smoke test
   # (uses OMNI_TEST_FAKE_LLM=1, no network). This catches API-shape
   # regressions before they reach CI. Skipped if venv isn't built yet.
+  #
+  # Interpreter resolution goes through scripts/pre_commit_python.sh for every
+  # hook that needs one. Two measured reasons (2026-09-17):
+  #   * a bare `python3` hits the Microsoft Store execution-alias stub under Git
+  #     Bash (exit 49) / CMD (exit 9009) — the gate failed for an environment
+  #     reason instead of running;
+  #   * `[ -x .venv_ol/bin/python ]` is a dangling Linux-ELF symlink under Git
+  #     Bash, so those hooks took the "skip → exit 0" branch and reported green
+  #     without running (a false green). The resolver probes candidates by
+  #     actually executing them, prefers the project venv, and only skips when
+  #     nothing at all is runnable.
   - repo: local
     hooks:
       - id: omni-contract-smoke
         name: Omni Suite pipeline contract smoke
-        entry: "bash -c 'if [ -x .venv_ol/bin/python ]; then set -o pipefail; .venv_ol/bin/python -m pytest tests/test_pipeline_contract_smoke.py --tb=short -q --no-header 2>&1 | tail -10; else echo \"skip: .venv_ol not built\"; exit 0; fi'"
+        entry: "bash -c 'set -o pipefail; bash scripts/pre_commit_python.sh -m pytest tests/test_pipeline_contract_smoke.py --tb=short -q --no-header 2>&1 | tail -10'"
         language: system
         pass_filenames: false
         stages: [commit, manual]
@@ -37,8 +48,13 @@ repos:
   # prevents re-introduction. Add new invariants here when new gap
   # categories are discovered.
 
+  # ruff-pre-commit is PINNED to the same version CI installs and the root
+  # pyproject.toml declares in [project.optional-dependencies].dev — one
+  # version everywhere, so a locally-green run cannot disagree with CI
+  # (docs/project-health-report-2026-09-17.md risk #6: CI was pinned to
+  # ruff 0.6.0 while developers ran 0.15.x).
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.0
+    rev: v0.15.11
     hooks:
       - id: ruff
         name: ruff F-class (unused imports, undefined names)
@@ -93,7 +109,10 @@ repos:
 
       - id: omni-version-docs-sync
         name: Omni Suite version doc sync (README/AGENTS/COMPATIBILITY must match pyproject.toml)
-        entry: python3 scripts/sync_version_docs.py --check
+        # Interpreter comes from scripts/pre_commit_python.sh (see the note at
+        # the top of this file); a bare `python3` is the Store alias stub under
+        # Git Bash.
+        entry: "bash scripts/pre_commit_python.sh scripts/sync_version_docs.py --check"
         language: system
         pass_filenames: false
         # Only run on commits that touch the version sources or the doc files;
@@ -104,7 +123,8 @@ repos:
 
       - id: omni-doc-inventory
         name: Omni Suite doc-inventory check (AUTO-GENERATED header + source-truth MCP counts)
-        entry: python3 scripts/doc_inventory.py --check
+        # Same interpreter note as omni-version-docs-sync above.
+        entry: "bash scripts/pre_commit_python.sh scripts/doc_inventory.py --check"
         language: system
         pass_filenames: false
         stages: [commit]
@@ -116,29 +136,54 @@ repos:
       # (fresh clones have none); the script itself also skips absent modules.
       - id: omni-module-entry-check
         name: Omni Suite module-entry consistency (symlink/.git/.pth)
-        entry: "bash -c 'if [ -e Omni_Pre_Processor ] || [ -e Omni_Localizer ] || [ -e Omni_Re_Formatter ]; then python3 scripts/check_module_entry.py; else echo \"skip: module entries not present\"; exit 0; fi'"
+        entry: "bash -c 'if [ -e Omni_Pre_Processor ] || [ -e Omni_Localizer ] || [ -e Omni_Re_Formatter ]; then bash scripts/pre_commit_python.sh scripts/check_module_entry.py; else echo \"skip: module entries not present\"; exit 0; fi'"
         language: system
         pass_filenames: false
 
       # Validation coverage audit (C-03 local gate): every live MCP tool must
       # be exercised by a scenario. EXECUTION-backed transport parity (X-04) —
       # the same command as CI `validation.yml` Gate 2 (41/41 in .venv_ol).
-      # Runs on the shared venv only: the parity diverges under other
-      # interpreters (e.g. system python3.14 reports 36/41). Skipped without
-      # the venv.
+      #
+      # This gate is .venv_ol-specific by construction, not by accident:
+      # omni_mcp/validation launches every module server through
+      # `suite_python()` = .venv_ol/bin/python (dispatch.py, VENV_BIN), so under
+      # any other interpreter the parity collapses (measured 2026-09-17: 0/41
+      # with the Windows .venv_win — its servers never start — and 36/41 with
+      # system python3.14). Running it with a foreign interpreter would report a
+      # green it did not earn, so it runs the shared venv directly and, when
+      # that venv cannot execute on this platform, prints an explicit SKIP line
+      # instead of a silent pass — hence `verbose: true`, which is what makes a
+      # passing hook's output visible.
       - id: omni-coverage-audit
         name: Omni Suite MCP tool coverage audit (execution-backed)
-        entry: "bash -c 'if [ -x .venv_ol/bin/python ]; then .venv_ol/bin/python scripts/validation/coverage_audit.py; else echo \"skip: .venv_ol not built\"; exit 0; fi'"
+        verbose: true
+        entry: "bash -c 'if .venv_ol/bin/python -c \"\" >/dev/null 2>&1; then exec .venv_ol/bin/python scripts/validation/coverage_audit.py; fi; echo \"SKIP: .venv_ol is not runnable on this platform — execution-backed coverage parity is not exercised locally (CI runs it on Linux)\"; exit 0'"
         language: system
         pass_filenames: false
         files: ^(scenarios/|scripts/validation/|omni_mcp/|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/|Omni_Localizer/src/ol_mcp/tools\.py|\.pre-commit-config\.yaml)$
 
       # Scenario-library contract lint (C-03 local gate): every step
       # falsifiable, standards anchors resolve. Fast, hermetic, no network.
-      # Skipped without the venv.
       - id: omni-validation-check
         name: Omni Suite scenario-library contract lint
-        entry: "bash -c 'if [ -x .venv_ol/bin/python ]; then .venv_ol/bin/python scripts/validation/run_validation.py --check; else echo \"skip: .venv_ol not built\"; exit 0; fi'"
+        entry: "bash scripts/pre_commit_python.sh scripts/validation/run_validation.py --check"
         language: system
         pass_filenames: false
         files: ^(scenarios/|scripts/validation/|omni_mcp/|\.pre-commit-config\.yaml)$
+
+      # Path-security parity invariant (ADR 0007 Phase 1 step 3): every copy of
+      # the path policy (OPP core+wrapper, OL, ORF, and the suite orchestrator's
+      # allowlist layer) must agree on SYSTEM_DIRS / BLOCKED_EXTENSIONS, must
+      # return the same verdict for the shared behavioural vectors, and must
+      # honour MCP_ALLOWED_EXTENSIONS the same way. Catches a security fix that
+      # lands in one copy while the others stay stale. CI runs the same file via
+      # `pytest tests/`; this hook is the local pre-commit half.
+      - id: omni-path-policy-parity
+        name: Omni Suite path-security parity (one policy, every copy)
+        entry: "bash -c 'set -o pipefail; bash scripts/pre_commit_python.sh -m pytest tests/security/test_path_policy_parity.py --tb=short -q --no-header 2>&1 | tail -15'"
+        language: system
+        pass_filenames: false
+        # Scope must stay in sync with the CI half in .github/workflows/lint.yml
+        # ("Blocking: path-security parity"): the policy surface includes the
+        # allowlist parser in each copy's config.py (D-4), not just security.py.
+        files: ^(omni_mcp/orchestrator\.py|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*security\.py|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/config\.py|tests/security/test_path_policy_parity\.py|\.pre-commit-config\.yaml)$

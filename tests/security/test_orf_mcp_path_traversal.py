@@ -18,6 +18,28 @@ from pathlib import Path
 import pytest
 
 
+def _symlink_or_skip(link: Path, target: str | Path) -> None:
+    """创建符号链接；当前平台/权限不允许时跳过该用例。
+
+    2026-09-17（报告风险 #5 Windows 开发入口）：Windows 未开启开发者模式或进程缺少
+    ``SeCreateSymbolicLinkPrivilege`` 时 ``Path.symlink_to`` 抛
+    ``OSError: [WinError 1314] 客户端没有所需的特权``。这是**环境**限制，不是策略
+    缺陷 —— 用例在 Linux/CI 与开启开发者模式的 Windows 上仍然生效，所以只做条件
+    跳过，不做平台整体跳过，也不伪装成通过。
+
+    Args:
+        link: 待创建的链接路径。
+        target: 链接指向的目标。
+
+    Raises:
+        pytest.skip.Exception: 平台不允许创建符号链接时。
+    """
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"当前环境无法创建符号链接（{exc}）")
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -90,7 +112,7 @@ class TestPathValidator:
     def test_symlink_to_outside_blocked(self, validator, allowed_dir):
         """Symlink pointing outside allowed directories should be rejected."""
         link = allowed_dir / "innocent.md"
-        link.symlink_to("/tmp/should_not_access")
+        _symlink_or_skip(link, "/tmp/should_not_access")
         result = validator.validate_path(str(link))
         assert result.success is False
         assert "symlink" in result.error.lower()
@@ -100,7 +122,7 @@ class TestPathValidator:
         target = allowed_dir / "real.md"
         target.write_text("# Real doc")
         link = allowed_dir / "link.md"
-        link.symlink_to(target)
+        _symlink_or_skip(link, target)
         result = validator.validate_path(str(link))
         assert result.success is True
 
@@ -199,7 +221,7 @@ class TestORFMCPToolPathRejection:
 
     def test_detect_format_outside_allowlist(self, allowed_dir, monkeypatch):
         """detect_format with path outside allowlist should return UNKNOWN.
-        
+
         Note: ORF's detect_format returns ``{\"format\": \"UNKNOWN\"}`` for
         invalid paths (no ``success`` field) because the tool is
         best-effort detection. We verify it doesn't crash and returns
@@ -207,7 +229,6 @@ class TestORFMCPToolPathRejection:
         """
         from orf.mcp.server import detect_format
         # Prevent env from polluting with allowed dirs
-        import os
         old = os.environ.get("ORF_MCP_ALLOWED_DIRS", "")
         monkeypatch.delenv("ORF_MCP_ALLOWED_DIRS", raising=False)
         result = _parse(detect_format("/etc/passwd"))
@@ -218,7 +239,7 @@ class TestORFMCPToolPathRejection:
 
     def test_info_outside_allowlist(self, monkeypatch):
         """info with path outside allowlist should return safe fallback.
-        
+
         Similar to detect_format: info returns format/size info without
         a success field for invalid paths.
         """
@@ -241,7 +262,7 @@ class TestORFMCPToolPathRejection:
 
     def test_xliff_image_path_injection_rejected(self, env_allowed, allowed_dir):
         """apply_xliff with image file_path outside working dir → FILE_PATH_NOT_ALLOWED.
-        
+
         ORF's C4 fix rejects image placements with 'file_path' keys (arbitrary file read).
         """
         from orf.mcp.server import apply_xliff
@@ -276,7 +297,7 @@ class TestORFMCPToolPathRejection:
 
     def test_no_allowlist_all_tools_fail(self, monkeypatch, tmp_path):
         """Without ORF_MCP_ALLOWED_DIRS, no paths should be allowed.
-        
+
         ORF initializes _path_validator at module import time from the env
         var. Without it, the validator defaults to an empty allowlist which
         rejects all paths.

@@ -8,10 +8,11 @@ description: >-
   JudgeService). Two of those bars are asserted at their LITERAL published
   threshold — #drawing-count (src == out) and #lqa-threshold
   (judge_overall >= 4.0) — flagged step-level ``known_gap: true`` because
-  the shipped pipeline cannot yet meet them (T13-02 / T13-01); their
-  weakened observations live under scenarios/pipeline/known-gaps/ and are
-  excluded from the pass bar. Requires real LLM keys -> unconfigured in
-  key-less CI, GREEN in nightly (D11).
+  the shipped pipeline could not meet them (T13-02 / T13-01, both fixed in
+  code 2026-09-17 — markers kept until a tier-2 re-run re-verifies the
+  literal bars); their weakened observations live under
+  scenarios/pipeline/known-gaps/ and are excluded from the pass bar.
+  Requires real LLM keys -> unconfigured in key-less CI, GREEN in nightly (D11).
 level: human-quality
 category: pipeline
 tier: 2
@@ -56,21 +57,27 @@ instructions: |-
 
   Known-gap isolation (T-17, Wave-0 decision C-05): TWO gates are asserted
   at the LITERAL published bar in this scenario but flagged step-level
-  ``known_gap: true`` because the shipped pipeline cannot yet meet them —
+  ``known_gap: true`` because the shipped pipeline could not yet meet them —
   their failure is recorded (proving the gap) yet excluded from this
   scenario's verdict, so the pass bar is never silently weakened:
-  - #drawing-count (T13-02): ol translate-md duplicates every ![..](..)
-    image reference (level4_safe_fallback placeholder re-insertion; 2 refs
-    in -> 4 out, 12 -> 24 verified), so `src == out` fails on any
-    image-bearing document.
-  - #lqa-threshold (T13-01): OL's LLM judge prompt never asks for
-    terminology_consistency / format_preservation but RUBRIC_WEIGHTS gives
-    them 0.35 combined weight, so judge_overall_score is capped at 3.25/5.
+  - #drawing-count (T13-02): ol translate-md duplicated every ![..](..)
+    image reference (level4_safe_fallback re-inserted content unshield had
+    already restored; 2 refs in -> 4 out, 12 -> 24 verified), so `src == out`
+    failed on any image-bearing document.
+  - #lqa-threshold (T13-01): OL's LLM judge prompt never asked for
+    terminology_consistency / format_preservation while RUBRIC_WEIGHTS gave
+    them 0.35 combined weight, and _remap_llm_fields padded the absent
+    dimensions with 0, so judge_overall_score was capped at 3.25/5.
+  BOTH ROOT CAUSES ARE FIXED IN CODE (2026-09-17: Omni_Localizer
+  src/ol_md/pipeline.py, src/ol_lqa/judge.py, src/ol_pool/router.py; unit
+  regressions in tests/test_md_repair_pipeline.py and test_lqa_judge.py).
+  The step-level ``known_gap: true`` markers are KEPT until a tier-2
+  (real-key) run re-verifies these literal bars — dropping them on
+  hermetic/unit evidence alone would be a false green.
   The SHIPPED weakened observations for both (drawing `out >= src`; the
   four-dimension LQA average) live under scenarios/pipeline/known-gaps/
   marked ``known_gap: true`` and are excluded from the pass bar; both gaps
-  are recorded in ACCEPTED_GAPS.md. When the product fixes a defect, the
-  literal step here turns green and the known-gap marker can be dropped.
+  are recorded in ACCEPTED_GAPS.md.
   Run it with the real key env (suite-root .env + Omni_Localizer/.env
   loaded) — with keys scrubbed it must report unconfigured, never
   pass/fail.
@@ -286,14 +293,18 @@ steps:
       Q4 drawing-count, the LITERAL published bar (scripts/omo_loop.py:208-227):
       count <w:drawing in word/document.xml of source vs output; source must
       have > 0 drawings and the counts must be EQUAL (STANDARDS.md#drawing-count).
-      This step is flagged ``known_gap: true``: ol translate-md duplicates every
-      ![..](..) image reference today (level4_safe_fallback placeholder
-      re-insertion — verified 2->4 and 12->24, finding T13-02), so strict
-      equality cannot be met by the shipped OL. The failure is recorded here
-      (proving the gap) but excluded from this scenario's verdict; the shipped
-      weakened observation (out >= src) lives in
-      scenarios/pipeline/known-gaps/. When OL stops duplicating, this step
-      turns green and the known-gap marker can be dropped.
+      This step is flagged ``known_gap: true``: ol translate-md duplicated every
+      ![..](..) image reference (level4_safe_fallback re-inserted content that
+      unshield_markdown had already restored, because is_complete()/missing
+      keyed on the shield_map key instead of its value — verified 2->4 and
+      12->24, finding T13-02). FIXED IN CODE 2026-09-17
+      (Omni_Localizer/src/ol_md/pipeline.py; regression
+      tests/test_md_repair_pipeline.py::TestShieldValueAwareCompleteness).
+      The marker is KEPT until a tier-2 real-key run re-verifies this literal
+      bar — dropping it on hermetic/unit evidence alone would be a false
+      green. The failure (if any) is recorded here but excluded from this
+      scenario's verdict; the shipped weakened observation (out >= src) lives
+      in scenarios/pipeline/known-gaps/.
   - name: Assert paragraph ratio within +-5% (Q6)
     kind: python
     command: |-
@@ -424,12 +435,15 @@ steps:
       JudgeService with the real model pool, and require the average of
       ``judge_overall_score`` (0-1, rescored to /5) >= 4.0/5
       (STANDARDS.md#lqa-threshold). This step is flagged
-      ``known_gap: true``: OL's judge prompt never asks for
-      terminology_consistency / format_preservation while RUBRIC_WEIGHTS
-      gives them 0.35 combined weight, so judge_overall_score is
-      mathematically capped at 3.25/5 on perfect scores (finding T13-01).
-      The failure is recorded here (proving the gap) but excluded from
-      this scenario's verdict; the shipped weakened observation (the
+      ``known_gap: true``: the T13-01 mismatch (OL's judge prompt never
+      asked for terminology_consistency / format_preservation while
+      RUBRIC_WEIGHTS gives them 0.35 combined weight, and _remap_llm_fields
+      padded the absent dimensions with 0, mathematically capping
+      judge_overall_score at 3.25/5 on perfect scores) is FIXED IN CODE as
+      of 2026-09-17 (Omni_Localizer src/ol_lqa/judge.py and
+      src/ol_pool/router.py; regression tests/test_lqa_judge.py). The
+      marker is KEPT until a tier-2 real-key run re-verifies this literal
+      bar — dropping it on hermetic/unit evidence alone would be a false
+      green. The failure (if any) is recorded here but excluded from this
+      scenario's verdict; the shipped weakened observation (the
       four-dimension average) lives in scenarios/pipeline/known-gaps/.
-      When OL fixes the rubric/prompt mismatch, this step turns green and
-      the known-gap marker can be dropped.

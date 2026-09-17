@@ -98,8 +98,8 @@ bash scripts/setup_dev.sh
 
 # 3. 跑测试（pytest）
 source .venv_ol/bin/activate
-pytest tests/observability/ -q   # 38 observability tests
-pytest tests/security/ -q        # 63 security tests
+pytest tests/observability/ -q   # 61 observability tests
+pytest tests/security/ -q        # 138 security tests（含 path-policy parity 一致性不变量）
 pytest tests/ -q                 # all suite-level tests
 
 # 4. 查看版本
@@ -111,6 +111,12 @@ omni-suite pipeline document.docx --dry-run    # 只打印将执行的 3 步命�
 omni-suite pipeline document.docx --gates-only # OPP + OL（8 项质量门）+ ol extract-warnings，跳过 ORF 回写
 omni-suite pipeline document.docx --keep-intermediate # 保留 /tmp/omni-suite-pipeline/<stem>/ 中间产物（全流程后）
 ```
+
+> **Windows（原生 PowerShell，非 WSL）**：`.venv_ol/` 是 Linux venv（`bin/` 布局 + ELF
+> 解释器），在原生 Windows 上无法创建或激活。改用
+> `powershell -ExecutionPolicy Bypass -File scripts/setup_dev.ps1` —— 它在 `.venv_win/`
+> 建独立原生 venv、editable 安装根工程 + OPP/OL/ORF，并跑 C-3 契约冒烟门禁；
+> 加 `-CheckOnly` 只做校验不安装。详见 §工程规范 risk #5（`docs/project-health-report-2026-09-17.md`）。
 
 
 ## Cross-Format Production-Readiness

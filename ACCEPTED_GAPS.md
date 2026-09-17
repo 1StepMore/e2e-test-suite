@@ -44,18 +44,33 @@ Expected: **131 PASS, 64 SKIP, 0 FAIL** in ~5-6 min.
 ## Validation Known Gaps (T-17)
 
 The HUMAN-QUALITY bars in `scenarios/STANDARDS.md` are the published bar.
-Two bars cannot be met by the shipped pipeline. They are **not** silently
+Two bars could not be met by the shipped pipeline. They were **not** silently
 weakened: the pass-bar scenario asserts the LITERAL published threshold,
 flagged `known_gap: true` at the step level (recorded, but excluded from the
 scenario verdict), and the shipped weakened observation is isolated under
 `scenarios/pipeline/known-gaps/` as a `known_gap: true` scenario — excluded
-from the pass bar (never GREEN, never a blocker). When a product fix lands,
-the literal step turns green and the marker can be dropped.
+from the pass bar (never GREEN, never a blocker).
+
+**2026-09-17: both root causes are fixed in code.**
+T13-01 — `Omni_Localizer/src/ol_lqa/judge.py` no longer pads absent rubric
+dimensions with 0 (`_remap_llm_fields` omits them so the weighted average
+renormalizes; `EnsembleJudge` skips criteria no judge reported), and the judge
+prompt in `Omni_Localizer/src/ol_pool/router.py` now asks for
+`terminology_consistency` / `format_preservation`.
+T13-02 — `Omni_Localizer/src/ol_md/pipeline.py` `is_complete()` / `missing`
+now accept the restored original value as proof of presence, so
+`level4_safe_fallback` no longer re-inserts content `unshield_markdown` had
+already restored.
+Covered by unit regressions in `Omni_Localizer/tests/test_lqa_judge.py` and
+`Omni_Localizer/tests/test_md_repair_pipeline.py`.
+The step-level `known_gap: true` markers and the `known-gaps/` scenarios are
+KEPT until a tier-2 (real-key) run re-verifies the literal bar: dropping them
+on hermetic/unit evidence alone would be a false green.
 
 | Category | Gap | Reason | Accepted |
 |----------|-----|--------|----------|
-| Quality gate | `#drawing-count` published bar (`src == out`) not met on image-bearing MD-path outputs | **T13-02**: `ol translate-md` duplicates every `![..](..)` image reference (level4_safe_fallback placeholder re-insertion; verified 2 refs in → 4 out, 12 → 24). The literal bar is asserted in `scenarios/pipeline/pipeline-docx-md-docx.yaml` (step-level `known_gap: true`); the weakened observation (`out >= src`, no image lost) is isolated in `scenarios/pipeline/known-gaps/pipeline-docx-md-docx-drawing-count.yaml`. | 2026-09-13 |
-| Quality gate | `#lqa-threshold` published bar (`judge_overall >= 4.0` on /5) unreachable | **T13-01**: OL's judge prompt never asks for `terminology_consistency` / `format_preservation` while `RUBRIC_WEIGHTS` gives them 0.35 combined weight, so `judge_overall_score` is mathematically capped at 3.25/5 on perfect scores. The literal bar is asserted in `pipeline-docx-md-docx.yaml`, `pipeline-docx-md-epub.yaml`, `pipeline-pptx-md-pptx.yaml` (step-level `known_gap: true`); the weakened four-dimension average is isolated in `scenarios/pipeline/known-gaps/pipeline-docx-md-docx-lqa.yaml`. | 2026-09-13 |
+| Quality gate | `#drawing-count` published bar (`src == out`) not met on image-bearing MD-path outputs | **T13-02 — FIXED in code 2026-09-17 (pending tier-2 re-verification).** `ol translate-md` duplicated every `![..](..)` image reference: `is_complete()` / `missing` keyed presence on the shield_map **key** (`image_0000`), but the MD channel runs `unshield_markdown()` first, so the text holds the **value** — every entry therefore looked missing and `level4_safe_fallback` re-appended it (verified 2 refs in → 4 out, 12 → 24). Fixed in `Omni_Localizer/src/ol_md/pipeline.py`; regression `tests/test_md_repair_pipeline.py::TestShieldValueAwareCompleteness`. The literal bar is asserted in `scenarios/pipeline/pipeline-docx-md-docx.yaml` (step-level `known_gap: true`); the weakened observation (`out >= src`, no image lost) is isolated in `scenarios/pipeline/known-gaps/pipeline-docx-md-docx-drawing-count.yaml`. | 2026-09-13 |
+| Quality gate | `#lqa-threshold` published bar (`judge_overall >= 4.0` on /5) unreachable | **T13-01 — FIXED in code 2026-09-17 (pending tier-2 re-verification).** Two compounding causes: (a) `_remap_llm_fields` defaulted every absent rubric field to 0, pushing `terminology_consistency` (0.20) + `format_preservation` (0.15) weight into the normalizing denominator while contributing nothing to the numerator, capping `judge_overall_score` at 3.25/5 on perfect scores; (b) the judge prompt never asked for those two dimensions at all. Fixed in `Omni_Localizer/src/ol_lqa/judge.py` (`_remap_llm_fields`, `EnsembleJudge`) and `Omni_Localizer/src/ol_pool/router.py` (prompt); regression `tests/test_lqa_judge.py::TestPartialFieldRenormalization`. The literal bar is asserted in `pipeline-docx-md-docx.yaml`, `pipeline-docx-md-epub.yaml`, `pipeline-pptx-md-pptx.yaml` (step-level `known_gap: true`); the weakened four-dimension average is isolated in `scenarios/pipeline/known-gaps/pipeline-docx-md-docx-lqa.yaml`. | 2026-09-13 |
 
 **Isolation mechanics:** a scenario-level `known_gap: true` yields status
 `known-gap` (never drives a nonzero exit, never a blocker); a step-level

@@ -38,7 +38,6 @@ import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 # Paths
 _SUITE_ROOT = Path(__file__).resolve().parents[1]
@@ -201,7 +200,7 @@ def _gate_q1_functional(art: CycleArtifacts) -> GateResult:
     except Exception as e:
         return GateResult("Q1_functional", False, 0.0, f"python-docx open failed: {e}")
     if para_count == 0:
-        return GateResult("Q1_functional", False, 0.5, f"DOCX has 0 paragraphs")
+        return GateResult("Q1_functional", False, 0.5, "DOCX has 0 paragraphs")
     return GateResult("Q1_functional", True, 1.0, f"exit 0, DOCX opens, {para_count} paragraphs")
 
 
@@ -223,7 +222,7 @@ def _gate_q4_image(art: CycleArtifacts, source_docx: Path) -> GateResult:
     if src_count == out_count and src_count > 0:
         return GateResult("Q4_image", True, 1.0, f"drawings: src={src_count} out={out_count} (match)")
     if src_count == 0:
-        return GateResult("Q4_image", False, 0.0, f"source has 0 drawings; cannot compare")
+        return GateResult("Q4_image", False, 0.0, "source has 0 drawings; cannot compare")
     return GateResult("Q4_image", False, 0.0, f"drawings: src={src_count} out={out_count} (mismatch)")
 
 
@@ -393,10 +392,6 @@ def _gate_q2_lqa(art: CycleArtifacts, source_docx: Path, target_lang: str,
     return GateResult(
         "Q2_lqa", False, 0.0,
         f"avg LQA {avg_5:.2f}/5 (< {pass_threshold_5}); n={len(scores_01)}, transport_errs={transport_errs}, {elapsed:.1f}s",
-    )
-    return GateResult(
-        "Q2_lqa", False, 0.0,
-        f"avg LQA {avg_5:.2f}/5 (< {threshold}); n={len(scores)}, transport_errs={transport_errs}, {elapsed:.1f}s",
     )
 
 
@@ -661,7 +656,6 @@ class LoopState:
 
 def _run_tier_2(args) -> int:
     """Tier 2: invoke tests/e2e_runner.py for all 4 paths on --input."""
-    import asyncio
     import subprocess
     import sys
 
@@ -735,7 +729,6 @@ def _run_tier_5(args) -> int:
     comprehensive runner before OMO. Tier 5 re-uses them.
     """
     import subprocess
-    import sys
 
     suite_root = Path(__file__).resolve().parent.parent
     venv_py = suite_root / ".venv_ol" / "bin" / "python"
@@ -812,7 +805,6 @@ def _run_tier8(args) -> int:
     """
     suite_root = _SUITE_ROOT
     t0 = time.monotonic()
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
     out_a = suite_root / "test_artifacts" / "matrix_real_a"
     out_b = suite_root / "test_artifacts" / "matrix_real_b"
 
@@ -1027,7 +1019,6 @@ def _run_bug_fix(args) -> int:
         return 0
 
     print(f"=== bug-fix: {len(open_bugs)} open bug(s) ===")
-    fixed_count = 0
     for bug in open_bugs:
         print(f"\n--- Dispatching {bug['id']}: {bug.get('symptom', '')[:80]}... ---")
         prompt = (
@@ -1060,7 +1051,7 @@ def _run_bug_fix(args) -> int:
         dispatch_file.parent.mkdir(parents=True, exist_ok=True)
         dispatch_file.write_text(prompt, encoding="utf-8")
         print(f"  Prompt written to: {dispatch_file}")
-        print(f"  (Orchestrator must run the dispatch and update active-bugs.json)")
+        print("  (Orchestrator must run the dispatch and update active-bugs.json)")
 
     print(f"\n{len(open_bugs)} dispatch prompt(s) written.")
     print("Run the orchestrator (Sisyphus) to execute them.")
@@ -1230,7 +1221,7 @@ def main() -> int:
             state.last_status = "GREEN"
             print(f"  ALL GATES GREEN ({state.consecutive_green} consecutive)")
         else:
-            print(f"  GATES FAILED:")
+            print("  GATES FAILED:")
             for g in gates:
                 if not g.passed:
                     print(f"    ❌ {g.name}: {g.details}")
@@ -1251,7 +1242,7 @@ def main() -> int:
                     state.consecutive_green = 1
                     state.consecutive_fix_fail = 0
                     state.last_status = "FIXED"
-                    print(f"  FIX WORKED — gates now GREEN")
+                    print("  FIX WORKED — gates now GREEN")
                     art = art2
                     gates = gates2
                 else:

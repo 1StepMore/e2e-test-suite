@@ -24,7 +24,10 @@
 - [ ] **unconfigured 里有一批是可配 env 不是缺 LLM key**——`ORF_MCP_ALLOWED_DIRS`/`MCP_ALLOWED_DIRECTORIES` 补上后 tool-orf-* 等 11 个可转绿;真正缺 key 的是 OPENAI/ZHIPU/AGNES/NVIDIA(OL translate/judge/pipeline)。区分"可配未配"与"客观缺 key"。
 - [ ] **OL 模型池在 Omni_Localizer/config/local.yaml + default.yaml(两份镜像)**——translation/judging/restoration 三组,key 全部 `${ENV_VAR}` 引用。场景 requires_env 要求 4 个 LLM key 全有(含 OPENAI_API_KEY),但**代码只读池内 provider**,把 `OPENAI_API_KEY` 指向任一 openai-compat provider(如 Agnes)即可过门控。2026-08-15 实测:NVIDIA `deepseek-ai/deepseek-v4-flash` 已 EOL(2026-08-07)→ 换成 `z-ai/glm-5.2` + `minimaxai/minimax-m3`(新 key 实测可用);Zhipu `glm-4.7-flash` 是 reasoning 模型(max_tokens 太小会空返回,≥1024 正常);Mistral `api.mistral.ai` WSL 网络不可达。
 - [ ] **NVIDIA NIM key 分两档**:能 `GET /v1/models`(列 102 个)≠ 能调用;免费 key 需在 build.nvidia.com 模型页逐个授权,未授权模型调用 403 "Authorization failed"。
-- [ ] **三个模块的 allowlist env 分隔符不同**——OL `MCP_ALLOWED_DIRECTORIES` 用**逗号**(`security.py:276 split(",")`),ORF `ORF_MCP_ALLOWED_DIRS` / OPP `OPP_MCP_ALLOWED_DIRS` 用**冒号**。配错分隔符 → 整个字符串被当成一个目录,任何路径都 OL_PATH_NOT_ALLOWED(failed 而非 unconfigured)。
+- [ ] **三个模块的 allowlist env 分隔符不同**——OL `MCP_ALLOWED_DIRECTORIES` 用**逗号**(`security.py:276 split(",")`),ORF `ORF_MCP_ALLOWED_DIRS` / OPP `OPP_MCP_ALLOWED_DIRS` 用**冒号**。配错分隔符 → 整个字符串被当成一个目录,任何路径都 OL_PATH_NOT_ALLOWED(failed 而非 unconfigured)。**已收敛（2026-09-17，ADR 0007 Phase 1 step 3）**：四份实现统一为 `os.pathsep`（POSIX `:` / Windows `;`）+ 逗号，由 `tests/security/test_path_policy_parity.py::TestAllowlistParsingParity` 冻结；保留本条是因为历史 run 记录里的 failed 仍按旧语义产生。
+- [ ] **新增测试禁止在模块级设 allowlist env**——pytest 在跑任何用例前会 import 全部测试模块，模块级 `os.environ.setdefault("MCP_ALLOWED_DIRECTORIES", ...)` 会**进程级**覆盖 `tests/conftest.py` 的 allowlist（该变量在每个读取者的解析顺序里都优先于 `*_MCP_ALLOWED_DIRS`）。2026-09-17 实测：`tests/test_mutation_transparency_x03.py` 因此让**自己**的 4 个用例失败（Windows 上 `/tmp` = `<盘符>:\tmp`，不在 conftest 允许的 `tmp_path` 内），极易误判为本轮回归。allowlist 的 owner 只能是 conftest。
+- [ ] **原生 Windows 上想拿执行型证据必须走 WSL**——`.venv_ol` 是 Linux venv（`bin/python` 在 PowerShell/Git Bash 下不可执行），而 `omni_mcp/validation/dispatch.py` 的 `VENV_BIN` 钉死 `.venv_ol`：在 `.venv_win` 里跑执行型 parity 实测 **0/41**（服务器起不来）、系统 python3.14 是 36/41，都不构成证据。可用：`wsl -e bash -lc "cd /mnt/d/贯维/Omni_Suite && MCP_ALLOWED_DIRECTORIES=/tmp OMNI_TEST_FAKE_LLM=1 ./.venv_ol/bin/python scripts/validation/run_validation.py --scenario <name> --tier 1"`（2026-09-17 实测 tier-1 场景 8/8、2/2、2/2 passed）。
+- [ ] **Git Bash 下 `[ -x .venv_ol/bin/python ]` 恒为假**（dangling Linux ELF 符号链接）→ 门禁走 "skip → exit 0" 分支 = **跳过即通过**的伪绿。凡需要解释器的钩子一律经 `scripts/pre_commit_python.sh`（存在 ≠ 可执行：每个候选真跑一次 `-c ''`）。
 - [ ] **Hermes 会话注入 PYTHONPATH 含 `~/.hermes/hermes-agent` → OL `from cli import *` 裸导入会命中 hermes-agent 的 cli.py**——表现为 ModuleNotFoundError: prompt_toolkit(其实是 import 错了文件)。跑 OL/OPP/ORF 的 CLI 子进程前 `unset PYTHONPATH`。同坑:`.venv_ol` editable .pth 若指向 `src/Omni_*` 旧副本(被 gitignore),手动改 .pth 指向 `Omni_*/src`,别指望 pip 重装自动修(pip 有 editable 路径缓存)。
 - [ ] **NVIDIA NIM key 分两档**:能 `GET /v1/models`(列 102 个)≠ 能调用;免费 key 需在 build.nvidia.com 模型页逐个授权,未授权模型调用 403 "Authorization failed"。
 
@@ -34,6 +37,16 @@
 - [ ] **模块文档里的计数/版本断言属于代码契约**——改工具数、版本号、子命令数必须同步改模块 `docs/*.md` 与 README 散文（`registers N tools` / `All N tool functions` / `exposing N tools` / `vX.Y.Z (matches pyproject.toml)`）。已 gate 化：`python3 scripts/doc_inventory.py --check` 现在覆盖模块 docs + README 散文（issue #10 → PR #12）；动模块文档前后都跑它。
 
 ## 循环事件（major events，newest on top）
+
+### 2026-09-17 第四轮：#2 Phase 1 收口（R2 = suite 层第 4 份路径策略）+ 门禁可用性
+
+- Date: 2026-09-17, round: 健康度报告 §3.2 R2 收口（= ADR 0007 Phase 1 step 3b）+ Windows 门禁可用性
+- Scope: `omni_mcp/orchestrator.py`（补齐 canonical `SYSTEM_DIRS`/`BLOCKED_EXTENSIONS` + `_system_dir_denial`）、`tests/security/test_path_policy_parity.py`（30 → 39 用例）、`tests/security` 全量、三个 omni_mcp 测试文件、tier-1 场景 3 个
+- Result: `tests/security` **143 passed / 4 skipped**（4 skip = WinError 1314，本机无建符号链接权限）；parity **39 passed**；`tests/security/test_omni_mcp_path_denied.py` **5 passed**（R2 前后契约不变）；三个 omni_mcp 文件 **28 passed**（修复前 12 failed / 16 passed）。
+- **零回归证明**：同一批文件在「HEAD（无 R2）」与「R2」下均为 `12 failed, 16 passed` → R2 未引入回归；那 12 个失败来自本轮定位并修掉的三条环境根因（模块级 allowlist 覆盖 / Linux venv 布局 `WinError 193` / `/tmp` 字面量），修完后同批 28 passed。
+- **tier-1 场景（`.venv_ol` + WSL，`MCP_ALLOWED_DIRECTORIES=/tmp`）**：`red-team-path-traversal` **8/8 passed**（run `20260917-210145`）、`trace-mutation-manifest-x03` **2/2 passed**（`20260917-210223`）、`ol-path-denied` **2/2 passed**（`20260917-210259`）—— 三个都直接覆盖本轮改动的路径拒绝面。
+- 本轮新增坑已入清单：模块级 allowlist env 的进程级污染、`.venv_ol` 守卫的伪绿、原生 Windows 拿执行型证据必须走 WSL。
+- Conclusion: R2 闭环、零回归；§3.2 的 R1/R2/R3 中 R2 已关闭（R1 由 Phase 1 落地 + Phase 2 推迟覆盖，R3 已被显式接受）；#2 Phase 2 仍被 workspace 索引 403 阻塞。
 
 ### 2026-09-14 4-repo PR/issue 清账 + #16/#17 定性 + uv lock guard
 

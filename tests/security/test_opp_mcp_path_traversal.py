@@ -10,10 +10,31 @@ Closes gap S12.3 (symlink), S12.5 (blocked extensions), S12.6, S12.8 (no allowli
 S12.11 (large file rejection) from the integrated test plan.
 """
 
-import os
 from pathlib import Path
 
 import pytest
+
+
+def _symlink_or_skip(link: Path, target: str | Path) -> None:
+    """创建符号链接；当前平台/权限不允许时跳过该用例。
+
+    2026-09-17（报告风险 #5 Windows 开发入口）：Windows 未开启开发者模式或进程缺少
+    ``SeCreateSymbolicLinkPrivilege`` 时 ``Path.symlink_to`` 抛
+    ``OSError: [WinError 1314] 客户端没有所需的特权``。这是**环境**限制，不是策略
+    缺陷 —— 用例在 Linux/CI 与开启开发者模式的 Windows 上仍然生效，所以只做条件
+    跳过，不做平台整体跳过，也不伪装成通过。
+
+    Args:
+        link: 待创建的链接路径。
+        target: 链接指向的目标。
+
+    Raises:
+        pytest.skip.Exception: 平台不允许创建符号链接时。
+    """
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"当前环境无法创建符号链接（{exc}）")
 
 
 # ---------------------------------------------------------------------------
@@ -73,12 +94,11 @@ class TestPathValidator:
 
     def test_path_traversal_blocked(self, validator, allowed_dir):
         """Path containing .. should be rejected.
-        
+
         Note: OPP#52 fix changed validate_path to raise PathValidationError
         for Phase 1 checks (traversal, system dirs, size, symlinks).
         """
         from opp.mcp.security import PathValidationError
-        doc = allowed_dir / "doc.docx"
         traversal = allowed_dir.parent / "doc.docx"
         with pytest.raises(PathValidationError):
             validator.validate_path(str(traversal))
@@ -94,7 +114,7 @@ class TestPathValidator:
         """Symlink pointing outside allowed directories should be rejected."""
         from opp.mcp.security import PathValidationError
         link = allowed_dir / "innocent.docx"
-        link.symlink_to("/tmp/should_not_access")
+        _symlink_or_skip(link, "/tmp/should_not_access")
         with pytest.raises(PathValidationError):
             validator.validate_path(str(link))
 
@@ -103,13 +123,13 @@ class TestPathValidator:
         target = allowed_dir / "real.docx"
         target.write_bytes(b"PK\x03\x04" + b"\x00" * 20)
         link = allowed_dir / "link.docx"
-        link.symlink_to(target)
+        _symlink_or_skip(link, target)
         result = validator.validate_path(str(link))
         assert result.success is True
 
     def test_blocked_extension_rejected(self, validator, allowed_dir):
         """Executable/script extensions should be rejected.
-        
+
         Blocked extension check is in shared_validate (Phase 1).
         """
         from opp.mcp.security import PathValidationError
@@ -138,7 +158,7 @@ class TestPathValidator:
 
     def test_nonexistent_file_rejected(self, validator, allowed_dir):
         """Non-existent file should be rejected (allow_missing=False).
-        
+
         OPP#52: validate_path now raises PathValidationError for all failures.
         """
         from opp.mcp.security import PathValidationError
@@ -171,14 +191,14 @@ class TestPathValidator:
 
 class TestOPPMCPToolPathRejection:
     """Verify MCP tools return OPP_PATH_DENIED for invalid paths.
-    
+
     These tests exercise the full stack: PathValidator → PathValidationError →
     @mcp_error_boundary → OPP_PATH_DENIED response.
     """
 
     def _check_path_denied(self, result: dict) -> None:
         """Assert the result is a 'path denied' error.
-        
+
         Note: OPP MCP tools have inline path validation that returns
         ``{"success": False, "error": <message>}`` shape (preempting
         the @mcp_error_boundary decorator which would add ``error_code``).
@@ -192,7 +212,7 @@ class TestOPPMCPToolPathRejection:
     @pytest.fixture
     def init_opp_server(self, monkeypatch, tmp_path):
         """Initialize the OPP MCP server with proper config.
-        
+
         OPP MCP tools require _init_server() to be called before use.
         The env_allowed fixture sets OPP_MCP_ALLOWED_DIRS, then we
         load the config and init the server.
@@ -271,7 +291,7 @@ class TestOPPMCPToolPathRejection:
 
     def test_no_allowlist_all_tools_fail(self, monkeypatch):
         """Without OPP_MCP_ALLOWED_DIRS, no paths should be allowed.
-        
+
         load_config() raises ValueError when allowed_directories is empty.
         """
         monkeypatch.delenv("OPP_MCP_ALLOWED_DIRS", raising=False)

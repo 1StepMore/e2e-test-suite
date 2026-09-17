@@ -332,7 +332,7 @@ def _print_partial(manifest) -> None:
 def _parse_pipeline_args(args: list[str]) -> tuple[str, dict]:
     """Parse key=value or --key value style pipeline args."""
     file_path = args[0]
-    kwargs = {}
+    kwargs: dict[str, str | bool] = {}
     i = 1
     while i < len(args):
         if args[i].startswith("--"):

@@ -24,6 +24,7 @@ Exit 1 if any hard check fails, else 0.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -37,8 +38,9 @@ MODULES: tuple[tuple[str, str], ...] = (
     ("Omni_Re_Formatter", "orf"),
 )
 
-#: Venvs that may hold editable installs of the modules.
-VENV_NAMES = (".venv", ".venv_ol")
+#: Venvs that may hold editable installs of the modules (``.venv_win`` is the
+#: Windows bootstrap written by ``scripts/setup_dev.ps1``).
+VENV_NAMES = (".venv", ".venv_ol", ".venv_win")
 
 #: Filename/path tokens that map a ``.pth`` to a module.
 _MODULE_TOKENS: dict[str, tuple[str, ...]] = {
@@ -97,14 +99,27 @@ def _head_and_dirty(entry: Path) -> tuple[str, int | None]:
 
 
 def _iter_pths(root: Path) -> list[Path]:
-    """All ``.pth`` files in the suite venvs (missing venvs are skipped)."""
+    """All ``.pth`` files in the suite venvs (missing venvs are skipped).
+
+    Only the layout of the *current* platform is scanned: a POSIX venv keeps its
+    packages in ``lib/pythonX.Y/site-packages``, a Windows venv in
+    ``Lib/site-packages``. Scanning the foreign layout from the wrong platform
+    makes every path inside those ``.pth`` files unusable — a WSL-style
+    ``/mnt/d/...`` target reads as ``D:\\mnt\\d\\...`` — which reported 7 bogus
+    "points at ..." failures when this gate first ran on Windows.
+    """
     pths: list[Path] = []
     for name in VENV_NAMES:
         venv = root / name
         if not venv.is_dir():
             continue
-        for site_packages in sorted(venv.glob("lib/python*/site-packages")):
-            pths.extend(sorted(site_packages.glob("*.pth")))
+        if os.name == "nt":
+            layouts: list[Path] = [venv / "Lib" / "site-packages"]
+        else:
+            layouts = sorted(venv.glob("lib/python*/site-packages"))
+        for site_packages in layouts:
+            if site_packages.is_dir():
+                pths.extend(sorted(site_packages.glob("*.pth")))
     return pths
 
 

@@ -662,7 +662,7 @@ def check_version_sync(root: Path, failures: list[str]) -> None:
         return
     try:
         proc = subprocess.run(
-            ["python3", str(sync), "--check"],
+            [sys.executable, str(sync), "--check"],
             cwd=str(root),
             capture_output=True,
             text=True,

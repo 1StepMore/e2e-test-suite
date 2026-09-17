@@ -34,9 +34,9 @@ All paths are relative to the project root `/mnt/d/贯维/Omni_Suite`. Each entr
 | `COMPATIBILITY.md` | ~31 | All devs | Suite↔submodule version compatibility matrix | Version bumps of any module |
 | `CONTRIBUTING.md` | ~172 | Contributors | PR workflow, branch naming, test expectations, doc update requirements | Process changes, CI changes |
 | `SETUP.md` | ~259 | Developers | Phase 1 setup guide for real LLM integration tests (API keys, config) | API key changes, env var changes, setup process changes |
-| `PROJECT_STATUS.md` | ~126 | First file to read | Project snapshot: versions, test matrix health, recent changes | Version bumps, test health changes, architecture changes |
+| `PROJECT_STATUS.md` | ~189 | First file to read | Project snapshot: versions, test matrix health, recent fixes, platform notes, canonical-doc pointer table | Version bumps, test health changes, architecture changes |
 | `PRODUCTION_READINESS.md` | ~187 | Maintainers | V1-V11 production-readiness checklist (version consistency, module integrity, security, observability) | Any new production requirement, new check items |
-| `ACCEPTED_GAPS.md` | ~66 | All devs | Known limitations and tradeoffs (PDF→XLIFF blocked, MSG requires commercial, validation known gaps, etc.) | New gap discovered, existing gap resolved |
+| `ACCEPTED_GAPS.md` | ~80 | All devs | Known limitations and tradeoffs (PDF→XLIFF blocked, MSG requires commercial, validation known gaps, etc.) | New gap discovered, existing gap resolved |
 | `CONTRACT.md` | ~180 | All devs | OPP→OL→ORF handoff contract (artifact formats, metadata schemas, failure modes) | Pipeline boundary contract changes |
 | `CLAUDE.md` | ~142 | Claude Code | Claude-specific context (architecture summary, commands, tips) | Architecture changes, CLI changes, MCP changes |
 | `TESTS.md` | ~335 | Developers | Test instructions for real LLM + E2E suite (14 nightly tests, prerequisites) | Test suite changes, test configuration changes |

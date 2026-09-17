@@ -2,16 +2,22 @@ name: pipeline-docx-md-docx-lqa-known-gap
 description: >-
   KNOWN GAP (T13-01 / T17). The published #lqa-threshold bar is
   `judge_overall >= 4.0` on the /5 scale (STANDARDS.md#lqa-threshold,
-  scripts/omo_loop.py:302-396). The shipped OL judge prompt never asks for
-  terminology_consistency / format_preservation while RUBRIC_WEIGHTS gives
-  them 0.35 combined weight, so judge_overall_score is mathematically
-  capped at 3.25/5 on perfect scores — the published bar is unreachable.
+  scripts/omo_loop.py:302-396). Upstream root cause: the shipped OL judge
+  prompt never asked for terminology_consistency / format_preservation
+  while RUBRIC_WEIGHTS gives them 0.35 combined weight, AND
+  `_remap_llm_fields` padded the absent dimensions with 0, so
+  judge_overall_score was mathematically capped at 3.25/5 on perfect
+  scores — the published bar was unreachable. FIXED IN CODE 2026-09-17
+  (Omni_Localizer src/ol_lqa/judge.py `_remap_llm_fields` /
+  `EnsembleJudge` + src/ol_pool/router.py judge prompt; regression
+  tests/test_lqa_judge.py::TestPartialFieldRenormalization).
   This scenario records ONLY the shipped weakened observation (the average
   of the four dimensions the LLM IS asked to score: adequacy / fluency /
   accuracy / score) so the gap is documented without polluting the pass
   bar. Marked known_gap: true — excluded from the pass bar; its verdict
   is KNOWN-GAP, never GREEN, and its output never prints a pass-looking
-  OK. Full context: ACCEPTED_GAPS.md.
+  OK. Kept (not dropped) until a tier-2 real-key run re-verifies the
+  literal bar. Full context: ACCEPTED_GAPS.md.
 level: human-quality
 category: pipeline
 tier: 2
