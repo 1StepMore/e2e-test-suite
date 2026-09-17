@@ -35,7 +35,7 @@ source_lang="zh", target_lang="en". Switching to en -> zh would cause the LLM
 to refuse to translate (it sees Chinese source text and returns meta-commentary
 instead of translation), making LQA a no-op.
 
-Test fixture: 爱上海尔_第二章_全球创牌 - E2E测试专用.docx (real, no synthetic).
+Test fixture: scenarios/_fixtures/haier_ch2_zh.docx (real, no synthetic).
 Per the user, this is the canonical test DOCX and is non-negotiable for all tiers.
 
 Prerequisites:
@@ -999,7 +999,7 @@ class TestE2ERealLLMSmoke:
     ):
         """Tier-1 ORF xliff→pptx smoke (CLI).
 
-        Uses a real PPTX source fixture (Meridian_Q1_Update_E2E.pptx, 3 slides)
+        Uses a real PPTX source fixture (scenarios/_fixtures/meridian_q1.pptx, 3 slides)
         because XLIFF2PPTXConverter needs a PPTX skeleton to populate the
         slide structure. The Haier DOCX fixture is unsuitable here — a
         DOCX passed to XLIFF2PPTXConverter produces a malformed PPTX

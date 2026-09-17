@@ -16,14 +16,14 @@ instructions: |
   3. Read the produced .md — the document heading + table structure must
      survive extraction.  Read the .xlf — it must carry trans-units and
      declare target-language="zh" (OPP preps targets; OL fills them later).
-  The fixture is the committed suite-root
-  Meridian_Robotics_Product_Overview_E2E.docx (also copied to
-  scenarios/_fixtures/ by todo 16 — this scenario uses the original path).
+  The fixture is the committed scenarios/_fixtures/meridian_robotics.docx
+  (the same bytes that used to sit in the suite root as
+  Meridian_Robotics_Product_Overview_E2E.docx).
   Extraction is deterministic: no LLM, no FAKE_LLM, no network.
 steps:
   - name: Extract DOCX to Markdown and XLIFF via the real OPP CLI
     kind: cli
-    command: opp Meridian_Robotics_Product_Overview_E2E.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-docx -v
+    command: opp scenarios/_fixtures/meridian_robotics.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-docx -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -37,7 +37,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-docx/Meridian_Robotics_Product_Overview_E2E_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-docx/meridian_robotics_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("format=" + m["source"]["format"])
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
@@ -48,7 +48,7 @@ steps:
         - "source"
         - "extraction"
         - "format=DOCX"
-        - "md-path=Meridian_Robotics_Product_Overview_E2E.md"
+        - "md-path=meridian_robotics.md"
     standard: STANDARDS.md#json-parseable
     instructions: |
       What to check: json.loads succeeds (json-parseable standard), the
@@ -59,8 +59,8 @@ steps:
     kind: python
     command: |
       import pathlib, re
-      md = pathlib.Path("/tmp/omni_val/opp-docx/Meridian_Robotics_Product_Overview_E2E.md").read_text(encoding="utf-8")
-      xlf = pathlib.Path("/tmp/omni_val/opp-docx/Meridian_Robotics_Product_Overview_E2E.xlf").read_text(encoding="utf-8")
+      md = pathlib.Path("/tmp/omni_val/opp-docx/meridian_robotics.md").read_text(encoding="utf-8")
+      xlf = pathlib.Path("/tmp/omni_val/opp-docx/meridian_robotics.xlf").read_text(encoding="utf-8")
       print("heading-found" if "# Meridian Robotics" in md else "no-heading")
       print("table-found" if "| Model |" in md else "no-table")
       print("units-found" if len(re.findall(r"<trans-unit", xlf)) > 0 else "no-units")

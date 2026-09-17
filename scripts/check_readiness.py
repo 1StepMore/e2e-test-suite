@@ -205,7 +205,7 @@ def check_v1(r: CheckResult) -> None:
         if suite_version == compat_suite:
             r.ok("1.1", f"Suite VERSION ({suite_version}) matches COMPATIBILITY.md")
         else:
-            r.fail("1.1", f"Suite VERSION mismatch", f"VERSION says {suite_version}, COMPATIBILITY.md says {compat_suite}")
+            r.fail("1.1", "Suite VERSION mismatch", f"VERSION says {suite_version}, COMPATIBILITY.md says {compat_suite}")
     else:
         r.fail("1.1", "Cannot parse COMPATIBILITY.md", "No version table found")
 
@@ -263,8 +263,7 @@ def check_v1(r: CheckResult) -> None:
 def check_v2(r: CheckResult) -> None:
     """Module integrity checks."""
     # 2.1 Module importability
-    for name, mod_path in MODULES.items():
-        src = str(mod_path / "src")
+    for name in MODULES:
         mod_name = {"OPP": "opp", "OL": "ol", "ORF": "orf"}[name]
         rc, out, err = _run([sys.executable, "-c", f"import {mod_name}; print('ok')"])
         if rc == 0 and out.strip() == "ok":
@@ -349,8 +348,6 @@ def check_v2(r: CheckResult) -> None:
 
 def check_v3(r: CheckResult) -> None:
     """FAKE_LLM seam integrity."""
-    ol_pyproject = MODULES["OL"] / "pyproject.toml"
-
     # 3.1 FAKE_LLM environment variable handling
     ol_cli = MODULES["OL"] / "src" / "ol_cli.py"
     if ol_cli.exists():
@@ -381,7 +378,7 @@ def check_v3(r: CheckResult) -> None:
         content = _read(f)
         if "OMNI_TEST_FAKE_LLM" not in content and "real_llm" in content.lower():
             bypass_found = True
-            r.fail("3.4", f"Possible FAKE_LLM bypass", f"{f.name}: references real_llm without FAKE_LLM guard")
+            r.fail("3.4", "Possible FAKE_LLM bypass", f"{f.name}: references real_llm without FAKE_LLM guard")
     if not bypass_found:
         r.ok("3.4", "No unsafe FAKE_LLM bypasses detected")
 
@@ -440,8 +437,8 @@ def check_v4(r: CheckResult) -> None:
 
     # 4.8 Fixture documents present
     fixture_paths = [
-        SUITE_ROOT / "Meridian_Robotics_Product_Overview_E2E.docx",
-        SUITE_ROOT / "Meridian_Q1_Update_E2E.pptx",
+        SUITE_ROOT / "scenarios" / "_fixtures" / "meridian_robotics.docx",
+        SUITE_ROOT / "scenarios" / "_fixtures" / "meridian_q1.pptx",
     ]
     for fp in fixture_paths:
         if fp.exists() and fp.stat().st_size > 0:

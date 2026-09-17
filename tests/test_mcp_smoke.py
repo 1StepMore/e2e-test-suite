@@ -42,9 +42,9 @@ os.environ.setdefault("OMNI_TEST_FAKE_PANDOC", "1")
 os.environ.setdefault("OMNI_TEST_FAKE_LLM", "1")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-HAIER_DOCX = REPO_ROOT / "爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
-MERIDIAN_DOCX = REPO_ROOT / "Meridian_Robotics_Product_Overview_E2E.docx"
-MERIDIAN_PPTX = REPO_ROOT / "Meridian_Q1_Update_E2E.pptx"
+HAIER_DOCX = REPO_ROOT / "scenarios" / "_fixtures" / "haier_ch2_zh.docx"
+MERIDIAN_DOCX = REPO_ROOT / "scenarios" / "_fixtures" / "meridian_robotics.docx"
+MERIDIAN_PPTX = REPO_ROOT / "scenarios" / "_fixtures" / "meridian_q1.pptx"
 
 # All three component src/ dirs are added by conftest.py before this file
 # is collected; the imports below work because of that setup.

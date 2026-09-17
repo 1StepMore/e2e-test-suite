@@ -389,6 +389,12 @@ Meridian_Robotics_Product_Overview_E2E.docx
 
 这些 E2E 测试样本直接躺在仓库根目录，而非 `scenarios/_fixtures/` 或 `test_fixtures/`。
 
+> **已修复（2026-09-17，第五轮）**：四个样本全部迁出根目录 —— 两个 Meridian 文件与
+> `scenarios/_fixtures/` 内的副本字节相同，故直接去重；海尔 DOCX 成为
+> `scenarios/_fixtures/haier_ch2_zh.docx`；`（slim）` 样本移入 `test_fixtures/zh/`。
+> 注意 `test_fixtures/` 被 `.gitignore:109` 整目录忽略（`git ls-files test_fixtures`
+> 为空），**不能**承载被跟踪的 fixture。详见 §十三。
+
 ---
 
 ### 3.8 交付就绪度：75 / 100
@@ -964,7 +970,104 @@ Run 20260917-210259 — ol-path-denied  passed — 2 step(s), 2 passed
 
 ---
 
+## 十三、第五轮优化落地（2026-09-17，同日续做）：§3.7 仓库卫生收尾
+
+§3.7 是报告评分最低的维度（42/100），其「根目录散落样本文件（已被跟踪）」一条此前只处理了
+`99-Tools/` 的 ignore 规则，**样本文件本身仍在根目录**。本轮把四个样本全部迁出根目录。
+
+### 13.1 关键判定：目标目录只能是 `scenarios/_fixtures/`
+
+| 候选目录 | 判定 | 证据 |
+|---|---|---|
+| `test_fixtures/` | **不可用** | `.gitignore:109` 忽略整个目录；`git ls-files test_fixtures` 输出为空——该目录是**纯本地** fixture 暂存区（22 个文件全部未跟踪） |
+| `scenarios/_fixtures/` | **采用** | 唯一承载被跟踪 fixture 的目录（`git ls-files scenarios/_fixtures` 23 项），且报告 L390 本身把它列为首选 |
+
+### 13.2 落地改动
+
+| 原位置（根目录） | 新位置 | 处理方式 | 依据 |
+|---|---|---|---|
+| `Meridian_Robotics_Product_Overview_E2E.docx` | `scenarios/_fixtures/meridian_robotics.docx` | **去重**：根目录副本删除，引用重指到已存在的副本 | 两者 SHA256 均为 `C8DB5E79…FFA928`（字节相同） |
+| `Meridian_Q1_Update_E2E.pptx` | `scenarios/_fixtures/meridian_q1.pptx` | **去重**：同上 | 两者 SHA256 均为 `1E9F8C0D…1655C19C`（字节相同） |
+| `爱上海尔_第二章_全球创牌 - E2E测试专用.docx` | `scenarios/_fixtures/haier_ch2_zh.docx` | `git mv`（git 识别为 rename，`R`） | commit 内 ASCII 名符合该目录命名惯例（`meridian_*.docx` / `sample.ipynb`），且可在 CLI 步骤中免引号使用 |
+| `（slim）爱上海尔.docx`（14 MB，未跟踪） | `test_fixtures/zh/（slim）爱上海尔.docx` | 移动（`.gitignore:105` 规则对任意层级生效，仍被忽略） | 它本就是本地验证靶，属 `test_fixtures/` 的语义 |
+
+同步的引用面（逐处核对，`grep` 全仓零残留）：
+
+- **scenarios（4）**：`opp/opp-docx-extract.yaml` 与 `opp/opp-pptx-extract.yaml` 不只要改 fixture 路径，
+  还要改它们**断言的 OPP 输出 stem**（输出名派生自输入 stem）：
+  `md-path=Meridian_Robotics_Product_Overview_E2E.md` → `md-path=meridian_robotics.md`，
+  `Meridian_Q1_Update_E2E_manifest.json` → `meridian_q1_manifest.json` 等；
+  `agent-interaction/agent-interaction-multiturn-context.yaml`（turn-1 的 `doc`）；
+  `pipeline/pipeline-pptx-md-pptx.yaml`（说明文字）。
+- **tests（12 文件）**：`conftest.py`（3 个 path fixture）、`e2e_runner.py`、
+  `test_cross_format_e2e.py`、`test_e2e_performance.py`、`test_e2e_pipeline_full.py`、
+  `test_e2e_real_llm.py`、`test_e2e_xliff_lqa_image_placement.py`、`test_mcp_smoke.py`、
+  `test_omni_suite_cli.py`、`test_orf_skeleton_large_file.py`、`turnkey/test_image_fidelity.py`。
+- **scripts（3）**：`check_readiness.py`（V4.8 fixture 存在性）、`omo_loop.py`（`_DEFAULT_FIXTURE`）、
+  `phase1_runner.py`。
+- **docs（2）**：`SETUP.md`、`TESTS.md`；`.gitignore` 的 `（slim）` 注释。
+
+顺带修掉的两处同族缺陷：
+
+1. `tests/turnkey/test_image_fidelity.py:30` 硬编码 `"/mnt/d/贯维/Omni_Suite/…"` —— 正是本轮
+   LOOP-LOG 坑清单第 2 条禁止的**机器绝对路径**；改为套件根相对路径。
+2. `scripts/phase1_runner.py` 的 `resolve_fixture()` 有一个 docx-only 特例去套件根找文件，
+   兜底却指向 `test_fixtures/zh/爱上海尔_第二章…docx`（该文件从不存在 → 该行 fixture 一直是悬空路径）。
+   现在统一指向 `scenarios/_fixtures/`，docx/zh 这一格才真正可用。
+
+### 13.3 验证证据（2026-09-17 实测，命令可复现）
+
+```bash
+# 根目录已无样本（迁移前：2 个 docx + 1 个 pptx + 1 个 14MB docx）
+$ Get-ChildItem <suite 根> -File -Filter *.docx          -> 空
+$ Get-ChildItem <suite 根> -File | ? Name -like '*Meridian*'   -> 空
+$ git status --short                                     -> 根目录仅 D（删除）与 R（重命名）
+
+# 门禁一：文档真值 + 链接/路径完整性
+$ .venv_win\Scripts\python.exe scripts/doc_inventory.py --check
+check passed: source truth matches claims, no stray files, inventory fresh.   EXIT=0
+
+# 门禁二：场景库契约 lint
+$ .venv_win\Scripts\python.exe scripts/validation/run_validation.py --check
+Contract check: clean — every step falsifiable ... every scenario declares an approved user level   EXIT=0
+
+# 门禁三：tier-1 场景端到端（真实 .venv_ol，经 WSL；含被改动的 fixture 路径与 stem 断言）
+$ wsl -e bash -lc 'cd /mnt/d/贯维/Omni_Suite && MCP_ALLOWED_DIRECTORIES=/tmp OMNI_TEST_FAKE_LLM=1 \
+    ./.venv_ol/bin/python scripts/validation/run_validation.py --scenario opp-docx-extract --tier 1'
+Run 20260917-212138 — opp-docx-extract   passed — 3 step(s), 3 passed
+$ ... --scenario opp-pptx-extract --tier 1
+Run 20260917-212159 — opp-pptx-extract   passed — 3 step(s), 3 passed
+$ ... --scenario agent-interaction-multiturn-context --tier 1
+Run 20260917-212242 — agent-interaction-multiturn-context  passed — 3 step(s), 3 passed
+
+# 门禁四：路径敏感测试 + 全部改动模块的导入完整性
+$ .venv_win\Scripts\python.exe -m pytest tests/test_link_integrity.py \
+      tests/turnkey/test_image_fidelity.py tests/test_orf_skeleton_large_file.py -q
+1 failed, 6 passed, 2 skipped        # 唯一 failed = 下述既有漂移（test_agent_docs）
+# 其中 tests/test_orf_skeleton_large_file.py 的 4 个用例由「skip」变为**真跑并 passed**
+# —— 它们加载的正是被移动的 14MB slim，这是 slim 路径迁移的直接证据。
+$ .venv_win\Scripts\python.exe -m pytest tests/test_e2e_performance.py \
+      tests/test_cross_format_e2e.py tests/test_omni_suite_cli.py tests/test_mcp_smoke.py \
+      tests/test_e2e_pipeline_full.py tests/test_e2e_xliff_lqa_image_placement.py \
+      tests/test_e2e_real_llm.py tests/e2e_runner.py --collect-only -q
+149 tests collected in 1.37s          # 8 个模块全部可导入，无残留路径
+$ .venv_win\Scripts\python.exe -m pytest tests/test_phase1_p2_matrix.py \
+      tests/test_link_integrity.py -q   -> passed（phase1_runner 改动后的矩阵用例仍绿）
+```
+
+### 13.4 本轮遗留与新发现（不伪装为已解决）
+
+| 项 | 状态与证据 |
+|---|---|
+| `tests/test_agent_docs.py::test_skill_md_exists` 失败 | **既有漂移，非本轮回归**：它断言 `.opencode/skills/omni-suite/SKILL.md` 含 `Output formats supported`；该文件**不在本次改动集内**，且 `git show HEAD:.opencode/skills/omni-suite/SKILL.md \| Select-String 'Output formats supported'` 在 HEAD 上同样无匹配 |
+| `tests/test_convergence_watch_gates.py` 2 个失败 | **既有测试漂移，非本轮回归**：`git show HEAD:scripts/omo_loop.py` 已有 `gates = ["tier6","tier7","tier8"]`，测试却只 stub `_run_verify_all`/`_run_format_matrix`，于是真 tier8 门跑起来（单跑该文件 157 s）并返回 1，而断言要求 `rc == 0`。本轮在该文件只改了 `_DEFAULT_FIXTURE`（仅被 argparse 默认值引用，那两个用例传的 `argparse.Namespace` 连 `input` 都没有，不可达）。修法是把 tier8 一并 stub（1 行），留待下一轮决策 |
+| 缺少「根目录不得出现样本文件」的守卫 | 未加。本轮按报告 §3.7 的范围只做迁移 + 引用同步；若要把 42/100 的这个维度长期钉住，可加一条断言「套件根无 `*.docx / *.pptx` 被跟踪文件」的测试或 pre-commit 检查 |
+| 仓库内仍存同字节副本 | `scenarios/_fixtures/translated_pair/source.docx` 与 `meridian_robotics.docx` 字节相同（XLIFF 场景的 pre-translated 对，属有意设计：该目录是自包含的 8 文件 fixture 对，删任何一个都会破坏 `COPIED 8` 断言）。未动 |
+
+---
+
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
+*第十三节追加：2026-09-17（同日续做，第五轮）· §3.7 仓库卫生收尾*
 *第十二节追加：2026-09-17（同日续做，第四轮）· R2 收口 + 门禁可用性*
 *第十一节追加：2026-09-17（同日晚）· #2 Phase 1 落地与验证证据*
 *第十节追加：2026-09-17（同日续做，第二轮）*

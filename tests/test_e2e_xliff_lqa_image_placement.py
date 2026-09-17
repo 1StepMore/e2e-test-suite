@@ -6,7 +6,7 @@ Mirrors `production_pipeline_run_2026-06-08/scripts/run_pipeline.sh` step
 for step, then adds rigorous verification that the final DOCX is a
 faithful translation of the source.
 
-Source: ``爱上海尔_第二章_全球创牌 - E2E测试专用.docx`` (447 KB, Chinese)
+Source: ``scenarios/_fixtures/haier_ch2_zh.docx`` (447 KB, Chinese)
 Direction: zh → en
 LQA: enabled via ``Omni_Localizer/config/local.yaml`` (enable_lqa: true)
 LLM: real (requires ``MINIMAX_API_KEY`` or ``BAIDU_API_KEY`` in
@@ -69,7 +69,7 @@ from lxml import etree
 # ---------------------------------------------------------------------------
 
 SUITE_ROOT = Path(__file__).resolve().parents[1]
-HAIER_DOCX = SUITE_ROOT / "爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
+HAIER_DOCX = SUITE_ROOT / "scenarios" / "_fixtures" / "haier_ch2_zh.docx"
 
 OPP_DIR = SUITE_ROOT / "Omni_Pre_Processor"
 OL_DIR = SUITE_ROOT / "Omni_Localizer"

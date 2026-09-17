@@ -45,9 +45,10 @@ os.environ["OPP_CONFIG_PATH"] = str(
 VENV = SUITE_ROOT / ".venv_ol"
 PYTHON_BIN = str(VENV / "bin" / "python")
 
-# Real fixtures at suite root
-DOCX_FIXTURE = SUITE_ROOT / "Meridian_Robotics_Product_Overview_E2E.docx"
-PPTX_FIXTURE = SUITE_ROOT / "Meridian_Q1_Update_E2E.pptx"
+# Real committed fixtures (scenarios/_fixtures/, moved out of the suite root
+# on 2026-09-17 — see docs/project-health-report-2026-09-17.md §3.7)
+DOCX_FIXTURE = SUITE_ROOT / "scenarios" / "_fixtures" / "meridian_robotics.docx"
+PPTX_FIXTURE = SUITE_ROOT / "scenarios" / "_fixtures" / "meridian_q1.pptx"
 
 # EML fixture from eval/reference
 EML_FIXTURE = (
@@ -341,7 +342,7 @@ For more information, please contact support@example.com.
 def _assert_frontmatter_keys(md_text: str, min_keys: int = 4) -> dict:
     """Assert MD has YAML frontmatter with at least min_keys keys. Returns the parsed dict."""
     lines = md_text.split("\n")
-    assert lines[0].strip() == "---", f"Frontmatter not found at start of MD content"
+    assert lines[0].strip() == "---", "Frontmatter not found at start of MD content"
     end_idx = None
     for i in range(1, len(lines)):
         if lines[i].strip() == "---":
@@ -447,8 +448,8 @@ def _assert_valid_ipynb(ipynb_path: Path) -> dict:
     """Assert file is a valid .ipynb JSON. Returns parsed dict."""
     assert ipynb_path.exists(), f"IPYNB file not found: {ipynb_path}"
     data = json.loads(ipynb_path.read_text(encoding="utf-8"))
-    assert "nbformat" in data, f"Missing 'nbformat' key in .ipynb"
-    assert "cells" in data, f"Missing 'cells' key in .ipynb"
+    assert "nbformat" in data, "Missing 'nbformat' key in .ipynb"
+    assert "cells" in data, "Missing 'cells' key in .ipynb"
     return data
 
 
@@ -1328,7 +1329,7 @@ class TestOrfMdToFormats:
 
         assert json_out.exists()
         data = json.loads(json_out.read_text(encoding="utf-8"))
-        assert isinstance(data, (dict, list)), f"MD→JSON should produce JSON object or array"
+        assert isinstance(data, (dict, list)), "MD→JSON should produce JSON object or array"
 
     # ------------------------------------------------------------------
     # Path 29: MD → XLSX

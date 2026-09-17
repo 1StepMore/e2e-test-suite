@@ -139,7 +139,7 @@ class TestPipeline:
 
         Uses FAKE_LLM seam to avoid real API calls.
         """
-        docx = SUITE_ROOT / "Meridian_Robotics_Product_Overview_E2E.docx"
+        docx = SUITE_ROOT / "scenarios" / "_fixtures" / "meridian_robotics.docx"
         if not docx.exists():
             pytest.skip(f"Fixture not found: {docx}")
 

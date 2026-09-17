@@ -218,9 +218,11 @@ def _print_issues(issues: list[Issue], header: str):
 # Main Runner
 # ═══════════════════════════════════════════════════════════════════════
 
-# Source file: prefer slim (large, ~14MB) if available, fall back to small test doc.
-_SLIM_PATH = _SUITE_ROOT / "（slim）爱上海尔.docx"
-_SMALL_PATH = _SUITE_ROOT / "爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
+# Source file: prefer slim (large, ~14MB) if available, fall back to small test
+# doc. The slim is a local-only (gitignored) validation target kept in
+# test_fixtures/zh/; the small one is the committed suite fixture.
+_SLIM_PATH = _SUITE_ROOT / "test_fixtures" / "zh" / "（slim）爱上海尔.docx"
+_SMALL_PATH = _SUITE_ROOT / "scenarios" / "_fixtures" / "haier_ch2_zh.docx"
 HAIER_DOCX = _SLIM_PATH if _SLIM_PATH.exists() else _SMALL_PATH
 RUN_DIR = _SUITE_ROOT / "test_artifacts" / "e2e_runs"
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -263,7 +265,7 @@ async def run_single_path(
     print(f"{'#'*70}")
 
     # ── Source analysis ──────────────────────────────────────────
-    print(f"\n  ── Stage: SOURCE ──")
+    print("\n  ── Stage: SOURCE ──")
     src_stats = _extract_source_docx_stats(haier_docx)
     result.source_para_count = src_stats["paragraphs"]
     result.source_image_count = src_stats["unique_images"]
@@ -344,7 +346,7 @@ async def run_single_path(
             normalized = ensure_md_block_separation(raw.strip())
             if normalized != raw:
                 translated.write_text(normalized, encoding="utf-8")
-                print(f"    ✅ Normalized OL output: stripped frontmatter + OLIMG, added <!-- p --> separators")
+                print("    ✅ Normalized OL output: stripped frontmatter + OLIMG, added <!-- p --> separators")
 
         # ── OL analysis ──
         ol_items = [("Translated file", str(translated))]
@@ -383,7 +385,7 @@ async def run_single_path(
                 if has_empty_targets:
                     record(name, "OL", Severity.MINOR,
                            "One or more trans-units have empty <target>",
-                           f"Translation may be incomplete for some segments")
+                           "Translation may be incomplete for some segments")
             except Exception as e:
                 print(f"  [WARN] Failed to check XLIFF empty targets: {e}")
 
@@ -430,7 +432,7 @@ async def run_single_path(
         ])
 
         # ── Comparison: Source vs OPP images.json vs Output ──
-        print(f"\n  ── Stage: IMAGE POSITIONING ──")
+        print("\n  ── Stage: IMAGE POSITIONING ──")
         if intermediate == "md":
             # MD path is text-only by architecture — images are delivered as
             # separate {stem}_images/ + images.json for manual use. Pandoc
@@ -457,7 +459,7 @@ async def run_single_path(
                          if n.startswith("word/media/")]
         if result.opp_image_count != len(source_images):
             record(name, "OPP", Severity.MINOR,
-                   f"image entry count mismatch",
+                   "image entry count mismatch",
                    f"images.json has {result.opp_image_count} entries, "
                    f"source DOCX has {len(source_images)} image files. "
                    f"Difference expected (images.json deduplicates by position, "
@@ -465,14 +467,14 @@ async def run_single_path(
                    f"at different paragraph indices = multiple entries)")
 
         # ── Target language check ──────────────────────────────
-        print(f"\n  ── Stage: TARGET LANGUAGE ──")
+        print("\n  ── Stage: TARGET LANGUAGE ──")
         translated_text = " ".join(
             text for _idx, text in out_paras if text.strip()
         )
         try:
             _assert_translated_to_target_lang(translated_text, target_lang)
             result.target_lang_ok = True
-            print(f"    ✅ Target language (en): PASS")
+            print("    ✅ Target language (en): PASS")
         except AssertionError as e:
             record(name, "LANG", Severity.CRITICAL,
                    "Translation target language check failed",
@@ -481,7 +483,7 @@ async def run_single_path(
 
         # ── LQA (XLIFF paths only ─ MD path skipped per architecture) ─
         if intermediate == "xliff":
-            print(f"\n  ── Stage: LQA ──")
+            print("\n  ── Stage: LQA ──")
             try:
                 judgment = await _judge_docx_text(output, haier_docx, source_lang, target_lang)
                 result.lqa_scores = judgment
@@ -506,7 +508,7 @@ async def run_single_path(
                        str(e)[:300],
                        fixed=False)
         else:
-            print(f"\n  ── Stage: LQA SKIPPED (MD path — pandoc flattens structure) ──")
+            print("\n  ── Stage: LQA SKIPPED (MD path — pandoc flattens structure) ──")
 
         result.passed = True
 
@@ -640,10 +642,10 @@ async def main(glossary_path: str | None = None,
             for iss in critical_issues:
                 print(f"     {iss}")
             print(f"  ❌ Aborting E2E run — {name} has unresolved critical issues.")
-            print(f"  Fix blockers before retrying remaining paths.")
+            print("  Fix blockers before retrying remaining paths.")
             break
         else:
-            print(f"  ✅ No critical issues — proceeding to next path.")
+            print("  ✅ No critical issues — proceeding to next path.")
 
     total_elapsed = time.time() - start
 
@@ -657,6 +659,7 @@ async def main(glossary_path: str | None = None,
 
     print(f"\n  Paths: {len(passed)}/{len(results)} passed"
           + (f", {len(failed)} failed" if failed else ""))
+    print(f"  Total elapsed: {total_elapsed:.0f}s")
 
     for r in results:
         status = "✅" if r.passed else "❌"
@@ -674,7 +677,6 @@ async def main(glossary_path: str | None = None,
     for r in results:
         lang = "✅" if r.target_lang_ok else "❌"
         img = "✅" if r.image_positioning_ok else ("❌" if not r.passed else "⏭")
-        lqa = f"{r.lqa_scores['avg_adequacy']:.1f}" if r.lqa_scores else "N/A"
         def _val(v: int) -> str:
             return str(v) if v >= 0 else "?"
         print(f"  {r.name:15s} {r.source_para_count:>11d} "
@@ -686,7 +688,7 @@ async def main(glossary_path: str | None = None,
               f"{lang:>5s} {img:>8s}")
 
     # Add LQA row for XLIFF paths
-    print(f"\n  LQA Scores (XLIFF paths only):")
+    print("\n  LQA Scores (XLIFF paths only):")
     for r in results:
         if r.lqa_scores:
             print(f"    {r.name:15s}  Adeq={r.lqa_scores['avg_adequacy']:.2f}  "
@@ -715,7 +717,7 @@ async def main(glossary_path: str | None = None,
             print(f"    ❌ {iss}")
 
     if MINOR_OPEN:
-        print(f"\n  📝 Minor observations (recorded, needs post-test investigation):")
+        print("\n  📝 Minor observations (recorded, needs post-test investigation):")
         for iss in MINOR_OPEN:
             print(f"    📝 [{iss.path}/{iss.stage}] {iss.title}")
             print(f"       {iss.detail}")

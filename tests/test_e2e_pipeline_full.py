@@ -69,8 +69,8 @@ R_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 
 SUITE_ROOT = Path(__file__).resolve().parents[1]
-HAIER_DOCX = SUITE_ROOT / "爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
-MERIDIAN_PPTX = SUITE_ROOT / "Meridian_Q1_Update_E2E.pptx"
+HAIER_DOCX = SUITE_ROOT / "scenarios" / "_fixtures" / "haier_ch2_zh.docx"
+MERIDIAN_PPTX = SUITE_ROOT / "scenarios" / "_fixtures" / "meridian_q1.pptx"
 
 OPP_SRC = SUITE_ROOT / "Omni_Pre_Processor" / "src"
 OL_SRC = SUITE_ROOT / "Omni_Localizer" / "src"

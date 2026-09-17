@@ -62,7 +62,7 @@ If any fails, see `SETUP.md` to redo Phase 1.
 
 ## Direction
 
-The Haier test DOCX (`爱上海尔_第二章_全球创牌 - E2E测试专用.docx`) is in **Chinese**, so the nightly tests translate **zh → en** (Chinese source → English target):
+The Haier test DOCX (`scenarios/_fixtures/haier_ch2_zh.docx`) is in **Chinese**, so the nightly tests translate **zh → en** (Chinese source → English target):
 
 - `pipeline.generate_xliff(..., "zh", "en")` in OPP
 - `source_lang="zh", target_lang="en"` in `ol_mcp.tools.translate_xliff`
@@ -282,7 +282,7 @@ def test_your_new_real_llm_test(
 | `SETUP.md` | Phase 1 setup guide — fill `.env` + `local.yaml` |
 | `.omo/plans/real-llm-integration-tests.md` | Section 0 ground-truth (12 drawings, 7 unique files) |
 | `tests/test_e2e_real_llm.py` | **Current design** — 14-test 4-tier matrix, Phase 0.5 OPP MCP gap, helper specs, risks |
-| `爱上海尔_第二章_全球创牌 - E2E测试专用.docx` | Test fixture (447 KB, 24 images, 9 paragraphs) |
+| `scenarios/_fixtures/haier_ch2_zh.docx` | Test fixture (447 KB, 24 images, 9 paragraphs) |
 
 ---
 

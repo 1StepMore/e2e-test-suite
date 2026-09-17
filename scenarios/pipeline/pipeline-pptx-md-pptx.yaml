@@ -31,7 +31,7 @@ instructions: |-
      paragraphs total) — text-only so the round trip is paragraph-stable
      (verified: with images the OPP-emitted "## Images" section makes
      pandoc add a 4th slide and the paragraph ratio breaks 6 -> 9). The
-     mandated Meridian_Q1_Update_E2E.pptx fixture is English (0 pics), so
+     mandated scenarios/_fixtures/meridian_q1.pptx fixture is English (0 pics), so
      the zh source is generated for the bars to be provable. zh -> en is
      the direction the HUMAN-QUALITY bars are defined for.
   2. OPP extracts the fixture to MD + XLIFF (--target-format both).

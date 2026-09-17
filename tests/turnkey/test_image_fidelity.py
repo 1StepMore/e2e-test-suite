@@ -27,8 +27,9 @@ import pytest
 # Fixture paths
 # =============================================================================
 
-SOURCE = Path(
-    "/mnt/d/贯维/Omni_Suite/爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
+SOURCE = (
+    Path(__file__).resolve().parents[2]
+    / "scenarios" / "_fixtures" / "haier_ch2_zh.docx"
 )
 ORF_OUTPUT = Path("/tmp/turnkey_image_check/orf/output.docx")
 

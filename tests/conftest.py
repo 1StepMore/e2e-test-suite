@@ -968,12 +968,14 @@ def validate_manifest():
 def haier_real_docx_path() -> Path:
     """Path to the real 海尔 chapter-2 E2E test DOCX (447 KB, Chinese content).
 
-    Located at the suite root. Designated as the canonical E2E test
-    DOCX but no test consumed it before this fixture was added.
+    Lives in the committed fixture directory as
+    ``scenarios/_fixtures/haier_ch2_zh.docx`` (moved out of the suite root on
+    2026-09-17 — see docs/project-health-report-2026-09-17.md §3.7). It is the
+    canonical zh→en E2E test DOCX.
     """
     path = (
         Path(__file__).parent.parent
-        / "爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
+        / "scenarios" / "_fixtures" / "haier_ch2_zh.docx"
     )
     if not path.exists():
         pytest.skip(f"海尔 E2E test DOCX not found at {path}")
@@ -984,15 +986,15 @@ def haier_real_docx_path() -> Path:
 def meridian_english_docx_path() -> Path:
     """Path to the synthetic English source DOCX for en→zh Tier-3 LQA tests.
 
-    Companion to haier_real_docx_path (which is zh→en). Meridian_Robotics_
-    Product_Overview_E2E.docx is a synthetic 38 KB English document with
-    headings, paragraphs, and a 3-row product table. Designed to be the
-    canonical en→zh test fixture so the tier-3 matrix covers both translation
-    directions.
+    Companion to haier_real_docx_path (which is zh→en). The committed
+    ``scenarios/_fixtures/meridian_robotics.docx`` is a synthetic 38 KB English
+    document with headings, paragraphs, and a 3-row product table. Designed to
+    be the canonical en→zh test fixture so the tier-3 matrix covers both
+    translation directions.
     """
     path = (
         Path(__file__).parent.parent
-        / "Meridian_Robotics_Product_Overview_E2E.docx"
+        / "scenarios" / "_fixtures" / "meridian_robotics.docx"
     )
     if not path.exists():
         pytest.skip(f"Meridian en→zh E2E test DOCX not found at {path}")
@@ -1003,14 +1005,15 @@ def meridian_english_docx_path() -> Path:
 def meridian_english_pptx_path() -> Path:
     """Path to the synthetic English source PPTX for ORF xliff→pptx Tier-1 test.
 
-    Companion to meridian_english_docx_path. Meridian_Q1_Update_E2E.pptx
-    is a 30 KB synthetic English deck with 3 slides. Required because
-    XLIFF2PPTXConverter needs a real PPTX skeleton to populate the slide
-    structure (a DOCX skeleton produces a malformed PPTX).
+    Companion to meridian_english_docx_path. The committed
+    ``scenarios/_fixtures/meridian_q1.pptx`` is a 30 KB synthetic English deck
+    with 3 slides. Required because XLIFF2PPTXConverter needs a real PPTX
+    skeleton to populate the slide structure (a DOCX skeleton produces a
+    malformed PPTX).
     """
     path = (
         Path(__file__).parent.parent
-        / "Meridian_Q1_Update_E2E.pptx"
+        / "scenarios" / "_fixtures" / "meridian_q1.pptx"
     )
     if not path.exists():
         pytest.skip(f"Meridian en→zh E2E test PPTX not found at {path}")

@@ -13,8 +13,10 @@ import pytest
 from tests.conftest import setup_component_paths
 setup_component_paths()
 
-# Path to the real large DOCX file (~14MB, 7,681 paragraphs) in the repo root
-SLIM_DOCX_PATH = Path(__file__).parent.parent / "（slim）爱上海尔.docx"
+# Path to the real large DOCX file (~14MB, 7,681 paragraphs) in test_fixtures/zh/
+SLIM_DOCX_PATH = (
+    Path(__file__).parent.parent / "test_fixtures" / "zh" / "（slim）爱上海尔.docx"
+)
 
 
 # =============================================================================
@@ -238,7 +240,7 @@ class TestDOCXPerformance:
 
     @pytest.mark.skipif(
         not SLIM_DOCX_PATH.exists(),
-        reason="（slim）爱上海尔.docx not available — place it in the repo root"
+        reason="（slim）爱上海尔.docx not available — place it in test_fixtures/zh/"
     )
     @pytest.mark.skipif(
         not hasattr(tracemalloc, 'start'),

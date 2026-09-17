@@ -17,14 +17,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 _SUITE_ROOT = Path(__file__).resolve().parents[1]
 _VENV_PYTHON = _SUITE_ROOT / ".venv_ol" / "bin" / "python"
@@ -44,7 +42,7 @@ _ENV = {**os.environ,
 
 # Input format → (zh_fixture, en_fixture, has_skeleton)
 INPUT_FORMATS: dict[str, tuple[str, str, bool]] = {
-    "docx": ("爱上海尔_第二章_全球创牌 - E2E测试专用.docx", "sherlock_holmes.docx", True),
+    "docx": ("haier_ch2_zh.docx", "sherlock_holmes.docx", True),
     "pptx": ("haier.pptx", "sherlock_holmes.pptx", True),
     "epub": ("haier.epub", "sherlock_holmes.epub", False),
     "html": ("haier.html", "sherlock_holmes.html", False),
@@ -92,7 +90,8 @@ def resolve_fixture(inp_fmt: str, lang: str) -> str:
     zh_name, en_name, _ = INPUT_FORMATS[inp_fmt]
     name = zh_name if lang == "zh" else en_name
     if inp_fmt == "docx" and lang == "zh":
-        p = _SUITE_ROOT / name
+        # The committed suite fixture wins over the local test_fixtures/zh/ copy.
+        p = _SUITE_ROOT / "scenarios" / "_fixtures" / name
         if p.exists():
             return str(p)
     return str(_FIXTURES_DIR / lang / name)

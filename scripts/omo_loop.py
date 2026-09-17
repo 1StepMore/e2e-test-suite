@@ -46,7 +46,7 @@ _RUN_PIPELINE = _SUITE_ROOT / "scripts" / "run_pipeline.py"
 _OMNI_LOCALIZER_SRC = _SUITE_ROOT / "Omni_Localizer" / "src"
 _OMNI_LOCALIZER_ENV = _SUITE_ROOT / "Omni_Localizer" / ".env"
 _DEFAULT_CONFIG = _SUITE_ROOT / "Omni_Localizer" / "config" / "local.yaml"
-_DEFAULT_FIXTURE = _SUITE_ROOT / "爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
+_DEFAULT_FIXTURE = _SUITE_ROOT / "scenarios" / "_fixtures" / "haier_ch2_zh.docx"
 _OMO_RUNS_DIR = _SUITE_ROOT / "test_artifacts" / "omo_runs"
 
 

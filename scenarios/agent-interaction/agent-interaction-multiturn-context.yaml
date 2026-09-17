@@ -38,7 +38,7 @@ steps:
       session = Path("/tmp/omni_val/agent-interaction-context")
       work = session / "work"
       work.mkdir(parents=True, exist_ok=True)
-      doc = "Meridian_Robotics_Product_Overview_E2E.docx"
+      doc = "scenarios/_fixtures/meridian_robotics.docx"
       bindir = os.path.dirname(sys.executable)
 
       proc = subprocess.run(

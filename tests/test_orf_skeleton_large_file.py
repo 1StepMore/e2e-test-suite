@@ -15,8 +15,10 @@ from tests.conftest import setup_component_paths
 
 setup_component_paths()
 
-# Path to the real 14MB slim DOCX in the repo root
-SLIM_DOCX_PATH = Path(__file__).parent.parent / "（slim）爱上海尔.docx"
+# Path to the real 14MB slim DOCX in test_fixtures/zh/ (local-only, gitignored)
+SLIM_DOCX_PATH = (
+    Path(__file__).parent.parent / "test_fixtures" / "zh" / "（slim）爱上海尔.docx"
+)
 
 
 @pytest.mark.slow
@@ -42,7 +44,7 @@ class TestSkeletonLoaderLargeFile:
         from orf.skeleton.skeleton_loader import SkeletonLoader
 
         if not SLIM_DOCX_PATH.exists():
-            pytest.skip("（slim）爱上海尔.docx not found — place it in the repo root")
+            pytest.skip("（slim）爱上海尔.docx not found — place it in test_fixtures/zh/")
 
         loader = SkeletonLoader()
         tracemalloc.start()
@@ -77,7 +79,7 @@ class TestSkeletonLoaderLargeFile:
         from orf.skeleton.skeleton_loader import SkeletonLoader
 
         if not SLIM_DOCX_PATH.exists():
-            pytest.skip("（slim）爱上海尔.docx not found — place it in the repo root")
+            pytest.skip("（slim）爱上海尔.docx not found — place it in test_fixtures/zh/")
 
         loader = SkeletonLoader()
         skeleton = loader.load_skeleton(str(SLIM_DOCX_PATH))
@@ -98,7 +100,7 @@ class TestSkeletonLoaderLargeFile:
         from orf.skeleton.skeleton_loader import SkeletonLoader
 
         if not SLIM_DOCX_PATH.exists():
-            pytest.skip("（slim）爱上海尔.docx not found — place it in the repo root")
+            pytest.skip("（slim）爱上海尔.docx not found — place it in test_fixtures/zh/")
 
         loader = SkeletonLoader()
         skeleton = loader.load_skeleton(str(SLIM_DOCX_PATH))
@@ -119,7 +121,7 @@ class TestSkeletonLoaderLargeFile:
         from orf.skeleton.skeleton_loader import SkeletonLoader
 
         if not SLIM_DOCX_PATH.exists():
-            pytest.skip("（slim）爱上海尔.docx not found — place it in the repo root")
+            pytest.skip("（slim）爱上海尔.docx not found — place it in test_fixtures/zh/")
 
         loader = SkeletonLoader()
         skeleton = loader.load_skeleton(str(SLIM_DOCX_PATH))

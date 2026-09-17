@@ -197,12 +197,12 @@ Same ~30s target.
 
 ### 3c. If you have the Haier DOCX converted to XLIFF (24-image stress test)
 
-The full Haier DOCX (24 images, 9 paragraphs) lives at the repo root as `爱上海尔_第二章_全球创牌 - E2E测试专用.docx`. To convert it to XLIFF first:
+The full Haier DOCX (24 images, 9 paragraphs) is the committed fixture `scenarios/_fixtures/haier_ch2_zh.docx`. To convert it to XLIFF first:
 
 ```bash
 # (Optional) Convert DOCX → XLIFF via OPP
 cd /mnt/d/贯维/Omni_Suite
-.venv_ol/bin/python -m opp_cli extract "爱上海尔_第二章_全球创牌 - E2E测试专用.docx" \
+.venv_ol/bin/python -m opp_cli extract "scenarios/_fixtures/haier_ch2_zh.docx" \
     -o /tmp/ol-haier-xliff
 ```
 

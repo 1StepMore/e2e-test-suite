@@ -12,12 +12,14 @@ instructions: |
   2. Parse the *_manifest.json — valid JSON with standard metadata keys.
   3. Read the .md — slide content must survive as markdown headings.
      Read the .xlf — trans-units present, target-language="zh" declared.
-  The fixture is the committed suite-root Meridian_Q1_Update_E2E.pptx.
+  The fixture is the committed scenarios/_fixtures/meridian_q1.pptx
+  (the same bytes that used to sit in the suite root as
+  Meridian_Q1_Update_E2E.pptx).
   Extraction is deterministic: no LLM, no FAKE_LLM, no network.
 steps:
   - name: Extract PPTX to Markdown and XLIFF via the real OPP CLI
     kind: cli
-    command: opp Meridian_Q1_Update_E2E.pptx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-pptx -v
+    command: opp scenarios/_fixtures/meridian_q1.pptx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-pptx -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -30,7 +32,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-pptx/Meridian_Q1_Update_E2E_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("/tmp/omni_val/opp-pptx/meridian_q1_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("format=" + m["source"]["format"])
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
@@ -41,7 +43,7 @@ steps:
         - "source"
         - "extraction"
         - "format=PPTX"
-        - "md-path=Meridian_Q1_Update_E2E.md"
+        - "md-path=meridian_q1.md"
     standard: STANDARDS.md#json-parseable
     instructions: |
       What to check: json.loads succeeds (json-parseable), metadata keys
@@ -51,8 +53,8 @@ steps:
     kind: python
     command: |
       import pathlib, re
-      md = pathlib.Path("/tmp/omni_val/opp-pptx/Meridian_Q1_Update_E2E.md").read_text(encoding="utf-8")
-      xlf = pathlib.Path("/tmp/omni_val/opp-pptx/Meridian_Q1_Update_E2E.xlf").read_text(encoding="utf-8")
+      md = pathlib.Path("/tmp/omni_val/opp-pptx/meridian_q1.md").read_text(encoding="utf-8")
+      xlf = pathlib.Path("/tmp/omni_val/opp-pptx/meridian_q1.xlf").read_text(encoding="utf-8")
       print("heading-found" if "# Meridian Robotics" in md else "no-heading")
       print("content-found" if "Financial Highlights" in md else "no-content")
       print("units-found" if len(re.findall(r"<trans-unit", xlf)) > 0 else "no-units")
