@@ -221,6 +221,7 @@ suite 层 281 个错误的完整分布：
 
 **但** `extend-exclude` 排除了三个模块的 `extractors` / `ol_buses` / `converters`
 （`pyproject.toml:44-54`）—— 恰恰是最核心的格式转换代码不在检查范围内。
+**→ 已于第十轮处理，并更正了本行的因果判断，见 §18**
 
 #### 文件规模热点
 
@@ -1137,7 +1138,7 @@ scenario-lint 通过；coverage-audit 在 Windows 上按设计打印显式 `SKIP
 | 项 | 状态 |
 |---|---|
 | 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | 仍未加。落点建议：`scripts/doc_inventory.py` 的 stray 检查家族 + `tests/test_doc_inventory.py` 里对**真实仓库**的断言（CI 的 `pytest tests/ -m "not nightly"` 会跑到）。**→ 已于第九轮落地，见 §17** |
-| 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | 未处理 |
+| 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | **已于第十轮处理并更正因果，见 §18** |
 | 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | 未处理 |
 | 报告 §3.5 `doctor.yml` `continue-on-error: true` | **已于第七轮处理，见 §15.4**（同轮发现并修掉 `make doctor` 在本机的静默 `exit 49`） |
 | `coverage_audit.py` 无友好降级 | 未处理；14.2 已让 coverage-audit 的 SKIP 行为在本机可见 |
@@ -1319,7 +1320,7 @@ tests\error_scenarios\test_exit_code_matrix.py:72: in _run
 | 项 | 状态 |
 |---|---|
 | 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | **已于第九轮落地，见 §17** |
-| 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py`、`coverage_audit.py` 友好降级 | 未处理 |
+| 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py`、`coverage_audit.py` 友好降级 | §3.3 **已于第十轮处理，见 §18**；其余未处理 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 | 4 个 `.venv_ol` 依赖测试目录在原生 Windows 上不可执行（77 failed） | 环境限制，已由 loop-log 记录；CI（Linux）为准 |
 
@@ -1388,13 +1389,80 @@ pytest 侧：`pytest tests/test_doc_inventory.py -q` → **32 passed**（含新�
 
 | 项 | 状态 |
 |---|---|
-| 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | 未处理（核心格式转换代码不在静态检查范围内） |
+| 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | **已于第十轮处理并更正因果，见 §18** |
 | 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | 未处理 |
 | `coverage_audit.py` 无友好降级 | 未处理 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 
 ---
+
+## 十八、第十轮：§3.3 落地（清除核心转换代码的潜伏债 + 更正因果）（2026-09-17）
+
+### 18.1 先更正 §3.3 的因果判断（本报告的自我修正）
+
+报告原文的判断是「`extend-exclude` 让最核心的格式转换代码不在检查范围内」。**这个因果是错的**，本轮取证推翻了自己：
+
+| 事实 | 证据 |
+|---|---|
+| `.gitignore:6-8` 忽略 `Omni_Pre_Processor/`、`Omni_Localizer/`、`Omni_Re_Formatter/`（三个子仓库是独立 git 仓库） | `git check-ignore -v` 三条全部命中 `.gitignore:6/7/8` |
+| ruff 默认 `respect_gitignore = true` | `ruff check --show-settings <OPP 文件>` → `file_resolver.respect_gitignore = true` |
+| 因此 `ruff check .`（全树）**从来不遍历三个子仓库** | 全树 F 运行 80 行输出里 `extractors` 命中 0 次，路径样例全是套件层的 `eval/ scenarios/ scripts/` |
+| `extend-exclude` 对**显式传入的路径**不生效（ruff 默认 `--no-force-exclude`） | 同一文件分别带配置与 `--isolated` 运行，findings 完全一致 |
+
+**真正的因果**：那三条 `extend-exclude` 是**永不生效的死配置**；而子仓库源码的现实覆盖是——
+
+| 调用方式 | 是否覆盖 `Omni_*/src/**` |
+|---|---|
+| `ruff check .`（`make lint`） | **否**（被 gitignore 挡住） |
+| pre-commit ruff 钩子（暂存文件 = 显式路径） | 是 |
+| CI `ruff check --select F <changed_py.txt>` | 是 |
+
+所以 `extractors/` 的存量债之所以长期存活，不是「被排除」，而是**只被「改动文件」门禁覆盖**——没人动它，就没人看见它（与 §3.3 收窄项 4 同一机制）。
+
+### 18.2 实测规模（ruff 0.15.11，仓库 pin 的版本）
+
+34 条，**全部集中在 OPP `src/opp/extractors/`**（21 个文件）：
+`I001`×14、`N806`×8、`B007`×4、`F401`×2、`N803`×2、`UP015`×2、`UP032`×1、`F541`×1。
+
+OL `ol_buses/` 与 ORF `converters/` 在这套规则下**0 条**——因为这两个子仓库各自的 `pyproject.toml` 带 `[tool.ruff]` 且只 `select = ["E","F"]`，配置解析到的是子仓库那份，不是套件根这份（OPP 未声明 `[tool.ruff]`，才落到根配置）。
+注：全局 ruff 0.16.8 会多报 20 条（`UP045`×6、`B023`×4、`UP035`/`UP037`/`UP043` 等新版规则）——**门禁按 pin 版本判定**，故以 34 为准；0.16.8 的增量已在下方遗留项登记。
+
+### 18.3 处置与验证
+
+- `pyproject.toml`：删除三条死配置（`docker`/`build`/`dist` 等保留）。
+- OPP `src/opp/extractors/`：18 条自动修 + 16 条手修（详见该仓库 commit `f3c1739`）。其中
+  `F401`×2 不是死导入——`tests/test_html_extractor_split.py:28-29` 用 `hasattr` 断言这两个可用性开关可从本包取到，属**再导出契约**，故用冗余别名而非删除。
+- 复核后落地（不靠猜）：`W_NS/WP_NS/A_NS/R_NS/MC_NS` 全部是函数局部/参数，无模块级定义、无外部导入方、**所有调用点均为位置传参**，故参数改名不会影响关键字调用方。
+
+验证：
+
+```
+ruff check src/opp/extractors     (pinned 0.15.11)  ->  Found 0 errors
+零回归 A/B（stash 前后跑同一批受影响用例）
+  A) 带改动：  7 failed, 13 passed, 2 skipped
+  B) HEAD：    7 failed, 13 passed, 2 skipped      ← 完全一致
+OPP 全量：1035 passed, 10 failed（10 个失败已用同一 A/B 证明在 HEAD 上同样失败）
+```
+
+那 10 个失败的定性：`.venv_win` 未装 `nbformat` 等可选依赖（`python -c "import nbformat"` → `ModuleNotFoundError`），属本机环境缺口，非本轮引入。
+
+### 18.4 本轮新发现（未处置，登记备查）
+
+**三个子仓库的本地 git 钩子只有 secrets 类**：OPP `.git/hooks/pre-commit` 是手写脚本（无 pre-commit-framework 标记），其 `.pre-commit-config.yaml` 只声明 `gitleaks` + `check-secrets`。即：**lint/test 门禁只存在于套件侧，且只覆盖 changed files**；子仓库内的提交没有任何 lint 门禁。这与 §18.1 的机制叠加，正是 `extractors/` 债长期存活的土壤。
+
+### 18.5 本轮遗留
+
+| 项 | 状态 |
+|---|---|
+| ruff 0.16.8 比 pin 版本多报的 20 条（`UP045`×6、`B023`×4 等） | 未处理；`B023`（闭包捕获循环变量）是真实 bug 类，建议升级 pin 时同步清 |
+| 子仓库侧无 lint/test 钩子（§18.4） | 未处理 |
+| 报告 §3.4 `sys.path` 注入 / `mcp_bridge.py` 职责重叠 | 未处理 |
+| `coverage_audit.py` 无友好降级 | 未处理 |
+| 报告 §5 #2 Phase 2、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
+
+---
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
+*第十八节追加：2026-09-17（同日续做，第十轮）· §3.3 落地 + 因果更正*
 *第十七节追加：2026-09-17（同日续做，第九轮）· 根目录样本守卫*
 *第十六节追加：2026-09-17（同日续做，第八轮）· 两项测试漂移修复*
 *第十五节追加：2026-09-17（同日续做，第七轮）· make doctor 静默失效修复 + doctor 门禁转阻塞*
