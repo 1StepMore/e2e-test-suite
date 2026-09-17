@@ -439,6 +439,24 @@ def render(report: CoverageReport) -> str:
             lines.append(f"    DIVERGED: {entry}")
         for module, error in sorted(report.execution_errors.items()):
             lines.append(f"    SERVER ERROR ({module}): {error}")
+        # Root-cause summary: "N missing" alone reads like a scenario-coverage
+        # gap, sending the reader after missing scenarios when in fact the
+        # transport never started.  The verdict stays fail-closed (exit 1) —
+        # this only names why, so the failure is self-diagnosing.
+        failed_modules = sorted(report.execution_errors)
+        declaring_modules = [m for m, tools in report.declared.items() if tools]
+        if failed_modules and len(failed_modules) >= len(declaring_modules):
+            lines.append(
+                "    ROOT CAUSE: every module server failed to start — a transport/environment "
+                "problem, not a scenario-coverage gap. The suite venv must be runnable here "
+                "(on native Windows .venv_ol is a Linux venv: run under WSL or CI — "
+                "docs/dev/validation-loop-log.md)."
+            )
+        elif failed_modules:
+            lines.append(
+                f"    ROOT CAUSE: {len(failed_modules)} of {len(declaring_modules)} module servers "
+                "failed to start — their declared tools are counted missing for that reason."
+            )
     lines.append("")
     if missing_total:
         lines.append(f"  MISSING ({missing_total}) — not execution-backed (an agent-user would hit it blind):")

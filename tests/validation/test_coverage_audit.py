@@ -200,6 +200,57 @@ def test_execution_backed_all_pass_exits_zero(monkeypatch):
         assert report.passed[module] == sorted(report.declared[module])
 
 
+def test_server_errors_everywhere_render_a_root_cause(monkeypatch):
+    """When every module server fails to start, the report must say so.
+
+    A bare "N missing -> FAIL" reads like a scenario-coverage gap and sends the
+    reader hunting for missing scenarios, when in fact the transport never
+    started (e.g. the Linux ``.venv_ol`` on native Windows).  The verdict must
+    stay fail-closed (exit 1) — the fix is diagnosis, never a softer verdict.
+    """
+    from omni_mcp.validation.dispatch import ParityReport
+
+    surface = audit.load_live_surface()
+    failed = {m: f"server failed: boom ({m})" for m in MODULES if surface[m]}
+    monkeypatch.setattr(
+        audit, "run_execution_backed_coverage",
+        lambda *a, **k: ParityReport(results=[], server_errors=failed),
+    )
+
+    rc = audit.main([])
+    report = audit.compute_coverage(
+        SUITE_ROOT, execution=ParityReport(results=[], server_errors=failed)
+    )
+    text = audit.render(report)
+
+    assert "ROOT CAUSE" in text, (
+        "a transport-wide server failure must be named as the root cause, not left "
+        "implicit in the missing count"
+    )
+    assert "not a scenario-coverage gap" in text, (
+        "the root-cause line must rule out the misleading reading"
+    )
+    assert rc == 1, "the verdict stays fail-closed: server failures are still a failure"
+
+
+def test_partial_server_errors_render_a_scoped_root_cause(monkeypatch):
+    """One module failing is reported as a scoped reason, not the blanket one."""
+    from omni_mcp.validation.dispatch import ParityReport
+
+    failed = {"opp": "server failed: boom (opp)"}
+    report = audit.compute_coverage(
+        SUITE_ROOT, execution=ParityReport(results=[], server_errors=failed)
+    )
+    text = audit.render(report)
+
+    assert "ROOT CAUSE" in text
+    assert "1 of" in text, f"expected a scoped count, got: {text[-400:]!r}"
+    assert "not a scenario-coverage gap" not in text, (
+        "the blanket wording must be reserved for the all-modules case; a single "
+        "dead server does not rule out genuine coverage gaps"
+    )
+
+
 def test_real_execution_marks_suite_tools_passed():
     """One real, bounded execution: the transport-parity path over the four
     suite omni_mcp tools (fast startup, no component imports) marks all four

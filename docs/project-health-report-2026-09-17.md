@@ -1242,7 +1242,7 @@ ENTRY_CHECK_EXIT=0
 |---|---|
 | 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | **已于第九轮落地，见 §17** |
 | 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py` | §3.3 **已于第十轮处理，见 §18**；§3.4 **已于第十一轮处理，见 §19** |
-| `coverage_audit.py` 无友好降级 | 未处理 |
+| `coverage_audit.py` 无友好降级 | **已于第十二轮处理并更正判断，见 §20.2**（原有逐模块 SERVER ERROR 行；只补一行 ROOT CAUSE 摘要） |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 
 ---
@@ -1321,7 +1321,7 @@ tests\error_scenarios\test_exit_code_matrix.py:72: in _run
 | 项 | 状态 |
 |---|---|
 | 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | **已于第九轮落地，见 §17** |
-| 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py`、`coverage_audit.py` 友好降级 | §3.3 **已于第十轮处理，见 §18**；§3.4 **已于第十一轮处理，见 §19**；其余未处理 |
+| 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py`、`coverage_audit.py` 友好降级 | §3.3 **已于第十轮处理，见 §18**；§3.4 **已于第十一轮处理，见 §19**；coverage_audit **已于第十二轮处理，见 §20.2** |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 | 4 个 `.venv_ol` 依赖测试目录在原生 Windows 上不可执行（77 failed） | 环境限制，已由 loop-log 记录；CI（Linux）为准 |
 
@@ -1392,7 +1392,7 @@ pytest 侧：`pytest tests/test_doc_inventory.py -q` → **32 passed**（含新�
 |---|---|
 | 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | **已于第十轮处理并更正因果，见 §18** |
 | 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | **已于第十一轮处理（含 mcp_bridge 过期结论更正），见 §19** |
-| `coverage_audit.py` 无友好降级 | 未处理 |
+| `coverage_audit.py` 无友好降级 | **已于第十二轮处理并更正判断，见 §20.2**（原有逐模块 SERVER ERROR 行；只补一行 ROOT CAUSE 摘要） |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 
 ---
@@ -1458,7 +1458,7 @@ OPP 全量：1035 passed, 10 failed（10 个失败已用同一 A/B 证明在 HEA
 | ruff 0.16.8 比 pin 版本多报的 20 条（`UP045`×6、`B023`×4 等） | 未处理；`B023`（闭包捕获循环变量）是真实 bug 类，建议升级 pin 时同步清 |
 | 子仓库侧无 lint/test 钩子（§18.4） | 未处理 |
 | 报告 §3.4 `sys.path` 注入 / `mcp_bridge.py` 职责重叠 | **已于第十一轮处理，见 §19** |
-| `coverage_audit.py` 无友好降级 | 未处理 |
+| `coverage_audit.py` 无友好降级 | **已于第十二轮处理并更正判断，见 §20.2**（原有逐模块 SERVER ERROR 行；只补一行 ROOT CAUSE 摘要） |
 | 报告 §5 #2 Phase 2、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 
 ---
@@ -1530,12 +1530,89 @@ doc_inventory --check                                   ->  先红后绿：
 | 项 | 状态 |
 |---|---|
 | 三个子仓库的本地 git 钩子只有 secrets 类（§18.4） | 未处理（下一轮候选） |
-| `coverage_audit.py` 无友好降级 | 未处理 |
+| `coverage_audit.py` 无友好降级 | **已于第十二轮处理并更正判断，见 §20.2**（原有逐模块 SERVER ERROR 行；只补一行 ROOT CAUSE 摘要） |
 | ruff pin 升级（0.16.8 多报的 `UP045`×6、`B023`×4 等） | 未处理 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 
 ---
+
+## 二十、第十二轮：完成度审计 + 第三处自我更正（2026-09-18）
+
+### 20.1 逐条审计：报告结论 vs 当前状态
+
+以「能证明完成的权威证据」为准，不看意图、不看记忆：
+
+| 报告结论项 | 权威证据（实测） | 状态 |
+|---|---|---|
+| §5 #1 `99-Tools/` ignore | `git check-ignore -v 99-Tools/x.txt` → `.gitignore:85` | ✅ |
+| §5 #2 PathValidator 三份实现 | Phase 1 已落地（ADR 0007 + parity 39 用例，第四轮）；**Phase 2 外部阻塞**：`uv.lock` 重生成遇索引 403 | ⛔ 外部 |
+| §5 #3 `omo_loop.py` 死代码 | 已删（第九轮） | ✅ |
+| §5 #4 `doc_inventory.py` 硬编码 `python3` | 改 `sys.executable` + 本轮再加 `pre_commit_python.sh` 路径 | ✅ |
+| §5 #5 本地 Linux venv | `setup_dev.ps1` + `README` 入口 | ✅ |
+| §5 #6 ruff pin 漂移 | pre-commit / CI / 文档统一 0.15.11 | ✅ |
+| §5 #7 `PROJECT_STATUS.md` 过期 | 已刷新至 2026-09-17 | ✅ |
+| §5 #8 T13-01/02 质量门禁 | 代码已修（第九轮）；**tier-2 复验无本地 key** | ⛔ 外部 |
+| §5 #9 `test_artifacts/` 被跟踪 | 复核为非缺陷（有意 force-add 的 fidelity 基准） | ✅ |
+| §5 #10 mypy 范围 | 放宽到 `omni_metrics omni_suite omni_mcp`（23 文件全绿） | ✅ |
+| §3.2 R2 suite 层路径策略漂移 | 4 份策略收敛 + `test_path_policy_parity` 39 用例 | ✅ |
+| §3.3 `extend-exclude` | 三条死配置删除 + OPP `extractors/` 34 条清零（`f3c1739`），见 §18 | ✅ |
+| §3.4 `sys.path` 注入 / `mcp_bridge` | 承重接口写成契约 + 两条绑定测试；`mcp_bridge` 过期结论更正，见 §19 | ✅ |
+| §3.5 收窄项 #1–#4 | mypy 已放宽；doctor 已转阻塞（§15）；ruff 已统一；门禁「只覆盖 changed files」的**机制面**已实盘化（§14.2 三条死正则 + §17.2 新增 root-sample 分支） | ✅ |
+| §3.5 `coverage_audit.py` 无友好降级 | 见 20.2（先更正自己的误判，再补一行根因摘要） | ✅ |
+| §3.7 仓库卫生（42/100） | 样本迁移 + 根目录守卫（§17） | ✅ |
+
+结论：**报告项已无「本机可做而没做」的遗留**；剩余两项为外部阻塞（索引 403 / 无 LLM key），按 `STANDARDS.md#fallbacks-never-evidence` 不得伪绿。
+
+### 20.2 第三处自我更正：`coverage_audit.py` 并非「无友好降级」
+
+我在第十一轮的汇报里说它「把传输层没跑起来误诊成 41 个场景缺覆盖」。**这句是错的**，成因是我当时只看输出尾部 20 行。完整输出（本轮实测）：
+
+```
+  execution: 0/41 tools execution-backed; 41 diverged
+    SERVER ERROR (ol): server failed: Client failed to connect: [WinError 1920] …
+    SERVER ERROR (omni_mcp): …
+    SERVER ERROR (opp): …
+    SERVER ERROR (orf): …
+  MISSING (41) — not execution-backed (an agent-user would hit it blind)
+  VERDICT (execution-backed): 0/41 passed, 41 missing -> FAIL (missing > 0), exit 1
+```
+
+即：**逐模块根因行一直在**（`coverage_audit.py:440-441`）。而 `missing` 计数「不放过起不来的服务器」也是**刻意的 fail-closed 设计**——`tests/validation/test_coverage_audit.py:9-11` 明写「a deliberately broken tool must make the audit fail」。所以报告 §3.5 那半句「无友好降级」不准确，而「降级」本身也不该做（降级=伪绿）。
+
+本轮只做**诊断性**的增量，不动判定：当**所有**声明模块的服务器都没起来时，在 SERVER ERROR 行后补一行
+
+```
+    ROOT CAUSE: every module server failed to start — a transport/environment problem,
+    not a scenario-coverage gap. The suite venv must be runnable here (on native Windows
+    .venv_ol is a Linux venv: run under WSL or CI — docs/dev/validation-loop-log.md).
+```
+
+只有部分模块失败时改用限定措辞（`N of M module servers failed to start`）——因为那**不能**排除真实覆盖缺口，把话说满会变成另一种误导。
+
+### 20.3 验证
+
+```
+pytest tests/validation/test_coverage_audit.py -q       ->  26 passed, 1 failed
+   那 1 个 = test_real_execution_marks_suite_tools_passed（需要真起服务器）
+   零回归 A/B（stash 前后同一用例）：
+     A) 带改动： 1 failed（server_errors != {}，WinError 1920）
+     B) HEAD：   1 failed（完全相同的断言差异）
+真实运行（.venv_win）：
+   ROOT CAUSE 行已出现在 VERDICT 上一行；VERDICT 仍为 FAIL … exit 1（fail-closed 不变）
+```
+
+### 20.4 遗留
+
+| 项 | 状态 |
+|---|---|
+| §5 #2 Phase 2（外部索引 403）、§5 #8（tier-2 真 LLM 复验） | **外部阻塞**，需外部状态变化，不可伪绿 |
+| 三个子仓库的本地 git 钩子只有 secrets 类（§18.4） | 未处理（报告之外的自发现问题，候选下一轮） |
+| ruff pin 升级（0.16.8 多报的 `UP045`×6、`B023`×4 等） | 未处理（候选下一轮） |
+| `coverage_audit` / `contract` 在本机的执行型失败（WinError 1920） | 环境限制，CI（Linux）为准 |
+
+---
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
+*第二十节追加：2026-09-18 · 完成度审计 + 第三处自我更正*
 *第十九节追加：2026-09-18 · §3.4 收口 + 第二处因果更正*
 *第十八节追加：2026-09-17（同日续做，第十轮）· §3.3 落地 + 因果更正*
 *第十七节追加：2026-09-17（同日续做，第九轮）· 根目录样本守卫*
