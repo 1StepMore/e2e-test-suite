@@ -1060,15 +1060,16 @@ def _run_bug_fix(args) -> int:
 
 def _run_convergence_watch(args) -> int:
     """MVA Tier 8 (2026-06-21): outer loop that runs the configured gates
-    (Tier 6 verifier health + Tier 7 format matrix) and dispatches
+    (Tier 6 verifier health + Tier 7 format matrix + Tier 8 real corpus /
+    fidelity / equivalence) and dispatches
     bug-fix on RED until consecutive-green >= threshold or
     max-fix-fail >= threshold.
 
     This is the canonical "fully autonomous" entry point:
         python scripts/omo_loop.py --mode convergence-watch
 
-    Default --gate is "both" (Tier 6 + Tier 7). Use --gate tier6 or
-    --gate tier7 to run a single gate.
+    Default --gate is "both" (Tier 6 + Tier 7 + Tier 8). Use --gate tier6,
+    --gate tier7 or --gate tier8 to run a single gate.
 
     The loop:
     - Cycle 1..N:
@@ -1155,7 +1156,8 @@ def main() -> int:
     parser.add_argument("--use-mock", action="store_true", help="Use mock LLM (for testing without API spend)")
     parser.add_argument("--gate", choices=["tier6", "tier7", "tier8", "both"], default="both",
         help="Which gate(s) convergence-watch uses to detect 'system is green'. "
-             "'tier6' = verifier health; 'tier7' = format matrix; 'both' (default) = both.")
+             "'tier6' = verifier health; 'tier7' = format matrix; 'tier8' = real "
+             "corpus + fidelity + equivalence; 'both' (default) = all three.")
     args = parser.parse_args()
 
     if args.mode == "bug-fix":

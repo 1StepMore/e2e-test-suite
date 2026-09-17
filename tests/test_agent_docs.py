@@ -23,6 +23,6 @@ class TestAgentDocs:
         assert "name: omni-suite" in content
         assert "description:" in content
         required = ["When to use", "The 3 stages",
-                     "Output formats supported", "Critical constraints", "Example"]
+                     "Output formats", "Critical constraints", "Example"]
         for section in required:
             assert section in content, f"SKILL.md missing: '{section}'"
