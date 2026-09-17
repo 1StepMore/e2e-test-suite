@@ -753,3 +753,73 @@ def test_check_accepts_canonical_module_doc_claims(module_doc_tree):
         path.write_text(content, encoding="utf-8")
     _generate(module_doc_tree)
     assert di.main(["--check", "--root", str(module_doc_tree)]) == 0
+
+
+# ---------------------------------------------------------------------------
+# 15. Suite-root sample guard (report §3.7 / §13.4 row 3)
+# ---------------------------------------------------------------------------
+
+#: The extensions the guard treats as document samples (mirrors doc_inventory).
+SAMPLE_SUFFIXES = (".docx", ".pptx", ".pdf", ".xlsx", ".odt", ".epub", ".rtf")
+
+
+def test_check_root_sample_file_exit_1(consistent_tree, capsys):
+    """A document sample left in the suite root is exit 1.
+
+    The 2026-09-17 relocation moved four E2E samples out of the root; this
+    guard is what keeps that state from degrading again.
+    """
+    (consistent_tree / "leftover_sample.docx").write_bytes(b"PK\x03\x04")
+    _generate(consistent_tree)
+    rc = di.main(["--check", "--root", str(consistent_tree)])
+    captured = capsys.readouterr()
+    assert rc == 1, "a document sample in the suite root must fail the check"
+    combined = captured.out + captured.err
+    assert "leftover_sample.docx" in combined, (
+        f"failure text must name the offending file, got: {combined!r}"
+    )
+
+
+def test_check_fixture_dirs_are_not_scanned(consistent_tree):
+    """The guard is root-only: samples under the fixture dirs are legitimate.
+
+    ``scenarios/_fixtures/`` (tracked) and ``test_fixtures/`` (gitignored) are
+    exactly where samples belong — a recursive scan would have to fail here.
+    """
+    for rel in ("scenarios/_fixtures/sample.docx", "test_fixtures/zh/sample.pptx"):
+        path = consistent_tree / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"PK\x03\x04")
+    _generate(consistent_tree)
+    assert di.main(["--check", "--root", str(consistent_tree)]) == 0
+
+
+def test_guard_covers_every_sample_extension():
+    """One file per guarded extension is enough to fail — no silent gaps.
+
+    The guard is a suffix set; a typo there (e.g. ``.pdf`` vs ``.PDF``) would
+    turn it into a no-op for that format while still reporting green.
+    """
+    for suffix in SAMPLE_SUFFIXES:
+        assert suffix in di.ROOT_SAMPLE_SUFFIXES, (
+            f"{suffix} missing from ROOT_SAMPLE_SUFFIXES — the guard would "
+            "silently ignore that format"
+        )
+
+
+def test_real_repo_root_has_no_sample_files():
+    """CI-visible guard on the REAL suite root (report §13.4 row 3).
+
+    Runs in CI via ``pytest tests/ -m "not nightly"``, so a root sample cannot
+    survive a commit even if it dodged the pre-commit hook.
+    """
+    root = Path(di.__file__).resolve().parents[1]
+    stray = sorted(
+        p.name
+        for p in root.iterdir()
+        if p.is_file() and p.suffix.lower() in di.ROOT_SAMPLE_SUFFIXES
+    )
+    assert not stray, (
+        f"suite root contains document sample(s): {stray} — move them into "
+        "scenarios/_fixtures/ (tracked) or test_fixtures/ (gitignored)"
+    )

@@ -226,13 +226,13 @@ validate-coverage:
 	$(PYTHON) scripts/validation/coverage_audit.py
 
 doc-inventory:
-	@python3 scripts/doc_inventory.py
+	@bash scripts/pre_commit_python.sh scripts/doc_inventory.py
 
 doc-inventory-check:
-	@python3 scripts/doc_inventory.py --check
+	@bash scripts/pre_commit_python.sh scripts/doc_inventory.py --check
 
 entry-check:
-	@python3 scripts/check_module_entry.py
+	@bash scripts/pre_commit_python.sh scripts/check_module_entry.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

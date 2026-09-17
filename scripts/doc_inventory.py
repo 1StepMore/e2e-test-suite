@@ -15,7 +15,8 @@ any third-party dependency. Two modes:
   ``scenarios/`` is absent), input/output format claims, the canonical test
   matrix, nightly-test claims, version-sync delegation
   (``scripts/sync_version_docs.py --check``), stray ``tests/test_bug_*.py``
-  files, and inventory freshness. No files are written; exit 1 on any failure.
+  files, document samples sitting in the suite root, and inventory freshness.
+  No files are written; exit 1 on any failure.
 
 ``--root DIR`` rebases every path onto DIR (lets tests point at a temp repo
 tree); when the tree lacks ``scenarios/`` the scenario/format sub-checks are
@@ -693,6 +694,44 @@ def check_stray(root: Path, failures: list[str]) -> None:
         print("  Stray test_bug_* files in tests/: none -> ok")
 
 
+#: Document/sample extensions that must never accumulate in the suite root.
+#: The 2026-09-17 relocation (report §3.7) moved four E2E samples out of the
+#: root; without this guard the state silently degrades again the next time
+#: someone drops a draft next to README.md. Samples belong in
+#: ``scenarios/_fixtures/`` (tracked) or ``test_fixtures/`` (local, gitignored).
+ROOT_SAMPLE_SUFFIXES: frozenset[str] = frozenset({
+    ".doc", ".docx", ".odt", ".epub", ".msg", ".pdf", ".ppt", ".pptx",
+    ".rtf", ".xls", ".xlsx",
+})
+
+
+def check_root_samples(root: Path, failures: list[str]) -> None:
+    """The suite root must not hold document samples — they belong in fixtures.
+
+    Root-only by construction (no recursion): fixtures legitimately live in
+    ``scenarios/_fixtures/`` and ``test_fixtures/``, so a recursive scan would
+    need an allowlist of those dirs and would rot the moment a new fixture
+    directory appears.
+    """
+    if not root.is_dir():
+        print("  Suite root samples: root absent -> skip")
+        return
+    stray = sorted(
+        p.name
+        for p in root.iterdir()
+        if p.is_file() and p.suffix.lower() in ROOT_SAMPLE_SUFFIXES
+    )
+    if stray:
+        names = ", ".join(stray)
+        print(f"  Sample files in suite root: {names} -> FAIL")
+        failures.append(
+            f"suite root contains {len(stray)} document sample(s): {names} — move "
+            "them into scenarios/_fixtures/ (tracked) or test_fixtures/ (gitignored)"
+        )
+    else:
+        print("  Sample files in suite root: none -> ok")
+
+
 def check_inventory(root: Path, failures: list[str]) -> None:
     """docs/dev/doc-inventory.md must exist and carry the AUTO-GENERATED header."""
     out = root / "docs" / "dev" / "doc-inventory.md"
@@ -1008,8 +1047,9 @@ def run_check(root: Path) -> list[str]:
     # 7. Version sync (delegate).
     check_version_sync(root, failures)
 
-    # 8. Stray test_bug_* files.
+    # 8. Stray files: test_bug_* in tests/ + document samples in the suite root.
     check_stray(root, failures)
+    check_root_samples(root, failures)
 
     # 9. Inventory freshness.
     check_inventory(root, failures)
@@ -1035,8 +1075,8 @@ def main(argv: list[str] | None = None) -> int:
         "--check",
         action="store_true",
         help="Verify source-truth tool counts vs claim sites, scenario/test-matrix "
-        "claims, version-sync delegation, stray test_bug_* files, and inventory "
-        "freshness. No files are written. Exits 1 on any failure.",
+        "claims, version-sync delegation, stray test_bug_* files and root sample "
+        "files, and inventory freshness. No files are written. Exits 1 on any failure.",
     )
     parser.add_argument(
         "--root",

@@ -1061,7 +1061,7 @@ $ .venv_win\Scripts\python.exe -m pytest tests/test_phase1_p2_matrix.py \
 |---|---|
 | `tests/test_agent_docs.py::test_skill_md_exists` 失败 | **既有漂移，非本轮回归**：它断言 `.opencode/skills/omni-suite/SKILL.md` 含 `Output formats supported`；该文件**不在本次改动集内**，且 `git show HEAD:.opencode/skills/omni-suite/SKILL.md \| Select-String 'Output formats supported'` 在 HEAD 上同样无匹配。**→ 已于第六轮修复，见 §14.1** |
 | `tests/test_convergence_watch_gates.py` 2 个失败 | **既有测试漂移，非本轮回归**：`git show HEAD:scripts/omo_loop.py` 已有 `gates = ["tier6","tier7","tier8"]`，测试却只 stub `_run_verify_all`/`_run_format_matrix`，于是真 tier8 门跑起来（单跑该文件 157 s）并返回 1，而断言要求 `rc == 0`。本轮在该文件只改了 `_DEFAULT_FIXTURE`（仅被 argparse 默认值引用，那两个用例传的 `argparse.Namespace` 连 `input` 都没有，不可达）。修法是把 tier8 一并 stub（1 行），留待下一轮决策。**→ 已于第六轮修复，见 §14.1** |
-| 缺少「根目录不得出现样本文件」的守卫 | 未加。本轮按报告 §3.7 的范围只做迁移 + 引用同步；若要把 42/100 的这个维度长期钉住，可加一条断言「套件根无 `*.docx / *.pptx` 被跟踪文件」的测试或 pre-commit 检查 |
+| 缺少「根目录不得出现样本文件」的守卫 | 未加。本轮按报告 §3.7 的范围只做迁移 + 引用同步；若要把 42/100 的这个维度长期钉住，可加一条断言「套件根无 `*.docx / *.pptx` 被跟踪文件」的测试或 pre-commit 检查。**→ 已于第九轮落地，见 §17** |
 | 仓库内仍存同字节副本 | `scenarios/_fixtures/translated_pair/source.docx` 与 `meridian_robotics.docx` 字节相同（XLIFF 场景的 pre-translated 对，属有意设计：该目录是自包含的 8 文件 fixture 对，删任何一个都会破坏 `COPIED 8` 断言）。未动 |
 
 ---
@@ -1136,7 +1136,7 @@ scenario-lint 通过；coverage-audit 在 Windows 上按设计打印显式 `SKIP
 
 | 项 | 状态 |
 |---|---|
-| 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | 仍未加。落点建议：`scripts/doc_inventory.py` 的 stray 检查家族 + `tests/test_doc_inventory.py` 里对**真实仓库**的断言（CI 的 `pytest tests/ -m "not nightly"` 会跑到） |
+| 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | 仍未加。落点建议：`scripts/doc_inventory.py` 的 stray 检查家族 + `tests/test_doc_inventory.py` 里对**真实仓库**的断言（CI 的 `pytest tests/ -m "not nightly"` 会跑到）。**→ 已于第九轮落地，见 §17** |
 | 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | 未处理 |
 | 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | 未处理 |
 | 报告 §3.5 `doctor.yml` `continue-on-error: true` | **已于第七轮处理，见 §15.4**（同轮发现并修掉 `make doctor` 在本机的静默 `exit 49`） |
@@ -1238,7 +1238,7 @@ ENTRY_CHECK_EXIT=0
 
 | 项 | 状态 |
 |---|---|
-| 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | 仍未加（落点建议见 §14.3） |
+| 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | **已于第九轮落地，见 §17** |
 | 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py` | 未处理 |
 | `coverage_audit.py` 无友好降级 | 未处理 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
@@ -1318,13 +1318,84 @@ tests\error_scenarios\test_exit_code_matrix.py:72: in _run
 
 | 项 | 状态 |
 |---|---|
-| 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | 仍未加 |
+| 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | **已于第九轮落地，见 §17** |
 | 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py`、`coverage_audit.py` 友好降级 | 未处理 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 | 4 个 `.venv_ol` 依赖测试目录在原生 Windows 上不可执行（77 failed） | 环境限制，已由 loop-log 记录；CI（Linux）为准 |
 
 ---
+
+## 十七、第九轮：根目录样本守卫落地（§3.7 的长期钉子）（2026-09-17）
+
+§3.7 把 4 个样本搬出根目录（仓库卫生维度当时是全报告最低分 42/100），但**没有任何机制阻止它们回来**。
+本轮按 §14.3 给出的落点补上守卫，并把「门禁必须真的触发」这条 §14.2 的教训一并适用于它。
+
+### 17.1 落点（两处，各司其职）
+
+| 落点 | 作用 | 触发时机 |
+|---|---|---|
+| `scripts/doc_inventory.py` 新增 `check_root_samples()`（挂在既有 stray 检查家族，紧跟 `check_stray`） | 只扫**套件根**（非递归）的文档类后缀 `.doc/.docx/.odt/.epub/.msg/.pdf/.ppt/.pptx/.rtf/.xls/.xlsx`，命中即 `exit 1` 并指名文件 | `pre-commit` 的 `omni-doc-inventory` 钩子 + `make doc-inventory-check` |
+| `tests/test_doc_inventory.py` 新增 4 个用例 | ① 根目录样本 → `exit 1`；② fixture 目录内的样本**不受影响**；③ 后缀集合无缺口；④ **对真实仓库**的断言（CI `pytest tests/ -m "not nightly"` 会跑到） | pytest（本地 + CI） |
+
+**为什么是「根目录 + 非递归」**：fixture 本来就该住在 `scenarios/_fixtures/`（被跟踪）与 `test_fixtures/`（本地、已 `gitignore`）。递归扫描需要维护这两个目录的允许清单，一旦新增 fixture 目录就会腐化 —— 这正是报告 §13.4 里那些「迁移完就没人再管」的坑。根目录的合法内容只有配置文件与 Markdown。
+
+### 17.2 让它真的触发（不是又一个空转门禁）
+
+原 `omni-doc-inventory` 的 `files:` 正则不含任何文档后缀，因此「只 `git add` 一个样本」的提交**匹配不到任何分支** → 钩子不运行 → 守卫形同虚设（与 §14.2 修掉的三条空转正则同一失败模式）。故在正则尾部追加 root-only 分支：
+
+```
+|[^/]+\.(doc|docx|odt|epub|msg|pdf|ppt|pptx|rtf|xls|xlsx))$
+```
+
+**同族修复（同一缺陷类的剩余三处）**：`Makefile` 的 `doc-inventory` / `doc-inventory-check` / `entry-check`
+三条目标也硬编码裸 `python3` —— 与 §15.1 的 `make doctor` 完全同因（Git Bash 下命中 Microsoft Store
+占位程序 → `exit 49`，且**零输出**）。三条一并改走 `scripts/pre_commit_python.sh`：
+
+```
+--- 旧写法对照：裸 python3 ---
+$ python3 scripts/check_module_entry.py
+RC_OLD_PYTHON3=49                      ← 一行输出都没有
+--- 新写法：doc-inventory-check ---
+check passed: source truth matches claims, no stray files, inventory fresh.   RC=0
+--- 新写法：entry-check ---
+check passed: module entries resolve to their clones.                        RC=0
+```
+
+至此 `git grep -n python3 -- Makefile` 为空 —— Makefile 里不再有裸 `python3`。
+
+### 17.3 验证：可证伪性四路证据（真实仓库实跑）
+
+```
+1) 守卫正样例（无样本）      -> "Sample files in suite root: none -> ok"        RC=0
+2) 注入根目录样本            -> "Sample files in suite root: _probe_root_sample.docx -> FAIL"
+                                "check FAILED (1 issue(s)): suite root contains 1 document
+                                 sample(s): _probe_root_sample.docx — move them into
+                                 scenarios/_fixtures/ (tracked) or test_fixtures/ (gitignored)"
+                                                                              RC=1
+3) 样本放进 test_fixtures/   -> check passed                                  RC=0
+4) files: 正则逐路径判定（re.search，与 pre-commit 同语义）
+     '_probe_root_sample.docx'                     matched=True  want=True   OK
+     'leftover.pdf'                                matched=True  want=True   OK
+     'scenarios/_fixtures/haier_ch2_zh.docx'       matched=True  want=True   OK
+     'test_fixtures/zh/slim.docx'                  matched=False want=False  OK
+     'docs/project-health-report-2026-09-17.md'    matched=True  want=True   OK
+```
+
+第 2 路是本轮最关键的一条：**守卫在真实仓库上确实会红**，而不是「加了但永远不会说话」。第 3 路证明 fixture 目录不误伤。
+pytest 侧：`pytest tests/test_doc_inventory.py -q` → **32 passed**（含新增 4 例）。
+
+### 17.4 本轮遗留
+
+| 项 | 状态 |
+|---|---|
+| 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | 未处理（核心格式转换代码不在静态检查范围内） |
+| 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | 未处理 |
+| `coverage_audit.py` 无友好降级 | 未处理 |
+| 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
+
+---
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
+*第十七节追加：2026-09-17（同日续做，第九轮）· 根目录样本守卫*
 *第十六节追加：2026-09-17（同日续做，第八轮）· 两项测试漂移修复*
 *第十五节追加：2026-09-17（同日续做，第七轮）· make doctor 静默失效修复 + doctor 门禁转阻塞*
 *第十四节追加：2026-09-17（同日续做，第六轮）· 门禁实盘化 + 测试漂移修复*

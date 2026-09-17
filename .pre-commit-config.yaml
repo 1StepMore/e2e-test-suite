@@ -128,7 +128,14 @@ repos:
         language: system
         pass_filenames: false
         stages: [commit]
-        files: ^(docs/.*|README\.md|AGENTS\.md|CLAUDE\.md|reports/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|scenarios/.*|scripts/doc_inventory\.py|\.pre-commit-config\.yaml|Makefile)$
+        # The trailing alternation is what makes the suite-root sample guard
+        # (scripts/doc_inventory.py: check_root_samples) actually fire: without
+        # it a commit that only stages a stray sample in the root matches no
+        # branch and the gate stays silent — the same "gate that never runs"
+        # failure mode fixed for the other three hooks on 2026-09-17.
+        # `[^/]+` keeps it root-only; fixtures under scenarios/ are matched by
+        # the `scenarios/.*` branch for the doc-truth checks, not for this one.
+        files: ^(docs/.*|README\.md|AGENTS\.md|CLAUDE\.md|reports/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|scenarios/.*|scripts/doc_inventory\.py|\.pre-commit-config\.yaml|Makefile|[^/]+\.(doc|docx|odt|epub|msg|pdf|ppt|pptx|rtf|xls|xlsx))$
 
       # Module-entry consistency (issue #11): the suite's Omni_* symlinks must
       # resolve to real clones (no gitdir-pointer second worktree) and the venv
