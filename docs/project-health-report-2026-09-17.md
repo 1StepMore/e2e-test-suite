@@ -1653,7 +1653,7 @@ OPP tests F 类: 132（不动；门禁不取 tests/）
 
 `265 → 253` 与 §20 之前的记录一致：13 条 F 清掉、1 条 I001 因导入块重排而出现。无论取哪个数，全规则集都先天红，故门禁取 F 类。
 
-### 21.4 一项**未提交**的尝试：`.pre-commit-config.yaml` 的 `language: python`
+### 21.4 `.pre-commit-config.yaml` 的解释器修复：先试错 `language: python`，改用套件解析器
 
 三个子仓库的 `check-secrets` 钩子原先写 `entry: python3 …` + `language: system`（Windows 下 `python3` 命中 Microsoft Store 占位程序、exit 49）。本轮试图改成 `entry: python …` + `language: python`，**验证未通过，故该文件留在工作树未提交**（本报告不把它记为已完成）：
 
@@ -1661,15 +1661,26 @@ OPP tests F 类: 132（不动；门禁不取 tests/）
 - 这恰好背离该钩子的设计目的（其 docstring 明写：gitleaks 拉不下来时它仍应能跑）。改成 `language: python` 会把它从「离线可用的 stdlib 扫描」变成「需要访问索引 + 把整个子仓库依赖装进钩子环境」。
 - 更早那次 `subrepo_hook_out.txt` 其实没走到这一步：它在 pre-commit 拉 gitleaks 仓库时就被网络断连挂掉（`Connection was reset` / `Could not connect to server`），且其 `python3` 对照组取的是 `tail` 的 rc 而非 `python3` 的——那次运行不构成证据。
 - 事实澄清：子仓库**真实生效的提交钩子**是那份手写 bash 脚本（纯 grep，无 python3），所以**今天的真实提交路径不受 `python3` 缺陷影响**；有问题的只是尚未生效的 pre-commit 配置。
-- 候选修法（未实施，待定）：(a) 回退到 `language: system` + `python3`；(b) 复用套件的 `scripts/pre_commit_python.sh` 解释器解析器（三个子仓库目前都没有此文件）；(c) 先给三仓库装 pre-commit（§2.7 的自发现问题）。
+- 候选修法：(a) 回退到 `language: system` + `python3`；(b) 复用套件的 `scripts/pre_commit_python.sh` 解释器解析器；(c) 先给三仓库装 pre-commit（§2.7 的自发现问题）。
+
+**处置（用户确认后采纳 b）**：三个子仓库各新增 `scripts/pre_commit_python.sh`（与套件同内容、同 md5 的副本，已核验），`check-secrets` 改为：
+
+```yaml
+entry: bash scripts/pre_commit_python.sh scripts/check-secrets.py
+language: system
+```
+
+实测（离线、仅含该钩子的 config）：干净文件 → `Passed` / rc 0；写入一个 AWS 形状的假 key → 拦截 / rc 1（报 `[aws_access_key]`）。三仓库均已提交（见 21.5）。解析器按「项目 venv（`bin/` 与 `Scripts/` 两种布局）→ 系统 `python`/`python3`/`py`」逐个**真跑**探测，只需本地解释器、不需网络。注意：OL 仓库内已有 `.venv/`（Linux 布局），本机命中第 1 层；若该 venv 在某平台不可执行，解析器第 2 层会 fail-loud（刻意设计，不静默跳过）。候选 (c) 仍未做。
 
 ### 21.5 本轮落地的提交
 
 | commit | 仓库 | 内容 |
 |---|---|---|
 | `7328591` | OPP | 新增 F 类 lint 门禁 + `src` 13 条 F 清零（9 文件：8 src + ci.yml） |
+| `45225e0` | OPP | 更正 ci.yml 注释里的门禁范围数字（改用 pin 版复核） |
 | `07b5e7f` | OL | lint 依赖从 unpinned 固定到 `ruff==0.15.16`（= uv.lock） |
-| — | ORF | 无提交：其唯一改动（`check-secrets` 钩子写法）属 21.4 的未通过项，按规则**不提交** |
+| `32bc21a` / `f6c8f3f` / `2de67f3` | OPP / OL / ORF | `check-secrets` 改用套件解释器解析器（各新增 `scripts/pre_commit_python.sh`） |
+| `b683f55` / `781bad2` | suite | 本报告 §21 |
 
 ### 21.6 附带发现：「索引 403」是本机镜像配置，不是外部阻塞
 
