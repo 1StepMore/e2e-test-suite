@@ -286,7 +286,7 @@ sys.path.insert(...)   # 直接把三个子仓库的 src 塞进 sys.path
 | # | 问题 | 证据 |
 |---|---|---|
 | 1 | **mypy 门禁近乎空转** | `lint.yml:152-163` 仅执行 `python -m mypy omni_metrics`；注释自陈 `mypy .` 超时（exit 124），`mypy scripts` 有 16 错、`mypy omni_suite omni_metrics omni_mcp` 有 5 错，故缩到最小范围 |
-| 2 | **doctor 不阻塞** | `doctor.yml:25` `continue-on-error: true` |
+| 2 | **doctor 不阻塞** | `doctor.yml:25` `continue-on-error: true`（**→ 已于第七轮转为阻塞，见 §15.4**；修复过程中还发现 `make doctor` 在本机静默 exit 49，见 §15.1） |
 | 3 | **ruff 版本漂移** | CI 固定 `ruff==0.6.0`，本地实测 `0.15.11` → 规则集不同，**本地干净 ≠ CI 干净** |
 | 4 | **门禁仅覆盖 changed files** | 存量 281 错永不暴露；见 3.3 |
 
@@ -1139,12 +1139,113 @@ scenario-lint 通过；coverage-audit 在 Windows 上按设计打印显式 `SKIP
 | 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | 仍未加。落点建议：`scripts/doc_inventory.py` 的 stray 检查家族 + `tests/test_doc_inventory.py` 里对**真实仓库**的断言（CI 的 `pytest tests/ -m "not nightly"` 会跑到） |
 | 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | 未处理 |
 | 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | 未处理 |
-| 报告 §3.5 `doctor.yml` `continue-on-error: true`、`coverage_audit.py` 无友好降级 | 未处理；本轮 14.2 已让 coverage-audit 的 SKIP 行为在本机可见 |
+| 报告 §3.5 `doctor.yml` `continue-on-error: true` | **已于第七轮处理，见 §15.4**（同轮发现并修掉 `make doctor` 在本机的静默 `exit 49`） |
+| `coverage_audit.py` 无友好降级 | 未处理；14.2 已让 coverage-audit 的 SKIP 行为在本机可见 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 仍处外部阻塞／待 key，不可伪绿 |
 
 ---
 
+## 十五、第七轮：`make doctor` 静默失效修复 + doctor 门禁转阻塞（2026-09-17）
+
+承接 §14.3 的「§3.5 `doctor.yml` `continue-on-error: true` 未处理」。取证时先撞上一个**更基础的问题**：
+`make doctor` 在本机（Windows / Git Bash）根本不是「跑完了有几项警告」，而是**打一行就死、且不报错**。
+
+### 15.1 发现：`make doctor` 打一行 `[INFO]` 后静默退出（exit 49）
+
+把 HEAD 版脚本还原后在同一环境实跑（修复前的真实行为）：
+
+```bash
+$ git show HEAD:scripts/check_deps.sh > 99-Tools/validation-scratch/omni-suite/check_deps_HEAD.sh
+$ OMNI_TEST_FAKE_LLM=1 OMNI_TEST_FAKE_PANDOC=1 OMNI_DOCTOR_SKIP_PDF=1 \
+    bash 99-Tools/validation-scratch/omni-suite/check_deps_HEAD.sh
+[INFO]  Checking Python version …
+RC_HEAD=49
+```
+
+7 项检查里**后 6 项从未执行**，没有 `[ERR]`、没有原因、没有任何提示。根因链（三环，缺一不成立）：
+
+1. `scripts/check_deps.sh:36` `PYTHON_BIN="${PYTHON_BIN:-python3}"` + `:37` 的 `command -v` 守卫——Git Bash 下 `python3` **是存在的**（`%LOCALAPPDATA%\Microsoft\WindowsApps\python3`，Microsoft Store 的 execution-alias 占位程序），所以「找不到 python3」这条分支永远不走；
+2. `:41-43` 真的去执行它 → 占位程序不执行任何代码，直接返回 **49**；
+3. 脚本是 `set -euo pipefail`，而这三行是**赋值语句里的命令替换**——命令替换失败会被 `set -e` 直接终止脚本。于是「环境坏」被翻译成「脚本无声退出」。
+
+这属于 `scenarios/STANDARDS.md` 所禁止的那类失败：**不是失败，也不是通过，而是看起来跑过了**。同一份陈旧模式在 `scripts/setup_dev.sh:116-123` 也有，但那里 **不是缺陷**——该脚本 L97-104 有 Windows OS 守卫，会先明确报错并把人引到 `setup_dev.ps1`。这也正是本轮只改 doctor 侧的原因。
+
+### 15.2 修复（3 个文件）
+
+| 文件 | 改动 | 理由 |
+|---|---|---|
+| `scripts/check_deps.sh` | Check 1 重写：解释器改经 `scripts/pre_commit_python.sh` 解析（项目 venv 的 `bin/` 与 `Scripts/` 两种布局 → 系统 `python`/`python3`/`py`，逐个真跑 `-c ''` 探测）；`PYTHON_BIN` 显式覆盖保留；解析不到时**红并给三条出路**（`setup_dev.sh` / `setup_dev.ps1` / `PYTHON_BIN`） | 复用仓库既有的单一解析器（`.pre-commit-config.yaml:26-36` 已把这条规则写成注释；`docs/dev/validation-loop-log.md:30` 把它定为常设约束），不再出现第 2 份"裸 python3"实现 |
+| `Makefile` | `doctor` 第二条：`@python3 scripts/check_module_entry.py` → `@bash scripts/pre_commit_python.sh scripts/check_module_entry.py` | 同一缺陷的第二处：本机 `python3` 不存在（PowerShell/CMD 下 rc=9009），先修复 `check_deps.sh` 仍会在下一行失败 |
+| `.github/workflows/doctor.yml` | `continue-on-error: true` → `false`，并把「一周绿后翻」的旧注释改写成**实际依据** | §3.5 收窄项 #2 |
+
+### 15.3 验证：同环境前/后对照 + 跨平台可达性
+
+修复后（同一条命令、同一组 env）：
+
+```
+[OK]    Python 3.13.5
+[OK]    LLM API key: skipped (OMNI_TEST_FAKE_LLM=1)
+[OK]    pandoc: skipped (OMNI_TEST_FAKE_PANDOC=1)
+[OK]    WeasyPrint libs: skipped (OMNI_DOCTOR_SKIP_PDF=1)
+[OK]    dotnet: /c/Program Files/dotnet/dotnet
+[WARN]  OPP_MCP_ALLOWED_DIRS: not set (fine for CLI use, required for MCP server)
+[WARN]  ORF_MCP_ALLOWED_DIRS: not set (fine for CLI use, required for MCP server)
+[OK]    Suite structure: all key files present
+
+[WARN]  PASSED with 1 warning(s) — review above
+RC_WORKTREE=0
+```
+
+`make doctor` 第二条（本机 `make` 未安装，两条命令逐条等价实跑）：
+
+```
+check_module_entry (root: D:\贯维\Omni_Suite)
+Omni_Pre_Processor: entry=...\Omni_Pre_Processor -> realpath=...\Omni_Pre_Processor
+  HEAD 3f92ee0  dirty 1
+  WARNING: 1 tracked change(s) in the module worktree
+Omni_Localizer: ... HEAD c0c3cb6  dirty 0
+Omni_Re_Formatter: ... HEAD d14e0c8  dirty 0
+
+check passed: module entries resolve to their clones.
+ENTRY_CHECK_EXIT=0
+```
+
+（`dirty 1` 是 warning 而非失败——脚本契约明确「dirty is a WARNING, never a failure」。）
+
+对照结论：**前 = 1 行输出 + 静默 49；后 = 7 项检查全跑到 + exit 0**。
+
+### 15.4 转阻塞的依据（含不可验证项）
+
+旧注释的前置条件是「绿了一周后翻 false」。该条件**本轮无法在本机核实**，如实记录：
+
+- `gh` 未安装（`gh auth status` → 命令不存在）；
+- `api.github.com` 匿名配额（60/h/ IP）已耗尽，两次都是 `API rate limit exceeded for 153.254.103.229`；
+- 直连 `github.com` 超时（连 badge SVG 都取不到）。
+
+所以转阻塞的依据是**静态枚举 + 同环境本机复现**，不是 CI 运行历史：
+
+| 检查 | CI（`ubuntu-latest` + workflow 里那 3 个变量）下的结果 |
+|---|---|
+| 1 Python ≥3.13 | workflow `setup-python@v5 python-version: 3.13`；解析器落到 layer 3 的 `python` → OK |
+| 2 keys / 3 pandoc / 4 WeasyPrint | 被 `OMNI_TEST_FAKE_LLM` / `OMNI_TEST_FAKE_PANDOC` / `OMNI_DOCTOR_SKIP_PDF` 跳过 |
+| 5 md2pptx·dotnet / 6 MCP dirs | 仅 `WARN`；脚本契约是 `FAILURES>0` 才 exit 1，警告不触发 |
+| 7 suite files | 5 个文件全为 `100644` 且随 checkout 到位（`git ls-files --stage` 实测） |
+| `make doctor` 第二条 | **本仓库未跟踪模块入口**（`git ls-files Omni_Pre_Processor Omni_Localizer Omni_Re_Formatter` 实测为空）→ CI 里模块缺席 → `check_module_entry.py` 自身 skip → exit 0 |
+
+残留风险：若 CI 上出现本表未枚举到的失败，doctor 会**显式红并指明是哪一项**——这正是本轮修复的直接目标（把"看起来跑过了"换成"要么真过、要么真红"）。`CHANGELOG.md:30` / `:231` 里 `continue-on-error: true` 的表述**保持不动**：那是历史条目的当时状态，改写反而失真。
+
+### 15.5 本轮遗留（不伪装为已解决）
+
+| 项 | 状态 |
+|---|---|
+| 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | 仍未加（落点建议见 §14.3） |
+| 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py` | 未处理 |
+| `coverage_audit.py` 无友好降级 | 未处理 |
+| 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
+
+---
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
+*第十五节追加：2026-09-17（同日续做，第七轮）· make doctor 静默失效修复 + doctor 门禁转阻塞*
 *第十四节追加：2026-09-17（同日续做，第六轮）· 门禁实盘化 + 测试漂移修复*
 *第十三节追加：2026-09-17（同日续做，第五轮）· §3.7 仓库卫生收尾*
 *第十二节追加：2026-09-17（同日续做，第四轮）· R2 收口 + 门禁可用性*

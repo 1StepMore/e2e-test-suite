@@ -19,10 +19,22 @@ jobs:
     timeout-minutes: 5
 
     # ═══════════════════════════════════════════════════════════════════════
-    # continue-on-error: true — non-blocking check initially.
-    # Flip to continue-on-error: false after one week of green runs.
+    # Blocking since 2026-09-17 (was continue-on-error: true since 2026-06-28).
+    #
+    # The original note said "flip after one week of green runs" — never acted
+    # on, so for 2.7 months the gate could not fail a build. It is safe to make
+    # blocking because the three env vars below fence every environment-
+    # dependent hard check (keys / pandoc / WeasyPrint); the only checks that
+    # can still hard-fail are Python < 3.13 and a missing suite file, and this
+    # workflow pins 3.13 + checks out the whole suite. Module entries are not
+    # tracked in git, so check_module_entry.py has nothing to validate here.
+    #
+    # `make doctor` is now reproducible off-CI too: check_deps.sh resolves its
+    # interpreter through scripts/pre_commit_python.sh instead of a bare
+    # `python3`, which under Git Bash hit the Microsoft Store alias stub and
+    # killed the script silently (exit 49) right after the first [INFO] line.
     # ═══════════════════════════════════════════════════════════════════════
-    continue-on-error: true
+    continue-on-error: false
 
     steps:
       - uses: actions/checkout@v4

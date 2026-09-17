@@ -32,20 +32,36 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # ═══════════════════════════════════════════════════════════════════════════════
 # Check 1 — Python version >= 3.13
 # ═══════════════════════════════════════════════════════════════════════════════
+# 解释器统一经 scripts/pre_commit_python.sh 解析，不写裸 `python3`：
+# 在 Windows/Git Bash 下，裸 `python3` 命中 Microsoft Store 的 execution-alias
+# 占位程序（不执行任何代码、直接返回 49），而本脚本是 `set -e`，于是**在第一条
+# 检查中途静默退出**——既没有 [ERR] 也没有退出原因（实测 2026-09-17：`make
+# doctor` 打一行 [INFO] 后 exit 49）。解析器按「项目 venv（POSIX `bin/` +
+# Windows `Scripts/` 两种布局）→ 系统 python/python3/py」逐个真跑 `-c ''` 探测
+# （存在 ≠ 可执行）。PYTHON_BIN 仍可显式覆盖。
+# 注：scripts/setup_dev.sh 不必这样改——它在 Windows 上有 OS 守卫，会先报错退出。
 info "Checking Python version …"
-PYTHON_BIN="${PYTHON_BIN:-python3}"
-if ! command -v "$PYTHON_BIN" &>/dev/null; then
-    err "python3 not found. Install Python >= 3.13."
+if [ -n "${PYTHON_BIN:-}" ]; then
+    PY_VERSION="$("$PYTHON_BIN" -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null || true)"
+else
+    PY_VERSION="$(bash "$SCRIPT_DIR/pre_commit_python.sh" -c \
+        'import sys; print("%d.%d.%d" % sys.version_info[:3])' || true)"
+fi
+if [ -z "$PY_VERSION" ]; then
+    err "No runnable Python interpreter found (project venvs and python/python3/py all failed)."
+    err "  → Linux/macOS/WSL: bash scripts/setup_dev.sh"
+    err "  → Native Windows: powershell -ExecutionPolicy Bypass -File scripts/setup_dev.ps1"
+    err "  → Or point PYTHON_BIN at a Python >= 3.13."
     FAILURES=$((FAILURES + 1))
 else
-    PY_MAJOR="$("$PYTHON_BIN" -c 'import sys; print(sys.version_info.major)')"
-    PY_MINOR="$("$PYTHON_BIN" -c 'import sys; print(sys.version_info.minor)')"
-    PY_PATCH="$("$PYTHON_BIN" -c 'import sys; print(sys.version_info.micro)')"
+    PY_MAJOR="${PY_VERSION%%.*}"
+    PY_MINOR="${PY_VERSION#*.}"
+    PY_MINOR="${PY_MINOR%%.*}"
     if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 13 ]; }; then
-        err "Python >= 3.13 required, found $PY_MAJOR.$PY_MINOR"
+        err "Python >= 3.13 required, found $PY_VERSION"
         FAILURES=$((FAILURES + 1))
     else
-        ok "Python $PY_MAJOR.$PY_MINOR.$PY_PATCH"
+        ok "Python $PY_VERSION"
     fi
 fi
 

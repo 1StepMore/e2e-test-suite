@@ -73,7 +73,7 @@ setup:
 
 doctor:
 	bash scripts/check_deps.sh
-	@python3 scripts/check_module_entry.py
+	@bash scripts/pre_commit_python.sh scripts/check_module_entry.py
 
 test: test-opp test-ol test-orf
 	$(FAKE_ENV) $(PYTEST) tests/ -m "not nightly" --tb=short -q --no-header
