@@ -87,3 +87,98 @@ def test_ci_workflow_runs_contract_tests():
         f"No CI workflow in {workflow_dir} references the contract tests. "
         f"Add 'pytest tests/test_contract_documentation.py -v' to a workflow."
     )
+
+
+# ---------------------------------------------------------------------------
+# Suite ↔ Module in-process import surface (CONTRACT.md §"Suite ↔ Module
+# In-Process Import Surface").  These two tests lock the doc and the code
+# together: the doc cannot describe a surface that does not resolve, and a
+# renamed registry cannot pass silently — it fails here, naming the contract.
+# ---------------------------------------------------------------------------
+
+#: (module label, dotted import path, expected shape kind) for every name the
+#: suite imports from inside a module. Mirrors the CONTRACT.md table.
+DECLARED_IMPORT_SURFACE = (
+    ("OPP", "opp.mcp.server._TOOL_SCHEMAS", "list-of-dicts-with-name"),
+    ("OL", "ol_mcp.tools.TOOL_REGISTRY", "mapping"),
+    ("ORF", "orf.mcp.server._TOOL_DISPATCH", "mapping"),
+    ("suite", "omni_mcp.server._TOOL_SCHEMAS", "list-of-dicts-with-name"),
+    ("suite", "omni_mcp.server._TOOL_DISPATCH", "mapping"),
+)
+
+
+def _resolve(dotted: str):
+    """Import and return the attribute named by *dotted* (``mod.attr``)."""
+    import importlib
+
+    module_path, _, attr = dotted.rpartition(".")
+    module = importlib.import_module(module_path)
+    return getattr(module, attr)
+
+
+def test_contract_declares_in_process_import_surface():
+    """The declared surface must be written down in CONTRACT.md.
+
+    An undocumented load-bearing name is exactly the failure mode this section
+    exists to prevent — the suite would break on a module refactor and nothing
+    would tell the maintainer that the name was ever promised.
+    """
+    content = CONTRACT.read_text(encoding="utf-8")
+    assert "Suite ↔ Module In-Process Import Surface" in content, (
+        "CONTRACT.md lost its 'Suite ↔ Module In-Process Import Surface' section. "
+        "The suite imports module registries in-process; that interface must stay "
+        "documented (see this test file for the asserted list)."
+    )
+    missing = [dotted for _, dotted, _ in DECLARED_IMPORT_SURFACE if dotted not in content]
+    assert not missing, (
+        "CONTRACT.md no longer documents these load-bearing import paths: "
+        f"{missing}. Add them back to the 'Suite ↔ Module In-Process Import "
+        "Surface' table, or update DECLARED_IMPORT_SURFACE here if the interface "
+        "genuinely changed."
+    )
+
+
+def test_declared_in_process_import_surface_resolves():
+    """Every declared path must resolve, with the shape the contract promises.
+
+    This is the loud half of the contract: a module that renames or moves one of
+    these registries fails here with a message naming CONTRACT.md, instead of
+    surfacing as a puzzling ImportError inside an unrelated coverage/doc test.
+    """
+    import os
+
+    # ORF's MCP config is fail-CLOSED at import; the audit reads only the
+    # registry, so any allowlist value is fine (mirrors coverage_audit.py).
+    os.environ.setdefault("MCP_ALLOWED_DIRECTORIES", "/tmp")
+
+    for label, dotted, shape in DECLARED_IMPORT_SURFACE:
+        try:
+            obj = _resolve(dotted)
+        except Exception as exc:  # noqa: BLE001 - report the contract breach verbatim
+            raise AssertionError(
+                f"{label}: the suite cannot import {dotted} ({type(exc).__name__}: {exc}). "
+                "That name is a declared interface — CONTRACT.md §'Suite ↔ Module "
+                "In-Process Import Surface'. If the module renamed or moved it, update "
+                "the suite (coverage_audit, dispatch, doc_inventory counters, the "
+                "contract tests) and CONTRACT.md in the same change."
+            ) from exc
+
+        if shape == "list-of-dicts-with-name":
+            assert isinstance(obj, list), f"{dotted} must be a list, got {type(obj).__name__}"
+            assert obj, f"{dotted} is empty — an empty registry would make every coverage check vacuous"
+            bad = [e for e in obj if not (isinstance(e, dict) and "name" in e)]
+            assert not bad, (
+                f"{dotted}: every entry must be a dict carrying a 'name' key; "
+                f"offending entries: {bad[:3]}"
+            )
+            names = {e["name"] for e in obj}
+        else:
+            assert hasattr(obj, "keys"), (
+                f"{dotted} must be a mapping (name -> entry), got {type(obj).__name__}"
+            )
+            names = set(obj.keys())
+
+        assert names, f"{dotted} declares no tool names"
+        assert all(isinstance(n, str) and n for n in names), (
+            f"{dotted} has a non-string or empty tool name: {names!r}"
+        )

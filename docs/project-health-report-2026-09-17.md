@@ -263,6 +263,7 @@ sys.path.insert(...)   # 直接把三个子仓库的 src 塞进 sys.path
 
 除 3.2 的 PathValidator 三份实现外，`scripts/mcp_bridge.py`（为规避 FastMCP 3.4.2 stdio bug）
 也是一层额外的 CLI 包装，与各模块原生 MCP server 存在职责重叠。
+**→ 已于第十一轮更正：该文件在报告成文前三个月就已删除，本句是过期结论，见 §19.1**
 
 ---
 
@@ -1139,7 +1140,7 @@ scenario-lint 通过；coverage-audit 在 Windows 上按设计打印显式 `SKIP
 |---|---|
 | 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | 仍未加。落点建议：`scripts/doc_inventory.py` 的 stray 检查家族 + `tests/test_doc_inventory.py` 里对**真实仓库**的断言（CI 的 `pytest tests/ -m "not nightly"` 会跑到）。**→ 已于第九轮落地，见 §17** |
 | 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | **已于第十轮处理并更正因果，见 §18** |
-| 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | 未处理 |
+| 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | **已于第十一轮处理（含 mcp_bridge 过期结论更正），见 §19** |
 | 报告 §3.5 `doctor.yml` `continue-on-error: true` | **已于第七轮处理，见 §15.4**（同轮发现并修掉 `make doctor` 在本机的静默 `exit 49`） |
 | `coverage_audit.py` 无友好降级 | 未处理；14.2 已让 coverage-audit 的 SKIP 行为在本机可见 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 仍处外部阻塞／待 key，不可伪绿 |
@@ -1240,7 +1241,7 @@ ENTRY_CHECK_EXIT=0
 | 项 | 状态 |
 |---|---|
 | 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | **已于第九轮落地，见 §17** |
-| 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py` | 未处理 |
+| 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py` | §3.3 **已于第十轮处理，见 §18**；§3.4 **已于第十一轮处理，见 §19** |
 | `coverage_audit.py` 无友好降级 | 未处理 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 
@@ -1320,7 +1321,7 @@ tests\error_scenarios\test_exit_code_matrix.py:72: in _run
 | 项 | 状态 |
 |---|---|
 | 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | **已于第九轮落地，见 §17** |
-| 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py`、`coverage_audit.py` 友好降级 | §3.3 **已于第十轮处理，见 §18**；其余未处理 |
+| 报告 §3.3 `extend-exclude`、§3.4 `sys.path` 注入 / `mcp_bridge.py`、`coverage_audit.py` 友好降级 | §3.3 **已于第十轮处理，见 §18**；§3.4 **已于第十一轮处理，见 §19**；其余未处理 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 | 4 个 `.venv_ol` 依赖测试目录在原生 Windows 上不可执行（77 failed） | 环境限制，已由 loop-log 记录；CI（Linux）为准 |
 
@@ -1390,7 +1391,7 @@ pytest 侧：`pytest tests/test_doc_inventory.py -q` → **32 passed**（含新�
 | 项 | 状态 |
 |---|---|
 | 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | **已于第十轮处理并更正因果，见 §18** |
-| 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | 未处理 |
+| 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | **已于第十一轮处理（含 mcp_bridge 过期结论更正），见 §19** |
 | `coverage_audit.py` 无友好降级 | 未处理 |
 | 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 
@@ -1456,12 +1457,86 @@ OPP 全量：1035 passed, 10 failed（10 个失败已用同一 A/B 证明在 HEA
 |---|---|
 | ruff 0.16.8 比 pin 版本多报的 20 条（`UP045`×6、`B023`×4 等） | 未处理；`B023`（闭包捕获循环变量）是真实 bug 类，建议升级 pin 时同步清 |
 | 子仓库侧无 lint/test 钩子（§18.4） | 未处理 |
-| 报告 §3.4 `sys.path` 注入 / `mcp_bridge.py` 职责重叠 | 未处理 |
+| 报告 §3.4 `sys.path` 注入 / `mcp_bridge.py` 职责重叠 | **已于第十一轮处理，见 §19** |
 | `coverage_audit.py` 无友好降级 | 未处理 |
 | 报告 §5 #2 Phase 2、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
 
 ---
+
+## 十九、第十一轮：§3.4 收口（更正过期结论 + 把承重接口写成契约）（2026-09-18）
+
+### 19.1 更正：报告 §3.4 的 `mcp_bridge.py` 是过期结论
+
+报告 §3.4「代码重复」段称 `scripts/mcp_bridge.py` 与各模块原生 MCP server 职责重叠。实测：
+
+```
+Test-Path scripts/mcp_bridge.py            -> NOT PRESENT
+git log --oneline -1 -- scripts/mcp_bridge.py
+                                          -> 5d163d4（2026-06-22）
+```
+
+且 `5d163d4` 的 commit message 自己的 "### Deleted" 列表第一行就是
+`scripts/mcp_bridge.py (245 lines, was a workaround for fastmcp stdio bug)`。
+即：**该文件在报告成文（2026-09-17）前近三个月就已删除**。§3.4「职责重叠」这一半不成立，属于报告对旧印象的转述而非实测——与本报告 §3.3、§18.1 同类错误（本轮再次证明「不得转述、必须实测」这条标准的必要性）。
+
+### 19.2 另一半（`sys.path` 注入）比报告描述的更宽
+
+报告只举了 `dispatch.py` 与 `coverage_audit.py` 两处。实测耦合面（子仓库被 `.gitignore` 挡住，`Grep` 默认看不到——须用 `Select-String` 或直接读文件）：
+
+| 子仓库 | 承重的**私有**名字 | 形状 | 套件侧消费者 |
+|---|---|---|---|
+| OPP | `opp.mcp.server._TOOL_SCHEMAS` | `list[dict]`，每条含 `"name"` | `coverage_audit.py:120`、`tests/test_docs_mcp_tool_consistency.py:23`、`tests/test_docs_claude_md_tools_exist.py:18`、`doc_inventory.py`（**按源码文本正则计数**） |
+| OPP | `opp.mcp.server._TOOL_DISPATCH` | `dict` 名→callable | `doc_inventory.py`（同上） |
+| OL | `ol_mcp.tools.TOOL_REGISTRY` | `dict` 名→`(callable, InputModel, str)` | `coverage_audit.py:123`、`dispatch.py:534`、两个 docs 一致性测试、`doc_inventory.py` |
+| ORF | `orf.mcp.server._TOOL_DISPATCH` | `dict` 名→callable | `coverage_audit.py:131`、两个 docs 一致性测试、`doc_inventory.py` |
+
+外加：约 60 个 scenario YAML 的 python 步骤 `sys.path.insert(0, "Omni_X/src")` 后直接
+`from ol_mcp.tools import TranslateInput, translate_md_text` 之类（in-process agent-surface 模式），
+以及 `tests/` 内多处同类导入。
+
+**真正的缺陷不是耦合本身**（读活注册表比硬编码工具清单正确），而是**这个名字从未被写成契约**：
+`CONTRACT.md`（0 处命中 `TOOL_SCHEMAS` / `TOOL_REGISTRY` / `注册表`）只讲数据交接，
+子仓库维护者没有任何文档告诉他们「这几个下划线开头的名字是套件承重的」。
+于是重命名会以一个看似无关的 ImportError 炸在别人的测试里 —— 这正是报告所说「静默打断」的来源。
+
+### 19.3 处置：声明接口 + 把文档与代码锁在一起
+
+1. **`CONTRACT.md` 新增 `## Suite ↔ Module In-Process Import Surface`**：接口表（模块 / sys.path 目录 / 导入名 / 期望形状）、必须同步更新的消费者清单、以及一条明确的变更规则；`## Breaking Changes` 末尾补一句把该接口纳入同一条 4 步流程（「这是契约破坏，不是内部重构」）。
+2. **`tests/contract/test_contract_documentation.py` 新增两条测试**（该文件已被 CI `contract-tests.yml` 覆盖）：
+   - `test_contract_declares_in_process_import_surface` —— 文档必须记载表中每个路径（漏一个就红，并提示改文档或改 `DECLARED_IMPORT_SURFACE`）；
+   - `test_declared_in_process_import_surface_resolves` —— 每个路径必须真的能导入且形状符合承诺（`list[dict]` 带 `name` / mapping 且非空），失败信息**指名 CONTRACT.md 那一节**并列出该同步哪些消费者。
+
+   两条测试互为补角：文档不能描述一个不存在的接口，接口也不能在无人知晓的情况下改名。
+
+### 19.4 验证
+
+```
+pytest tests/contract/test_contract_documentation.py \
+       tests/test_docs_mcp_tool_consistency.py \
+       tests/test_docs_claude_md_tools_exist.py -q      ->  22 passed
+pytest tests/contract/ -q --tb=no -rf                   ->  15 failed，全部 WinError 1920
+                                                           （test_cli_help / test_mcp_io_contract /
+                                                             test_mcp_schemas 里 spawn .venv_ol 的用例，
+                                                             环境类，本轮未触碰这些文件）
+doc_inventory --check                                   ->  先红后绿：
+    FAIL: omni-docmap SKILL.md claims `CONTRACT.md` ~180 lines, actual is 224
+    -> 同步该行数声明（并补一句接口职责）后 PASS
+```
+
+门禁先红后绿这一段本身是证据：doc-truth 的 Gate C（行数声明漂移）真的在守卫文档与文件的对应关系。
+
+### 19.5 本轮遗留
+
+| 项 | 状态 |
+|---|---|
+| 三个子仓库的本地 git 钩子只有 secrets 类（§18.4） | 未处理（下一轮候选） |
+| `coverage_audit.py` 无友好降级 | 未处理 |
+| ruff pin 升级（0.16.8 多报的 `UP045`×6、`B023`×4 等） | 未处理 |
+| 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 外部阻塞／待 key，不可伪绿 |
+
+---
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
+*第十九节追加：2026-09-18 · §3.4 收口 + 第二处因果更正*
 *第十八节追加：2026-09-17（同日续做，第十轮）· §3.3 落地 + 因果更正*
 *第十七节追加：2026-09-17（同日续做，第九轮）· 根目录样本守卫*
 *第十六节追加：2026-09-17（同日续做，第八轮）· 两项测试漂移修复*

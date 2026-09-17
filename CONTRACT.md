@@ -1,7 +1,7 @@
 # Omni Suite — OPP → OL → ORF Handoff Contract
 
-**Version**: 1.0  
-**Status**: Active  
+**Version**: 1.0
+**Status**: Active
 **Last Updated**: 2026-07-03
 
 This document defines the formal handoff contract between the three pipeline stages.
@@ -160,6 +160,46 @@ else:
 
 ---
 
+## Suite ↔ Module In-Process Import Surface
+
+The sections above describe the **data** handoff (MD/XLIFF/JSON). This section
+describes a second, easily-overlooked interface: the **names the suite imports
+from inside each module** when it reads a module's live tool registry.
+
+The suite never hardcodes tool lists — the coverage audit, the doc-truth
+counters and several contract tests all read the *live* registries, in-process.
+That makes the following names load-bearing: renaming or moving one of them
+breaks the suite even though the module's own CLI/MCP surface is unchanged.
+They are therefore part of this contract.
+
+| Module | Package the suite puts on `sys.path` | Imported name | Expected shape |
+|---|---|---|---|
+| OPP | `Omni_Pre_Processor/src` | `opp.mcp.server._TOOL_SCHEMAS` | `list[dict]`, every entry carrying a `"name"` key |
+| OPP | `Omni_Pre_Processor/src` | `opp.mcp.server._TOOL_DISPATCH` | `dict` mapping tool name → callable |
+| OL | `Omni_Localizer/src` | `ol_mcp.tools.TOOL_REGISTRY` | `dict` mapping tool name → `(callable, input model type, description)` |
+| ORF | `Omni_Re_Formatter/src` | `orf.mcp.server._TOOL_DISPATCH` | `dict` mapping tool name → callable |
+| (suite) | repo root | `omni_mcp.server._TOOL_SCHEMAS` | same shape as OPP |
+| (suite) | repo root | `omni_mcp.server._TOOL_DISPATCH` | same shape as OPP |
+
+Additionally, scenario steps and tests import the **public** tool functions and
+their `*Input` models from the same modules (e.g.
+`from ol_mcp.tools import TranslateInput, translate_md_text`) — the
+in-process agent-surface pattern used throughout `scenarios/`.
+
+Consumers that must be updated together with any rename/move:
+
+- `scripts/validation/coverage_audit.py` — `_import_module_tools()`
+- `omni_mcp/validation/dispatch.py` — in-process MCP dispatch
+- `scripts/doc_inventory.py` — counts tools by **parsing the source text** of
+  the registries above (so the *shape*, not just the name, is load-bearing: a
+  restructure that keeps the name but changes the literal form silently
+  undercounts)
+- `tests/test_docs_mcp_tool_consistency.py`, `tests/test_docs_claude_md_tools_exist.py`
+- `tests/contract/test_contract_documentation.py` — asserts the table above is
+  true and that every declared path resolves
+
+---
+
 ## Breaking Changes
 
 Changes that break the contract (e.g., renaming `source_lang` to `src_lang`) require:
@@ -168,6 +208,10 @@ Changes that break the contract (e.g., renaming `source_lang` to `src_lang`) req
 2. Updating all 3 sub-repos (OPP, OL, ORF) in the same release
 3. Adding migration tests to the contract test suite
 4. Notifying downstream consumers via RELEASE_NOTES.md
+
+The same four rules apply to the in-process import surface above — renaming one
+of those registry names (or changing its shape) is a breaking change of this
+contract, not an internal refactor.
 
 ---
 
