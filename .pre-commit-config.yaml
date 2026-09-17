@@ -128,7 +128,7 @@ repos:
         language: system
         pass_filenames: false
         stages: [commit]
-        files: ^(docs/|README\.md|AGENTS\.md|CLAUDE\.md|reports/|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|scenarios/|scripts/doc_inventory\.py|\.pre-commit-config\.yaml|Makefile)$
+        files: ^(docs/.*|README\.md|AGENTS\.md|CLAUDE\.md|reports/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|scenarios/.*|scripts/doc_inventory\.py|\.pre-commit-config\.yaml|Makefile)$
 
       # Module-entry consistency (issue #11): the suite's Omni_* symlinks must
       # resolve to real clones (no gitdir-pointer second worktree) and the venv
@@ -160,7 +160,7 @@ repos:
         entry: "bash -c 'if .venv_ol/bin/python -c \"\" >/dev/null 2>&1; then exec .venv_ol/bin/python scripts/validation/coverage_audit.py; fi; echo \"SKIP: .venv_ol is not runnable on this platform — execution-backed coverage parity is not exercised locally (CI runs it on Linux)\"; exit 0'"
         language: system
         pass_filenames: false
-        files: ^(scenarios/|scripts/validation/|omni_mcp/|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/|Omni_Localizer/src/ol_mcp/tools\.py|\.pre-commit-config\.yaml)$
+        files: ^(scenarios/.*|scripts/validation/.*|omni_mcp/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/.*|Omni_Localizer/src/ol_mcp/tools\.py|\.pre-commit-config\.yaml)$
 
       # Scenario-library contract lint (C-03 local gate): every step
       # falsifiable, standards anchors resolve. Fast, hermetic, no network.
@@ -169,7 +169,7 @@ repos:
         entry: "bash scripts/pre_commit_python.sh scripts/validation/run_validation.py --check"
         language: system
         pass_filenames: false
-        files: ^(scenarios/|scripts/validation/|omni_mcp/|\.pre-commit-config\.yaml)$
+        files: ^(scenarios/.*|scripts/validation/.*|omni_mcp/.*|\.pre-commit-config\.yaml)$
 
       # Path-security parity invariant (ADR 0007 Phase 1 step 3): every copy of
       # the path policy (OPP core+wrapper, OL, ORF, and the suite orchestrator's

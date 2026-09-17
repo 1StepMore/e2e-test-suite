@@ -1059,14 +1059,93 @@ $ .venv_win\Scripts\python.exe -m pytest tests/test_phase1_p2_matrix.py \
 
 | 项 | 状态与证据 |
 |---|---|
-| `tests/test_agent_docs.py::test_skill_md_exists` 失败 | **既有漂移，非本轮回归**：它断言 `.opencode/skills/omni-suite/SKILL.md` 含 `Output formats supported`；该文件**不在本次改动集内**，且 `git show HEAD:.opencode/skills/omni-suite/SKILL.md \| Select-String 'Output formats supported'` 在 HEAD 上同样无匹配 |
-| `tests/test_convergence_watch_gates.py` 2 个失败 | **既有测试漂移，非本轮回归**：`git show HEAD:scripts/omo_loop.py` 已有 `gates = ["tier6","tier7","tier8"]`，测试却只 stub `_run_verify_all`/`_run_format_matrix`，于是真 tier8 门跑起来（单跑该文件 157 s）并返回 1，而断言要求 `rc == 0`。本轮在该文件只改了 `_DEFAULT_FIXTURE`（仅被 argparse 默认值引用，那两个用例传的 `argparse.Namespace` 连 `input` 都没有，不可达）。修法是把 tier8 一并 stub（1 行），留待下一轮决策 |
+| `tests/test_agent_docs.py::test_skill_md_exists` 失败 | **既有漂移，非本轮回归**：它断言 `.opencode/skills/omni-suite/SKILL.md` 含 `Output formats supported`；该文件**不在本次改动集内**，且 `git show HEAD:.opencode/skills/omni-suite/SKILL.md \| Select-String 'Output formats supported'` 在 HEAD 上同样无匹配。**→ 已于第六轮修复，见 §14.1** |
+| `tests/test_convergence_watch_gates.py` 2 个失败 | **既有测试漂移，非本轮回归**：`git show HEAD:scripts/omo_loop.py` 已有 `gates = ["tier6","tier7","tier8"]`，测试却只 stub `_run_verify_all`/`_run_format_matrix`，于是真 tier8 门跑起来（单跑该文件 157 s）并返回 1，而断言要求 `rc == 0`。本轮在该文件只改了 `_DEFAULT_FIXTURE`（仅被 argparse 默认值引用，那两个用例传的 `argparse.Namespace` 连 `input` 都没有，不可达）。修法是把 tier8 一并 stub（1 行），留待下一轮决策。**→ 已于第六轮修复，见 §14.1** |
 | 缺少「根目录不得出现样本文件」的守卫 | 未加。本轮按报告 §3.7 的范围只做迁移 + 引用同步；若要把 42/100 的这个维度长期钉住，可加一条断言「套件根无 `*.docx / *.pptx` 被跟踪文件」的测试或 pre-commit 检查 |
 | 仓库内仍存同字节副本 | `scenarios/_fixtures/translated_pair/source.docx` 与 `meridian_robotics.docx` 字节相同（XLIFF 场景的 pre-translated 对，属有意设计：该目录是自包含的 8 文件 fixture 对，删任何一个都会破坏 `COPIED 8` 断言）。未动 |
 
 ---
 
+## 十四、第六轮优化落地（2026-09-17，同日续做）：门禁实盘化 + 测试漂移修复
+
+第五轮（§十三）收尾时留下了两项红测与一项「门禁不触发」的疑点。本轮把红测清零，
+并查出并修掉了一个**让三条 pre-commit 门禁长期空转**的正则缺陷。
+
+### 14.1 修复 §13.4 的两项测试漂移（红测清零）
+
+| 测试 | 根因（实测） | 修复 | 证据 |
+|---|---|---|---|
+| `tests/test_convergence_watch_gates.py`（2 failed，单文件 157 s） | `_run_convergence_watch` 的 `both` 门集早已是 `["tier6","tier7","tier8"]`，测试却只 stub 了 tier6/tier7 → **真** Tier 8 门（真语料 + 保真度 + 等价性）被拉起、返回 1，两条断言 `rc == 0` 因此失败 | 新增 `_stub_all_gates()` 统一 stub 三个门（并在 docstring 写明必须与门集保持同步）；补两条缺失契约用例：`--gate tier8` 只跑 Tier 8、仅 Tier 8 红即阻断收敛；顺手删 `import pytest`（F401） | `pytest tests/test_convergence_watch_gates.py tests/test_agent_docs.py -q` → **10 passed in 8.08s**（原单文件即 157 s） |
+| `tests/test_agent_docs.py::test_skill_md_exists` | 断言的字面量是 `Output formats supported`，而 `SKILL.md` 实际标题为 `## Output formats (16, ORF \`apply-md\`)` —— 章节存在，是期望子串陈旧 | 期望子串改为 `Output formats`；其余 4 个必需章节命中，未动 | 同上 10 passed |
+
+生产侧文档真值同步：`scripts/omo_loop.py` 的 `_run_convergence_watch` docstring 与
+`--gate` 的 help 文本仍写着「both = Tier 6 + Tier 7」，与
+`choices=["tier6","tier7","tier8","both"]` 的实际派发不符 —— 已更新为三个门，
+避免下一个人按注释误判默认门集。
+
+### 14.2 新发现：3 条 pre-commit hook 的 `files:` 正则永久失配（门禁在空转）
+
+**现象（第五轮 commit 的钩子输出，改动集含 `docs/project-health-report-*.md` 与 4 个 `scenarios/**/*.yaml`）**：
+
+```
+Omni Suite doc-inventory check (…)................................(no files to check)Skipped
+Omni Suite MCP tool coverage audit (execution-backed).............(no files to check)Skipped
+Omni Suite scenario-library contract lint.........................(no files to check)Skipped
+```
+
+**根因**：pre-commit 用 `re.search` 匹配 `files:`，而这三条 hook 写成
+`^(docs/|scenarios/|scripts/validation/|omni_mcp/|…)$`。`docs/` 这类分支被 `$`
+钉死为「路径恰好等于 `docs/`」，于是 `docs/x.md`、`scenarios/x.yaml` **永远不匹配**：
+门禁只在改动 `.pre-commit-config.yaml` 自身时才跑，日常改动一律空转。
+
+| hook | 死掉的分支 | 修复 |
+|---|---|---|
+| `omni-doc-inventory` | `docs/`、`reports/`、`scenarios/` | `docs/.*`、`reports/.*`、`scenarios/.*` |
+| `omni-validation-check` | `scenarios/`、`scripts/validation/`、`omni_mcp/` | 同构补 `.*` |
+| `omni-coverage-audit` | `scenarios/`、`scripts/validation/`、`omni_mcp/`、`Omni_*/src/.*/mcp/` | 同构补 `.*` |
+
+（`omni-version-docs-sync` 与 `omni-path-policy-parity` 的 pattern 全是精确文件名或已带
+`.*`，未受影响。）
+
+**验证一（正则前后对照，23 条真实路径）**：
+`99-Tools/validation-scratch/omni-suite/verify_files_glob.py` → 旧 pattern 对所有前缀路径
+`False`、新 pattern 全部 `True`，`mismatches=0`。脚本用 `re.search` 直接复现
+pre-commit 的匹配语义，改 pattern 后可重跑复核。
+
+**验证二（真实触发，此前一律 Skipped）**：
+
+```bash
+$ pre-commit run omni-validation-check --files scenarios/opp/opp-docx-extract.yaml
+Omni Suite scenario-library contract lint.......................................................Passed
+$ pre-commit run omni-doc-inventory  --files docs/project-health-report-2026-09-17.md
+Omni Suite doc-inventory check (AUTO-GENERATED header + source-truth MCP counts)................Passed
+$ pre-commit run omni-coverage-audit --files scenarios/opp/opp-docx-extract.yaml
+Omni Suite MCP tool coverage audit (execution-backed)...........Passed  (duration: 0.63s)
+SKIP: .venv_ol is not runnable on this platform — execution-backed coverage parity is not
+      exercised locally (CI runs it on Linux)
+```
+
+即：三条门禁不但开始**真正触发**，且对本仓库当前状态是**真绿** —— doc-inventory、
+scenario-lint 通过；coverage-audit 在 Windows 上按设计打印显式 `SKIP` 行（`verbose: true`
+使该行可见），而不是静默通过。
+
+副作用提示：这三条 hook 从此会在日常提交时运行，其中 doc-inventory 会强制
+「docs 改动 → `docs/dev/doc-inventory.md` 必须新鲜」，这正是原设计意图，但此前从未真正生效。
+
+### 14.3 本轮遗留（不伪装为已解决）
+
+| 项 | 状态 |
+|---|---|
+| 「根目录不得出现样本文件」守卫（§13.4 第 3 行） | 仍未加。落点建议：`scripts/doc_inventory.py` 的 stray 检查家族 + `tests/test_doc_inventory.py` 里对**真实仓库**的断言（CI 的 `pytest tests/ -m "not nightly"` 会跑到） |
+| 报告 §3.3 `extend-exclude` 排除 `extractors/ ol_buses/ converters/` | 未处理 |
+| 报告 §3.4 `sys.path` 注入 / `scripts/mcp_bridge.py` 职责重叠 | 未处理 |
+| 报告 §3.5 `doctor.yml` `continue-on-error: true`、`coverage_audit.py` 无友好降级 | 未处理；本轮 14.2 已让 coverage-audit 的 SKIP 行为在本机可见 |
+| 报告 §5 #2 Phase 2（外部索引 403）、#8（tier-2 真 LLM 复验） | 仍处外部阻塞／待 key，不可伪绿 |
+
+---
+
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
+*第十四节追加：2026-09-17（同日续做，第六轮）· 门禁实盘化 + 测试漂移修复*
 *第十三节追加：2026-09-17（同日续做，第五轮）· §3.7 仓库卫生收尾*
 *第十二节追加：2026-09-17（同日续做，第四轮）· R2 收口 + 门禁可用性*
 *第十一节追加：2026-09-17（同日晚）· #2 Phase 1 落地与验证证据*
