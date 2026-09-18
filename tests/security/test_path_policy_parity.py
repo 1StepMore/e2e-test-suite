@@ -36,20 +36,20 @@ import os
 from pathlib import Path
 
 import pytest
-
-from omni_mcp import orchestrator as omni_orchestrator
-from opp.mcp import security as opp_mcp_security
-from opp.mcp.config import _parse_allowed_dirs as opp_parse_allowed_dirs
-from opp.mcp.security import PathValidator as OppPathValidator
-from opp.mcp.security import PathValidationError
-from opp.utils import security as opp_core
 from ol_mcp import security as ol_security
 from ol_mcp.security import PathValidator as OlPathValidator
 from ol_mcp.security import _parse_allowed_dirs as ol_parse_allowed_dirs
+from opp.mcp import security as opp_mcp_security
+from opp.mcp.config import _parse_allowed_dirs as opp_parse_allowed_dirs
+from opp.mcp.security import PathValidationError
+from opp.mcp.security import PathValidator as OppPathValidator
+from opp.utils import security as opp_core
 from orf.mcp import security as orf_security
 from orf.mcp.config import _parse_allowed_dirs as orf_parse_allowed_dirs
 from orf.mcp.security import PathValidator as OrfPathValidator
 
+import omni_security
+from omni_mcp import orchestrator as omni_orchestrator
 
 # ---------------------------------------------------------------------------
 # Canonical 冻结常量（唯一真值来源）
@@ -237,17 +237,18 @@ class TestCanonicalConstants:
         """ORF 的黑名单必须等于 canonical。"""
         assert set(orf_security.BLOCKED_EXTENSIONS) == set(CANONICAL_BLOCKED_EXTENSIONS)
 
-    def test_orchestrator_system_dirs_match_canonical(self):
-        """套件层 orchestrator（第四份拷贝）的 SYSTEM_DIRS 必须等于 canonical。
+    def test_orchestrator_system_dirs_are_the_shared_objects(self):
+        """套件层 orchestrator 直接使用 ``omni_security`` 的 SYSTEM_DIRS 对象。
 
-        ``omni_mcp`` 不得 import 子仓库（ADR 0007 Phase 1 的约束），所以它的常量
-        只能是一份本地副本 —— 本用例就是那份副本不漂移的唯一保证。
+        Phase 2A 删除了 orchestrator 的第四份拷贝，它不再自持常量而是 import
+        canonical 包。用 identity（``is``）而不是 equality 证明"没有第二份拷贝"——
+        equality 对一份值相同的新副本同样成立，identity 只有同一对象才成立。
         """
-        assert set(omni_orchestrator.SYSTEM_DIRS) == set(CANONICAL_SYSTEM_DIRS)
+        assert omni_orchestrator.SYSTEM_DIRS is omni_security.SYSTEM_DIRS
 
-    def test_orchestrator_blocked_extensions_match_canonical(self):
-        """套件层 orchestrator 的黑名单必须等于 canonical。"""
-        assert set(omni_orchestrator.BLOCKED_EXTENSIONS) == set(CANONICAL_BLOCKED_EXTENSIONS)
+    def test_orchestrator_blocked_extensions_are_the_shared_objects(self):
+        """套件层 orchestrator 的黑名单必须与 ``omni_security`` 是同一对象。"""
+        assert omni_orchestrator.BLOCKED_EXTENSIONS is omni_security.BLOCKED_EXTENSIONS
 
     def test_per_module_extension_whitelists_are_frozen(self):
         """三个模块各自的白名单被冻结：差异是有意的，改动必须显式。"""

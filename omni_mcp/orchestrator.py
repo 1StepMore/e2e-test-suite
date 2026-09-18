@@ -10,13 +10,13 @@ SECURITY
 This orchestrator calls OPP/OL/ORF **CLIs** as subprocesses (see
 ``_run_cli()``) instead of chaining their MCP servers, so the sub-modules'
 ``PathValidator`` objects never see the request.  Because it is the outermost
-entry point, it enforces its own copy of the shared path policy before any
-subprocess starts (``_path_denial_message()``): a fail-CLOSED directory
-allowlist, the canonical ``SYSTEM_DIRS`` blacklist and the canonical
-``BLOCKED_EXTENSIONS`` blacklist.  Those constants are copies of the ones the
-three module implementations use — ``omni_mcp`` must not import the sub-repos
-(ADR 0007) — and ``tests/security/test_path_policy_parity.py`` freezes all four
-copies against one canonical set.
+entry point, it enforces the shared path policy before any subprocess starts
+(``_path_denial_message()``): a fail-CLOSED directory allowlist plus the
+canonical ``SYSTEM_DIRS`` / ``BLOCKED_EXTENSIONS`` blacklists.  The policy now
+comes from the single-source ``omni_security`` package (ADR 0007) instead of a
+fourth in-tree copy — ``omni_mcp`` must not import the sub-repos, and
+``tests/security/test_path_policy_parity.py`` asserts the constants here are the
+*same objects* the package exports.
 
 What this layer deliberately does **not** replicate from the module validators:
 the per-module allowed-extension whitelist (OPP/OL/ORF legitimately differ and
@@ -39,6 +39,14 @@ from pathlib import Path
 
 from omni_mcp._errors import error_response as _build_error_response
 from omni_mcp._manifest import written_files
+from omni_security import (
+    BLOCKED_EXTENSIONS,
+    SYSTEM_DIRS as SYSTEM_DIRS,
+    system_dir_denial,
+)
+from omni_security import (
+    parse_allowed_dirs as _parse_allowed_dirs,
+)
 
 logger = logging.getLogger("omni_mcp.orchestrator")
 
@@ -90,35 +98,6 @@ _ALLOWLIST_ENV_VARS = (
 #: *_PATH_DENIED codes the sub-modules use so agents can switch on one shape.
 OMNI_PATH_DENIED = "OMNI_PATH_DENIED"
 
-#: System directories the orchestrator must never read, even when a
-#: (mis)configured allowlist would permit them. Canonical set, byte-for-byte the
-#: same as OPP/OL/ORF's copies — see ADR 0007 and
-#: ``tests/security/test_path_policy_parity.py``, which fails if any copy drifts.
-#: Adding an entry tightens the policy; removing one loosens it and needs an ADR.
-SYSTEM_DIRS: frozenset[str] = frozenset({
-    "/etc",
-    "/usr",
-    "/var",
-    "/proc",
-    "/sys",
-    "/System",
-    "/Library",
-    "/C:/Windows",
-    "C:\\Windows",
-})
-
-#: Executable / script extensions that are never a translatable document.
-#: Canonical set shared with the three module copies (ADR 0007).
-BLOCKED_EXTENSIONS: frozenset[str] = frozenset({
-    ".exe",
-    ".bat",
-    ".cmd",
-    ".sh",
-    ".ps1",
-    ".vbs",
-    ".js",
-})
-
 
 def _allowed_directories() -> list[Path]:
     """Resolve the explicit directory allowlist from the environment.
@@ -139,53 +118,20 @@ def _allowed_directories() -> list[Path]:
 
 
 def _split_allowlist(raw: str) -> list[str]:
-    """按逗号与平台路径分隔符切分 allowlist 字符串。
+    """已废弃的字符串视图：委托给 canonical ``omni_security.parse_allowed_dirs``。
 
-    2026-09-17 修复（同类硬编码族：报告风险 #4/#5）：旧实现在所有平台上都把
-    ``:`` 当分隔符（``raw.replace(";", ",").replace(":", ",").split(",")``）。
-    Windows 盘符本身含 ``:``，于是 ``MCP_ALLOWED_DIRECTORIES=C:\\work`` 被切成
-    ``C`` 与 ``\\work`` 两段，解析出的目录都不包含目标路径 —— allowlist 在
-    Windows 上等于完全失效，任何合法路径都被判 ``OMNI_PATH_DENIED``
-    （复现：``tests/security/test_omni_mcp_path_denied.py::test_allowed_path_reaches_pipeline``）。
-
-    现在用 ``os.pathsep``（POSIX ``:``、Windows ``;``）加逗号切分：Linux/CI 行为
-    与修复前一致（``:`` 仍可用），Windows 上盘符不再被误切。
+    本函数不再是路径策略的一份拷贝 —— 切分算法（``os.pathsep`` + 逗号、去空白、
+    丢空段，Windows 盘符不被切开）只存在于 ``omni_security``。保留这个薄适配层
+    仅为兼容既有调用方与测试（它们期望 ``list[str]``）；``Path`` 转换由 canonical
+    解析器完成。
 
     Args:
         raw: 环境变量原始值。
 
     Returns:
-        去掉空白后的非空分段列表（未做 ``Path`` 解析）。
+        去掉空白后的非空分段列表（``str`` 形式，未做 ``Path`` 解析）。
     """
-    parts: list[str] = []
-    for chunk in raw.split(os.pathsep):
-        parts.extend(chunk.split(","))
-    return [part.strip() for part in parts if part.strip()]
-
-
-def _system_dir_denial(resolved: Path) -> str | None:
-    """返回 *resolved* 命中的系统目录名，未命中返回 None。
-
-    与 OPP/OL/ORF 三份实现**同一算法**（ADR 0007 一致性）：把路径的
-    ``Path.parts`` 与每个系统目录的 ``parts`` 做前缀比较，长度不足则不比对。
-    前缀比较意味着 POSIX 的系统目录（``/etc``、``/proc``）在 Windows 上天然
-    不命中、``C:\\Windows`` 会命中 —— 这是三份实现共有的语义，本副本照抄，
-    不做"改进"。
-
-    Args:
-        resolved: 已解析（``Path.resolve()``）的目标路径。
-
-    Returns:
-        被拦截的系统目录字面值（用于错误信息），或 None 表示放行。
-    """
-    resolved_parts = resolved.parts
-    for sys_dir in SYSTEM_DIRS:
-        sys_parts = Path(sys_dir).parts
-        if len(resolved_parts) < len(sys_parts):
-            continue
-        if resolved_parts[: len(sys_parts)] == sys_parts:
-            return sys_dir
-    return None
+    return [str(path) for path in _parse_allowed_dirs(raw)]
 
 
 def _path_denial_message(file_path: str) -> str | None:
@@ -193,7 +139,7 @@ def _path_denial_message(file_path: str) -> str | None:
 
     Checks, in order — the fail-CLOSED allowlist precondition first (it is a
     precondition, not a property of the path), then the two canonical blacklists
-    from the three module copies, then the allowlist containment test:
+    imported from ``omni_security``, then the allowlist containment test:
 
     1. at least one allowlist env var must be set, else every path is denied
        (never fall back to cwd);
@@ -222,7 +168,7 @@ def _path_denial_message(file_path: str) -> str | None:
         resolved = Path(file_path).resolve()
     except (ValueError, OSError) as e:
         return f"Cannot resolve path: {e}"
-    system_dir = _system_dir_denial(resolved)
+    system_dir = system_dir_denial(resolved)
     if system_dir is not None:
         return f"Access to system directory not allowed: {system_dir}"
     suffix = resolved.suffix.lower()
