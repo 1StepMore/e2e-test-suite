@@ -193,4 +193,4 @@ repos:
         # Scope must stay in sync with the CI half in .github/workflows/lint.yml
         # ("Blocking: path-security parity"): the policy surface includes the
         # allowlist parser in each copy's config.py (D-4), not just security.py.
-        files: ^(omni_mcp/orchestrator\.py|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*security\.py|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/config\.py|tests/security/test_path_policy_parity\.py|\.pre-commit-config\.yaml)$
+        files: ^(omni_mcp/orchestrator\.py|omni_security/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*security\.py|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/config\.py|tests/security/test_path_policy_parity\.py|\.pre-commit-config\.yaml)$

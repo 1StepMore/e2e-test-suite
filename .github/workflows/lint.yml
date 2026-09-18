@@ -198,7 +198,7 @@ jobs:
           OMNI_TEST_FAKE_LLM: "1"
         run: |
           if [ -s changed_files.txt ]; then
-            if grep -Eq '^(omni_mcp/orchestrator\.py|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*security\.py|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/config\.py|tests/security/test_path_policy_parity\.py)$' changed_files.txt; then
+            if grep -Eq '^(omni_mcp/orchestrator\.py|omni_security/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*security\.py|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/config\.py|tests/security/test_path_policy_parity\.py)$' changed_files.txt; then
               python -m pytest tests/security/test_path_policy_parity.py -q --no-header
             else
               echo "no path-policy files changed — parity gate no-op"
