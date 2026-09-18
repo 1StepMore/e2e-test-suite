@@ -1,7 +1,9 @@
 # ADR 0007 — Path-Security Validation: Converge the Three Copies Now, Defer the Shared Package
 
-**Status**: Accepted (Phase 1 implemented 2026-09-17; Phase 2 deferred — see
-"Implementation" below)
+**Status**: Accepted (Phase 1 implemented 2026-09-17; **Phase 2A implemented
+2026-09-18** — shared `omni_security` package + suite-orchestrator adoption;
+Phase 2B, the OPP/OL/ORF thin wrappers, deferred pending an `omni-security`
+release — see "Implementation" below)
 
 **Date**: 2026-09-17
 

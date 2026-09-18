@@ -1696,9 +1696,44 @@ pip download ruff==0.15.11 -i https://pypi.org/simple                           
 含义（**登记，不据此宣称 §5 #2 已完成**）：§5 #2 Phase 2 一直被记为「外部阻塞：索引返回 403」。该 403 只出现在**本机配置的镜像**上，公网 PyPI 可达且可下载。所以这更像**本地环境问题（镜像不可用）**，而非「外部状态」。切公网索引后 Phase 2 大概率可推进，但它要重生成 `uv.lock`、动跨仓库依赖，属独立任务；本轮只做登记，是否推进由用户定夺（且需先确认镜像 403 是否持续）。
 
 ---
+
+## 二十二、第十四轮：ADR 0007 Phase 2A 落地（`omni_security` 共享包 + 套件侧采用）（2026-09-18）
+
+依据 `.omo/plans/2026-09-18-adr-0007-phase2-omni-security.md`（经 Momus 评审 **[OKAY]**），Phase 2 拆两半执行：
+
+- **2A（本轮完成，仅套件内）**：新增 `omni_security` 叶子包（stdlib-only、零运行时依赖、不 import `opp`/`ol_mcp`/`orf`/`omni_mcp`），删除套件 orchestrator 的**第四份**策略拷贝，改为 import 该包。parity 门禁从 equality 升级为 **identity** 断言——equality 对「新的一份等值拷贝」同样成立，identity 才能证明拷贝确实消失。
+- **2B（未做，外部阻塞）**：把 OPP/OL/ORF 三个 validator 改成薄包装。需要 `omni-security` 能以**独立分发**从索引解析——OL/ORF 的 standalone `pip install -e` CI 任务不认 workspace 路径——而发布通道受上游账号 suspend 影响；故本轮不启动，符合计划「先 2A、2B 待发布授权」的门禁。
+
+提交（suite 仓库，按依赖顺序）：
+
+| commit | 内容 |
+|---|---|
+| `76bd19e` | 新增 `omni_security` 包与其测试 |
+| `d0ab7d3` | 四份拷贝的行为特征测试（重构前先绿，作为行为基准） |
+| `a1c7027` | workspace 成员接线 + 重生成 root `uv.lock` |
+| `e1860ec` / `9c23109` | orchestrator 采用共享包 + parity identity + 门禁范围。`9c23109` 的代码是从一个被 `timeout` 中断的 pre-commit stash 中恢复的（`e1860ec` 只带走了两处门禁配置）；恢复源已存 `99-Tools/validation-scratch/omni-suite/takeover-20260918/recovered-orchestrator-parity.patch` |
+
+验证（本轮实测）：
+
+```
+omni_security/tests                                   -> 56 passed, 1 skipped
+test_path_policy_parity + characterization            -> 63 passed, 2 skipped
+orchestrator 回归（path_denied / security_warning）    -> 9 passed
+uv lock --check（pypi.org）                           -> rc 0
+uv sync --locked --dry-run                            -> rc 0
+pre-commit 实跑：parity hook Passed；coverage audit    -> 41/41 PASS (execution-backed)
+doc_inventory --check                                 -> 通过
+```
+
+**root lock 的 registry 由 Tsinghua 改为 pypi.org**（§21.6 的后续处置）：本机 Tsinghua 对全部路径返回 403；uv 会把「解析所用的 index」写进 lock，且实测「由 A index 解析的 lock 在 B index 下 `uv lock --check` 失败」。CI 未配置任何 index（默认 pypi.org），所以旧 lock 与 CI 先天不一致——新 lock 与 CI 一致。受影响的两条既有陈旧也被顺带修正（`omni-localizer` 0.7.0→0.7.1、`omni-re-formatter` 0.4.16→0.4.17）。
+
+遗留：**2B**（待 `omni-security` 发布）；`COMPATIBILITY.md` 未加 `omni-security` 行（无 suite 发布，避免提前声明）；全套 `pytest tests/` 未跑满（改动仅及 orchestrator，已由 parity + characterization + coverage audit 覆盖该面）。
+
+---
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
 *第二十节追加：2026-09-18 · 完成度审计 + 第三处自我更正*
 *第二十一节追加：2026-09-18 · 子仓库门禁补齐 + 第四处自我更正*
+*第二十二节追加：2026-09-18 · ADR 0007 Phase 2A 落地（omni_security 共享包）*
 *第十九节追加：2026-09-18 · §3.4 收口 + 第二处因果更正*
 *第十八节追加：2026-09-17（同日续做，第十轮）· §3.3 落地 + 因果更正*
 *第十七节追加：2026-09-17（同日续做，第九轮）· 根目录样本守卫*
