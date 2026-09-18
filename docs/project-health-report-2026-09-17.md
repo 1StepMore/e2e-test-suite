@@ -1727,7 +1727,12 @@ doc_inventory --check                                 -> 通过
 
 **root lock 的 registry 由 Tsinghua 改为 pypi.org**（§21.6 的后续处置）：本机 Tsinghua 对全部路径返回 403；uv 会把「解析所用的 index」写进 lock，且实测「由 A index 解析的 lock 在 B index 下 `uv lock --check` 失败」。CI 未配置任何 index（默认 pypi.org），所以旧 lock 与 CI 先天不一致——新 lock 与 CI 一致。受影响的两条既有陈旧也被顺带修正（`omni-localizer` 0.7.0→0.7.1、`omni-re-formatter` 0.4.16→0.4.17）。
 
-遗留：**2B**（待 `omni-security` 发布）；`COMPATIBILITY.md` 未加 `omni-security` 行（无 suite 发布，避免提前声明）；全套 `pytest tests/` 未跑满（改动仅及 orchestrator，已由 parity + characterization + coverage audit 覆盖该面）。
+遗留：**2B**（待 `omni-security` 发布）；`COMPATIBILITY.md` 未加 `omni-security` 行（无 suite 发布，避免提前声明）；全套 `pytest tests/` 在本机不可行（收集 1504 条；实测前 110 条耗时约 24 min，约 15 s/条，全量需数小时），故改为定点核验——前 110 条中出现的失败经单独复现为**既有漂移、与 2A 改动面无关**：
+
+1. `tests/contract/test_cli_help.py::test_opp_help_contract`：OPP CLI 新增 `--json` 后，suite 侧冻结 fixture `opp_help.txt` 未同步（diff：多出 `[--json]` 与该选项说明）。
+2. `tests/mcp/test_ol_mcp_stdio.py::test_ol_mcp_stdio_ping_call`：断言取 `content['module']`，实际信封为 `{'success': True, 'content': {'module': 'ol', ...}}`（层级不符）。
+
+两者均不在 §22 的 2A 改动文件清单内；2A 的改动面已由 parity + characterization + coverage audit（41/41）覆盖。既有漂移不在本轮修复范围。
 
 ---
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
