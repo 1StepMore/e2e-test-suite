@@ -7,6 +7,7 @@ dependencies = [
     "prometheus_client>=0.20.0",
     "mcp>=1.0.0,<2.0.0",
     "anyio>=4.5.0,<5.0.0",
+    "omni-security",
 ]
 
 [project.optional-dependencies]
@@ -31,12 +32,14 @@ members = [
     "Omni_Pre_Processor",
     "Omni_Localizer",
     "Omni_Re_Formatter",
+    "omni_security",
 ]
 
 [tool.uv.sources]
 omni-pre-processor = { path = "Omni_Pre_Processor" }
 omni-localizer = { path = "Omni_Localizer" }
 omni-re-formatter = { path = "Omni_Re_Formatter" }
+omni-security = { workspace = true }
 
 [tool.ruff]
 line-length = 100
