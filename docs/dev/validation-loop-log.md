@@ -36,7 +36,25 @@
 - [ ] **模块入口与 venv editable 必须指向「与 HEAD 一致的那份工作目录」**——suite 根 `Omni_*` 若指向 `<suite>/src/Omni_*`，那是**第二工作目录**（`.git` 是 gitdir 指针文件，共享 canonical clone 的 `.git`）：`HEAD` 看起来一致，工作区文件却可能是几个月前的，而 venv 的 editable `.pth`、`utils/mcp_client.py` 的 `PYTHONPATH`、`omni_suite/cli.py` 全部落它上面 → **静默跑旧代码、不报错**。跑前双查：`readlink -f <suite>/Omni_Localizer` + `.venv/bin/python -c "import ol_mcp,os; print(os.path.realpath(ol_mcp.__file__))"`；判据：`<入口>/.git` 是**文件** = 危险，是目录才正常。修法 `ln -sfn ../Omni_Localizer <suite>/Omni_Localizer`（换指向前先确认旧副本独有的 gitignored 文件已复制过去，例如 OL 的 `.env`）。已 gate 化：`make entry-check` / `make doctor` / pre-commit `omni-module-entry-check`（issue #11 → PR #12）。
 - [ ] **模块文档里的计数/版本断言属于代码契约**——改工具数、版本号、子命令数必须同步改模块 `docs/*.md` 与 README 散文（`registers N tools` / `All N tool functions` / `exposing N tools` / `vX.Y.Z (matches pyproject.toml)`）。已 gate 化：`python3 scripts/doc_inventory.py --check` 现在覆盖模块 docs + README 散文（issue #10 → PR #12）；动模块文档前后都跑它。
 
+### 2026-09-21 第五轮（CI 清账新增）
+
+- [ ] **`uv lock --check` 必须在仓库自身语境里跑，否则验的是套件 workspace 锁**——在 `Omni_Pre_Processor/` 子目录里裸跑 `uv --no-config lock --check` 会解析到套件根 `[tool.uv.workspace]` 的锁（298 包、rc=0），**不是** OPP 自己的锁（233 包）。OPP #59「已修」的假阳性就是这么来的；CI 里同样命令却 rc=1。判据：看 `Resolved N packages` 的 N 是否等于该仓锁文件的包数。
+- [ ] **CLI `--help` 契约 fixture 锁的是 typer 的渲染，而 typer 版本随锁漂**——`uv.lock` 钉 typer 0.24.2 渲染 `[OPTIONS] [COMMAND] [ARGS]`，本机 `.venv_ol` 漂到 0.26.2 渲染 `[OPTIONS] COMMAND [ARGS]`。fixture 红先查 `pip show typer click` vs `uv.lock`，再怀疑 CLI 改版；本地验证 fixture 类 PR 前先把 venv 对齐锁。
+- [ ] **pytest 步骤写 `2>&1 | tail -N` 必须配 `set -o pipefail`**（默认 shell `bash -e {0}` 不含）——否则步骤退出码 = tail 的 0，71 failed/61 errors 全部报 success；tail 还把失败清单截出日志。已 gate 化于 `e2e-tests.yml`（PR #57）；新 workflow 步骤照抄 `set -o pipefail` + `tee` + `upload-artifact` 模式。
+- [ ] **整组 pytest 在共享 venv 里全量跑之前，先识别「测试间污染」家族**——rate-limiter（token bucket）、进程级 env、MCP server 状态会让 security/observability/stdio 家族在全量跑里假红（单跑 5/5 passed）。全量清单里的失败必须先单跑复现再定性，不能直接当回归修（本 runway：6 个 path-traversal 失败全是污染）。
+- [ ] **`git push` 前先看 push URL 的协议**——suite 仓 origin 的 push URL 是 https（GnuTLS 偶发 -110），fetch URL 是 ssh；ssh 键是 `1StepMore/AutoInfo` 的 deploy key（对其它仓无写权限）。可用的两条路：重试 https（gh token 有 repo+workflow scope），或 `git push git@github.com:1StepMore/<repo>.git <branch>` 显式 URL——但 deploy-key 会拒，别浪费在这条路上。
+
 ## 循环事件（major events，newest on top）
+
+### 2026-09-21 第五轮：4-repo CI 红 → 绿清账（10 PR + 8 issue）+ #48 诚实门禁落地
+
+- Date: 2026-09-21, round: 4-repo unaddressed issues/PRs 清账（origin: 1StepMore/*，全部 PR 为本方此前 wave 遗留未合并）
+- Scope: suite（PR #50/#51/#52/#54、issue #44/#45/#46/#47/#48/#49/#53/#55）、OPP（PR #60/#62、issue #59/#61）、ORF（PR #47/#49、issue #46/#48）、OL（PR #95/#97、issue #94/#96）
+- Result: **10 PR 全部本地验证后 merge，8 个 `Closes #N` issue 自动关闭；#55/#44 核实已修后手动 close（附证据）；#48 落诚实门禁后 close；OL #96 当轮实现（新稳定码 `OL_MCP_NOT_CONFIGURED`）经 PR #97 merge 后 close。** 收尾态：4 仓 open PR = 0，open issue = 仅 #56（#48 的后续 triage 伞）。备份镜像 4 仓全部 `backup/main == origin/main`。
+- 关键验证（逐 PR 本地/CI 双证）：PR#52 mypy `Success: no issues found in 23 source files`（负证：去掉 `mypy_path` 行 = 4 errors）；PR#54 目标 job `CLI --help contract` pass（坑：fixture 匹配的是 **uv.lock 的 typer 0.24.2**（`[COMMAND]`），本机 .venv_ol 漂到 0.26.2（`COMMAND`）→ 本地红/CI 绿是 venv 漂移不是 fixture 错）；PR#95 两个 pool 测试 main 上 2 failed → 分支 2 passed；PR#60 前 OPP CI 实测死于 `uv lock --check`（本地 `--check` 通过是因为 uv 解析到了**套件 workspace** 锁，298 包 ≠ OPP 的 233 包——必须在仓库语境里验）；OL#96 实测 no-allowlist 调用返回 `error.code=OL_MCP_NOT_CONFIGURED` + `recovery.strategy=configure_environment`，fail-CLOSED 语义不变，套件契约锁 28 passed。
+- **#48 诚实门禁（PR #57）**：6 个 `2>&1 | tail -N` 步骤加 `set -o pipefail` + `tee /tmp/*.log` + `upload-artifact`（`if: always()`）。CI 实证：此前隐藏的 OPP collection error（`pytest.skip` 未加 `allow_module_level=True`，整组 0 用例）现在**让步骤红、job 红**，完整日志进 `pytest-logs` artifact。**合并后 job 会红——这是特性**：清单一并存档于 #56（102 failed/1350 passed/18 errors @ `0e44880`，按「确定性 / 测试间污染 / venv 漂移」三层分类；其中 6 个 security path-traversal 失败单跑 5/5 passed = 污染不是代码 bug）。
+- **本次新坑（已入清单）**：见下「2026-09-21」节。
+- Conclusion: 本轮 19 项（10 PR + 8 issue close + 1 follow-up issue）清账完成；CI 剩红全部收敛到 #56 一个伞形 issue，不再有隐藏失败。
 
 ### 2026-09-17 第四轮：#2 Phase 1 收口（R2 = suite 层第 4 份路径策略）+ 门禁可用性
 
