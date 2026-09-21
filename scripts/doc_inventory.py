@@ -787,7 +787,10 @@ _LINK_TARGET_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
 #: Tokens that are intentional historical references (deleted files mentioned
 #: in security/incident narratives) or gitignored runtime config that
-#: legitimately does not exist in the tree.
+#: legitimately does not exist in the tree. The last three are generated or
+#: per-user and are absent from a fresh clone / CI checkout (the check resolves
+#: against the working tree, so without this the gate is green locally and red
+#: in CI — see e2e#59).
 _HISTORICAL_PATH_TOKENS = {
     "Omni_Localizer/config/book_localization.yaml",
     "config/book_localization.yaml",
@@ -797,6 +800,9 @@ _HISTORICAL_PATH_TOKENS = {
     "config/local*.yaml",
     "scripts/mcp_bridge.py",
     ".cursor/mcp.json",
+    "validation-runs/latest.txt",
+    "Omni_Localizer/config/local.yaml",
+    "Omni_Localizer/.env",
 }
 
 #: Link targets that are markdown-syntax illustrations ("![alt](path)"),
