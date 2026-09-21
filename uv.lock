@@ -3090,6 +3090,7 @@ dependencies = [
     { name = "mcp" },
     { name = "omni-security" },
     { name = "prometheus-client" },
+    { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
@@ -3103,6 +3104,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.0.0,<2.0.0" },
     { name = "omni-security", editable = "omni_security" },
     { name = "prometheus-client", specifier = ">=0.20.0" },
+    { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "structlog", marker = "extra == 'dev'", specifier = ">=24.1.0" },
 ]
 provides-extras = ["dev"]

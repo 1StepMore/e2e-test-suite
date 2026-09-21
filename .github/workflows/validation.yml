@@ -107,11 +107,16 @@ jobs:
       - name: Ensure .venv/bin/python exists (uv creates python3, not python)
         run: cd .venv/bin && [ ! -e python ] && [ -e python3 ] && ln -s python3 python; cd -
 
-      - name: Install 3 sub-repos as editable packages
+      - name: Install 3 sub-repos as editable packages (versions constrained to uv.lock)
         run: |
-          uv pip install --python .venv/bin/python -e ./Omni_Pre_Processor
-          uv pip install --python .venv/bin/python -e "./Omni_Localizer[mcp]"
-          uv pip install --python .venv/bin/python -e ./Omni_Re_Formatter
+          # Editable installs re-resolve sub-repo deps and upgrade past uv.lock
+          # (typer 0.24.2->0.27.2, click 8.4.1->8.5.0, litellm 1.89.2->1.102.0),
+          # desynchronising the CLI --help fixtures from the runtime (e2e#58).
+          uv export --locked --all-packages --no-hashes --format requirements-txt \
+            | grep -v '^-e ' > /tmp/lock-constraints.txt
+          uv pip install --python .venv/bin/python \
+            -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter \
+            -c /tmp/lock-constraints.txt
 
       # ------------------------------------------------------------------
       # The four validation gates (hermetic, no keys, no mocks).
@@ -231,11 +236,16 @@ jobs:
       - name: Ensure .venv/bin/python exists (uv creates python3, not python)
         run: cd .venv/bin && [ ! -e python ] && [ -e python3 ] && ln -s python3 python; cd -
 
-      - name: Install 3 sub-repos as editable packages
+      - name: Install 3 sub-repos as editable packages (versions constrained to uv.lock)
         run: |
-          uv pip install --python .venv/bin/python -e ./Omni_Pre_Processor
-          uv pip install --python .venv/bin/python -e "./Omni_Localizer[mcp]"
-          uv pip install --python .venv/bin/python -e ./Omni_Re_Formatter
+          # Editable installs re-resolve sub-repo deps and upgrade past uv.lock
+          # (typer 0.24.2->0.27.2, click 8.4.1->8.5.0, litellm 1.89.2->1.102.0),
+          # desynchronising the CLI --help fixtures from the runtime (e2e#58).
+          uv export --locked --all-packages --no-hashes --format requirements-txt \
+            | grep -v '^-e ' > /tmp/lock-constraints.txt
+          uv pip install --python .venv/bin/python \
+            -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter \
+            -c /tmp/lock-constraints.txt
 
       - name: Configure OL local config (OL_CONFIG_PATH target for keyed scenarios)
         run: cp Omni_Localizer/config/default.yaml Omni_Localizer/config/local.yaml

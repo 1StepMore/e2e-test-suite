@@ -9,6 +9,12 @@ test fails, the CLI surface has changed and either:
   1. The change is intentional — regenerate fixtures and document the change
   2. The change is accidental — revert the change
 
+The fixtures are rendered through `.venv_ol/bin/python -m <module> --help`,
+so they encode the uv.lock-pinned typer/click rendering (e.g. typer 0.24.2
+renders `[OPTIONS] [COMMAND] [ARGS]`, 0.27.x renders `[OPTIONS] COMMAND`).
+Regenerate only from a venv synced to uv.lock, or the oracle drifts from the
+runtime (issue e2e#58).
+
 Run with:
     pytest tests/contract/test_cli_help.py -v
 """
@@ -41,10 +47,17 @@ _LOG_NOISE_PATTERNS = [
 
 
 def _normalize(text: str) -> str:
+    """Strip log noise and per-line trailing whitespace.
+
+    CLI help panels pad lines with trailing spaces to a fixed width, so that
+    padding is rendering, not interface. Comparing it would couple the frozen
+    fixture to the terminal width and to the typer/click/rich versions that
+    draw the panel (e2e#58). Only each line's content is contractual.
+    """
     for pattern in _LOG_NOISE_PATTERNS:
         text = pattern.sub("", text)
     text = text.replace("\r\n", "\n")
-    return text.rstrip() + "\n"
+    return "\n".join(line.rstrip() for line in text.splitlines()).rstrip() + "\n"
 
 
 def _run_help(module: str, src_path: str, label: str) -> str:
