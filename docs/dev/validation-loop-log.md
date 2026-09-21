@@ -53,8 +53,22 @@
 - [ ] **在 feature 分支上 `git pull origin main` 会 ff 那个分支，不是 main**——backup 同步时 `push backup main:main` 于是推了旧 main 还报 "Everything up-to-date"。同步前先 `git checkout main` 再 pull/push（本轮 OPP/ORF 就这么漏过一次）。
 - [ ] **跨仓 `Closes #N` 不会关闭别的仓的 issue**——suite PR 里写 `Closes OPP#63` 无效，跨仓 issue 要手动 close 并附证据。
 - [ ] **模块级 `pytest.skip()` 必须带 `allow_module_level=True`**——否则是 collection error，pytest 整体 exit 2，该组 0 用例 + 后续步骤全 skip（OPP#64）。
+- [ ] **per-repo validate job 只装本模块依赖 = 场景库必红**——tier-1 场景库断言的是"全工作区表面"：`from docx import`（OPP 的依赖）、`opp` CLI（同）、weasyprint/openpyxl（ORF extras）、`markdownify`（OPP web extra，缺了 HTML 抽取静默回退成原文而非报错）。新建 per-repo validate job 时直接镜像 suite `validation.yml` 的 "Install test deps" 配方（ORF#52/OPP#66 实证：装齐后 36+21 全绿）。
+- [ ] **py3.13 动态 `exec_module` 前必须注册 `sys.modules[name]`**——模块内 `@dataclass` 在类创建时经 `dataclasses._is_type` 读 `sys.modules[cls.__module__]`，未注册即 `AttributeError: 'NoneType' object has no attribute '__dict__'`（OL test_ol_mcp_error_boundary）。exec 完 pop 掉。
+- [ ] **修一个 env 泄漏会把被它掩盖的失败全放出来**——`MCP_ALLOWED_DIRECTORIES=/tmp` 进程级泄漏曾让 OPP path-denial 假绿；PR#87 收敛泄漏 + baseline 后，test_e2e_opp_mcp 冒出 5 个 combined-run-only 的 path-denied（#88，根因未确认，带可证伪诊断步骤）。收泄漏前先盘点"哪些测试在靠泄漏过"。
+- [ ] **后台 agent 的任务状态 ≠ 实际交付状态**——模型商故障 + 30 分钟 inactivity timeout 会把 agent 标成 error/aborted，但它可能已经把 PR 建好甚至 merge 完（PR #87 报 failed 实为 merged）。收尾一律以 `git`/`gh` 里的真实状态为准，不要按任务状态决定重做。
+- [ ] **AST 字面量 guard 会把"提到 env 变量的句子"当硬编码**——`OMNI_TEST_FAKE_LLM=1 is active...` 这类消息文本触发 test_no_hardcoded_fake_llm；分类器必须区分"赋值形态"与"句子内嵌"（e2e#56e：只标 bare/shell 前缀形态，句子继续词为动词/连词的放行）。
 
 ## 循环事件（major events，newest on top）
+
+### 2026-09-21（第三轮）：4 仓 issue/PR 全清账 + #56 umbrella 收口
+
+- Date: 2026-09-21, round: 用户令"check the original repo for all unaddressed issues and PRs, verify them, address them properly" → 全量盘点（origin 4 仓 open issue 4、open PR 0；backup 镜像 0/0）→ 逐个以 CI 日志实证根因后修复、合并、关单
+- Scope: ORF（test.yml、test_md2pdf_channel.py）、OPP（ci.yml）、OL（test_ol_mcp_error_boundary.py、cli/doctor.py）、suite（.pre-commit-config.yaml、contract-tests.yml、test_no_hardcoded_fake_llm.py、tests/conftest.py + 6 个 stale 测试对齐）
+- Result: **ORF#52（PR #53，validate job 装 `-e ./Omni_Pre_Processor` + weasyprint → 场景 21 passed/15 failed → 36 passed/0 failed）；OPP#66（PR #67，validate job 补 `markdownify readability-lxml` → html 场景 4 步全过）；OL PR #98（sys.modules 注册 + doctor 广捕日志化 → suite "Run OL module tests" 1 failed/1501 → 0 failed）；suite PR #62（#61 钩子 preflight guard + mcp-matrix 补 OL allowlist + CONTRACT-docs job 装子仓+omni_security + FAKE_LLM guard 语义化分类）关 e2e#61；ORF PR #54（weasyprint 回退测试去宿主依赖）→ suite "Run ORF module tests" 绿；suite PR #87（Tier-2 污染：conftest baseline allowlist + 每 test env 快照/恢复 + token-bucket 重置 + 隔离 guard 测试）。** e2e#56 按 acceptance 收口：Tier-2 实修完成，Tier-1 拆成 12 个子 issue（#74-#84、#86），#85 由 #87 顺带修掉，residual #88（combined-run-only 5+1，根因未确认、带可证伪诊断）。全部 4 仓 backup == origin。
+- 逐项验证：**#52/#66** 根因先在本地证伪"场景/产品有 bug"（本地 36/36、21/21 全绿）再证 CI 装机差集；**OPP#66** 关键实验：`MARKDOWNIFY_AVAILABLE=False` 时 `html_to_markdown` 返回原文——缺 markdownify 是静默回退不是报错；**#61** PR 本身触碰 .pre-commit-config.yaml 且 lint 绿 = 回归测试自带；**#56e** 两个旧断言数学上不可能成立（char_jaccard 恰为 0.0、char_cosine 恰为 0.8）——"放宽"实为纠错；**ORF PR#54** CI 实证 runner 带 TeX（pdflatex）致 pandoc 回退成功——"CI 没有 pdflatex"的假设不成立。
+- **新坑**（已入上方清单）：per-repo validate 装机面、py3.13 动态导入 sys.modules、修 env 泄漏放出被掩盖失败、agent 任务状态≠交付状态、AST guard 误伤句子内嵌。
+- Conclusion: origin 4 仓 open issue 归零（全部 closed 或拆分为带证据的子 issue）、open PR 归零；suite main 红 workflow 从 3（E2E/hardening/contract）降到 1（E2E，余量全部有子 issue 跟踪 + #88 residual）；Validation Framework / lint / Structural / doctor 全绿。
 
 ### 2026-09-21（第二轮）：5 个 CI 红根因收口 + validate 门首跑暴露
 
