@@ -157,23 +157,64 @@ repos:
       # any other interpreter the parity collapses (measured 2026-09-17: 0/41
       # with the Windows .venv_win — its servers never start — and 36/41 with
       # system python3.14). Running it with a foreign interpreter would report a
-      # green it did not earn, so it runs the shared venv directly and, when
-      # that venv cannot execute on this platform, prints an explicit SKIP line
-      # instead of a silent pass — hence `verbose: true`, which is what makes a
-      # passing hook's output visible.
+      # green it did not earn, so it runs the shared venv directly.
+      #
+      # Preflight guard (e2e#61): the lint job (.github/workflows/lint.yml)
+      # deliberately does NOT install the suite root (omni_mcp) or
+      # omni_security — only the 3 sub-repos + root deps — so executing the
+      # gate there died with `ImportError: cannot import name
+      # BLOCKED_EXTENSIONS from omni_security (unknown location)`: a red
+      # unrelated to the change. The authoritative CI execution of this gate
+      # is the Validation Framework workflow Structural job
+      # (.github/workflows/validation.yml — runs on every PR/push with the
+      # full install). So the entry first probes the exact import; only when
+      # omni_mcp + omni_security are importable under .venv_ol does the real
+      # gate run. Otherwise it prints a visible SKIP naming the missing
+      # modules — never a silent pass. (This subsumes the previous
+      # .venv_ol-not-runnable skip: an interpreter that cannot execute fails
+      # the same probe and takes the same SKIP branch.)
       - id: omni-coverage-audit
         name: Omni Suite MCP tool coverage audit (execution-backed)
         verbose: true
-        entry: "bash -c 'if .venv_ol/bin/python -c \"\" >/dev/null 2>&1; then exec .venv_ol/bin/python scripts/validation/coverage_audit.py; fi; echo \"SKIP: .venv_ol is not runnable on this platform — execution-backed coverage parity is not exercised locally (CI runs it on Linux)\"; exit 0'"
+        entry: |
+          bash -c '
+            if err=$(.venv_ol/bin/python -c "import omni_mcp.server, omni_security" 2>&1); then
+              exec .venv_ol/bin/python scripts/validation/coverage_audit.py
+            fi
+            echo "SKIP: omni-coverage-audit needs omni_mcp.server + omni_security importable under .venv_ol — the authoritative execution is the Validation Framework workflow Structural job (CI validation.yml, full install). Probe said:"
+            echo "$err"
+            exit 0
+          '
         language: system
         pass_filenames: false
         files: ^(scenarios/.*|scripts/validation/.*|omni_mcp/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/.*|Omni_Localizer/src/ol_mcp/tools\.py|\.pre-commit-config\.yaml)$
 
       # Scenario-library contract lint (C-03 local gate): every step
       # falsifiable, standards anchors resolve. Fast, hermetic, no network.
+      #
+      # Preflight guard (e2e#61): same rationale as omni-coverage-audit — the
+      # lint job does not install omni_mcp, and run_validation.py is a thin
+      # wrapper importing omni_mcp.validation.cli from a SCRIPT context
+      # (sys.path[0] = scripts/validation; cwd is NOT on sys.path), so in the
+      # lint job it died with `ModuleNotFoundError: No module named
+      # omni_mcp`. The probe therefore passes `-P` (do not prepend the cwd):
+      # a plain `-c` probe would resolve ./omni_mcp via the cwd and falsely
+      # pass in the lint job while the gate still failed (measured
+      # 2026-09-21 with a lint-equivalent venv). The probe tests
+      # installed-ness exactly the way the gate imports it. Authoritative CI
+      # execution: the Validation Framework workflow Structural job
+      # (validation.yml, full install).
       - id: omni-validation-check
         name: Omni Suite scenario-library contract lint
-        entry: "bash scripts/pre_commit_python.sh scripts/validation/run_validation.py --check"
+        entry: |
+          bash -c '
+            if err=$(bash scripts/pre_commit_python.sh -P -c "import omni_mcp.validation.cli" 2>&1); then
+              exec bash scripts/pre_commit_python.sh scripts/validation/run_validation.py --check
+            fi
+            echo "SKIP: omni_mcp.validation.cli is not importable under the project interpreter — the authoritative execution is the Validation Framework workflow Structural job (CI validation.yml, full install). Probe said:"
+            echo "$err"
+            exit 0
+          '
         language: system
         pass_filenames: false
         files: ^(scenarios/.*|scripts/validation/.*|omni_mcp/.*|\.pre-commit-config\.yaml)$
@@ -185,9 +226,31 @@ repos:
       # honour MCP_ALLOWED_EXTENSIONS the same way. Catches a security fix that
       # lands in one copy while the others stay stale. CI runs the same file via
       # `pytest tests/`; this hook is the local pre-commit half.
+      #
+      # Preflight guard (e2e#61): omni_mcp.orchestrator imports omni_security
+      # at module level; in the lint job omni_security resolves to the
+      # repo-root namespace directory (the package is not installed there —
+      # its code lives under src/), so the import raised `ImportError: cannot
+      # import name BLOCKED_EXTENSIONS from omni_security (unknown location)`
+      # and pytest failed at collection (exit 2) — a red unrelated to the
+      # change. The entry probes exactly that import first; the real parity
+      # pytest runs only when it succeeds, otherwise a visible SKIP names the
+      # missing module. Never a silent pass — the CI half of this invariant
+      # keeps running regardless (lint.yml "Blocking: path-security parity"
+      # and the validation.yml Structural job, which has the full install).
       - id: omni-path-policy-parity
         name: Omni Suite path-security parity (one policy, every copy)
-        entry: "bash -c 'set -o pipefail; bash scripts/pre_commit_python.sh -m pytest tests/security/test_path_policy_parity.py --tb=short -q --no-header 2>&1 | tail -15'"
+        entry: |
+          bash -c '
+            if err=$(bash scripts/pre_commit_python.sh -c "import omni_mcp.orchestrator" 2>&1); then
+              set -o pipefail
+              bash scripts/pre_commit_python.sh -m pytest tests/security/test_path_policy_parity.py --tb=short -q --no-header 2>&1 | tail -15
+              exit $?
+            fi
+            echo "SKIP: omni_mcp.orchestrator is not importable under the project interpreter — the authoritative execution is the CI path-security parity gate (lint.yml) and the Validation Framework workflow Structural job (CI validation.yml, full install). Probe said:"
+            echo "$err"
+            exit 0
+          '
         language: system
         pass_filenames: false
         # Scope must stay in sync with the CI half in .github/workflows/lint.yml
