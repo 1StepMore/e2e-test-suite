@@ -44,7 +44,28 @@
 - [ ] **整组 pytest 在共享 venv 里全量跑之前，先识别「测试间污染」家族**——rate-limiter（token bucket）、进程级 env、MCP server 状态会让 security/observability/stdio 家族在全量跑里假红（单跑 5/5 passed）。全量清单里的失败必须先单跑复现再定性，不能直接当回归修（本 runway：6 个 path-traversal 失败全是污染）。
 - [ ] **`git push` 前先看 push URL 的协议**——suite 仓 origin 的 push URL 是 https（GnuTLS 偶发 -110），fetch URL 是 ssh；ssh 键是 `1StepMore/AutoInfo` 的 deploy key（对其它仓无写权限）。可用的两条路：重试 https（gh token 有 repo+workflow scope），或 `git push git@github.com:1StepMore/<repo>.git <branch>` 显式 URL——但 deploy-key 会拒，别浪费在这条路上。
 
+### 2026-09-21（第二轮，validate 首跑新增）
+
+- [ ] **`uv pip install -e <子仓>` 无视 uv.lock 重解析**——typer 0.24.2→0.27.2、click 8.4.1→8.5.0、litellm 1.89.2→1.102.0（CI 实测），CLI --help fixture 直接漂移。修法：`uv export --locked --all-packages --no-hashes | grep -v '^-e '` 生成约束文件 + `uv pip install -e ... -c 约束`。**勿用 `--no-deps`**：实测 `uv sync --locked` 只装 32 包（根+omni-security），子仓依赖不在其中，`--no-deps` 会直接缺包。
+- [ ] **契约 fixture 的"期望值"可能是漂移环境的产物**——e2e#58 的 `[COMMAND]` fixture 是按漂移 typer 0.27.x 重新生成的；锁回 authority 后必须再回退 fixture。修 CI 环境后，凡是"修环境前生成"的冻结产物都要重核。
+- [ ] **改 `.pre-commit-config.yaml` 是 lint 地雷**——coverage-audit/validation-check/path-policy-parity 三个钩子的 `files:` 都含 `.pre-commit-config.yaml`，但 lint job 不装项目依赖（只有 pre-commit/ruff/mypy）→ 三个钩子必红（issue #61）。config 类改动要么单独 PR 且接受红，要么先修钩子 guard。
+- [ ] **`tests/contract/fixtures/*.txt` 是字节级 oracle，含尾随空格**——`trailing-whitespace` 钩子会剥掉它并中止 commit；`_normalize` 已改为逐行 rstrip（padding 非接口），fixture 以无尾随空格形式入库。不要再"修好"它的 padding。
+- [ ] **在 feature 分支上 `git pull origin main` 会 ff 那个分支，不是 main**——backup 同步时 `push backup main:main` 于是推了旧 main 还报 "Everything up-to-date"。同步前先 `git checkout main` 再 pull/push（本轮 OPP/ORF 就这么漏过一次）。
+- [ ] **跨仓 `Closes #N` 不会关闭别的仓的 issue**——suite PR 里写 `Closes OPP#63` 无效，跨仓 issue 要手动 close 并附证据。
+- [ ] **模块级 `pytest.skip()` 必须带 `allow_module_level=True`**——否则是 collection error，pytest 整体 exit 2，该组 0 用例 + 后续步骤全 skip（OPP#64）。
+
 ## 循环事件（major events，newest on top）
+
+### 2026-09-21（第二轮）：5 个 CI 红根因收口 + validate 门首跑暴露
+
+- Date: 2026-09-21, round: 用户报 5 个实测根因 issue（OPP#63/#64、ORF#50、e2e#58/#59）→ 全部核实、修复、合并
+- Scope: suite（pyproject+uv.lock、e2e-tests.yml、validation.yml、doc_inventory.py、test_cli_help.py、fixtures/ol_help.txt）、OPP（test_opp_ol_orf_contracts_md.py）、ORF（test.yml）
+- Result: **suite PR #60（4ef62aab1，3+1 commits）close e2e#58/#59 + 修 OPP#63；OPP PR #65（3bd7928f0）close OPP#64；ORF PR #51（45404555d）close ORF#50。** 4 仓 backup == origin。新建 follow-up：suite #61（lint 地雷）、OPP #66、ORF #52（validate 首跑暴露）。
+- 逐项验证：**#63** pyyaml 进根依赖 + `uv --no-config lock`（2 行 diff），CI 实测 `+ pyyaml==6.0.3`，validate 从 import 崩 → 跑出 `Totals: 20 passed, 1 failed`；**#58** editable 安装加 `uv export --locked --all-packages` 约束（实测约束集钉 typer 0.24.2/click 8.4.1/litellm 1.89.2）→ CI `+ typer==0.24.2`，Structural Gate 4 绿；配套把 fixture 回退到锁渲染（`COMMAND`——PR #54 的 `[COMMAND]` 是漂移 typer 0.27.x 的渲染，不是 CLI 变更）且 `_normalize` 改为逐行 rstrip（面板 padding 是渲染不是接口）；**#59** `_HISTORICAL_PATH_TOKENS` 加 3 个生成物/gitignored token，隐藏本机文件复现 CI 条件 → `--check` exit 0；**#64** `allow_module_level=True`，OPP 组从「1 collection error、0 用例」→ **1048 passed/25 skipped**；**#50** lock 检查加 `working-directory: orf-src`，CI 过 guard 进入场景。
+- **两个必须纠正 issue 建议修法的实测**：(1) #58 的 `--no-deps` 会炸 CI——实测 `uv sync --locked` 只装 32 包（根+omni-security），子仓依赖根本不在其中；(2) #58 的另一半是 fixture 回退，只锁 typer 不回退 fixture 仍红（首次 push 后 Structural 仍 fail，job 106227722092 实证 typer 0.24.2 下 actual=COMMAND）。
+- **validate 门首跑暴露**（此前从未真正跑过）：OPP `opp-html-extract` 3/4 步（→ OPP#66）；ORF 15 个场景 failed（tool-orf-* 族 3 步只过 1 步、orf-xliff-* 族，`Totals: 21 passed, 15 failed`，→ ORF#52）。与 #48 同性质：门修好才看得见。
+- **新坑**（已入下方清单）：editable 安装无视 lock、.pre-commit-config.yaml 是 lint 地雷、fixture 尾随空格被 trailing-whitespace 钩子破坏、feature 分支上 `git pull` 会 ff 分支而非 main。
+- Conclusion: 5/5 根因收口 + 3 个 follow-up issue 建档；lint/Structural/CLI-contract 全绿；剩余红全部有 issue 跟踪（#56/#61/#66/#52）。
 
 ### 2026-09-21 第五轮：4-repo CI 红 → 绿清账（10 PR + 8 issue）+ #48 诚实门禁落地
 
