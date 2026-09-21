@@ -8,7 +8,7 @@ usage: opp [-h] [--detect-format] [--resource-dir RESOURCE_DIR]
            [--model-size {tiny,base,small,medium,large-v3}] [--config CONFIG]
            [--no-cache] [--clear-cache] [--max-file-size MAX_FILE_SIZE]
            [--log-format {console,json}] [--load-dotenv] [--capabilities]
-           [--validate-xliff] [--xliff-content XLIFF_CONTENT]
+           [--validate-xliff] [--json] [--xliff-content XLIFF_CONTENT]
            [--xliff-file XLIFF_FILE]
            [files ...]
 
@@ -75,6 +75,9 @@ options:
   --validate-xliff      Validate an XLIFF 1.2 file (schema + trans-unit
                         content rules) and exit. Uses --xliff-content (inline)
                         if provided, otherwise --xliff-file.
+  --json                Emit exactly one machine-readable JSON object on
+                        stdout (success, output paths, warnings). Human
+                        logs/progress go to stderr.
   --xliff-content XLIFF_CONTENT
                         Inline XLIFF XML string. Used with --validate-xliff
                         (takes precedence over --xliff-file).
