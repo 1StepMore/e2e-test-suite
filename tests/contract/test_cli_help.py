@@ -47,10 +47,17 @@ _LOG_NOISE_PATTERNS = [
 
 
 def _normalize(text: str) -> str:
+    """Strip log noise and per-line trailing whitespace.
+
+    CLI help panels pad lines with trailing spaces to a fixed width, so that
+    padding is rendering, not interface. Comparing it would couple the frozen
+    fixture to the terminal width and to the typer/click/rich versions that
+    draw the panel (e2e#58). Only each line's content is contractual.
+    """
     for pattern in _LOG_NOISE_PATTERNS:
         text = pattern.sub("", text)
     text = text.replace("\r\n", "\n")
-    return text.rstrip() + "\n"
+    return "\n".join(line.rstrip() for line in text.splitlines()).rstrip() + "\n"
 
 
 def _run_help(module: str, src_path: str, label: str) -> str:
