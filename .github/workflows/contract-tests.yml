@@ -144,6 +144,13 @@ jobs:
         env:
           OMNI_TEST_FAKE_LLM: '1'
           OMNI_TEST_FAKE_PANDOC: '1'
+          # OL's MCP server is fail-CLOSED on the directory allowlist: without
+          # MCP_ALLOWED_DIRECTORIES (or OL_MCP_ALLOWED_DIRS) the server refuses
+          # to start and every matrix job dies with McpError: Connection closed
+          # (e2e#56c — same bug class as e2e#49, fixed for verify_usability in
+          # PR #50 but missed here).
+          MCP_ALLOWED_DIRECTORIES: /tmp/mcp-matrix-ci
+          OL_MCP_ALLOWED_DIRS: /tmp/mcp-matrix-ci
           OPP_MCP_ALLOWED_DIRS: /tmp/mcp-matrix-ci
           ORF_MCP_ALLOWED_DIRS: /tmp/mcp-matrix-ci
         run: |
