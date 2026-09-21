@@ -31,11 +31,11 @@ class TestOPPMCP:
         doc.save(str(docx_path))
 
         # Mock MCP server components
-        with patch("opp.mcp.server._init_server") as mock_init, \
-             patch("opp.mcp.server._validator") as mock_validator, \
-             patch("opp.mcp.server._config", MagicMock(output_dir=None, allowed_directories=[])), \
-             patch("opp.mcp.server._pipeline") as mock_pipeline, \
-             patch("opp.mcp.server._serializer") as mock_serializer:
+        with patch("opp.mcp.common._init_server"), \
+             patch("opp.mcp.common._validator") as mock_validator, \
+             patch("opp.mcp.common._config", MagicMock(output_dir=None, allowed_directories=[])), \
+             patch("opp.mcp.common._pipeline") as mock_pipeline, \
+             patch("opp.mcp.common._serializer") as mock_serializer:
 
             mock_validator.validate_path.return_value = MagicMock(success=True)
             mock_pipeline.process_file.return_value = MagicMock(
@@ -78,10 +78,10 @@ class TestOPPMCP:
         docx_path = tmp_path / "xliff_test.docx"
         doc.save(str(docx_path))
 
-        with patch("opp.mcp.server._validator") as mock_validator, \
-             patch("opp.mcp.server._config", MagicMock(output_dir=None, allowed_directories=[str(tmp_path)])), \
-             patch("opp.mcp.server._pipeline") as mock_pipeline, \
-             patch("opp.mcp.server._serializer") as mock_serializer:
+        with patch("opp.mcp.common._validator") as mock_validator, \
+             patch("opp.mcp.common._config", MagicMock(output_dir=None, allowed_directories=[str(tmp_path)])), \
+             patch("opp.mcp.common._pipeline") as mock_pipeline, \
+             patch("opp.mcp.common._serializer") as mock_serializer:
 
             mock_validator.validate_path.return_value = MagicMock(success=True)
             mock_pipeline.process_file.return_value = MagicMock(
@@ -133,8 +133,8 @@ class TestOPPMCP:
         docx_path = tmp_path / "detect.docx"
         doc.save(str(docx_path))
 
-        with patch("opp.mcp.server._validator") as mock_validator, \
-             patch("opp.mcp.server._config", MagicMock(output_dir=None, allowed_directories=[])):
+        with patch("opp.mcp.common._validator") as mock_validator, \
+             patch("opp.mcp.common._config", MagicMock(output_dir=None, allowed_directories=[])):
             mock_validator.validate_path.return_value = MagicMock(success=True)
 
             from opp.mcp.server import detect_format_tool
@@ -167,10 +167,10 @@ class TestOPPMCP:
         docx_path = tmp_path / "both.docx"
         doc.save(str(docx_path))
 
-        with patch("opp.mcp.server._validator") as mock_validator, \
-             patch("opp.mcp.server._config", MagicMock(output_dir=None, allowed_directories=[])), \
-             patch("opp.mcp.server._pipeline") as mock_pipeline, \
-             patch("opp.mcp.server._serializer") as mock_serializer:
+        with patch("opp.mcp.common._validator") as mock_validator, \
+             patch("opp.mcp.common._config", MagicMock(output_dir=None, allowed_directories=[])), \
+             patch("opp.mcp.common._pipeline") as mock_pipeline, \
+             patch("opp.mcp.common._serializer") as mock_serializer:
 
             mock_validator.validate_path.return_value = MagicMock(success=True)
             mock_pipeline.process_file.return_value = MagicMock(
@@ -211,10 +211,10 @@ class TestOPPMCP:
 
         invalid_path = "/invalid/path.docx"
 
-        with patch("opp.mcp.server._validator") as mock_validator, \
-             patch("opp.mcp.server._config", MagicMock(output_dir=None, allowed_directories=[])), \
-             patch("opp.mcp.server._pipeline") as mock_pipeline, \
-             patch("opp.mcp.server._serializer") as mock_serializer:
+        with patch("opp.mcp.common._validator") as mock_validator, \
+             patch("opp.mcp.common._config", MagicMock(output_dir=None, allowed_directories=[])), \
+             patch("opp.mcp.common._pipeline") as mock_pipeline, \
+             patch("opp.mcp.common._serializer") as mock_serializer:
 
             def validate_side_effect(path):
                 if "invalid" in path:
@@ -260,11 +260,11 @@ class TestOPPMCP:
         resource_dir = tmp_path / "resources"
         resource_dir.mkdir()
 
-        with patch("opp.mcp.server._init_server") as mock_init, \
-             patch("opp.mcp.server._validator") as mock_validator, \
-             patch("opp.mcp.server._config", MagicMock(output_dir=None, allowed_directories=[str(tmp_path)])), \
-             patch("opp.mcp.server._pipeline") as mock_pipeline, \
-             patch("opp.mcp.server._serializer") as mock_serializer:
+        with patch("opp.mcp.common._init_server"), \
+             patch("opp.mcp.common._validator") as mock_validator, \
+             patch("opp.mcp.common._config", MagicMock(output_dir=None, allowed_directories=[str(tmp_path)])), \
+             patch("opp.mcp.common._pipeline") as mock_pipeline, \
+             patch("opp.mcp.common._serializer") as mock_serializer:
 
             mock_validator.validate_path.return_value = MagicMock(success=True)
             mock_pipeline.process_file.return_value = MagicMock(
