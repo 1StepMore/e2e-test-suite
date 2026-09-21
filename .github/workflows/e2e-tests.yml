@@ -107,8 +107,11 @@ jobs:
 
       - name: Run OPP module tests
         run: |
+          # pipefail so the step fails when pytest fails (tail always exits 0);
+          # tee keeps the full, untruncated output for the pytest-logs artifact.
+          set -o pipefail
           .venv_ol/bin/python -m pytest Omni_Pre_Processor/tests/ -m "not nightly" \
-            --tb=short -q --no-header 2>&1 | tail -40
+            --tb=short -q --no-header 2>&1 | tee /tmp/opp-tests.log | tail -40
         env:
           OMNI_TEST_FAKE_LLM: "1"
           OMNI_TEST_FAKE_PANDOC: "1"
@@ -116,24 +119,27 @@ jobs:
 
       - name: Run OL module tests
         run: |
+          set -o pipefail
           .venv_ol/bin/python -m pytest Omni_Localizer/tests/ -m "not nightly" \
-            --tb=short -q --no-header 2>&1 | tail -40
+            --tb=short -q --no-header 2>&1 | tee /tmp/ol-tests.log | tail -40
         env:
           OMNI_TEST_FAKE_LLM: "1"
           OMNI_TEST_FAKE_PANDOC: "1"
 
       - name: Run ORF module tests
         run: |
+          set -o pipefail
           .venv_ol/bin/python -m pytest Omni_Re_Formatter/tests/ \
-            --tb=short -q --no-header 2>&1 | tail -40
+            --tb=short -q --no-header 2>&1 | tee /tmp/orf-tests.log | tail -40
         env:
           OMNI_TEST_FAKE_LLM: "1"
           OMNI_TEST_FAKE_PANDOC: "1"
 
       - name: Run suite-level e2e tests
         run: |
+          set -o pipefail
           .venv_ol/bin/python -m pytest tests/ -m "not nightly" \
-            --tb=short -q --no-header 2>&1 | tail -60
+            --tb=short -q --no-header 2>&1 | tee /tmp/suite-tests.log | tail -60
         env:
           OMNI_TEST_FAKE_LLM: "1"
           OMNI_TEST_FAKE_PANDOC: "1"
@@ -172,6 +178,16 @@ jobs:
 
       - name: Clean up test artifacts
         run: rm -rf mcp_resources/ resources/ logs/ final-out/ test_artifacts/
+
+      # Full pytest output survives even when a test step fails and the job
+      # goes red - `tail` on the console is only a display filter.
+      - name: Upload pytest logs (full, untruncated)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-logs
+          path: /tmp/*.log
+          if-no-files-found: ignore
 
   # -------------------------------------------------------------------------
   # Job 2: Nightly LLM tests (slow, requires real API keys).
@@ -241,10 +257,19 @@ jobs:
 
       - name: Run nightly real-LLM tests
         run: |
+          set -o pipefail
           .venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py -m "nightly" \
-            --tb=short -v --no-header 2>&1 | tail -80
+            --tb=short -v --no-header 2>&1 | tee /tmp/nightly-llm-tests.log | tail -80
         env:
           OMNI_TEST_FAKE_LLM: ""
           OMNI_TEST_FAKE_PANDOC: ""
           OMNI_RUN_REAL_LLM: "1"
           OL_CONFIG_PATH: Omni_Localizer/config/local.yaml
+
+      - name: Upload nightly pytest log (full, untruncated)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-logs-nightly
+          path: /tmp/*.log
+          if-no-files-found: ignore
