@@ -26,18 +26,34 @@ jobs:
   contract-documentation:
     name: CONTRACT.md documentation (P3-T3/T4)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+      # The doc test asserts CONTRACT.md's declared in-process import surface,
+      # which names the `opp` / `ol` / `orf` packages — so the sub-repos must
+      # be cloned and installed first (e2e#56d; mirrors cli-help-contract
+      # below). Without them the test fails with
+      # ModuleNotFoundError: No module named 'opp'.
+      - name: Clone 3 sub-repos (parent .gitignore excludes them)
+        run: bash scripts/clone_subrepos.sh
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Install pytest
-        run: pip install pytest python-docx
+      - name: Create .venv_ol symlink (test files hardcode this path)
+        run: mkdir -p .venv_ol/bin && ln -sf $(which python) .venv_ol/bin/python
+      - name: Install suite + 3 sub-repos (root-level clones via uv workspace)
+        run: |
+          # omni_security too: omni_mcp.server (in the declared import surface)
+          # imports it, and it is a suite-repo workspace member, not a sub-repo.
+          pip install -e ./omni_security -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter
+      - name: Install root deps + pytest/python-docx (contract doc test)
+        run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog python-docx
       - name: Run contract documentation tests
+        env:
+          OMNI_TEST_FAKE_LLM: '1'
         run: python -m pytest tests/contract/test_contract_documentation.py -v --tb=short
 
   cli-help-contract:
@@ -144,6 +160,13 @@ jobs:
         env:
           OMNI_TEST_FAKE_LLM: '1'
           OMNI_TEST_FAKE_PANDOC: '1'
+          # OL's MCP server is fail-CLOSED on the directory allowlist: without
+          # MCP_ALLOWED_DIRECTORIES (or OL_MCP_ALLOWED_DIRS) the server refuses
+          # to start and every matrix job dies with McpError: Connection closed
+          # (e2e#56c — same bug class as e2e#49, fixed for verify_usability in
+          # PR #50 but missed here).
+          MCP_ALLOWED_DIRECTORIES: /tmp/mcp-matrix-ci
+          OL_MCP_ALLOWED_DIRS: /tmp/mcp-matrix-ci
           OPP_MCP_ALLOWED_DIRS: /tmp/mcp-matrix-ci
           ORF_MCP_ALLOWED_DIRS: /tmp/mcp-matrix-ci
         run: |
