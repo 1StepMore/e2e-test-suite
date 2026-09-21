@@ -9,6 +9,12 @@ test fails, the CLI surface has changed and either:
   1. The change is intentional — regenerate fixtures and document the change
   2. The change is accidental — revert the change
 
+The fixtures are rendered through `.venv_ol/bin/python -m <module> --help`,
+so they encode the uv.lock-pinned typer/click rendering (e.g. typer 0.24.2
+renders `[OPTIONS] [COMMAND] [ARGS]`, 0.27.x renders `[OPTIONS] COMMAND`).
+Regenerate only from a venv synced to uv.lock, or the oracle drifts from the
+runtime (issue e2e#58).
+
 Run with:
     pytest tests/contract/test_cli_help.py -v
 """
