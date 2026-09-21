@@ -15,16 +15,16 @@ class TestOLHealthEndpoint:
         from ol_mcp.tools import ping
         result = json.loads(asyncio.run(ping()))
         assert result["success"] is True
-        assert result["module"] == "ol"
-        assert "version" in result
-        assert isinstance(result["version"], str)
+        assert result["content"]["module"] == "ol"
+        assert "version" in result["content"]
+        assert isinstance(result["content"]["version"], str)
 
     def test_ping_with_correct_auth(self, monkeypatch):
         monkeypatch.setenv("MCP_SHARED_SECRET", "test-secret")
         from ol_mcp.tools import ping
         result = json.loads(asyncio.run(ping(auth_token="test-secret")))
         assert result["success"] is True
-        assert result["module"] == "ol"
+        assert result["content"]["module"] == "ol"
 
     def test_ping_with_wrong_auth(self, monkeypatch):
         monkeypatch.setenv("MCP_SHARED_SECRET", "test-secret")
@@ -40,16 +40,16 @@ class TestORFHealthEndpoint:
         from orf.mcp.server import ping
         result = json.loads(ping())
         assert result["success"] is True
-        assert result["module"] == "orf"
-        assert "version" in result
-        assert isinstance(result["version"], str)
+        assert result["content"]["module"] == "orf"
+        assert "version" in result["content"]
+        assert isinstance(result["content"]["version"], str)
 
     def test_ping_with_correct_auth(self, monkeypatch):
         monkeypatch.setenv("MCP_SHARED_SECRET", "test-secret")
         from orf.mcp.server import ping
         result = json.loads(ping(auth_token="test-secret"))
         assert result["success"] is True
-        assert result["module"] == "orf"
+        assert result["content"]["module"] == "orf"
 
     def test_ping_with_wrong_auth(self, monkeypatch):
         monkeypatch.setenv("MCP_SHARED_SECRET", "test-secret")

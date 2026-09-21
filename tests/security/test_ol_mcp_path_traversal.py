@@ -51,13 +51,17 @@ def validator(allowed_dir):
 
 @pytest.fixture
 def env_allowed(allowed_dir, monkeypatch):
-    """Set OL_ALLOWED_DIRECTORIES so get_default_validator() picks it up.
+    """Set OL_MCP_ALLOWED_DIRS so get_default_validator() picks it up.
 
     The MCP tools call get_default_validator() which reads the env var,
     not the `validator` fixture. This fixture wires the env so integration
-    tests can exercise the actual code path.
+    tests can exercise the actual code path. ``OL_MCP_ALLOWED_DIRS`` (not the
+    deprecated ``OL_ALLOWED_DIRECTORIES``) is the OL-specific name, so this
+    overrides the conftest baseline while leaving the unified
+    ``MCP_ALLOWED_DIRECTORIES`` free for fail-closed assertions.
     """
-    monkeypatch.setenv("OL_ALLOWED_DIRECTORIES", str(allowed_dir))
+    monkeypatch.delenv("MCP_ALLOWED_DIRECTORIES", raising=False)
+    monkeypatch.setenv("OL_MCP_ALLOWED_DIRS", str(allowed_dir))
     return allowed_dir
 
 
@@ -216,7 +220,8 @@ class TestGetDefaultValidator:
             get_default_validator()
 
     def test_single_dir(self, monkeypatch, tmp_path):
-        monkeypatch.setenv("OL_ALLOWED_DIRECTORIES", str(tmp_path))
+        monkeypatch.delenv("MCP_ALLOWED_DIRECTORIES", raising=False)
+        monkeypatch.setenv("OL_MCP_ALLOWED_DIRS", str(tmp_path))
         v = get_default_validator()
         assert len(v.allowed_directories) == 1
         assert v.allowed_directories[0] == tmp_path.resolve()
@@ -226,14 +231,16 @@ class TestGetDefaultValidator:
         b = tmp_path / "b"
         a.mkdir()
         b.mkdir()
-        monkeypatch.setenv("OL_ALLOWED_DIRECTORIES", f"{a},{b}")
+        monkeypatch.delenv("MCP_ALLOWED_DIRECTORIES", raising=False)
+        monkeypatch.setenv("OL_MCP_ALLOWED_DIRS", f"{a},{b}")
         v = get_default_validator()
         assert len(v.allowed_directories) == 2
         assert v.allowed_directories[0] == a.resolve()
         assert v.allowed_directories[1] == b.resolve()
 
     def test_trailing_comma_ignored(self, monkeypatch, tmp_path):
-        monkeypatch.setenv("OL_ALLOWED_DIRECTORIES", f"{tmp_path},")
+        monkeypatch.delenv("MCP_ALLOWED_DIRECTORIES", raising=False)
+        monkeypatch.setenv("OL_MCP_ALLOWED_DIRS", f"{tmp_path},")
         v = get_default_validator()
         assert len(v.allowed_directories) == 1
 

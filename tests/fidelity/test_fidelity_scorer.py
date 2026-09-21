@@ -48,7 +48,7 @@ class TestFidelityScorer:
         a = "你好世界"
         b = "再见朋友"
         score = FidelityScorer.char_jaccard(a, b)
-        assert 0.0 < score < 0.5
+        assert score == 0.0
 
     def test_char_cosine_perfect_match(self):
         text = "你好世界"
@@ -57,7 +57,7 @@ class TestFidelityScorer:
     def test_char_cosine_distribution_match(self):
         a = "你好世界你好"
         b = "世界你好世界"
-        assert FidelityScorer.char_cosine(a, b) > 0.8
+        assert FidelityScorer.char_cosine(a, b) == pytest.approx(0.8, abs=1e-9)
 
     def test_alice_ch1_fidelity_results_exist(self):
         results_file = _FIDELITY_DIR / "results" / "alice_ch1_fidelity.json"

@@ -12,7 +12,6 @@ injection), S12.9 (no allowlist) from the integrated test plan.
 """
 
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -219,7 +218,7 @@ class TestORFMCPToolPathRejection:
         assert result["success"] is False
         assert any(e.get("code") == "PATH_NOT_ALLOWED" for e in result.get("errors", []))
 
-    def test_detect_format_outside_allowlist(self, allowed_dir, monkeypatch):
+    def test_detect_format_outside_allowlist(self, env_allowed):
         """detect_format with path outside allowlist should return UNKNOWN.
 
         Note: ORF's detect_format returns ``{\"format\": \"UNKNOWN\"}`` for
@@ -228,23 +227,18 @@ class TestORFMCPToolPathRejection:
         empty/safe values.
         """
         from orf.mcp.server import detect_format
-        # Prevent env from polluting with allowed dirs
-        old = os.environ.get("ORF_MCP_ALLOWED_DIRS", "")
-        monkeypatch.delenv("ORF_MCP_ALLOWED_DIRS", raising=False)
         result = _parse(detect_format("/etc/passwd"))
         # detect_format returns {format, confidence} — no success field
         # for invalid paths it should return UNKNOWN without crashing
         assert result.get("format") in ("UNKNOWN", None)
-        monkeypatch.setenv("ORF_MCP_ALLOWED_DIRS", old or str(allowed_dir))
 
-    def test_info_outside_allowlist(self, monkeypatch):
+    def test_info_outside_allowlist(self, env_allowed):
         """info with path outside allowlist should return safe fallback.
 
         Similar to detect_format: info returns format/size info without
         a success field for invalid paths.
         """
         from orf.mcp.server import info
-        monkeypatch.delenv("ORF_MCP_ALLOWED_DIRS", raising=False)
         result = _parse(info("/etc/passwd"))
         # Should not crash; may return UNKNOWN format
         assert isinstance(result, dict)
@@ -296,22 +290,20 @@ class TestORFMCPToolPathRejection:
         assert any(e.get("code") == "PATH_NOT_ALLOWED" for e in result.get("errors", []))
 
     def test_no_allowlist_all_tools_fail(self, monkeypatch, tmp_path):
-        """Without ORF_MCP_ALLOWED_DIRS, no paths should be allowed.
+        """Without any allowlist ORF fail-CLOSES instead of defaulting to cwd.
 
-        ORF initializes _path_validator at module import time from the env
-        var. Without it, the validator defaults to an empty allowlist which
-        rejects all paths.
+        ORF's validator is lazily created from env; the unified
+        ``MCP_ALLOWED_DIRECTORIES`` takes precedence over the ORF-specific
+        name, so both must be cleared to exercise the fail-CLOSED path.
         """
         monkeypatch.delenv("ORF_MCP_ALLOWED_DIRS", raising=False)
-        # Use apply_md which returns proper error shape
+        monkeypatch.delenv("MCP_ALLOWED_DIRECTORIES", raising=False)
+        from orf.mcp import common
         from orf.mcp.server import apply_md
-        result = _parse(apply_md(
-            input_md=str(tmp_path / "test.md"),
-            target_format="docx",
-            output_path=str(tmp_path / "out.docx"),
-        ))
-        assert result.get("success") is False or result.get("total") == 0
-        # ORF with no allowed dirs: may return PATH_NOT_ALLOWED or empty results
-        if "errors" in result:
-            codes = {e.get("code") for e in result["errors"]}
-            assert codes & {"PATH_NOT_ALLOWED"}
+        common.reset_config_and_validator()
+        with pytest.raises(ValueError, match="fail-CLOSED"):
+            apply_md(
+                input_md=str(tmp_path / "test.md"),
+                target_format="docx",
+                output_path=str(tmp_path / "out.docx"),
+            )

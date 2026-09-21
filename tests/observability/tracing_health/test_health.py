@@ -114,7 +114,7 @@ class TestOPPCheck:
             health_mod.stop_health_server()
 
     def test_default_health_port(self, health_mod):
-        assert health_mod.DEFAULT_HEALTH_PORT == 8766
+        assert health_mod.DEFAULT_HEALTH_PORT == 8767
 
 
 class TestOLCheck:

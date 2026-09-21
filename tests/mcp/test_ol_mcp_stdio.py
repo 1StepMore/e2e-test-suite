@@ -5,7 +5,7 @@ messages over stdin/stdout, and verifies the OL MCP server
 implements the full MCP contract:
 
 1. ``initialize`` returns the server name and capabilities
-2. ``tools/list`` returns all 8 registered OL tools
+2. ``tools/list`` returns all 21 registered OL tools
 3. ``tools/call`` invokes each tool and returns a JSON payload
 
 This is the locked-in regression guard for the Phase 1.4 rewrite,
@@ -24,7 +24,6 @@ import os
 import queue
 import subprocess
 import sys
-import textwrap
 import threading
 import time
 from pathlib import Path
@@ -90,6 +89,19 @@ EXPECTED_TOOLS = {
     "search_tm",
     "batch_translate_texts",
     "translate_xliff",
+    "translate_file",
+    "extract_terms",
+    "add_tm_entries",
+    "shield_md_text",
+    "unshield_md_text",
+    "generate_report",
+    "inspect_config",
+    "disambiguate",
+    "extract_warnings",
+    "get_translation_status",
+    "verify_terms",
+    "profile_doc",
+    "get_capabilities",
     "ping",
 }
 
@@ -113,7 +125,7 @@ def test_ol_mcp_stdio_handshake_and_tools_list() -> None:
         assert init_resp.get("id") == 1, init_resp
         assert "result" in init_resp
         server_info = init_resp["result"].get("serverInfo", {})
-        assert server_info.get("name") == "omni-localizer", server_info
+        assert server_info.get("name") == "ol-mcp", server_info
         assert "version" in server_info
 
         send_jsonrpc(proc.stdin, {
@@ -175,8 +187,8 @@ def test_ol_mcp_stdio_ping_call() -> None:
         text = resp["result"]["content"][0]["text"]
         payload = json.loads(text)
         assert payload.get("success") is True
-        assert payload.get("module") == "ol"
-        assert "version" in payload
+        assert payload["content"].get("module") == "ol"
+        assert "version" in payload["content"]
     finally:
         proc.terminate()
         try:

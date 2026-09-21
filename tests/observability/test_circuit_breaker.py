@@ -14,8 +14,15 @@ import pytest
 
 
 @pytest.fixture
-def pool():
-    """Create a ModelPool with mocked config and router."""
+def pool(monkeypatch):
+    """Create a ModelPool with mocked config and router.
+
+    The circuit breaker only exists on the real ModelPool path; the
+    ``OMNI_TEST_FAKE_LLM=1`` seam returns before ``_breakers`` is built.
+    Drop the ambient flag so the breaker is exercised regardless of the
+    harness env (the suite runs with FAKE_LLM=1 for the other families).
+    """
+    monkeypatch.delenv("OMNI_TEST_FAKE_LLM", raising=False)
     with patch("ol_pool.router.Router", MagicMock()), \
          patch("ol_pool.router.load_config", return_value=MagicMock(
              llm_pool=MagicMock(translation=[], judging=[], restoration=[]),

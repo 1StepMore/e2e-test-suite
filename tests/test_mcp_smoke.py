@@ -1485,7 +1485,8 @@ class TestMCPSmokeORF:
 
         for i in range(2):
             (tmp_path / f"doc_{i}.md").write_text(
-                f"# Doc {i}\n\nContent {i}.\n", encoding="utf-8"
+                f"---\nsource_lang: en\ntarget_lang: zh\n---\n\n# Doc {i}\n\nContent {i}.\n",
+                encoding="utf-8",
             )
 
         async with Client(orf_mcp_server) as client:

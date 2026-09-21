@@ -34,10 +34,16 @@ os.environ.setdefault("LITELLM_TELEMETRY", "False")
 # platform separator, so the fixture must be platform-correct too. On POSIX the
 # produced string is byte-identical to the old literal.
 _SUITE_ROOT = Path(__file__).resolve().parents[1]
-os.environ.setdefault(
-    "ORF_MCP_ALLOWED_DIRS",
-    os.pathsep.join([tempfile.gettempdir(), str(_SUITE_ROOT)]),
-)
+# MCP path allowlists. All three MCP servers are fail-CLOSED, so the suite
+# must provide an explicit baseline instead of relying on whichever test ran
+# first to leave one in the environment (e2e#56: an accidental
+# ``MCP_ALLOWED_DIRECTORIES=/tmp`` set by tests/contract/test_contract_documentation.py
+# used to be the only reason OL/OPP path tools worked in the combined run).
+# Each module's own variable is used so the unified
+# ``MCP_ALLOWED_DIRECTORIES`` stays free for tests that assert fail-closed.
+_MCP_ALLOWED_DIRS = os.pathsep.join([tempfile.gettempdir(), str(_SUITE_ROOT)])
+for _var in ("ORF_MCP_ALLOWED_DIRS", "OPP_MCP_ALLOWED_DIRS", "OL_MCP_ALLOWED_DIRS"):
+    os.environ.setdefault(_var, _MCP_ALLOWED_DIRS)
 
 # 2026-06-24: Dummy API keys (same set as Omni_Localizer/tests/conftest.py).
 # FAKE_LLM mode creates _FakeModelPool and ignores these values; config
@@ -316,6 +322,64 @@ def _copy_component_logs_to_artifact_dir(request, artifact_dir):
         candidates = sorted(log_dir.glob(glob_pattern), key=lambda p: p.stat().st_mtime)
         if candidates:
             shutil.copy2(candidates[-1], logs_dest / dest_name)
+
+
+# =============================================================================
+# Cross-test isolation (e2e#56 Tier-2 inter-test pollution)
+# =============================================================================
+# The suite runs every module in ONE pytest process. Two kinds of process-global
+# state leak between tests and make files that are green in isolation fail only
+# in the combined run:
+#
+#   1. Environment variables. A handful of tests assign to ``os.environ``
+#      directly (not via ``monkeypatch``), so the value outlives the test.
+#      Observed offender: ``tests/contract/test_contract_documentation.py``
+#      sets ``MCP_ALLOWED_DIRECTORIES=/tmp``, which silently widens the OL/OPP/
+#      ORF path allowlists for the rest of the session — later fail-CLOSED
+#      path-security assertions then see an unexpected allowed directory.
+#   2. MCP token-bucket rate limiters. OPP keeps a per-tool bucket dict, the
+#      suite (omni_suite.rate_limiter) and OL/ORF a single bucket; each is
+#      created once and refills at 1 token/second (defaults RPM=60, burst=10).
+#      A long combined run drains the burst, so a later test gets
+#      ``RATE_LIMITED`` on a happy path.
+#
+# The fixture snapshots/restores the environment around each test and discards
+# the cached MCP state, so every test starts from the same process state it
+# would have had if run alone. It does NOT disable the limiter — its dedicated
+# unit tests still exercise draining/refill within a single test.
+_RATE_LIMITER_MODULES = (
+    "omni_suite.rate_limiter",
+    "opp.mcp.rate_limiter",
+    "ol_mcp.rate_limiter",
+    "orf.mcp.rate_limiter",
+)
+
+
+def _reset_mcp_process_state() -> None:
+    """Drop lazily-created MCP singletons so no test inherits drained state."""
+    # Token buckets (per-tool dict in OPP; single optional bucket in OL/ORF).
+    for mod_name in _RATE_LIMITER_MODULES:
+        mod = sys.modules.get(mod_name)
+        if mod is None:
+            continue
+        buckets = getattr(mod, "_buckets", None)
+        if isinstance(buckets, dict):
+            buckets.clear()
+        if hasattr(mod, "_bucket"):
+            mod._bucket = None
+
+
+@pytest.fixture(autouse=True)
+def _isolate_process_state():
+    """Restore ``os.environ`` and reset cached MCP state around every test."""
+    env_snapshot = dict(os.environ)
+    _reset_mcp_process_state()
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(env_snapshot)
+        _reset_mcp_process_state()
 
 
 @pytest.fixture(scope="session", autouse=True)
