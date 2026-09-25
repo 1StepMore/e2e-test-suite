@@ -76,10 +76,10 @@ class TestMatrixResult:
     def test_passed_skipped_failed_counts(self):
         r = fmv.MatrixResult()
         r.cells = [
-            fmv.CellResult("a", "x", "pass", 1.0),
-            fmv.CellResult("b", "y", "pass", 1.0),
-            fmv.CellResult("c", "z", "skip", 0.0, skip_reason="x"),
-            fmv.CellResult("d", "w", "fail", 1.0, detail="boom"),
+            fmv.CellResult("a", "x", "md", "pass", 1.0),
+            fmv.CellResult("b", "y", "md", "pass", 1.0),
+            fmv.CellResult("c", "z", "md", "skip", 0.0, skip_reason="x"),
+            fmv.CellResult("d", "w", "md", "fail", 1.0, detail="boom"),
         ]
         assert r.passed == 2
         assert r.skipped == 1
@@ -87,7 +87,7 @@ class TestMatrixResult:
 
     def test_to_dict_round_trip(self):
         r = fmv.MatrixResult()
-        r.cells = [fmv.CellResult("a", "b", "pass", 2.5)]
+        r.cells = [fmv.CellResult("a", "b", "md", "pass", 2.5)]
         d = r.to_dict()
         assert d["total"] == 1
         assert d["passed"] == 1
@@ -100,9 +100,9 @@ class TestRenderMarkdown:
     def test_includes_pass_skip_fail_counts(self):
         r = fmv.MatrixResult()
         r.cells = [
-            fmv.CellResult("a", "b", "pass", 1.0),
-            fmv.CellResult("c", "d", "skip", 0.0, skip_reason="x"),
-            fmv.CellResult("e", "f", "fail", 1.0, detail="boom"),
+            fmv.CellResult("a", "b", "md", "pass", 1.0),
+            fmv.CellResult("c", "d", "md", "skip", 0.0, skip_reason="x"),
+            fmv.CellResult("e", "f", "md", "fail", 1.0, detail="boom"),
         ]
         md = fmv._render_markdown(r)
         assert "**Pass**: 1" in md
@@ -112,7 +112,7 @@ class TestRenderMarkdown:
 
     def test_no_fail_shows_pass_message(self):
         r = fmv.MatrixResult()
-        r.cells = [fmv.CellResult("a", "b", "pass", 1.0)]
+        r.cells = [fmv.CellResult("a", "b", "md", "pass", 1.0)]
         md = fmv._render_markdown(r)
         assert "✅" in md
 
@@ -155,7 +155,6 @@ class TestOutDirAbsolutization:
     def test_relative_out_dir_resolves_to_absolute(self, tmp_path, monkeypatch):
         """The main() function must resolve a relative --out-dir to
         an absolute path before deriving cell paths from it."""
-        relative_dir = tmp_path / "rel_out"
         # Stay in the real cwd but pass a relative-looking path
         monkeypatch.chdir(tmp_path)
         args = fmv.argparse.Namespace(
@@ -227,7 +226,6 @@ class TestXLIFF2DOCXCrossFormat:
     def test_cross_format_error_message_is_clear(self):
         """The error message returned for cross-format must explicitly
         name the source format and the limitation, not a stack trace."""
-        skeleton_kind = "unknown"
         skeleton_data = {"files": {}}  # no xml, no slides, no opf
         document_xml = skeleton_data.get("xml")
         assert document_xml is None
