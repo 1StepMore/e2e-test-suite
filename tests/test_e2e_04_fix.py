@@ -17,7 +17,6 @@ import time
 from pathlib import Path
 
 
-
 class TestE204ExtractorImport:
     """Verify ol_terminology.extractor doesn't hang at import time."""
 
@@ -46,7 +45,7 @@ except Exception as e:
         script_file = tmp_path / "test_extractor_import.py"
         script_file.write_text(script)
 
-        repo_root = Path("/mnt/d/贯维/Omni_Suite")
+        repo_root = Path(__file__).resolve().parents[1]
         venv_python = repo_root / ".venv_ol" / "bin" / "python"
         ol_src = repo_root / "Omni_Localizer" / "src"
 
@@ -109,7 +108,7 @@ except Exception as e:
         out_dir = tmp_path / "out"
         out_dir.mkdir()
 
-        repo_root = Path("/mnt/d/贯维/Omni_Suite")
+        repo_root = Path(__file__).resolve().parents[1]
         venv_python = repo_root / ".venv_ol" / "bin" / "python"
 
         result = subprocess.run(
