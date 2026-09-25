@@ -97,7 +97,11 @@ def _run_python(*args: str) -> subprocess.CompletedProcess[str]:
         [_VENV_PYTHON, *args],
         capture_output=True,
         text=True,
-        timeout=15,
+        # Interpreter start plus a full package import (python-docx, lxml,
+        # structlog, openpyxl...) is ~2s on a local disk but regularly exceeds
+        # 15s when the checkout lives on a network/DrvFs mount, which made this
+        # gate fail intermittently without any contract actually breaking.
+        timeout=90,
         cwd=_SUITE_ROOT,
     )
 
