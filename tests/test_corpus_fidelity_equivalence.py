@@ -241,6 +241,27 @@ class TestEquivalenceChecker:
         assert report.missing_in_b == 1
         assert report.divergent == 1
 
+    def test_cell_only_in_b_counts_as_missing_in_a(self, tmp_path, generated_docx):
+        """A cell produced by only one transport must still be compared.
+
+        Enumerating run A's cell directories alone left a B-only cell out of the
+        report entirely, so missing_in_a stayed 0 and a transport regression
+        that drops a cell went unnoticed. Each side owns a different cell here,
+        which covers both directions at once.
+        """
+        a = self._make_run(
+            tmp_path, [("md", "md", "md", True, "x" * 10)], label="a",
+        )
+        b = self._make_run(
+            tmp_path, [("docx", "docx", "md", True, None)],
+            label="b", docx_src=generated_docx,
+        )
+        report = equivalence_checker.compare_runs(a, b)
+        assert len(report.cells) == 2, report.to_dict()
+        assert report.missing_in_a == 1, report.to_dict()
+        assert report.missing_in_b == 1, report.to_dict()
+        assert report.divergent == 2, report.to_dict()
+
     def test_both_missing_is_not_divergent(self, tmp_path):
         a = self._make_run(tmp_path, [], label="a")
         b = self._make_run(tmp_path, [], label="b")

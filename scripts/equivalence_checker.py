@@ -16,13 +16,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 sys.path.insert(0, str(SCRIPT_DIR))
-from fidelity_checker import compute_fidelity, FidelityReport  # noqa: E402
+from fidelity_checker import compute_fidelity  # noqa: E402
 
 
 @dataclass
@@ -105,12 +105,18 @@ def compare_runs(
         )
         return report
 
-    # Discover all cell directories from run A
-    for a_cell_dir in sorted(a_cells.iterdir()):
-        if not a_cell_dir.is_dir():
-            continue
+    # Discover the UNION of cell directories. Enumerating run A alone made a
+    # cell produced by only one transport invisible: it never became a
+    # ComparisonResult, so missing_in_a stayed 0 and the regression passed.
+    cell_names = sorted(
+        {entry.name for entry in a_cells.iterdir() if entry.is_dir()}
+        | {entry.name for entry in b_cells.iterdir() if entry.is_dir()}
+    )
+    for cell_name in cell_names:
+        a_cell_dir = a_cells / cell_name
+        b_cell_dir = b_cells / cell_name
         # Derive (inp, outp, path) from dir name: "{path}_{inp}_to_{outp}"
-        parts = a_cell_dir.name.split("_to_")
+        parts = cell_name.split("_to_")
         if len(parts) != 2:
             continue
         outp = parts[1]
@@ -121,15 +127,13 @@ def compare_runs(
             continue
         path, inp = prefix_parts
 
-        # Find corresponding cell in B
-        b_cell_dir = b_cells / a_cell_dir.name
-        a_out = a_cell_dir / f"result.{outp}"
+        a_out = a_cell_dir / f"result.{outp}" if a_cell_dir.exists() else None
         b_out = b_cell_dir / f"result.{outp}" if b_cell_dir.exists() else None
-        a_src = a_cell_dir / f"sample.{inp}"
+        a_src = a_cell_dir / f"sample.{inp}" if a_cell_dir.exists() else None
         b_src = b_cell_dir / f"sample.{inp}" if b_cell_dir.exists() else None
 
-        a_exists = a_out.exists()
-        b_exists = b_out.exists() if b_out else False
+        a_exists = a_out is not None and a_out.exists()
+        b_exists = b_out is not None and b_out.exists()
 
         size_match = False
         text_sim = 0.0
