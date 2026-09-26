@@ -482,8 +482,14 @@ def _run_orf(
     )
     result = json.loads(result_str)
     assert result.get("success"), f"ORF MCP apply_md failed: {result}"
-    actual_path = Path(result["output_path"])
+    # The shipped envelope carries the produced path twice: content.output_path
+    # for the tool result and outputs[].path for the artifact manifest (whose
+    # entries use `path`, not `output_path`, and gain a sha256/bytes on success).
+    actual_path = Path(result["content"]["output_path"])
     _assert_non_empty_file(actual_path)
+    assert any(Path(o["path"]) == actual_path for o in result["outputs"]), (
+        f"outputs manifest does not list the produced file: {result['outputs']}"
+    )
     return actual_path
 
 
@@ -515,18 +521,24 @@ class _FakeModelPool:
 
 @pytest.fixture
 def patched_ol_mcp_pool(monkeypatch):
-    """Replace ol_mcp.tools.ModelPool with an async-friendly fake.
+    """Replace the ModelPool the OL MCP translate functions look up.
 
-    OL MCP code calls ModelPool.get_instance(config_path); the fake's
-    classmethod matches that contract. Also sets OMNI_TEST_FAKE_LLM=1
-    and OMNI_TEST_FAKE_PANDOC=1 for defense-in-depth on any subprocess.
+    Those functions live in ol_mcp/translate_md.py and ol_mcp/translate_xliff.py
+    (ol_mcp.tools only re-exports the tool wrappers) and each imports ModelPool
+    from ol_pool.router, so the attribute has to be patched on the owning module.
+    Setting it on ol_mcp.tools raised AttributeError: the module never binds
+    ModelPool. The fake's classmethod matches the real get_instance(config_path)
+    contract. Also sets OMNI_TEST_FAKE_LLM=1 and OMNI_TEST_FAKE_PANDOC=1 for
+    defense-in-depth on any subprocess.
     """
     monkeypatch.setenv("OMNI_TEST_FAKE_LLM", "1")
     monkeypatch.setenv("OMNI_TEST_FAKE_PANDOC", "1")
 
-    from ol_mcp import tools as _ol_mcp_tools
+    from ol_mcp import translate_md as _ol_mcp_translate_md
+    from ol_mcp import translate_xliff as _ol_mcp_translate_xliff
 
-    monkeypatch.setattr(_ol_mcp_tools, "ModelPool", _FakeModelPool)
+    monkeypatch.setattr(_ol_mcp_translate_md, "ModelPool", _FakeModelPool)
+    monkeypatch.setattr(_ol_mcp_translate_xliff, "ModelPool", _FakeModelPool)
     return _FakeModelPool
 
 
