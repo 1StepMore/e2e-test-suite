@@ -71,6 +71,24 @@ def _make_subprocess_env(extra: Optional[dict] = None) -> dict:
 # Failure-injection helpers
 # ---------------------------------------------------------------------------
 
+def _mcp_failure_message(result_data: dict, fallback: str) -> str:
+    """Flatten an OL MCP error envelope into one diagnostic line.
+
+    The shipped error payload carries ``error.code``/``error.message`` plus a
+    recovery hint (ol_mcp/_errors.py); warnings are a separate channel. Reading
+    only ``warnings`` collapsed every failure to the generic fallback string and
+    destroyed the diagnostic the assertions below depend on.
+    """
+    error = result_data.get("error") or {}
+    recovery = result_data.get("recovery") or {}
+    parts = [
+        str(error.get("code") or ""),
+        str(error.get("message") or ""),
+        str(recovery.get("hint") or ""),
+        *(str(w) for w in (result_data.get("warnings") or [])),
+    ]
+    return " | ".join(p for p in parts if p) or fallback
+
 def _make_raising_pool_class(exc: BaseException):
     """Return a _FakeModelPool subclass whose translate raises `exc`.
 
@@ -95,14 +113,34 @@ def _write_cli_failure_wrapper(
     """Write a wrapper that patches the OL CLI's async translate functions
     to raise, then invokes ol_cli.main_entry() with the given subcommand + args.
 
-    We patch ol_cli._translate_md_async and _translate_xliff_async at the
-    module level (AFTER importing ol_cli) rather than patching
-    _FakeModelPool.translate. This is necessary because the OL CLI's
-    translate functions already catch exceptions from pool.translate()
-    internally and fall back to source text — so patching the pool doesn't
-    cause a non-zero exit. Patching the async functions themselves lets the
-    exception propagate up to the CLI's outer ``except Exception`` handler,
-    which calls ``raise typer.Exit(code=PIPELINE_ERROR)`` (exit code 1).
+    We patch ``_translate_md_async`` / ``_translate_xliff_async`` in their
+    OWNING modules (``cli.translate_md`` / ``cli.translate_xliff``) AFTER
+    importing ol_cli, rather than patching ``_FakeModelPool.translate``.
+    This is necessary for three reasons:
+
+    1. The OL CLI's translate functions already catch exceptions from
+       pool.translate() internally and fall back to source text — so
+       patching the pool doesn't cause a non-zero exit. Patching the
+       async functions themselves lets the exception propagate up to the
+       CLI's outer ``except Exception`` handler, which calls
+       ``raise typer.Exit(code=PIPELINE_ERROR)`` (exit code 1).
+
+    2. Since the 2026-07 OL refactor (Omni_Localizer 12679b1) these
+       functions live in ``cli/translate_md.py`` / ``cli/translate_xliff.py``
+       and ol_cli only re-exports them. The typer commands resolve the
+       names from their owning module's globals, so a patch on the
+       ``ol_cli`` re-export attributes would never be consulted. The
+       modules must be fetched via ``importlib.import_module``:
+       ``cli/__init__.py`` star-imports the command functions, so the
+       package attribute ``cli.translate_md`` is the FUNCTION, not the
+       submodule — ``import cli.translate_md as m`` would bind the
+       function and the patch would land on a dead attribute.
+
+    3. ``--no-cache`` is passed because OL's content-addressed cache
+       (~/.omni_cache, persistent across runs) short-circuits BEFORE
+       ``_translate_md_async`` / ``_translate_xliff_async`` are called —
+       a cache hit would return rc=0 and the injected failure would
+       never fire.
     """
     wrapper = tmp_path / "_omni_failure_wrapper.py"
     suite_root_str = str(SUITE_ROOT)
@@ -112,6 +150,7 @@ def _write_cli_failure_wrapper(
         _SUITE_ROOT = {suite_root_str!r}
         if _SUITE_ROOT not in sys.path:
             sys.path.insert(0, _SUITE_ROOT)
+        import importlib
         import unittest.mock
 
         _exc_name, _, _msg = {raise_spec!r}.partition(":")
@@ -119,10 +158,12 @@ def _write_cli_failure_wrapper(
         _exc_cls = _exc_map.get(_exc_name, RuntimeError)
         _exc = _exc_cls(_msg)
 
-        sys.argv = {["ol_cli", ol_subcommand] + ol_args!r}
+        sys.argv = {["ol_cli", ol_subcommand] + ol_args + ["--no-cache"]!r}
         import ol_cli
-        ol_cli._translate_md_async = unittest.mock.AsyncMock(side_effect=_exc)
-        ol_cli._translate_xliff_async = unittest.mock.AsyncMock(side_effect=_exc)
+        _md_channel = importlib.import_module("cli.translate_md")
+        _xliff_channel = importlib.import_module("cli.translate_xliff")
+        _md_channel._translate_md_async = unittest.mock.AsyncMock(side_effect=_exc)
+        _xliff_channel._translate_xliff_async = unittest.mock.AsyncMock(side_effect=_exc)
 
         ol_cli.main_entry()
     """))
@@ -226,7 +267,11 @@ def _run_xliff_mcp(
     translated_xliff = output_dir / f"{input_docx.stem}_translated.xlf"
 
     pool_cls = failure_pool or _make_raising_pool_class(RuntimeError())
-    with patch("ol_mcp.tools.ModelPool") as MockPool:
+    # Patch ModelPool in the module that performs the lookup
+    # (ol_mcp/translate_xliff.py imports it from ol_pool.router and calls
+    # ModelPool.get_instance). ol_mcp.tools only re-exports the tool wrapper
+    # and never binds ModelPool, so patching it there raises AttributeError.
+    with patch("ol_mcp.translate_xliff.ModelPool") as MockPool:
         mock_instance = pool_cls()
         MockPool.get_instance.return_value = mock_instance
         MockPool.return_value = mock_instance
@@ -243,8 +288,7 @@ def _run_xliff_mcp(
         result_data = json.loads(result_str)
 
     if not result_data.get("success", False):
-        warnings = result_data.get("warnings") or []
-        stderr_msg = " | ".join(str(w) for w in warnings) or "OL MCP returned success=False"
+        stderr_msg = _mcp_failure_message(result_data, "OL MCP returned success=False")
         return PathResult(exit_code=1, stderr=stderr_msg, details={"json": result_data})
 
     from orf.channels.xliff2docx import XLIFF2DOCXConverter
@@ -372,7 +416,9 @@ def _run_md_mcp(
         return PathResult(exit_code=1, stderr=f"OPP did not produce MD: {md_path}")
 
     pool_cls = failure_pool or _make_raising_pool_class(RuntimeError())
-    with patch("ol_mcp.tools.ModelPool") as MockPool:
+    # See the xliff helper above: ModelPool is looked up in the module that
+    # owns the translate function, not in ol_mcp.tools.
+    with patch("ol_mcp.translate_md.ModelPool") as MockPool:
         mock_instance = pool_cls()
         MockPool.get_instance.return_value = mock_instance
         MockPool.return_value = mock_instance
@@ -389,8 +435,7 @@ def _run_md_mcp(
         result_data = json.loads(result_str)
 
     if not result_data.get("success", False):
-        warnings = result_data.get("warnings") or []
-        stderr_msg = " | ".join(str(w) for w in warnings) or "OL MCP returned success=False"
+        stderr_msg = _mcp_failure_message(result_data, "OL MCP returned success=False")
         return PathResult(exit_code=1, stderr=stderr_msg, details={"json": result_data})
 
     translated_md = output_dir / f"{input_docx.stem}_translated.md"
