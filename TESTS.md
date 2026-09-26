@@ -23,7 +23,7 @@ Already done in this session, but verify before running:
 
 ```bash
 # 1. .env has real API keys
-grep -E "^(ARK_API_KEY|ZHIPU_API_KEY|NVIDIA_NIM_API_KEY)=" Omni_Localizer/.env | sed 's/=.*$/=<SET>/'
+grep -E "^(ZHIPU_API_KEY|NVIDIA_NIM_API_KEY|ARK_API_KEY)=" Omni_Localizer/.env | sed 's/=.*$/=<SET>/'
 # Expected: three non-empty lines
 
 # 2. local.yaml exists and is gitignored
@@ -175,7 +175,7 @@ tests/test_e2e_real_llm.py::TestE2ERealLLMTranslationQuality::test_lqa_judge_4_d
 ======================== 3 passed in ~400s (0:06:40) =========================
 ```
 
-You'll see lots of `litellm.acompletion(...) 200 OK` lines from real LLM calls (ark-code-latest + glm-4.7-flash + minimaxai/minimax-m3). That's expected — the tests are exercising the real APIs.
+You'll see lots of `litellm.acompletion(...) 200 OK` lines from real LLM calls (glm-4.7-flash + minimaxai/minimax-m3 + ark-code-latest). That's expected — the tests are exercising the real APIs.
 
 To reduce noise, add `-q` for quieter output:
 
@@ -324,7 +324,7 @@ Last verified on 2026-06-11. Test counts grow as new tests are added; run `pytes
 The 18-chain pipeline test (`tests/test_e2e_pipeline_full.py`, 3 inputs × 3 outputs × 2 transports) was created to exercise the full matrix. Status:
 
 - **`OMNI_TEST_FAKE_LLM=1` (hermetic)**: The T17 fix extended the fake-LLM seam to stub `span_aligner`, resolving the original HuggingFace model loading issue. However, some chains may still time out (≥60s) due to slow fixture setup or MCP server dependencies.
-- **Real API keys** (`nightly` path): The 18 chains work end-to-end when real canonical provider keys (ARK / ZHIPU / NVIDIA) are available.
+- **Real API keys** (`nightly` path): The 18 chains work end-to-end when real canonical provider keys (ZHIPU / NVIDIA / ARK) are available.
 
 Known Hermetic CI gaps:
 - `tests/test_e2e_ol_mcp.py::TestOLMCP::test_translate_md_text_preserves_markdown_structure` remains **SKIPPED** — the `OMNI_TEST_FAKE_LLM` seam doesn't fully cover the MCP `translate_md_text` tool's internal async pipeline.
