@@ -52,19 +52,6 @@ class TestImageExtractionPositions:
             assert img.mime_type in ("image/png", "image/jpeg", "image/gif")
 
     @pytest.mark.requires_opp
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "OPP module gap (not a suite-test problem): PDF input is routed "
-            "through PDF2HTMLExtractor -> HTMLExtractor, which stamps "
-            "element_index and leaves page_number None "
-            "(Omni_Pre_Processor/src/opp/pipeline.py:66, "
-            "src/opp/extractors/html/__init__.py:489), while "
-            "src/opp/contracts/images.py declares page_number for PDF. Fix it "
-            "in the OPP repo; this assertion then XPASSes and the marker must "
-            "be removed."
-        ),
-    )
     def test_pdf_images_have_page_number(self, opp_pipeline, tmp_path):
         """PDF images should carry page_number, as the OPP contract declares."""
         doc_path = tmp_path / "images_pdf.pdf"
