@@ -15,7 +15,9 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 | OL | v0.7.1 | 21 MCP tools, 4-layer repair pipeline, StyleGuide injection, --polish pass, 8 quality gates |
 | ORF | v0.4.17 | 16 backfill formats, Foreman/Specialist |
 
-v0.9.1 · v0.7.1 · v0.4.17 · v0.4.0. Changelog: `CHANGELOG.md`; compatibility matrix: `COMPATIBILITY.md`.
+v0.9.1 · v0.7.1 · v0.4.17 · v0.4.0.
+
+Changelog: `CHANGELOG.md`; compatibility matrix: `COMPATIBILITY.md`.
 
 > **Prerequisite:** Python >= 3.13. Verify with `python3 --version`.
 
