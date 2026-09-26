@@ -41,7 +41,10 @@ def generated_docx(tmp_path) -> Path:
 
 class TestCorpusGenerator:
     def test_corpus_dir_is_under_suite_root(self):
-        assert corpus_generator.CORPUS_DIR.parent.name == "Omni_Suite"
+        # The checkout directory name is environment-specific (Omni_Suite locally,
+        # e2e-test-suite on the runner), so assert the structural invariant —
+        # the corpus lives directly under the repository root — instead of a name.
+        assert corpus_generator.CORPUS_DIR.parent == Path(__file__).resolve().parent.parent
 
     def test_png_bytes_returns_valid_png(self):
         import io
