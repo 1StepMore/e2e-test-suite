@@ -339,11 +339,18 @@ def _build_inline() -> etree._Element:
 def _run_opp(docx_path: Path, out_dir: Path) -> dict[str, Path]:
     """Stage 1: OPP extract DOCX → .xlf + .skeleton.zip + *_images.json."""
     out_dir.mkdir(parents=True, exist_ok=True)
+    # --no-cache is required: OPP's A6 cache (key = sha256(input bytes),
+    # src/opp/cliutils.py:35) skips extraction on a hit and copies ONLY the
+    # cached .xlf (src/opp/commands/batch.py:166-169) — no skeleton.zip and
+    # no images.json. The builder's ZIP DOS timestamps (2-second granularity)
+    # make sibling tests collide on the same key when runs land in one bucket:
+    # the CI-only flake in run 35653370256. Assertions below need fresh output.
     cmd = [
         sys.executable,
         "-m",
         "opp.cli",
         str(docx_path),
+        "--no-cache",
         "--target-format",
         "xlf",
         "--source-lang",

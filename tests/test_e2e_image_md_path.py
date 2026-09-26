@@ -10,6 +10,7 @@ Requires: OPP, OL, ORF installed (FAKE_LLM + FAKE_PANDOC modes).
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import subprocess
@@ -195,6 +196,8 @@ class TestFullPipelineImages:
         and ORF outputs a valid result.
         """
         # ── 1. Create a minimal DOCX with an inline image ──
+        import io
+
         from docx import Document
         from docx.shared import Inches
 
@@ -202,13 +205,15 @@ class TestFullPipelineImages:
         doc = Document()
         doc.add_paragraph("Hello world — this document has an image below.")
 
-        # Create a 1×1 red PNG in memory
-        import io
-        _png_bytes = (
-            b"\x89PNG\r\n\x1a\n"  # PNG signature
-            b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde"
-            b"\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N"
-            b"\x00\x00\x00\x00IEND\xaeB`\x82"
+        # Valid 1×1 RGB PNG (zlib+struct-built, verified against python-docx's
+        # strict chunk parser). The previous hand-rolled byte literal was
+        # malformed — its IDAT header declared length 12 but carried 14
+        # bytes, so python-docx's chunk walker misread the next chunk type
+        # as b'ND\xaeB' and raised UnicodeDecodeError (docx/image/helpers.py
+        # decodes chunk types as UTF-8) inside add_picture, before OPP ran.
+        _png_bytes = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1Pe"
+            "AAAAC0lEQVR4nPvPwAAAAwABAIPJ7GsAAAAASUVORK5CYII="
         )
         doc.add_picture(io.BytesIO(_png_bytes), width=Inches(1))
         doc.save(str(docx_path))
