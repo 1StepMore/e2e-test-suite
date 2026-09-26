@@ -41,9 +41,19 @@ def _make_subprocess_env() -> dict:
 
 class TestPathXliffCLI:
     def test_full_chain_cli_returns_zero(
-        self, opp_pipeline, haier_real_docx_path, tmp_path: Path, use_fake_llm
+        self, opp_pipeline, meridian_english_docx_path, tmp_path: Path, use_fake_llm
     ):
-        """End-to-end: real OPP + real OL CLI (with fake LLM) + real ORF CLI (with fake pandoc)."""
+        """End-to-end: real OPP + real OL CLI (with fake LLM) + real ORF CLI (with fake pandoc).
+
+        Uses the canonical en→zh English fixture (meridian_robotics.docx), not
+        the 海尔 zh→en fixture: under OMNI_TEST_FAKE_LLM=1 the OL fake pool
+        (ol_pool/fake.py) ECHOES the source prefixed with the target lang
+        ("[zh] <source>"), and the shipped default.yaml sets
+        block_on_source_script_fragment: true with target_locale en-US — so a
+        Chinese source (CJK) echoed into the "target" is correctly blocked by
+        quality Gate 6 (SOURCE_SCRIPT_FRAGMENT, rc=4). An English source keeps
+        the hermetic chain green while still exercising the full plumbing.
+        """
         output_dir = tmp_path / "xliff_cli"
         opp_out = output_dir / "opp"
         ol_out = output_dir / "ol"
@@ -51,15 +61,15 @@ class TestPathXliffCLI:
         for d in (opp_out, ol_out, orf_out):
             d.mkdir(parents=True)
 
-        result = opp_pipeline.process_file(haier_real_docx_path)
+        result = opp_pipeline.process_file(meridian_english_docx_path)
         assert result.extraction_result is not None
 
-        xliff_path = opp_out / f"{haier_real_docx_path.stem}.xlf"
+        xliff_path = opp_out / f"{meridian_english_docx_path.stem}.xlf"
         opp_pipeline.generate_xliff(result.extraction_result, xliff_path, "en", "zh")
         assert xliff_path.exists()
 
         skeleton_path = opp_pipeline.save_skeleton(
-            result.extraction_result, haier_real_docx_path.stem, orf_out
+            result.extraction_result, meridian_english_docx_path.stem, orf_out
         )
         assert skeleton_path is not None and skeleton_path.exists()
 
@@ -84,7 +94,7 @@ class TestPathXliffCLI:
             f"OL CLI failed (rc={ol_result.returncode}): {ol_result.stderr}"
         )
 
-        translated_xliff = ol_out / f"{haier_real_docx_path.stem}.xlf"
+        translated_xliff = ol_out / f"{meridian_english_docx_path.stem}.xlf"
         assert translated_xliff.exists(), f"Translated XLIFF not produced: {ol_result.stderr}"
         xlf_content = translated_xliff.read_text(encoding="utf-8")
         assert "<target>" in xlf_content, "No <target> elements in OL output"
@@ -114,5 +124,5 @@ class TestPathXliffCLI:
         with zipfile.ZipFile(docx_path) as zf:
             assert "word/document.xml" in zf.namelist()
             doc_xml = zf.read("word/document.xml").decode("utf-8")
-        assert any(m in doc_xml for m in ["[ZH]", "你好", "世界", "用户手册", "测试", "功能"]), \
+        assert any(m in doc_xml for m in ["[zh]", "[ZH]", "你好", "世界", "用户手册", "测试", "功能"]), \
             f"No translation markers in final DOCX: {doc_xml[:500]}"

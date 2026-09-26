@@ -102,12 +102,30 @@ def test_loader_accepts_step_known_gap_and_rejects_non_bool(tmp_path):
     assert "known_gap" in str(ei.value)
 
 
-def test_scenario_known_gap_status_is_known_gap(tmp_path):
+def test_scenario_known_gap_status_is_known_gap(tmp_path, monkeypatch):
+    """A known-gap scenario is ``known-gap`` when it really runs.
+
+    The verdict is also gated by the R-07 fake guard, so pin the environment
+    instead of inheriting it: with no fake active the declared non-verdict is
+    ``known-gap``; with ``OMNI_TEST_FAKE_LLM=1`` the same human-quality
+    scenario is fallback output, which STANDARDS.md D4 makes ``invalid`` — a
+    fake-active run is never admissible evidence, not even for a known gap.
+
+    Both halves are asserted so neither rule can start silently overriding the
+    other (this test previously inherited the caller's env, so it passed on a
+    developer shell and failed under the hermetic CI job).
+    """
     _write(tmp_path, "known-gaps/gap.yaml", _KNOWN_GAP)
-    run = run_scenarios(tmp_path, persist=False)
-    sc = run.scenarios[0]
-    assert sc.status == "known-gap"
+
+    monkeypatch.delenv("OMNI_TEST_FAKE_LLM", raising=False)
+    sc = run_scenarios(tmp_path, persist=False).scenarios[0]
+    assert sc.status == "known-gap", sc.summary
     assert sc.known_gap is True
+
+    monkeypatch.setenv("OMNI_TEST_FAKE_LLM", "1")
+    fake_sc = run_scenarios(tmp_path, persist=False).scenarios[0]
+    assert fake_sc.status == "invalid", fake_sc.summary
+    assert "OMNI_TEST_FAKE_LLM=1" in fake_sc.summary
 
 
 def test_step_known_gap_failure_does_not_fail_scenario(tmp_path):

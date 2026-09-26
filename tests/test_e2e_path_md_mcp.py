@@ -37,7 +37,7 @@ class TestPathMdMCP:
         original_md_content = md_path.read_text(encoding="utf-8")
 
         translated_md = output_dir / f"{haier_real_docx_path.stem}_translated.md"
-        with patch("ol_mcp.tools.ModelPool") as mock_pool_cls:
+        with patch("ol_mcp.translate_md.ModelPool") as mock_pool_cls:
             from tests.test_e2e_pipeline_fixtures import _FakeModelPool
             mock_instance = _FakeModelPool()
             mock_pool_cls.get_instance.return_value = mock_instance

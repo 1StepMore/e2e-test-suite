@@ -299,9 +299,21 @@ Content {i}.
 
     @pytest.mark.requires_orf
     def test_batch_convert_invalid_dir(self, tmp_path):
-        """Test batch_convert handles invalid directory."""
-        with patch("orf.mcp.server.PathValidator.validate") as mock_validate:
-            mock_validate.return_value = (False, "Directory not allowed")
+        """Test batch_convert handles invalid directory.
+
+        The shipped tool validates via ``get_path_validator().validate_path``
+        (fail-closed allowlist) and returns the standard error envelope:
+        ``{"success": False, "error": {"code": "PATH_NOT_ALLOWED"}, ...,
+        "content": {"success_count": 0, "fail_count": 0, "total": 0}}``.
+        Patch the validator seam so the test is independent of the allowlist
+        env / cwd, then assert that exact envelope.
+        """
+        from orf.mcp.security import ValidationResult
+
+        with patch("orf.mcp.tools.batch_convert.get_path_validator") as mock_get_validator:
+            mock_get_validator.return_value.validate_path.return_value = ValidationResult(
+                success=False, error="Directory not allowed"
+            )
 
             from orf.mcp.server import batch_convert
 
@@ -311,7 +323,11 @@ Content {i}.
             )
 
             parsed = json.loads(result)
-            assert parsed["success_count"] == 0 or "error" in parsed
+            assert parsed["success"] is False
+            assert parsed["error"]["code"] == "PATH_NOT_ALLOWED"
+            assert parsed["content"]["success_count"] == 0
+            assert parsed["content"]["fail_count"] == 0
+            assert parsed["content"]["total"] == 0
 
     @pytest.mark.requires_orf
     def test_apply_md_to_epub(self, tmp_path):
@@ -389,8 +405,15 @@ Content {i}.
 
     @pytest.mark.requires_orf
     def test_detect_format_tool(self, tmp_path):
-        """Test detect_format tool identifies document format."""
+        """Test detect_format tool identifies document format.
+
+        The shipped tool returns the standard success envelope
+        ``{"success": True, "content": {"format": "DOCX", "confidence": 1.0}}``
+        (the detected format is nested under ``content``). Patch the validator
+        seam so the test is independent of the allowlist env / cwd.
+        """
         from docx import Document
+        from orf.mcp.security import ValidationResult
 
         doc = Document()
         doc.add_heading("Detect Test", level=1)
@@ -398,10 +421,12 @@ Content {i}.
         docx_path = tmp_path / "detect.docx"
         doc.save(str(docx_path))
 
-        with patch("orf.mcp.server.PathValidator.validate") as mock_validate, \
+        with patch("orf.mcp.tools.detect_format.get_path_validator") as mock_get_validator, \
              patch("orf.mcp.server._run_cli_command") as mock_cli:
 
-            mock_validate.return_value = (True, None)
+            mock_get_validator.return_value.validate_path.return_value = ValidationResult(
+                success=True
+            )
             mock_cli.return_value = {
                 "format": "DOCX",
                 "size_mb": 0.01,
@@ -414,7 +439,9 @@ Content {i}.
             result = detect_format(file_path=str(docx_path))
             parsed = json.loads(result)
 
-            assert parsed["format"] == "DOCX"
+            assert parsed["success"] is True
+            assert parsed["content"]["format"] == "DOCX"
+            assert parsed["content"]["confidence"] == 1.0
 
     @pytest.mark.requires_orf
     def test_info_tool(self, tmp_path):
