@@ -239,6 +239,21 @@ jobs:
       - name: uv sync
         run: uv sync --locked
 
+      - name: Install 3 sub-repos as editable packages (versions constrained to uv.lock)
+        run: |
+          # Without this, none of the sub-repos' own declared dependencies are
+          # installed and every OPP CLI call dies at import: the nightly job
+          # failed 11 tests + 13 errors on `ModuleNotFoundError: No module
+          # named 'chardet'` (OPP declares chardet>=5.0.0 in its pyproject).
+          # Mirrors the ci-suite job's step; the constraint is load-bearing --
+          # an unconstrained editable install re-resolves and silently upgrades
+          # typer/click/litellm away from uv.lock (issue e2e#58).
+          uv export --locked --all-packages --no-hashes --format requirements-txt \
+            | grep -v '^-e ' > /tmp/lock-constraints.txt
+          uv pip install --python .venv/bin/python \
+            -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter \
+            -c /tmp/lock-constraints.txt
+
       - name: Install test deps
         run: uv pip install pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio
 
