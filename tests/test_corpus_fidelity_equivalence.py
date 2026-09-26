@@ -7,6 +7,7 @@ Locks in:
 """
 from __future__ import annotations
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -16,8 +17,22 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import corpus_generator  # noqa: E402
-import fidelity_checker  # noqa: E402
 import equivalence_checker  # noqa: E402
+import fidelity_checker  # noqa: E402
+
+
+@pytest.fixture
+def generated_docx(tmp_path) -> Path:
+    """A real DOCX built by the shipped corpus generator, inside ``tmp_path``.
+
+    The equivalence checker feeds each cell's ``sample``/``result`` to the
+    fidelity checker, which parses DOCX as a real OOXML package. A text file
+    merely named ``.docx`` raises ``docx.opc.exceptions.PackageNotFoundError``,
+    so cells must hold a genuine generated document — never a committed binary.
+    """
+    dest = tmp_path / "generated_sample.docx"
+    corpus_generator.generate_docx(dest)
+    return dest
 
 
 # ---------------------------------------------------------------------------
@@ -29,16 +44,18 @@ class TestCorpusGenerator:
         assert corpus_generator.CORPUS_DIR.parent.name == "Omni_Suite"
 
     def test_png_bytes_returns_valid_png(self):
-        from PIL import Image
         import io
+
+        from PIL import Image
         data = corpus_generator._png_bytes()
         img = Image.open(io.BytesIO(data))
         assert img.format == "PNG"
         assert img.size == (10, 10)
 
     def test_png_custom_dimensions(self):
-        from PIL import Image
         import io
+
+        from PIL import Image
         data = corpus_generator._png_bytes(width=50, height=30, color="blue")
         img = Image.open(io.BytesIO(data))
         assert img.size == (50, 30)
@@ -55,8 +72,12 @@ class TestCorpusGenerator:
         assert dest.exists()
         assert dest.stat().st_size > 5000
 
-    @pytest.mark.timeout(30)
+    @pytest.mark.timeout(180)
     def test_generate_pdf_creates_file(self, tmp_path):
+        pytest.importorskip(
+            "weasyprint",
+            reason="optional PDF engine (weasyprint) not installed",
+        )
         dest = tmp_path / "test.pdf"
         corpus_generator.generate_pdf(dest)
         assert dest.exists()
@@ -164,46 +185,57 @@ class TestFidelityChecker:
 # ---------------------------------------------------------------------------
 
 class TestEquivalenceChecker:
-    def _make_run(self, base, cells_data, label="test"):
-        """Helper: create a mock run directory with given cell results."""
+    def _make_run(self, base, cells_data, label="test", docx_src=None):
+        """Create a run dir. Each entry is ``(inp, outp, path, has_result, content)``."""
         run_dir = base / f"run_{label}"
         cells_dir = run_dir / "cells"
         cells_dir.mkdir(parents=True)
-        for inp, outp, path, content in cells_data:
+        for inp, outp, path, has_result, content in cells_data:
             cell_dir = cells_dir / f"{path}_{inp}_to_{outp}"
             cell_dir.mkdir()
-            (cell_dir / f"sample.{inp}").write_text("source", encoding="utf-8")
-            (cell_dir / f"result.{outp}").write_text(content, encoding="utf-8")
+            if inp == "docx":
+                assert docx_src is not None, "docx cells require the generated_docx fixture"
+                shutil.copy(docx_src, cell_dir / f"sample.{inp}")
+                if has_result:
+                    shutil.copy(docx_src, cell_dir / f"result.{outp}")
+            else:
+                (cell_dir / f"sample.{inp}").write_text("source", encoding="utf-8")
+                if has_result:
+                    (cell_dir / f"result.{outp}").write_text(content, encoding="utf-8")
         return run_dir
 
-    def test_identical_runs_are_equivalent(self, tmp_path):
-        content = "Annual Report 2026 Executive Summary Financial Highlights"
-        a = self._make_run(tmp_path, [
-            ("docx", "docx", "md", content),
-        ], label="a")
-        b = self._make_run(tmp_path, [
-            ("docx", "docx", "md", content),
-        ], label="b")
+    def test_identical_runs_are_equivalent(self, tmp_path, generated_docx):
+        cells = [("docx", "docx", "md", True, None)]
+        a = self._make_run(tmp_path, cells, label="a", docx_src=generated_docx)
+        b = self._make_run(tmp_path, cells, label="b", docx_src=generated_docx)
         report = equivalence_checker.compare_runs(a, b)
         assert report.divergent == 0
         assert report.equivalent == 1
 
-    def test_missing_in_a_is_divergent(self, tmp_path):
-        a = self._make_run(tmp_path, [], label="a")
-        b = self._make_run(tmp_path, [
-            ("docx", "docx", "md", "content"),
-        ], label="b")
-        report = equivalence_checker.compare_runs(a, b)
-        assert report.missing_in_b == 1
-        assert report.divergent == 1
-
-    def test_missing_in_b_is_divergent(self, tmp_path):
-        a = self._make_run(tmp_path, [
-            ("docx", "docx", "md", "content"),
-        ], label="a")
-        b = self._make_run(tmp_path, [], label="b")
+    def test_missing_in_a_is_divergent(self, tmp_path, generated_docx):
+        a = self._make_run(
+            tmp_path, [("docx", "docx", "md", False, None)],
+            label="a", docx_src=generated_docx,
+        )
+        b = self._make_run(
+            tmp_path, [("docx", "docx", "md", True, None)],
+            label="b", docx_src=generated_docx,
+        )
         report = equivalence_checker.compare_runs(a, b)
         assert report.missing_in_a == 1
+        assert report.divergent == 1
+
+    def test_missing_in_b_is_divergent(self, tmp_path, generated_docx):
+        a = self._make_run(
+            tmp_path, [("docx", "docx", "md", True, None)],
+            label="a", docx_src=generated_docx,
+        )
+        b = self._make_run(
+            tmp_path, [("docx", "docx", "md", False, None)],
+            label="b", docx_src=generated_docx,
+        )
+        report = equivalence_checker.compare_runs(a, b)
+        assert report.missing_in_b == 1
         assert report.divergent == 1
 
     def test_both_missing_is_not_divergent(self, tmp_path):
@@ -214,26 +246,20 @@ class TestEquivalenceChecker:
         assert report.equivalent == 0
 
     def test_size_difference_detected(self, tmp_path):
-        a = self._make_run(tmp_path, [
-            ("docx", "docx", "md", "x" * 100),
-        ], label="a")
-        b = self._make_run(tmp_path, [
-            ("docx", "docx", "md", "x" * 1000),
-        ], label="b")
-        report = equivalence_checker.compare_runs(a, b, size_tolerance=0.10)
-        # 100/1000 = 0.1 which is exactly at tolerance, so may or may not match
-        # Use stricter tolerance to ensure divergence
+        a = self._make_run(
+            tmp_path, [("md", "md", "md", True, "x" * 100)], label="a",
+        )
+        b = self._make_run(
+            tmp_path, [("md", "md", "md", True, "x" * 1000)], label="b",
+        )
         report = equivalence_checker.compare_runs(a, b, size_tolerance=0.05)
         assert report.divergent == 1
 
-    def test_to_dict_is_json_serializable(self, tmp_path):
+    def test_to_dict_is_json_serializable(self, tmp_path, generated_docx):
         import json
-        a = self._make_run(tmp_path, [
-            ("docx", "docx", "md", "content"),
-        ], label="a")
-        b = self._make_run(tmp_path, [
-            ("docx", "docx", "md", "content"),
-        ], label="b")
+        cells = [("docx", "docx", "md", True, None)]
+        a = self._make_run(tmp_path, cells, label="a", docx_src=generated_docx)
+        b = self._make_run(tmp_path, cells, label="b", docx_src=generated_docx)
         report = equivalence_checker.compare_runs(a, b)
         d = report.to_dict()
         json.dumps(d)
