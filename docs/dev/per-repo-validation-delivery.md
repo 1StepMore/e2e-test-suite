@@ -21,8 +21,8 @@ scenarios provision).
 | `orf` | `Omni_Re_Formatter/scenarios/` | 6 `orf-backfill`/`orf-md`/`orf-xliff` | 1 | `requires_env: [MCP_ALLOWED_DIRECTORIES]` — ORF is fail-closed on the MCP allowlist |
 | `all` | all four dirs merged | everything above | 1-2 | full cross-repo sweep |
 
-OL's provider env vars (mirroring `config/default.yaml`): `ARK_API_KEY`,
-`ZHIPU_API_KEY`, `NVIDIA_NIM_API_KEY`.
+OL's provider env vars (mirroring `config/default.yaml`): `ZHIPU_API_KEY`,
+`NVIDIA_NIM_API_KEY`, `ARK_API_KEY`.
 
 ## 2. Enumerate and run
 

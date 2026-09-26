@@ -11,9 +11,9 @@
 > **What you do:** 3 steps. Copy-paste ready.
 >
 > **Prereq:** You have active API keys for the canonical OL model pool:
-> - **Volcengine Ark** (`ARK_API_KEY`) — https://console.volcengine.com/ark/
 > - **Zhipu BigModel** (`ZHIPU_API_KEY`) — https://open.bigmodel.cn/
 > - **NVIDIA NIM** (`NVIDIA_NIM_API_KEY`) — https://build.nvidia.com/
+> - **Volcengine Ark** (`ARK_API_KEY`) — https://console.volcengine.com/ark/
 >
 > If you don't have these, get them first. Tests will be skipped (not failed)
 > without them.
@@ -36,9 +36,9 @@
 ## Step 1 — Fill your API keys
 
 The canonical model pool is defined in
-`Omni_Localizer/config/default.yaml`: **ark-code-latest** (Volcengine Ark,
-priority 1) → **glm-4.7-flash** (Zhipu, priority 2) →
-**minimaxai/minimax-m3** (NVIDIA NIM, priority 3), shared by every role.
+`Omni_Localizer/config/default.yaml`: **glm-4.7-flash** (Zhipu,
+priority 1) → **minimaxai/minimax-m3** (NVIDIA NIM, priority 2) →
+**ark-code-latest** (Volcengine Ark, priority 3), shared by every role.
 
 Copy the template and fill in the three keys:
 
@@ -51,9 +51,9 @@ Open `Omni_Localizer/.env` and replace the placeholders (keep the variable
 names, no quotes, no spaces around `=`):
 
 ```env
-ARK_API_KEY=your-real-ark-key
 ZHIPU_API_KEY=your-real-zhipu-key
 NVIDIA_NIM_API_KEY=<your-nvidia-nim-api-key>
+ARK_API_KEY=your-real-ark-key
 ```
 
 **Note on location:** the nightly E2E fixture and the `.github/workflows`
@@ -86,25 +86,25 @@ profiling — carry the same three priorities):
 llm_pool:
   translation:
     - provider: "openai"
-      model: "ark-code-latest"        # Volcengine Ark — priority-1 primary
+      model: "glm-4.7-flash"          # Zhipu — priority-1 primary
       priority: 1
-      role: "translation"
-      api_key: "${ARK_API_KEY}"
-      base_url: "https://ark.cn-beijing.volces.com/api/coding/v3"
-      timeout: 120.0
-    - provider: "openai"
-      model: "glm-4.7-flash"          # Zhipu — priority-2 fallback
-      priority: 2
       role: "translation"
       api_key: "${ZHIPU_API_KEY}"
       base_url: "https://open.bigmodel.cn/api/paas/v4"
       timeout: 120.0
     - provider: "openai"
-      model: "minimaxai/minimax-m3"   # NVIDIA NIM — priority-3 fallback
-      priority: 3
+      model: "minimaxai/minimax-m3"   # NVIDIA NIM — priority-2 fallback
+      priority: 2
       role: "translation"
       api_key: "${NVIDIA_NIM_API_KEY}"
       base_url: "https://integrate.api.nvidia.com/v1"
+      timeout: 120.0
+    - provider: "openai"
+      model: "ark-code-latest"        # Volcengine Ark — priority-3 fallback
+      priority: 3
+      role: "translation"
+      api_key: "${ARK_API_KEY}"
+      base_url: "https://ark.cn-beijing.volces.com/api/coding/v3"
       timeout: 120.0
   # judging: / restoration: / profiling: mirror the same three priorities.
 ```
@@ -199,7 +199,7 @@ Expected: translated XLIFF with all 9 paragraphs + 24 image placeholders preserv
 |---|---|---|
 | `Environment variable 'ARK_API_KEY' not set` | `.env` not loaded | Check Step 1 — make sure the line has no leading space, no quote, the `=` is direct. |
 | `AuthenticationError: Invalid API key` (401/403) | Key typo / wrong project | Re-paste the key from the provider console. For NVIDIA, copy the full `nvapi-...` string verbatim. |
-| `Model not found` (404) | Wrong model name | The canonical ids are `ark-code-latest`, `glm-4.7-flash`, `minimaxai/minimax-m3`; if a provider rotates, update `config/local.yaml`. |
+| `Model not found` (404) | Wrong model name | The canonical ids are `glm-4.7-flash`, `minimaxai/minimax-m3`, `ark-code-latest`; if a provider rotates, update `config/local.yaml`. |
 | `RateLimitError` (429) | Hit free-tier cap | Wait 60s and re-run; the Router retries down the priority chain. |
 | Test `SKIPPED: no ... key` | `.env` not visible to pytest | Confirm the file is at `Omni_Localizer/.env`. The `use_real_llm` fixture (`tests/test_e2e_real_llm.py`) reads it from there via `Path(__file__).resolve().parents[1] / "Omni_Localizer" / ".env"`. |
 | `Error: --output-dir is required` | CLI requires `-o` flag | Add `-o /tmp/ol-smoke` (or any writable dir) to every `translate-md` / `translate-xliff` command. |
@@ -209,7 +209,7 @@ Expected: translated XLIFF with all 9 paragraphs + 24 image placeholders preserv
 
 ## Confirmation checklist (tick all before saying "done")
 
-- [ ] `Omni_Localizer/.env` has real `ARK_API_KEY`, `ZHIPU_API_KEY`, and `NVIDIA_NIM_API_KEY` values (no quotes, no spaces).
+- [ ] `Omni_Localizer/.env` has real `ZHIPU_API_KEY`, `NVIDIA_NIM_API_KEY`, and `ARK_API_KEY` values (no quotes, no spaces).
 - [ ] `Omni_Localizer/config/local.yaml` exists (a copy of the canonical `default.yaml`) with the 3-provider pool and `${VAR}` env refs.
 - [ ] `Omni_Localizer/.gitignore` ignores `config/local.yaml` (verified with `git check-ignore -v config/local.yaml`).
 - [ ] `.venv_ol/bin/ol doctor -c Omni_Localizer/config/local.yaml` passes its 5 checks.
@@ -223,5 +223,5 @@ Expected: translated XLIFF with all 9 paragraphs + 24 image placeholders preserv
 
 After setup, the nightly real-LLM runs are:
 - **`make e2e`** — 19 tests in `tests/test_e2e_real_llm.py` (skips gracefully without keys).
-- **`.github/workflows/validation.yml` nightly** — full validation library against the canonical pool secrets (`ARK_API_KEY` / `ZHIPU_API_KEY` / `NVIDIA_NIM_API_KEY`); keyed scenarios report `unconfigured` when a secret is absent, never a fake green.
+- **`.github/workflows/validation.yml` nightly** — full validation library against the canonical pool secrets (`ZHIPU_API_KEY` / `NVIDIA_NIM_API_KEY` / `ARK_API_KEY`); keyed scenarios report `unconfigured` when a secret is absent, never a fake green.
 - **`.github/workflows/e2e-tests.yml` nightly-llm** — real-LLM E2E matrix.
