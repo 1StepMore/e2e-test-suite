@@ -1,19 +1,23 @@
-"""Regression lock: the active LLM env contract is the canonical trio.
+"""Regression lock: the active LLM env contract is the canonical pair.
 
-The ARK/ZHIPU/NVIDIA model-pool migration (OL ``config/default.yaml``) made
-three provider keys the only real-LLM credentials the suite reads:
+OL ``config/default.yaml`` now carries exactly two provider keys, the only
+real-LLM credentials the suite reads:
 
-* ``ARK_API_KEY``        — priority 1 (``ark-code-latest``)
-* ``ZHIPU_API_KEY``      — priority 2 (``glm-4.7-flash``)
-* ``NVIDIA_NIM_API_KEY`` — priority 3 (``minimaxai/minimax-m3``)
+* ``ZHIPU_API_KEY``      — priority 1 (``glm-4.7-flash``)
+* ``NVIDIA_NIM_API_KEY`` — priority 2 (``minimaxai/minimax-m3``)
+
+``ARK_API_KEY`` was demoted then removed entirely: the Volcengine Ark quota is
+exhausted, and because the env gate reports ``unconfigured`` when *any*
+required var is missing, keeping it in the contract denied validation coverage
+to users holding only the two live keys.
 
 Two coupled *active* surfaces must agree with that pool, or the real-LLM
 gates silently rot while every other test stays green:
 
 1. ``omni_suite.cli._validate_env`` — the suite CLI's production env gate.
-   It must accept every canonical key (notably ``ARK_API_KEY``, which was
-   missing) and must keep failing closed when no canonical key is present.
-   A retired provider key must NOT satisfy the gate.
+   It must accept every canonical key and must keep failing closed when no
+   canonical key is present. A retired provider key (including the removed
+   ``ARK_API_KEY``) must NOT satisfy the gate.
 2. The real-LLM CI workflows (``validation.yml`` nightly, ``e2e-tests.yml``,
    ``fidelity.yml``) must expose the same canonical keys and must not gate on
    retired providers (Agnes / OpenCode Go / MiniMax / Baidu / OpenAI).
@@ -33,11 +37,12 @@ WORKFLOWS = SUITE_ROOT / ".github" / "workflows"
 
 # The canonical OL model-pool provider keys (single source of truth:
 # Omni_Localizer/config/default.yaml).
-CANONICAL_KEYS = ("ARK_API_KEY", "ZHIPU_API_KEY", "NVIDIA_NIM_API_KEY")
+CANONICAL_KEYS = ("ZHIPU_API_KEY", "NVIDIA_NIM_API_KEY")
 
 # Providers retired by the migration — a workflow or the CLI gate must not
 # treat any of these as the active credential.
 RETIRED_KEYS = (
+    "ARK_API_KEY",
     "AGNES_API_KEY",
     "OPENCODE_GO_KEY",
     "OPENCODE_GO_BASE_URL",

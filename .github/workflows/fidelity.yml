@@ -66,7 +66,6 @@ jobs:
           pip install -e "/tmp/ol[mcp]"
       - name: Regenerate candidate + score
         env:
-          ARK_API_KEY: sk-dummy
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
           NVIDIA_NIM_API_KEY: nvapi-dummy
           HF_ENDPOINT: 'https://hf-mirror.com'

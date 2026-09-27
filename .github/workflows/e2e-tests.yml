@@ -157,7 +157,6 @@ jobs:
         env:
           OMNI_TEST_FAKE_LLM: "1"
           OMNI_TEST_FAKE_PANDOC: "1"
-          ARK_API_KEY: "sk-dummy"
           ZHIPU_API_KEY: "sk-dummy"
           NVIDIA_NIM_API_KEY: "nvapi-dummy"
           ORF_MCP_ALLOWED_DIRS: "/tmp:/home/runner/work/Omni_Suite"
@@ -177,7 +176,6 @@ jobs:
         env:
           OMNI_TEST_FAKE_LLM: "1"
           OMNI_TEST_FAKE_PANDOC: "1"
-          ARK_API_KEY: "sk-dummy"
           ZHIPU_API_KEY: "sk-dummy"
           NVIDIA_NIM_API_KEY: "nvapi-dummy"
           ORF_MCP_ALLOWED_DIRS: "/tmp:/home/runner/work/Omni_Suite"
@@ -200,8 +198,8 @@ jobs:
   # -------------------------------------------------------------------------
   # Job 2: Nightly LLM tests (slow, requires real API keys).
   # Runs on a schedule + manual dispatch.
-  # Uses the canonical OL model-pool secrets: ARK_API_KEY (priority 1),
-  # ZHIPU_API_KEY (priority 2), NVIDIA_NIM_API_KEY (priority 3).
+  # Uses the canonical OL model-pool secrets: ZHIPU_API_KEY (priority 1),
+  # NVIDIA_NIM_API_KEY (priority 2).
   # -------------------------------------------------------------------------
   nightly-llm:
     name: Nightly LLM (real)
@@ -267,7 +265,6 @@ jobs:
         run: |
           mkdir -p Omni_Localizer/config
           cat > Omni_Localizer/.env <<EOF
-          ARK_API_KEY=${{ secrets.ARK_API_KEY }}
           ZHIPU_API_KEY=${{ secrets.ZHIPU_API_KEY }}
           NVIDIA_NIM_API_KEY=${{ secrets.NVIDIA_NIM_API_KEY }}
           EOF
