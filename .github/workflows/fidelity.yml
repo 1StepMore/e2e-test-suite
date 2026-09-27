@@ -39,7 +39,7 @@ jobs:
         run: |
           if [ ! -f test_artifacts/ol/alice_ch1_zhipu_real.md ]; then
             echo "ERROR: candidate test_artifacts/ol/alice_ch1_zhipu_real.md not found."
-            echo "Run 'make fidelity-nightly' locally (requires ZHIPU_API_KEY) and commit the result."
+            echo "Run 'make fidelity-nightly' locally (requires AMD_API_KEY) and commit the result."
             exit 1
           fi
       - name: Run fidelity gate
@@ -66,6 +66,7 @@ jobs:
           pip install -e "/tmp/ol[mcp]"
       - name: Regenerate candidate + score
         env:
+          AMD_API_KEY: ${{ secrets.AMD_API_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
           NVIDIA_NIM_API_KEY: nvapi-dummy
           HF_ENDPOINT: 'https://hf-mirror.com'

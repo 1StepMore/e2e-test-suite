@@ -17,12 +17,12 @@ scenarios provision).
 |---|---|---|---|---|
 | `suite` (default) | `scenarios/` | Agent-surface + pipeline | 1-2 | the original suite-level library |
 | `opp` | `Omni_Pre_Processor/scenarios/` | 6 `opp-extraction` | 1 | hermetic, no keys |
-| `ol` | `Omni_Localizer/scenarios/` | 5 `ol-translation` | 2 | `requires_env` = 2 canonical real LLM provider keys; `unconfigured` without them |
+| `ol` | `Omni_Localizer/scenarios/` | 5 `ol-translation` | 2 | `requires_env` = 3 canonical real LLM provider keys; `unconfigured` without them |
 | `orf` | `Omni_Re_Formatter/scenarios/` | 6 `orf-backfill`/`orf-md`/`orf-xliff` | 1 | `requires_env: [MCP_ALLOWED_DIRECTORIES]` — ORF is fail-closed on the MCP allowlist |
 | `all` | all four dirs merged | everything above | 1-2 | full cross-repo sweep |
 
-OL's provider env vars (mirroring `config/default.yaml`): `ZHIPU_API_KEY`,
-`NVIDIA_NIM_API_KEY`.
+OL's provider env vars (mirroring `config/default.yaml`): `AMD_API_KEY`,
+`ZHIPU_API_KEY`, `NVIDIA_NIM_API_KEY`.
 
 ## 2. Enumerate and run
 

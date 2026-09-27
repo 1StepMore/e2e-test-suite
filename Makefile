@@ -52,7 +52,7 @@ help:
 	@echo "  test-error-scenarios — Run the 11 exit-code matrix tests (plan § 6.4)"
 	@echo "  fidelity      — Run fidelity scoring on existing Alice ch1 translation; gate on char_cosine >= 0.9 (CI gate)"
 	@echo "  fidelity-unit — Run FidelityScorer unit tests only (no scoring)"
-	@echo "  fidelity-nightly — Regenerate candidate via real LLM, then score (requires ZHIPU_API_KEY in .env)"
+	@echo "  fidelity-nightly — Regenerate candidate via real LLM, then score (requires AMD_API_KEY in .env)"
 	@echo "  smoke         — Run contract smoke test"
 	@echo "  e2e           — Run real-LLM E2E pipeline tests (19 tests, nightly)"
 	@echo "  e2e-help      — Show E2E setup instructions"
@@ -127,7 +127,7 @@ fidelity-unit:
 	$(FAKE_ENV) $(PYTEST) tests/fidelity/test_fidelity_scorer.py -v --tb=short
 
 fidelity-nightly:
-	@test -n "$$ZHIPU_API_KEY" || (echo "FAIL: ZHIPU_API_KEY not set; fidelity-nightly requires real LLM"; exit 1)
+	@test -n "$$AMD_API_KEY" || (echo "FAIL: AMD_API_KEY not set; fidelity-nightly requires real LLM"; exit 1)
 	@echo "fidelity-nightly: regenerate candidate via Zhipu (para-by-para, ~30 LLM calls)"
 	@echo "Run: .venv_ol/bin/python tests/fidelity/regenerate_candidate.py"
 	@.venv_ol/bin/python tests/fidelity/regenerate_candidate.py
@@ -151,13 +151,13 @@ smoke:
 # developers can run `make e2e` without polluting CI.
 # ---------------------------------------------------------------------------
 e2e:
-	@if [ -z "$$ZHIPU_API_KEY" ] && [ -z "$$NVIDIA_NIM_API_KEY" ]; then \
+	@if [ -z "$$AMD_API_KEY" ] && [ -z "$$ZHIPU_API_KEY" ] && [ -z "$$NVIDIA_NIM_API_KEY" ]; then \
 		echo ""; \
 		echo "  No real LLM API keys detected."; \
 		echo ""; \
 		echo "  E2E tests require at least one of:"; \
-		echo "    - ZHIPU_API_KEY      (Zhipu GLM, priority 1)"; \
-		echo "    - ZHIPU_API_KEY      (Zhipu BigModel, priority 2)"; \
+		echo "    - AMD_API_KEY        (AMD Radeon, DeepSeek-V4.1-Flash, priority 1)"; \
+		echo "    - ZHIPU_API_KEY      (Zhipu GLM, priority 2)"; \
 		echo "    - NVIDIA_NIM_API_KEY (NVIDIA NIM, priority 3)"; \
 		echo ""; \
 		echo "  Set them in Omni_Localizer/.env or export in your shell."; \
@@ -180,8 +180,8 @@ e2e-help:
 	@echo "  1. Python 3.13+ installed (make doctor to verify)"
 	@echo "  2. At least one of these API keys in the environment"
 	@echo "     (canonical OL model pool, see CONTRACT.md):"
+	@echo "       AMD_API_KEY        (AMD Radeon, DeepSeek-V4.1-Flash)"
 	@echo "       ZHIPU_API_KEY      (Zhipu GLM, glm-4.7-flash)"
-	@echo "       ZHIPU_API_KEY      (Zhipu BigModel, glm-4.7-flash)"
 	@echo "       NVIDIA_NIM_API_KEY (NVIDIA NIM, minimaxai/minimax-m3)"
 	@echo ""
 	@echo "Setup:"

@@ -11,6 +11,7 @@
 > **What you do:** 3 steps. Copy-paste ready.
 >
 > **Prereq:** You have active API keys for the canonical OL model pool:
+> - **AMD Radeon** (`AMD_API_KEY`, DeepSeek-V4.1-Flash) — https://developer.amd.com.cn/radeon/api/v1
 > - **Zhipu BigModel** (`ZHIPU_API_KEY`) — https://open.bigmodel.cn/
 > - **NVIDIA NIM** (`NVIDIA_NIM_API_KEY`) — https://build.nvidia.com/
 >
@@ -35,11 +36,11 @@
 ## Step 1 — Fill your API keys
 
 The canonical model pool is defined in
-`Omni_Localizer/config/default.yaml`: **glm-4.7-flash** (Zhipu,
-priority 1) → **minimaxai/minimax-m3** (NVIDIA NIM, priority 2), shared
-by every role.
+`Omni_Localizer/config/default.yaml`: **DeepSeek-V4.1-Flash** (AMD
+Radeon, priority 1) → **glm-4.7-flash** (Zhipu, priority 2) →
+**minimaxai/minimax-m3** (NVIDIA NIM, priority 3), shared by every role.
 
-Copy the template and fill in the two keys:
+Copy the template and fill in the three keys:
 
 ```bash
 cd "${OMNI_ROOT:-/mnt/d/贯维/Omni_Suite}"
@@ -50,6 +51,7 @@ Open `Omni_Localizer/.env` and replace the placeholders (keep the variable
 names, no quotes, no spaces around `=`):
 
 ```env
+AMD_API_KEY=<your-amd-api-key>
 ZHIPU_API_KEY=your-real-zhipu-key
 NVIDIA_NIM_API_KEY=<your-nvidia-nim-api-key>
 ```
@@ -67,7 +69,7 @@ nightly jobs read `Omni_Localizer/.env`. The OL CLI also auto-discovers a
 ## Step 2 — Configure the model pool
 
 `Omni_Localizer/config/default.yaml` is the **tracked canonical template** and
-already contains the 2-provider unified pool with `${ENV_VAR}` references; it is
+already contains the 3-provider unified pool with `${ENV_VAR}` references; it is
 safe to use directly. For a machine-local override, copy it to the gitignored
 `config/local.yaml` and edit that instead:
 
@@ -78,32 +80,39 @@ git check-ignore -v config/local.yaml   # should print config/local.yaml
 ```
 
 The pool shape (all four roles — translation / judging / restoration /
-profiling — carry the same two priorities):
+profiling — carry the same three priorities):
 
 ```yaml
 llm_pool:
   translation:
     - provider: "openai"
-      model: "glm-4.7-flash"          # Zhipu — priority-1 primary
+      model: "DeepSeek-V4.1-Flash"    # AMD Radeon — priority-1 primary
       priority: 1
+      role: "translation"
+      api_key: "${AMD_API_KEY}"
+      base_url: "https://developer.amd.com.cn/radeon/api/v1"
+      timeout: 120.0
+    - provider: "openai"
+      model: "glm-4.7-flash"          # Zhipu — priority-2 fallback
+      priority: 2
       role: "translation"
       api_key: "${ZHIPU_API_KEY}"
       base_url: "https://open.bigmodel.cn/api/paas/v4"
       timeout: 120.0
     - provider: "openai"
-      model: "minimaxai/minimax-m3"   # NVIDIA NIM — priority-2 fallback
-      priority: 2
+      model: "minimaxai/minimax-m3"   # NVIDIA NIM — priority-3 fallback
+      priority: 3
       role: "translation"
       api_key: "${NVIDIA_NIM_API_KEY}"
       base_url: "https://integrate.api.nvidia.com/v1"
       timeout: 120.0
-  # judging: / restoration: / profiling: mirror the same two priorities.
+  # judging: / restoration: / profiling: mirror the same three priorities.
 ```
 
 **Why this shape:**
 - Schema requires **≥ 2 models per role** (`LLMPoolConfig.check_min_models_per_role` in `Omni_Localizer/src/ol_config/schema.py`).
 - `api_key` and `base_url` use `${VAR}` syntax — the loader (`Omni_Localizer/src/ol_config/loader.py`) auto-resolves from the environment at config-load time, and the schema validator (`schema.py:_check_env_vars`) warns if the env var is missing.
-- `provider: "openai"` selects the OpenAI-compatible client for both endpoints; litellm falls back along priority (`priority 1` → `2`) automatically.
+- `provider: "openai"` selects the OpenAI-compatible client for all three endpoints; litellm falls back along priority (`priority 1` → `2` → `3`) automatically.
 
 Validate the config with the doctor command:
 
@@ -138,7 +147,7 @@ Expected output (last line):
 Translated: sample.md -> /tmp/ol-smoke/sample.md (en -> zh)
 ```
 
-Should finish in **< 30 seconds** (real network round-trip to Zhipu/NVIDIA).
+Should finish in **< 30 seconds** (real network round-trip to AMD/Zhipu/NVIDIA).
 
 ### 3b. Quick smoke test (CLI, XLIFF path)
 
@@ -188,9 +197,9 @@ Expected: translated XLIFF with all 9 paragraphs + 24 image placeholders preserv
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Environment variable 'ZHIPU_API_KEY' not set` | `.env` not loaded | Check Step 1 — make sure the line has no leading space, no quote, the `=` is direct. |
+| `Environment variable 'AMD_API_KEY' / 'ZHIPU_API_KEY' not set` | `.env` not loaded | Check Step 1 — make sure the line has no leading space, no quote, the `=` is direct. |
 | `AuthenticationError: Invalid API key` (401/403) | Key typo / wrong project | Re-paste the key from the provider console. For NVIDIA, copy the full `nvapi-...` string verbatim. |
-| `Model not found` (404) | Wrong model name | The canonical ids are `glm-4.7-flash`, `minimaxai/minimax-m3`; if a provider rotates, update `config/local.yaml`. |
+| `Model not found` (404) | Wrong model name | The canonical ids are `DeepSeek-V4.1-Flash`, `glm-4.7-flash`, `minimaxai/minimax-m3`; if a provider rotates, update `config/local.yaml`. |
 | `RateLimitError` (429) | Hit free-tier cap | Wait 60s and re-run; the Router retries down the priority chain. |
 | Test `SKIPPED: no ... key` | `.env` not visible to pytest | Confirm the file is at `Omni_Localizer/.env`. The `use_real_llm` fixture (`tests/test_e2e_real_llm.py`) reads it from there via `Path(__file__).resolve().parents[1] / "Omni_Localizer" / ".env"`. |
 | `Error: --output-dir is required` | CLI requires `-o` flag | Add `-o /tmp/ol-smoke` (or any writable dir) to every `translate-md` / `translate-xliff` command. |
@@ -200,8 +209,8 @@ Expected: translated XLIFF with all 9 paragraphs + 24 image placeholders preserv
 
 ## Confirmation checklist (tick all before saying "done")
 
-- [ ] `Omni_Localizer/.env` has real `ZHIPU_API_KEY` and `NVIDIA_NIM_API_KEY` values (no quotes, no spaces).
-- [ ] `Omni_Localizer/config/local.yaml` exists (a copy of the canonical `default.yaml`) with the 2-provider pool and `${VAR}` env refs.
+- [ ] `Omni_Localizer/.env` has real `AMD_API_KEY`, `ZHIPU_API_KEY` and `NVIDIA_NIM_API_KEY` values (no quotes, no spaces).
+- [ ] `Omni_Localizer/config/local.yaml` exists (a copy of the canonical `default.yaml`) with the 3-provider pool and `${VAR}` env refs.
 - [ ] `Omni_Localizer/.gitignore` ignores `config/local.yaml` (verified with `git check-ignore -v config/local.yaml`).
 - [ ] `.venv_ol/bin/ol doctor -c Omni_Localizer/config/local.yaml` passes its 5 checks.
 - [ ] Step 3a prints `Translated: sample.md -> ...`.
@@ -214,5 +223,5 @@ Expected: translated XLIFF with all 9 paragraphs + 24 image placeholders preserv
 
 After setup, the nightly real-LLM runs are:
 - **`make e2e`** — 19 tests in `tests/test_e2e_real_llm.py` (skips gracefully without keys).
-- **`.github/workflows/validation.yml` nightly** — full validation library against the canonical pool secrets (`ZHIPU_API_KEY` / `NVIDIA_NIM_API_KEY`); keyed scenarios report `unconfigured` when a secret is absent, never a fake green.
+- **`.github/workflows/validation.yml` nightly** — full validation library against the canonical pool secrets (`AMD_API_KEY` / `ZHIPU_API_KEY` / `NVIDIA_NIM_API_KEY`); keyed scenarios report `unconfigured` when a secret is absent, never a fake green.
 - **`.github/workflows/e2e-tests.yml` nightly-llm** — real-LLM E2E matrix.

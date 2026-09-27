@@ -57,9 +57,12 @@ _BASE_ENV: dict[str, str] = {
     not in (
         "OMNI_TEST_FAKE_LLM",
         "OMNI_TEST_FAKE_PANDOC",
-        # ORF strips these from its CLI subprocess; we strip from
-        # the parent too so the test never has live secrets
-        # (PATH is preserved so the binary is found).
+        # Canonical provider keys are stripped here so no live secret is
+        # inherited by a CLI subprocess (or echoed into pytest failure
+        # output). Keep in sync with Omni_Localizer/config/default.yaml.
+        "AMD_API_KEY",
+        "ZHIPU_API_KEY",
+        "NVIDIA_NIM_API_KEY",
     )
 }
 _BASE_ENV["OMNI_TEST_FAKE_LLM"] = "1"
