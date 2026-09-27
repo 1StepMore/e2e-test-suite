@@ -23,7 +23,6 @@ category: pipeline
 tier: 2
 known_gap: true
 requires_env:
-  - ARK_API_KEY
   - ZHIPU_API_KEY
   - NVIDIA_NIM_API_KEY
 instructions: |-
