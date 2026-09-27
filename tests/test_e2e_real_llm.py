@@ -39,9 +39,9 @@ Test fixture: scenarios/_fixtures/haier_ch2_zh.docx (real, no synthetic).
 Per the user, this is the canonical test DOCX and is non-negotiable for all tiers.
 
 Prerequisites:
-- Omni_Localizer/.env contains the canonical provider keys (ZHIPU_API_KEY,
+- Omni_Localizer/.env contains the canonical provider keys (AMD_API_KEY,
   ZHIPU_API_KEY, NVIDIA_NIM_API_KEY)
-- Omni_Localizer/config/local.yaml contains 6 model entries (each role has 2)
+- Omni_Localizer/config/local.yaml contains 12 model entries (each role has 3)
 """
 
 import asyncio
@@ -130,11 +130,11 @@ def use_real_llm(monkeypatch):
         monkeypatch.setenv("OL_CONFIG_PATH", str(local_yaml))
 
     if not any(
-        os.environ.get(k) for k in ["ZHIPU_API_KEY", "NVIDIA_NIM_API_KEY"]
+        os.environ.get(k) for k in ["AMD_API_KEY", "ZHIPU_API_KEY", "NVIDIA_NIM_API_KEY"]
     ):
         pytest.skip(
             "Tier 3 LQA test requires a real LLM API key. "
-            "Set ZHIPU_API_KEY or NVIDIA_NIM_API_KEY in "
+            "Set AMD_API_KEY, ZHIPU_API_KEY or NVIDIA_NIM_API_KEY in "
             "Omni_Localizer/.env, or in the test environment. Run `make e2e-help` "
             "for setup instructions."
         )

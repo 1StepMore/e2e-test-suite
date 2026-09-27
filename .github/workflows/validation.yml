@@ -180,6 +180,7 @@ jobs:
       # minimaxai/minimax-m3). `|| ''` is HONEST: a missing secret leaves the
       # keyed scenarios `unconfigured` (never a pass, never a silent skip,
       # never FAKE_LLM — D4).
+      AMD_API_KEY: ${{ secrets.AMD_API_KEY || '' }}
       ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY || '' }}
       NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY || '' }}
 

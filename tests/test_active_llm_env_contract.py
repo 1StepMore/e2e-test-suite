@@ -1,10 +1,11 @@
-"""Regression lock: the active LLM env contract is the canonical pair.
+"""Regression lock: the active LLM env contract is the canonical trio.
 
-OL ``config/default.yaml`` now carries exactly two provider keys, the only
-real-LLM credentials the suite reads:
+OL ``config/default.yaml`` carries three provider keys, the only real-LLM
+credentials the suite reads:
 
-* ``ZHIPU_API_KEY``      — priority 1 (``glm-4.7-flash``)
-* ``NVIDIA_NIM_API_KEY`` — priority 2 (``minimaxai/minimax-m3``)
+* ``AMD_API_KEY``        — priority 1 (``DeepSeek-V4.1-Flash``, AMD Radeon)
+* ``ZHIPU_API_KEY``      — priority 2 (``glm-4.7-flash``)
+* ``NVIDIA_NIM_API_KEY`` — priority 3 (``minimaxai/minimax-m3``)
 
 ``ARK_API_KEY`` was demoted then removed entirely: the Volcengine Ark quota is
 exhausted, and because the env gate reports ``unconfigured`` when *any*
@@ -37,7 +38,7 @@ WORKFLOWS = SUITE_ROOT / ".github" / "workflows"
 
 # The canonical OL model-pool provider keys (single source of truth:
 # Omni_Localizer/config/default.yaml).
-CANONICAL_KEYS = ("ZHIPU_API_KEY", "NVIDIA_NIM_API_KEY")
+CANONICAL_KEYS = ("AMD_API_KEY", "ZHIPU_API_KEY", "NVIDIA_NIM_API_KEY")
 
 # Providers retired by the migration — a workflow or the CLI gate must not
 # treat any of these as the active credential.
