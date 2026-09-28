@@ -128,7 +128,7 @@ fidelity-unit:
 
 fidelity-nightly:
 	@test -n "$$AMD_API_KEY" || (echo "FAIL: AMD_API_KEY not set; fidelity-nightly requires real LLM"; exit 1)
-	@echo "fidelity-nightly: regenerate candidate via Zhipu (para-by-para, ~30 LLM calls)"
+	@echo "fidelity-nightly: regenerate candidate via the priority-1 provider (para-by-para, ~30 LLM calls)"
 	@echo "Run: .venv_ol/bin/python tests/fidelity/regenerate_candidate.py"
 	@.venv_ol/bin/python tests/fidelity/regenerate_candidate.py
 	$(MAKE) fidelity

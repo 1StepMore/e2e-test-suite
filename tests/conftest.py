@@ -1156,7 +1156,7 @@ def pytest_configure(config):
         "markers", "multiformat: Multi-format input coverage (PPTX, PDF, EPUB, etc.)"
     )
     config.addinivalue_line(
-        "markers", "requires_api_key: Real LLM tests; ERROR (not skip) if MINIMAX/BAIDU key missing in .env"
+        "markers", "requires_api_key: Real LLM tests; ERROR (not skip) if AMD/ZHIPU/NVIDIA key missing in .env"
     )
     config.addinivalue_line(
         "markers", "nightly: Real LLM tests; CI default skip, run via -m nightly"
