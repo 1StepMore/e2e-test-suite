@@ -32,9 +32,11 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = SUITE_ROOT / ".github" / "workflows"
+SCENARIOS = SUITE_ROOT / "scenarios"
 
 # The canonical OL model-pool provider keys (single source of truth:
 # Omni_Localizer/config/default.yaml).
@@ -145,4 +147,40 @@ class TestRealLlmWorkflowEnvContract:
         stale = [key for key in RETIRED_KEYS if key in present]
         assert not stale, (
             f"{filename} still gates on retired LLM providers: {stale}"
+        )
+
+
+class TestScenarioEnvGateNotAllProviders:
+    """No suite scenario may require the whole canonical provider pool.
+
+    The validation engine computes ``missing_env`` (``engine.py:243``) as
+    ``[v for v in scenario["requires_env"] if not effective.get(v)]`` and the
+    Phase-4 gate reports ``unconfigured`` *before* any step is dispatched
+    (``engine.py:220``). That is AND-semantics: a scenario is unrunnable if
+    *any* required var is absent. So a scenario listing every canonical
+    provider key gates out any user who does not hold all three provider
+    accounts at once — the exact failure that removed ``ARK_API_KEY`` (#94)
+    and then had to remove ``AMD_API_KEY`` again after commit 10547af.
+
+    Scope of this lock: it forbids the *whole pool* in one scenario. It does
+    NOT make the gate a disjunction — the 13 OL-driven scenarios still
+    require ``ZHIPU_API_KEY`` and ``NVIDIA_NIM_API_KEY`` together, so a user
+    holding only one provider is still ``unconfigured``. OR-semantics would
+    be an engine-level change and is out of scope here.
+    """
+
+    def test_no_scenario_requires_every_canonical_provider_key(self):
+        offenders: dict[str, list[str]] = {}
+        for path in sorted(SCENARIOS.rglob("*.yaml")):
+            try:
+                data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            except Exception as exc:  # noqa: BLE001 - report, never hide
+                pytest.fail(f"{path}: unparseable scenario YAML: {exc!r}")
+            requires_env = (data or {}).get("requires_env", []) or []
+            if all(key in requires_env for key in CANONICAL_KEYS):
+                offenders[str(path.relative_to(SUITE_ROOT))] = list(requires_env)
+        assert not offenders, (
+            "these scenarios require every canonical provider key, so a user "
+            "holding only one provider is gated out to `unconfigured`: "
+            f"{sorted(offenders.items())}"
         )
