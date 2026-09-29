@@ -22,8 +22,14 @@ Adopted defaults (draft ``.omo/drafts/validation-framework.md``, task 8):
   parameter when given (exactly what dispatch will run the steps with —
   ``build_cli_env`` semantics in dispatch.py), else ``os.environ``.  A var
   present but empty counts as missing (AutoInfo :1356-1367 semantics).
-  The gate is ``requires_env`` only — the suite declares no HTTP surface,
-  so the unused ``requires_http`` field was removed (T-21).
+  The gate is two-layered: ``requires_env`` is **AND** (every var must
+  resolve); ``requires_env_any``, when declared, is an **OR** group that
+  overrides the AND list the moment ONE of its vars resolves.  An OR group
+  with no resolving var fails **closed** — the scenario is ``unconfigured``
+  even when ``requires_env`` is empty, so a keyless user never reaches a
+  real LLM call.  An absent or empty ``requires_env_any`` is byte-identical
+  to the old AND-only gate.  (The suite declares no HTTP surface, so the
+  unused ``requires_http`` field was removed — T-21.)
 - **verdict derivation order** (guide §3.3 aggregate): env gate ->
   all primary steps green (``recovered`` if any step was recovered, else
   ``passed``) -> partial-pass policy (``min_passing`` OR ``pass_ratio``,
@@ -87,9 +93,11 @@ class ScenarioResult:
     status: str
     #: Human-readable one-line summary for the director report.
     summary: str
-    #: Missing ``requires_env`` vars when ``unconfigured``; ``[]`` when
-    #: the scenario was configured (guide §4.2: reason attached, never
-    #: silent, never pass/fail).
+    #: Missing env vars when ``unconfigured``; ``[]`` when the scenario was
+    #: configured (guide §4.2: reason attached, never silent, never
+    #: pass/fail).  Carries the unmet ``requires_env`` (AND) vars plus, when
+    #: a declared ``requires_env_any`` OR group is unsatisfied, its member
+    #: names — the report renders them as the missing prerequisites.
     missing_env: list[str]
     #: Per-step trace records (phase 5): step_index / duration_seconds /
     #: arguments / trace_id / surface / real_call / expect / actual /
@@ -233,14 +241,38 @@ def _effective_env(env: dict[str, str] | None) -> Mapping[str, str]:
 
 
 def _missing_env(scenario: dict[str, Any], env: dict[str, str] | None) -> list[str]:
-    """The scenario's ``requires_env`` vars absent from the effective env.
+    """Env prerequisites absent from the effective env, under the two-layer
+    gate.
 
-    A var present but empty counts as missing (AutoInfo :1356-1367: a
-    prerequisite that exists but is unusable is still a missing
-    prerequisite).
+    ``requires_env`` is **AND**: every listed var must resolve.  When
+    ``requires_env_any`` is declared it is an **OR** group that overrides
+    the AND list as soon as ONE of its vars resolves — the scenario is
+    configured even if some ``requires_env`` vars are missing (an "any of"
+    escape hatch for users holding a single provider key).
+
+    When the OR group is declared and NONE of its vars resolve, the result
+    is **fail-closed**: the list is non-empty even if ``requires_env`` is
+    empty or absent, so the scenario stays ``unconfigured`` and never
+    reaches dispatch.  The returned names are the unmet AND vars followed by
+    the OR group's members — plain variable names, so the report's
+    "missing env var(s)" line renders them without a sentinel.
+
+    A var present but empty counts as missing for both layers
+    (AutoInfo :1356-1367: a prerequisite that exists but is unusable is
+    still a missing prerequisite).  An absent or empty
+    ``requires_env_any`` returns exactly the AND-only list (unchanged
+    behaviour).
     """
     effective = _effective_env(env)
-    return [v for v in scenario.get("requires_env", []) if not effective.get(v)]
+    missing_and = [v for v in scenario.get("requires_env", []) if not effective.get(v)]
+    or_group = scenario.get("requires_env_any", [])
+    if not or_group:
+        return missing_and
+    if any(effective.get(v) for v in or_group):
+        return []  # OR group satisfied: configured despite any missing AND vars
+    # Fail-closed: no OR member resolved.  Report the AND list (when unmet)
+    # plus every OR member so the operator sees which group was unmet.
+    return list(dict.fromkeys(missing_and + list(or_group)))
 
 
 # ---------------------------------------------------------------------------
@@ -436,7 +468,11 @@ def _summary(
     reason: str = "",
 ) -> str:
     if status == "unconfigured":
-        return f"unconfigured — missing env var(s): {', '.join(missing)}"
+        message = f"unconfigured — missing env var(s): {', '.join(missing)}"
+        or_group = scenario.get("requires_env_any") or []
+        if or_group:
+            message += f" (satisfied by any ONE of: {', '.join(or_group)})"
+        return message
     if reason:
         return f"{status} — {reason}"
     passed = sum(1 for r in records if r["passed"])

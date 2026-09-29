@@ -411,9 +411,11 @@ def _print_plan(loaded: list[dict[str, Any]], names: list[str]) -> None:
         if s["name"] not in wanted:
             continue
         env = ", ".join(s["requires_env"]) or "-"
+        env_any = ", ".join(s["requires_env_any"])
+        or_suffix = f"  requires_env_any=[{env_any}]" if env_any else ""
         print(
             f"  {s['name']:<30s}  tier={s['tier']}  steps={len(s['steps'])}  "
-            f"requires_env=[{env}]"
+            f"requires_env=[{env}]" + or_suffix
         )
 
 
@@ -588,9 +590,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Available Scenarios ({len(selected)}):")
         for s in selected:
             env = ", ".join(s["requires_env"]) or "-"
+            env_any = ", ".join(s["requires_env_any"])
+            or_suffix = f"  requires_env_any=[{env_any}]" if env_any else ""
             print(
                 f"  {s['name']:<30s}  tier={s['tier']}  steps={len(s['steps'])}  "
-                f"requires_env=[{env}]"
+                f"requires_env=[{env}]" + or_suffix
             )
         return 0
 

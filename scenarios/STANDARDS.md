@@ -53,8 +53,26 @@ fallback.
 
 **How to check:** a scenario that would produce a human-quality verdict
 while a fallback env var is set must report `invalid`; unset the fallback
-to obtain real evidence. Citable as `standard:
+to obtain real evidence.  Citable as `standard:
 STANDARDS.md#fallbacks-never-evidence`.
+
+## Scenario gating
+
+### Env gate semantics {#env-gate-semantics}
+
+`requires_env` is an **AND** gate: every listed variable must resolve.
+`requires_env_any`, when declared, is an **OR** group — if at least one of
+its variables resolves the scenario is configured and runs, even when some
+`requires_env` variables are absent. An OR group with no resolving variable
+fails **closed**: the scenario is `unconfigured`, never `passed`, so a
+keyless user never reaches a real LLM call. A variable present but empty
+counts as missing, for both layers. The field is optional; when absent (or
+`[]`) gating is identical to an AND-only `requires_env`.
+
+**How to check:** a scenario declaring `requires_env_any: [A, B]` runs when
+either `A` or `B` is set; with neither set it reports `unconfigured` and
+executes no steps, even when `requires_env` is empty. Citable as
+`standard: STANDARDS.md#env-gate-semantics`.
 
 ## AGENT-SURFACE
 

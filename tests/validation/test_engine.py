@@ -17,7 +17,13 @@ import uuid
 
 import pytest
 
-from omni_mcp.validation.engine import RunResult, ScenarioResult, persist_run, run_scenarios
+from omni_mcp.validation.engine import (
+    RunResult,
+    ScenarioResult,
+    _missing_env,
+    persist_run,
+    run_scenarios,
+)
 from omni_mcp.validation.loader import ScenarioError
 
 MISSING_VAR = "DEFINITELY_MISSING_VAR"
@@ -40,12 +46,14 @@ def _cli_steps(*commands):
     )
 
 
-def _scenario(name, *, requires_env="", min_passing=None, pass_ratio=None,
-              steps="", cleanup_steps=""):
+def _scenario(name, *, requires_env="", requires_env_any="", min_passing=None,
+              pass_ratio=None, steps="", cleanup_steps=""):
     """Build a scenario YAML body; steps default to one passing cli step."""
     head = [f"name: {name}", f'description: "{name}"']
     if requires_env:
         head.append(f"requires_env: {requires_env}")
+    if requires_env_any:
+        head.append(f"requires_env_any: {requires_env_any}")
     if min_passing is not None:
         head.append(f"min_passing: {min_passing}")
     if pass_ratio is not None:
@@ -151,6 +159,80 @@ def test_run_record_env_status(tmp_path):
     by_name = {s.name: s for s in run.scenarios}
     assert by_name["plain"].missing_env == []      # configured: empty list
     assert by_name["gated"].missing_env == [MISSING_VAR]
+
+
+# ---------------------------------------------------------------------------
+# requires_env_any OR group (PR-A): AND stays AND, OR overrides, OR fails closed
+# ---------------------------------------------------------------------------
+
+
+def test_missing_env_absent_or_group_is_byte_identical_to_and_only():
+    # I1: absent/empty requires_env_any equals the AND-only result, order kept.
+    assert _missing_env({"requires_env": ["A", "B"]}, {"A": "1"}) == ["B"]
+    assert _missing_env(
+        {"requires_env": ["A", "B"], "requires_env_any": []}, {"A": "1"}
+    ) == ["B"]
+    assert _missing_env({"requires_env": []}, {}) == []
+
+
+def test_missing_env_or_group_satisfied_overrides_missing_and():
+    # I2: one resolved OR member configures the scenario despite a missing AND var.
+    assert _missing_env(
+        {"requires_env": ["A"], "requires_env_any": ["B", "C"]}, {"B": "1"}
+    ) == []
+
+
+def test_missing_env_or_group_unsatisfied_fails_closed_without_and():
+    # I3: a declared OR group with no resolving member fails closed even with
+    # an empty AND list (a keyless user must never reach a real call).
+    assert _missing_env(
+        {"requires_env": [], "requires_env_any": ["B", "C"]}, {}
+    ) == ["B", "C"]
+    assert _missing_env({"requires_env_any": ["B"]}, {}) == ["B"]
+
+
+def test_missing_env_or_group_unsatisfied_reports_members_and_and():
+    # I4: unmet names carry the AND members plus the OR group's members.
+    assert _missing_env(
+        {"requires_env": ["A"], "requires_env_any": ["B", "C"]}, {}
+    ) == ["A", "B", "C"]
+
+
+def test_missing_env_empty_string_counts_as_missing_for_both_layers():
+    # I5: a var present but empty is missing for requires_env and the OR group.
+    assert _missing_env({"requires_env": ["A"]}, {"A": ""}) == ["A"]
+    assert _missing_env({"requires_env_any": ["B"]}, {"B": ""}) == ["B"]
+
+
+def test_unconfigured_or_group_unsatisfied_never_runs_steps(tmp_path):
+    # I3 end-to-end: an unsatisfied OR group with an empty AND dispatches nothing.
+    marker = tmp_path / "or-marker.txt"
+    _write(tmp_path, "or-gated.yaml", _scenario(
+        "or-gated", requires_env_any="[OMNI_OR_A, OMNI_OR_B]",
+        steps=f'  - name: "touch"\n    kind: cli\n    command: "touch {marker}"\n'
+              "    expect:\n      success: true"))
+    sc = run_scenarios(
+        tmp_path, env={"PATH": os.environ.get("PATH", "")}, persist=False
+    ).scenarios[0]
+    assert sc.status == "unconfigured"
+    assert sc.steps == []
+    assert sc.missing_env == ["OMNI_OR_A", "OMNI_OR_B"]
+    assert not marker.exists()
+
+
+def test_or_group_satisfied_runs_scenario_despite_missing_and(tmp_path):
+    # I2 end-to-end: a resolved OR member configures a missing-AND scenario.
+    _write(tmp_path, "or-ok.yaml", _scenario(
+        "or-ok", requires_env="[OMNI_OR_AND_MISSING]",
+        requires_env_any="[OMNI_OR_PROVIDED, OMNI_OR_OTHER]",
+        steps=_cli_steps("true")))
+    sc = run_scenarios(
+        tmp_path,
+        env={"OMNI_OR_PROVIDED": "1", "PATH": os.environ.get("PATH", "")},
+        persist=False,
+    ).scenarios[0]
+    assert sc.status == "passed"
+    assert sc.missing_env == []
 
 
 # ---------------------------------------------------------------------------
