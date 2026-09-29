@@ -255,7 +255,7 @@
     "name": "save_skeleton"
   },
   {
-    "description": "Validate an XLIFF 1.2 file against the OASIS XSD schema and the trans-unit content rules (non-empty source, unique IDs, valid lang codes). Pass either xliff_content (inline string) or file_path.",
+    "description": "Validate an XLIFF 1.2 file against the OASIS XSD schema and the trans-unit content rules (non-empty source, unique IDs, valid lang codes). Pass xliff_content (inline string), file_path, or xliff_path.",
     "inputSchema": {
       "properties": {
         "auth_token": {
@@ -266,7 +266,11 @@
           "type": "string"
         },
         "xliff_content": {
-          "description": "Inline XLIFF XML. Takes precedence over file_path if both provided.",
+          "description": "Inline XLIFF XML. Takes precedence over file_path/xliff_path if provided.",
+          "type": "string"
+        },
+        "xliff_path": {
+          "description": "Alias for file_path (pipeline/ORF naming). Provide only one of file_path / xliff_path.",
           "type": "string"
         }
       },
