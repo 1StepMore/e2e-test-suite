@@ -43,30 +43,38 @@ def _validate_env(require_llm: bool = False) -> None:
     """Warn or error on missing environment variables.
 
     Args:
-        require_llm: If True, exit with error when no LLM key is found
-                     (used for 'pipeline' and real translation commands).
+        require_llm: If True, exit with error when NO LLM provider key is
+                     found (used for 'pipeline' and real translation
+                     commands). One canonical key is enough — the remaining
+                     entries are fallbacks the router skips.
     """
-    missing_keys: list[str] = []
-    for key in _LLM_API_KEYS:
-        if not os.environ.get(key):
-            missing_keys.append(key)
+    # A var set to "" is absent: os.environ.get mirrors how OL resolves the
+    # model pool, so one configured provider satisfies the gate and the rest
+    # are optional fallbacks (AGENTS.md: "Only set env vars for providers you
+    # use.").
+    present_keys = [k for k in _LLM_API_KEYS if os.environ.get(k)]
+    missing_keys = [k for k in _LLM_API_KEYS if not os.environ.get(k)]
 
-    if missing_keys:
-        all_missing = len(missing_keys) == len(_LLM_API_KEYS)
-        if all_missing:
-            msg = (
-                "⚠️  No LLM provider keys found. Set at least one of:\n"
-                f"       {', '.join(_LLM_API_KEYS)}\n"
-                "   Copy .env.example → .env and fill in your keys.\n"
-                "   For testing, set OMNI_TEST_FAKE_LLM=1 to bypass LLM calls."
-            )
-        else:
-            missing_list = ", ".join(missing_keys)
-            msg = f"⚠️  Some LLM provider keys are unset: {missing_list}"
-        if require_llm:
-            print(msg, file=sys.stderr)
-            sys.exit(1)
+    if not present_keys:
+        msg = (
+            "⚠️  No LLM provider keys found. Set at least one of:\n"
+            f"       {', '.join(_LLM_API_KEYS)}\n"
+            "   Copy .env.example → .env and fill in your keys.\n"
+            "   For testing, set OMNI_TEST_FAKE_LLM=1 to bypass LLM calls."
+        )
         # T-05: agents parse stdout — the warning belongs on stderr.
+        print(msg, file=sys.stderr)
+        if require_llm:
+            sys.exit(1)
+    elif missing_keys:
+        # At least one provider is configured; the unset entries are fallbacks
+        # the router skips, not a misconfiguration. Names only — never echo
+        # resolved key values.
+        msg = (
+            f"ℹ️  Using {', '.join(present_keys)}; "
+            f"{', '.join(missing_keys)} unset (fallbacks, will be skipped)."
+        )
+        # T-05: agents parse stdout — the note belongs on stderr.
         print(msg, file=sys.stderr)
 
     missing_optional = [k for k in _OPTIONAL_VARS if not os.environ.get(k)]
