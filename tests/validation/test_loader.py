@@ -445,6 +445,95 @@ def test_requires_env_members_must_be_str(tmp_path):
     assert "requires_env" in str(ei.value)
 
 
+def test_requires_env_any_accepted_as_list_of_str(tmp_path):
+    _write(tmp_path, "or-env.yaml", """
+    name: or-env
+    description: "requires_env_any declares an OR group"
+    requires_env_any: [AMD_API_KEY, ZHIPU_API_KEY]
+    steps:
+      - name: "one"
+        kind: cli
+        command: "true"
+        expect:
+          success: true
+    """)
+
+    s = load_scenarios(tmp_path)[0]
+    assert s["requires_env_any"] == ["AMD_API_KEY", "ZHIPU_API_KEY"]
+
+
+def test_requires_env_any_defaults_to_empty_list(tmp_path):
+    """Absent field defaults to [] — the OR group is optional."""
+    _write(tmp_path, "minimal.yaml", """
+    name: minimal
+    description: "no OR group declared"
+    steps:
+      - name: "one"
+        kind: cli
+        command: "true"
+        expect:
+          success: true
+    """)
+
+    assert load_scenarios(tmp_path)[0]["requires_env_any"] == []
+
+
+def test_requires_env_any_empty_list_accepted(tmp_path):
+    """An empty OR list means "no OR group" — accepted, not rejected."""
+    _write(tmp_path, "empty-or.yaml", """
+    name: empty-or
+    description: "empty OR group"
+    requires_env_any: []
+    steps:
+      - name: "one"
+        kind: cli
+        command: "true"
+        expect:
+          success: true
+    """)
+
+    assert load_scenarios(tmp_path)[0]["requires_env_any"] == []
+
+
+@pytest.mark.parametrize("bad", ['"AMD_API_KEY"', '{AMD_API_KEY: x}', "[42]", "[[AMD_API_KEY]]"])
+def test_requires_env_any_must_be_list_of_strings(tmp_path, bad):
+    _write(tmp_path, "bad-or.yaml", f"""
+    name: bad-or
+    description: "requires_env_any must be a list of strings"
+    requires_env_any: {bad}
+    steps:
+      - name: "one"
+        kind: cli
+        command: "true"
+        expect:
+          success: true
+    """)
+
+    with pytest.raises(ScenarioError) as ei:
+        load_scenarios(tmp_path)
+    assert "requires_env_any" in str(ei.value)
+
+
+def test_genuinely_unknown_field_still_rejected(tmp_path):
+    """The closed set was extended, not opened: a near-miss field still fails."""
+    _write(tmp_path, "typo-or.yaml", """
+    name: typo-or
+    description: "requires_env_all is not part of the schema"
+    requires_env_any: [FOO]
+    requires_env_all: [FOO]
+    steps:
+      - name: "one"
+        kind: cli
+        command: "true"
+        expect:
+          success: true
+    """)
+
+    with pytest.raises(ScenarioError) as ei:
+        load_scenarios(tmp_path)
+    assert "requires_env_all" in str(ei.value)
+
+
 def test_requires_http_rejected_as_unknown_field(tmp_path):
     """T-21: the suite has no HTTP surface, so ``requires_http`` was removed
     from the closed field set — the loader rejects it as a typo instead of

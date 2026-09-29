@@ -1,0 +1,67 @@
+name: env-gate-or-semantics
+description: >
+  Regression seed locking the two-layer env gate introduced in PR-A
+  (omni_mcp/validation/engine.py `_missing_env`): `requires_env` stays AND,
+  `requires_env_any` is an OR group that configures the scenario the moment
+  ONE of its vars resolves, and an OR group with no resolving var fails
+  CLOSED — the scenario stays `unconfigured` even when `requires_env` is
+  empty, so a keyless user never reaches a real LLM call.  The scenario
+  itself proves the OR path on the REAL engine: its AND var is deliberately
+  unset while its OR group resolves via PATH, so if `requires_env_any` were
+  ignored the scenario would report `unconfigured` and this step would never
+  run.  The python step then asserts all five invariants (I1-I5) against the
+  real `_missing_env` function, failing loudly (nonzero exit) on any drift.
+level: agent-user
+category: regression
+regression: true
+regression_issue: "plan: .omo/plans/2026-09-28-ol-provider-pool-and-env-gate-fixes.md §2 — file a tracking issue before merge"
+tier: 1
+requires_env: [OMNI_ENV_GATE_DEMO_UNSET_VAR]
+requires_env_any: [PATH]
+instructions: |
+  What to do:
+  1. Confirm the scenario ran at all: its AND prerequisite
+     OMNI_ENV_GATE_DEMO_UNSET_VAR is intentionally absent, so the only
+     reason it is configured is that PATH satisfied the `requires_env_any`
+     OR group.  An AND-only engine would mark it `unconfigured` and skip
+     the step entirely.
+  2. The python step imports the real `omni_mcp.validation.engine._missing_env`
+     and asserts: I1 absent OR gives today's AND-only list; I2 a satisfied
+     OR returns [] despite a missing AND var; I3 a declared-but-unsatisfied
+     OR fails closed even with an empty AND list; I4 the unmet names are
+     reported (AND + OR members); I5 an empty string counts as missing for
+     both layers.
+  Both are hermetic (tier 1): no LLM keys, no network, no FAKE_LLM.
+steps:
+  - name: 'The real engine gate satisfies I1-I5 (AND, OR-wins, fail-closed reporting)'
+    kind: python
+    command: |
+      import sys
+      sys.path.insert(0, ".")
+      from omni_mcp.validation.engine import _missing_env
+
+      # I1 — absent OR group: exactly the AND list, same order (no change).
+      assert _missing_env({"requires_env": ["A", "B"]}, {"A": "1"}) == ["B"], "I1 order/content"
+      assert _missing_env({"requires_env": []}, {}) == [], "I1 empty"
+      # I2 — OR satisfied overrides the missing AND vars.
+      assert _missing_env({"requires_env": ["A"], "requires_env_any": ["B", "C"]}, {"B": "1"}) == [], "I2 or-wins"
+      # I3 — OR declared, none resolve: fail closed even with an empty AND list.
+      assert _missing_env({"requires_env": [], "requires_env_any": ["B", "C"]}, {}) == ["B", "C"], "I3 fail-closed"
+      # I4 — unmet OR reported by member names; AND + OR both included.
+      assert _missing_env({"requires_env": ["A"], "requires_env_any": ["B"]}, {}) == ["A", "B"], "I4 reporting"
+      # I5 — empty string counts as missing for AND and for OR.
+      assert _missing_env({"requires_env": ["A"]}, {"A": ""}) == ["A"], "I5 and-empty"
+      assert _missing_env({"requires_env": [], "requires_env_any": ["B"]}, {"B": ""}) == ["B"], "I5 or-empty"
+      print("env-gate invariants I1-I5 held")
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['env-gate invariants I1-I5 held']
+      stderr_not_has: ['AssertionError', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#env-gate-semantics
+    instructions: >-
+      Run the real `_missing_env` against the five invariant fixtures.  Any
+      violated invariant raises AssertionError (nonzero exit) — the OR group
+      must never let a keyless scenario pass, and absent/empty
+      `requires_env_any` must stay byte-identical to the AND-only gate.

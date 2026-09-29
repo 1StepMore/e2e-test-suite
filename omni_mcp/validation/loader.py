@@ -36,7 +36,8 @@ _SCENARIO_FIELDS = frozenset(
         "description",       # required — what the scenario proves
         "steps",             # required — non-empty list of steps
         "category",          # optional — grouping label (default "general")
-        "requires_env",      # optional — list of env var names
+        "requires_env",      # optional — list of env var names (AND gate)
+        "requires_env_any",  # optional — OR group: any ONE env var suffices
         "min_passing",       # optional — partial-pass: int count
         "pass_ratio",        # optional — partial-pass: float fraction
         "regression",        # optional — marks a regression scenario
@@ -242,15 +243,16 @@ def validate_scenario(scenario: dict[str, Any], path: str | Path) -> dict[str, A
     """Validate one scenario dict against the guide §2 schema.
 
     Returns the scenario with defaults applied — the same dict the executor
-    consumes (category ``general``, ``requires_env`` ``[]``, ``tier`` 1,
-    ``cleanup_steps`` ``[]``, per-step ``arguments``/``recovery_steps``
-    ``{}``/``[]``).
+    consumes (category ``general``, ``requires_env`` ``[]``,
+    ``requires_env_any`` ``[]``, ``tier`` 1, ``cleanup_steps`` ``[]``,
+    per-step ``arguments``/``recovery_steps`` ``{}``/``[]``).
 
     Raises
     ------
     ScenarioError
         Naming *path* and the violated rule.  Unknown top-level fields are
-        rejected (guide §2.4); ``regression: true`` requires
+        rejected (guide §2.4); ``requires_env`` / ``requires_env_any`` must
+        be lists of strings; ``regression: true`` requires
         ``regression_issue`` (guide §2.1); ``min_passing`` / ``pass_ratio``
         are validated at load time (guide §2.7).
     """
@@ -287,6 +289,21 @@ def validate_scenario(scenario: dict[str, Any], path: str | Path) -> dict[str, A
                 f"'requires_env' must be a list of strings, got {requires_env!r}",
             )
     scenario.setdefault("requires_env", [])
+
+    # requires_env_any is the OR counterpart (PR-A): a scenario is
+    # configured if at least ONE of its vars resolves, even when some
+    # requires_env vars are missing.  An empty list is valid — it means
+    # "no OR group declared", i.e. today's AND-only behaviour.
+    requires_env_any = scenario.get("requires_env_any")
+    if requires_env_any is not None:
+        if not isinstance(requires_env_any, list) or any(
+            not isinstance(v, str) for v in requires_env_any
+        ):
+            raise ScenarioError(
+                path,
+                f"'requires_env_any' must be a list of strings, got {requires_env_any!r}",
+            )
+    scenario.setdefault("requires_env_any", [])
 
     category = scenario.get("category")
     if category is not None and not isinstance(category, str):
