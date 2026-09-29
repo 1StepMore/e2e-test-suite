@@ -1,16 +1,16 @@
-"""Regression lock: the active LLM env contract is the canonical trio.
+"""Regression lock: the active LLM env contract is the canonical pair.
 
-OL ``config/default.yaml`` carries three provider keys, the only real-LLM
+OL ``config/default.yaml`` carries two provider keys, the only real-LLM
 credentials the suite reads:
 
-* ``AMD_API_KEY``        — priority 1 (``DeepSeek-V4.1-Flash``, AMD Radeon)
-* ``ZHIPU_API_KEY``      — priority 2 (``glm-4.7-flash``)
-* ``NVIDIA_NIM_API_KEY`` — priority 3 (``minimaxai/minimax-m3``)
+* ``AMD_API_KEY``   — priority 1 (``DeepSeek-V4.1-Flash``, AMD Radeon)
+* ``ZHIPU_API_KEY`` — priority 2 (``glm-4.7-flash``)
 
-``ARK_API_KEY`` was demoted then removed entirely: the Volcengine Ark quota is
-exhausted, and because the env gate reports ``unconfigured`` when *any*
-required var is missing, keeping it in the contract denied validation coverage
-to users holding only the two live keys.
+``NVIDIA_NIM_API_KEY`` was the priority-3 provider (``minimaxai/minimax-m3``)
+until NVIDIA returned HTTP 410 Gone (EOL 2026-09-09); it is gone upstream and
+must not linger in any suite surface. ``ARK_API_KEY`` was demoted then removed
+earlier for the same reason — the pool shrinks to the providers that actually
+answer.
 
 Two coupled *active* surfaces must agree with that pool, or the real-LLM
 gates silently rot while every other test stays green:
@@ -18,13 +18,22 @@ gates silently rot while every other test stays green:
 1. ``omni_suite.cli._validate_env`` — the suite CLI's production env gate.
    It must accept every canonical key and must keep failing closed when no
    canonical key is present. A retired provider key (including the removed
-   ``ARK_API_KEY``) must NOT satisfy the gate.
+   ``ARK_API_KEY`` and ``NVIDIA_NIM_API_KEY``) must NOT satisfy the gate.
 2. The real-LLM CI workflows (``validation.yml`` nightly, ``e2e-tests.yml``,
    ``fidelity.yml``) must expose the same canonical keys and must not gate on
-   retired providers (Agnes / OpenCode Go / MiniMax / Baidu / OpenAI).
+   retired providers (Agnes / OpenCode Go / MiniMax / Baidu / NVIDIA NIM /
+   OpenAI).
 
-Behavior-first: the CLI cases drive the real gate function, and the workflow
-cases read the active workflow files.
+The gate lesson matters as much as the key list: the suite's OL-driven
+scenarios used to list the whole provider pool in ``requires_env`` (AND), so a
+user holding only one provider account was gated out to ``unconfigured``. They
+now declare their provider pair in ``requires_env_any`` (the engine's OR gate,
+PR-A) — ONE key configures them, and a declared-but-unsatisfied OR group still
+fails closed. This module locks the pool *and* the OR shape.
+
+Behavior-first: the CLI cases drive the real gate function, the workflow cases
+read the active workflow files, and the scenario case reads the real scenario
+YAML.
 """
 from __future__ import annotations
 
@@ -40,12 +49,13 @@ SCENARIOS = SUITE_ROOT / "scenarios"
 
 # The canonical OL model-pool provider keys (single source of truth:
 # Omni_Localizer/config/default.yaml).
-CANONICAL_KEYS = ("AMD_API_KEY", "ZHIPU_API_KEY", "NVIDIA_NIM_API_KEY")
+CANONICAL_KEYS = ("AMD_API_KEY", "ZHIPU_API_KEY")
 
 # Providers retired by the migration — a workflow or the CLI gate must not
 # treat any of these as the active credential.
 RETIRED_KEYS = (
     "ARK_API_KEY",
+    "NVIDIA_NIM_API_KEY",
     "AGNES_API_KEY",
     "OPENCODE_GO_KEY",
     "OPENCODE_GO_BASE_URL",
@@ -78,7 +88,7 @@ def _clear_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
 class TestSuiteCliKeyDetector:
     """``omni_suite.cli._validate_env`` — the production LLM env gate."""
 
-    def test_detector_is_exactly_the_canonical_trio(self):
+    def test_detector_is_exactly_the_canonical_pair(self):
         from omni_suite import cli
 
         assert tuple(cli._LLM_API_KEYS) == CANONICAL_KEYS
@@ -89,13 +99,13 @@ class TestSuiteCliKeyDetector:
         overlap = set(RETIRED_KEYS) & set(cli._LLM_API_KEYS)
         assert not overlap, f"detector still recognises retired keys: {sorted(overlap)}"
 
-    def test_full_canonical_trio_satisfies_the_real_llm_gate(
+    def test_full_canonical_pair_satisfies_the_real_llm_gate(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """Setting exactly the canonical trio must open the gate.
+        """Setting exactly the canonical pair must open the gate.
 
         RED before the fix: the detector still expected the retired
-        AGNES/OpenCode keys, so the canonical trio alone left keys
+        AGNES/OpenCode keys, so the canonical pair alone left keys
         "unset" and the gate exited 1.
         """
         from omni_suite import cli
@@ -129,7 +139,7 @@ class TestSuiteCliKeyDetector:
 
 
 class TestRealLlmWorkflowEnvContract:
-    """Real-LLM CI workflows must gate on the canonical trio only."""
+    """Real-LLM CI workflows must gate on the canonical pair only."""
 
     @pytest.mark.parametrize("filename", REAL_LLM_WORKFLOWS)
     def test_workflow_exports_every_canonical_key(self, filename: str):
@@ -153,20 +163,21 @@ class TestRealLlmWorkflowEnvContract:
 class TestScenarioEnvGateNotAllProviders:
     """No suite scenario may require the whole canonical provider pool.
 
-    The validation engine computes ``missing_env`` (``engine.py:243``) as
-    ``[v for v in scenario["requires_env"] if not effective.get(v)]`` and the
+    The validation engine computes ``missing_env`` (``engine.py:243``) and the
     Phase-4 gate reports ``unconfigured`` *before* any step is dispatched
-    (``engine.py:220``). That is AND-semantics: a scenario is unrunnable if
-    *any* required var is absent. So a scenario listing every canonical
-    provider key gates out any user who does not hold all three provider
-    accounts at once — the exact failure that removed ``ARK_API_KEY`` (#94)
-    and then had to remove ``AMD_API_KEY`` again after commit 10547af.
+    (``engine.py:220``). For ``requires_env`` that is AND-semantics: a scenario
+    is unrunnable if *any* required var is absent. So a scenario listing every
+    canonical provider key in ``requires_env`` gates out any user who does not
+    hold every provider account at once — the exact failure that removed
+    ``ARK_API_KEY`` (#94) and then had to remove ``AMD_API_KEY`` again after
+    commit 10547af.
 
-    Scope of this lock: it forbids the *whole pool* in one scenario. It does
-    NOT make the gate a disjunction — the 13 OL-driven scenarios still
-    require ``ZHIPU_API_KEY`` and ``NVIDIA_NIM_API_KEY`` together, so a user
-    holding only one provider is still ``unconfigured``. OR-semantics would
-    be an engine-level change and is out of scope here.
+    Scope of this lock: it forbids the *whole pool* in the AND list. It does
+    NOT forbid a disjunction. The 13 OL-driven scenarios declare their
+    provider pair in ``requires_env_any`` instead — the engine's OR gate
+    (PR-A): a user holding only ONE provider key is configured, and a declared
+    but unsatisfied OR group still fails closed. Listing the whole pool in an
+    OR group is therefore legitimate and not an offender here.
     """
 
     def test_no_scenario_requires_every_canonical_provider_key(self):

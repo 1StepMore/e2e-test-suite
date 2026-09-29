@@ -14,9 +14,9 @@ description: >-
 level: human-quality
 category: pipeline
 tier: 2
-requires_env:
+requires_env_any:
+  - AMD_API_KEY
   - ZHIPU_API_KEY
-  - NVIDIA_NIM_API_KEY
 instructions: |-
   This scenario proves the MD-path pipeline (OPP extract -> ol translate-md
   -> orf apply-md) produces a PPTX that meets the end-user quality bar.

@@ -17,12 +17,18 @@ scenarios provision).
 |---|---|---|---|---|
 | `suite` (default) | `scenarios/` | Agent-surface + pipeline | 1-2 | the original suite-level library |
 | `opp` | `Omni_Pre_Processor/scenarios/` | 6 `opp-extraction` | 1 | hermetic, no keys |
-| `ol` | `Omni_Localizer/scenarios/` | 5 `ol-translation` | 2 | `requires_env` = 3 canonical real LLM provider keys; `unconfigured` without them |
+| `ol` | `Omni_Localizer/scenarios/` | 5 `ol-translation` | 2 | `requires_env` = the 2 canonical real LLM provider keys (AND); `unconfigured` without them |
 | `orf` | `Omni_Re_Formatter/scenarios/` | 6 `orf-backfill`/`orf-md`/`orf-xliff` | 1 | `requires_env: [MCP_ALLOWED_DIRECTORIES]` — ORF is fail-closed on the MCP allowlist |
 | `all` | all four dirs merged | everything above | 1-2 | full cross-repo sweep |
 
 OL's provider env vars (mirroring `config/default.yaml`): `AMD_API_KEY`,
-`ZHIPU_API_KEY`, `NVIDIA_NIM_API_KEY`.
+`ZHIPU_API_KEY`. The two libraries gate differently: OL's **in-repo**
+scenarios still declare an AND `requires_env` over both provider keys (a
+separate pending change moves them to the OR field), while the **suite's** 13
+OL-driven scenarios declare
+`requires_env_any: [AMD_API_KEY, ZHIPU_API_KEY]` — an OR group, so one
+working provider key configures them. Either way, a user with no provider
+key gets `unconfigured`, never a pass (fail-closed).
 
 ## 2. Enumerate and run
 
@@ -53,7 +59,11 @@ python scripts/validation/run_validation.py --check
 
 Tier semantics: 1 = hermetic (no keys), 2 = real LLM keys, 3 =
 paid/external/network. A tier-2/3 scenario without its keys reports
-`unconfigured` — never a pass, never a silent skip.
+`unconfigured` — never a pass, never a silent skip. The gate itself has two
+layers: `requires_env` is an AND over every listed variable, and the optional
+`requires_env_any` is an OR group where one resolving variable is enough (an
+OR group with no resolving variable fails closed). Semantics and examples:
+`scenarios/STANDARDS.md#env-gate-semantics`.
 
 The old `--module opp|ol|orf|suite` filter still exists; it selects a
 module's scenarios by category (its in-repo categories plus its

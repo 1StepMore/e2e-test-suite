@@ -151,14 +151,13 @@ smoke:
 # developers can run `make e2e` without polluting CI.
 # ---------------------------------------------------------------------------
 e2e:
-	@if [ -z "$$AMD_API_KEY" ] && [ -z "$$ZHIPU_API_KEY" ] && [ -z "$$NVIDIA_NIM_API_KEY" ]; then \
+	@if [ -z "$$AMD_API_KEY" ] && [ -z "$$ZHIPU_API_KEY" ]; then \
 		echo ""; \
 		echo "  No real LLM API keys detected."; \
 		echo ""; \
 		echo "  E2E tests require at least one of:"; \
 		echo "    - AMD_API_KEY        (AMD Radeon, DeepSeek-V4.1-Flash, priority 1)"; \
-		echo "    - ZHIPU_API_KEY      (Zhipu GLM, priority 2)"; \
-		echo "    - NVIDIA_NIM_API_KEY (NVIDIA NIM, priority 3)"; \
+		echo "    - ZHIPU_API_KEY      (Zhipu GLM, glm-4.7-flash, priority 2)"; \
 		echo ""; \
 		echo "  Set them in Omni_Localizer/.env or export in your shell."; \
 		echo "  Run 'make e2e-help' for detailed setup instructions."; \
@@ -182,7 +181,6 @@ e2e-help:
 	@echo "     (canonical OL model pool, see CONTRACT.md):"
 	@echo "       AMD_API_KEY        (AMD Radeon, DeepSeek-V4.1-Flash)"
 	@echo "       ZHIPU_API_KEY      (Zhipu GLM, glm-4.7-flash)"
-	@echo "       NVIDIA_NIM_API_KEY (NVIDIA NIM, minimaxai/minimax-m3)"
 	@echo ""
 	@echo "Setup:"
 	@echo "  1. Copy Omni_Localizer/.env.example to Omni_Localizer/.env (if needed)"

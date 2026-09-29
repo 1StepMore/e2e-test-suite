@@ -17,11 +17,10 @@ _VENV_BIN = Path(__file__).parent.parent / ".venv_ol" / "bin"
 
 # Canonical LLM provider keys OL uses for translation/judging/restoration —
 # the priorities in Omni_Localizer/config/default.yaml
-# (DeepSeek-V4.1-Flash, glm-4.7-flash, minimaxai/minimax-m3).
+# (DeepSeek-V4.1-Flash, glm-4.7-flash).
 _LLM_API_KEYS = [
     "AMD_API_KEY",
     "ZHIPU_API_KEY",
-    "NVIDIA_NIM_API_KEY",
 ]
 
 # Optional but commonly expected env vars
