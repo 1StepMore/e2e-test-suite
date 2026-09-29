@@ -62,7 +62,6 @@ _BASE_ENV: dict[str, str] = {
         # output). Keep in sync with Omni_Localizer/config/default.yaml.
         "AMD_API_KEY",
         "ZHIPU_API_KEY",
-        "NVIDIA_NIM_API_KEY",
     )
 }
 _BASE_ENV["OMNI_TEST_FAKE_LLM"] = "1"

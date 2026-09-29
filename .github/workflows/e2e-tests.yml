@@ -159,7 +159,6 @@ jobs:
           OMNI_TEST_FAKE_PANDOC: "1"
           AMD_API_KEY: "sk-dummy"
           ZHIPU_API_KEY: "sk-dummy"
-          NVIDIA_NIM_API_KEY: "nvapi-dummy"
           ORF_MCP_ALLOWED_DIRS: "/tmp:/home/runner/work/Omni_Suite"
           # OL fail-CLOSES without its own allowlist (security.py:283 ->
           # ValueError -> misleading OL_INVALID_INPUT). Note the separator:
@@ -179,7 +178,6 @@ jobs:
           OMNI_TEST_FAKE_PANDOC: "1"
           AMD_API_KEY: "sk-dummy"
           ZHIPU_API_KEY: "sk-dummy"
-          NVIDIA_NIM_API_KEY: "nvapi-dummy"
           ORF_MCP_ALLOWED_DIRS: "/tmp:/home/runner/work/Omni_Suite"
           OL_MCP_ALLOWED_DIRS: "/tmp,/home/runner/work/Omni_Suite"
           OMNI_RATE_LIMIT_RPM: "0"
@@ -201,8 +199,7 @@ jobs:
   # Job 2: Nightly LLM tests (slow, requires real API keys).
   # Runs on a schedule + manual dispatch.
   # Uses the canonical OL model-pool secrets: AMD_API_KEY (priority 1,
-  # DeepSeek-V4.1-Flash), ZHIPU_API_KEY (priority 2), NVIDIA_NIM_API_KEY
-  # (priority 3).
+  # DeepSeek-V4.1-Flash), ZHIPU_API_KEY (priority 2, glm-4.7-flash).
   # -------------------------------------------------------------------------
   nightly-llm:
     name: Nightly LLM (real)
@@ -270,7 +267,6 @@ jobs:
           cat > Omni_Localizer/.env <<EOF
           AMD_API_KEY=${{ secrets.AMD_API_KEY }}
           ZHIPU_API_KEY=${{ secrets.ZHIPU_API_KEY }}
-          NVIDIA_NIM_API_KEY=${{ secrets.NVIDIA_NIM_API_KEY }}
           EOF
           cp Omni_Localizer/config/default.yaml Omni_Localizer/config/local.yaml
 
