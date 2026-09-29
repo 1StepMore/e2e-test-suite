@@ -103,6 +103,48 @@ OPP produces XLIFF 1.2. Required elements:
 3. ORF MUST receive the skeleton.zip alongside the translated XLIFF.
 4. `trans-unit` IDs MUST be stable across extraction and translation.
 
+### Table Cell Coordinates (`resname`)
+
+Table cell text is addressed by a positional `resname` with this grammar:
+
+```
+table_{t}_r{r}_c{c}
+```
+
+where `{t}` is the table, `{r}` the row and `{c}` the column.
+
+`t`/`r`/`c` are RAW NODE INDICES into the extractor's source tree. They are NOT
+expanded to a merged-cell grid: a cell that spans several grid columns still
+advances the column counter by one, and merged-away cells never advance it. A
+coordinate therefore names the XML node OPP visited, not a logical spreadsheet
+position.
+
+An empty cell produces NO trans-unit. A consumer MUST read a missing table
+coordinate as "no text", never as a lost or failed unit.
+
+`t` is per-format:
+
+- **DOCX and HTML**: the table index over the whole document, in document order.
+- **PPTX**: a SINGLE index accumulated across slides in presentation order. It
+  never resets per slide.
+
+The consumer (ORF) MUST resolve PPTX slide order from the slide-ID list,
+`<p:sldIdLst>` in ppt/presentation.xml, then follow the relationship part that
+maps each `r:id` to its slide:
+
+```
+ppt/presentation.xml             # <p:sldIdLst> lists the slides in order
+ppt/_rels/presentation.xml.rels  # r:id -> slides/slideN.xml
+```
+
+A numeric sort of slide filenames is INCORRECT. A valid package can list
+slide10.xml before slide2.xml, and the sldIdLst order can disagree with the
+filenames.
+
+When a cell contains multiple paragraphs, OPP joins the paragraph texts with
+`"\n"`. The consumer MUST split on that newline to restore the paragraphs: a
+single trans-unit per cell carries the joined text.
+
 ---
 
 ## Pydantic Model (TranslationDocument)
