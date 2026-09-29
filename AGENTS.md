@@ -68,6 +68,9 @@ orf apply-md /tmp/ol/document.md --target-format docx -o result.docx
 ### Run the suite pipeline in one shot (N1 enhancement, 2026-09-04)
 
 `omni-suite pipeline <file>` chains the 3 steps above behind a single CLI.
+A real run needs **at least one** LLM provider key (`AMD_API_KEY` or
+`ZHIPU_API_KEY`): one is enough — any unset entry is a fallback the router
+skips. The three bypass flags below need none.
 Three flags (see `omni-suite pipeline --help`):
 
 ```bash

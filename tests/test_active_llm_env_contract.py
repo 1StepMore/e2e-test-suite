@@ -116,6 +116,24 @@ class TestSuiteCliKeyDetector:
 
         cli._validate_env(require_llm=True)  # must not raise SystemExit
 
+    @pytest.mark.parametrize("present_key", CANONICAL_KEYS)
+    def test_single_canonical_key_satisfies_the_real_llm_gate(
+        self, monkeypatch: pytest.MonkeyPatch, present_key: str
+    ):
+        """ONE canonical key must open the gate; the other is a fallback.
+
+        Tests/conftest.py installs dummy keys at import time, so wipe both
+        canonical names first and set exactly one — that is the "exactly one
+        provider" case the old AND gate rejected. The unset entry is a
+        fallback the router skips, not a missing requirement.
+        """
+        from omni_suite import cli
+
+        _clear_llm_env(monkeypatch)
+        monkeypatch.setenv(present_key, "sk-regression-test")
+
+        cli._validate_env(require_llm=True)  # must not raise SystemExit
+
     def test_no_canonical_key_fails_closed(self, monkeypatch: pytest.MonkeyPatch):
         from omni_suite import cli
 
