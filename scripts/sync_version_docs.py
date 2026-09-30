@@ -122,6 +122,46 @@ def _replacements(v: dict[str, str]) -> list[tuple[re.Pattern[str], str]]:
         (re.compile(
             r"(omni-suite --version\s+# )\d+\.\d+\.\d+"
         ), rf"\g<1>{v['suite']}"),
+
+        # --- Current doc shapes (v-prefixed rows, no SHA column) -------------
+        # The patterns above target an older `**X.Y.Z** @ \`sha\`` table layout.
+        # The docs were since restructured to `vX.Y.Z` rows with no SHA column
+        # and no "Pinned combo" line. Without these, every replacement above
+        # matched nothing and --check reported "in sync" while the tables still
+        # advertised the previous release.
+        #
+        # README.md 环境说明 table: | OPP | `Omni_Pre_Processor/` | v0.9.1 |
+        (re.compile(
+            r"(\| OPP \| `Omni_Pre_Processor/` \| v)\d+\.\d+\.\d+( \|)"
+        ), rf"\g<1>{v['opp']}\g<2>"),
+        (re.compile(
+            r"(\| OL \| `Omni_Localizer/` \| v)\d+\.\d+\.\d+( \|)"
+        ), rf"\g<1>{v['ol']}\g<2>"),
+        (re.compile(
+            r"(\| ORF \| `Omni_Re_Formatter/` \| v)\d+\.\d+\.\d+( \|)"
+        ), rf"\g<1>{v['orf']}\g<2>"),
+        (re.compile(
+            r"(\| Omni_Suite \| `\./` \| v)\d+\.\d+\.\d+( \|)"
+        ), rf"\g<1>{v['suite']}\g<2>"),
+
+        # AGENTS.md "Current Versions" table: | OPP | v0.9.1 | <note> |
+        (re.compile(
+            r"(\| Omni_Suite \| v)\d+\.\d+\.\d+( \|)"
+        ), rf"\g<1>{v['suite']}\g<2>"),
+        (re.compile(
+            r"(\| OPP \| v)\d+\.\d+\.\d+( \|)"
+        ), rf"\g<1>{v['opp']}\g<2>"),
+        (re.compile(
+            r"(\| OL \| v)\d+\.\d+\.\d+( \|)"
+        ), rf"\g<1>{v['ol']}\g<2>"),
+        (re.compile(
+            r"(\| ORF \| v)\d+\.\d+\.\d+( \|)"
+        ), rf"\g<1>{v['orf']}\g<2>"),
+
+        # Summary lines: "v0.9.1 · v0.7.1 · v0.4.17 · v0.4.0" (OPP · OL · ORF · Suite)
+        (re.compile(
+            r"(?<![\d.])v\d+\.\d+\.\d+ · v\d+\.\d+\.\d+ · v\d+\.\d+\.\d+ · v\d+\.\d+\.\d+"
+        ), f"v{v['opp']} · v{v['ol']} · v{v['orf']} · v{v['suite']}"),
     ]
 
 

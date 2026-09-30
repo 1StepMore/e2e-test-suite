@@ -29,3 +29,4 @@ cat VERSION
 - Submodule versions move independently
 - A Suite release pins the 3 submodule versions tested together
 - `setup_dev.sh` asserts submodule versions match this matrix
+| 0.5.0 | 0.7.1 | 0.10.0 | 0.5.0 | OPP#80 — per-paragraph table cells: `table_{t}_r{r}_c{c}_para{p}` resname (opt-in via `OPP_TABLE_PARAGRAPH_UNITS`, default off). Contract 1.0 -> 1.1. Bare resname semantics unchanged. |

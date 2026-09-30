@@ -46,4 +46,4 @@ class TranslationDocument(BaseModel):
     target_lang: str = Field(min_length=2, max_length=10)
     metadata: dict[str, Any] = Field(default_factory=dict)
     segments: list[TranslationSegment] = Field(default_factory=list)
-    version: str = "1.0"  # contract version
+    version: str = "1.1"  # contract version
