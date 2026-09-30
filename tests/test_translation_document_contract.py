@@ -17,7 +17,7 @@ def test_translation_document_basic_construction():
     assert doc.target_lang == "zh"
     assert doc.segments == []
     assert doc.metadata == {}
-    assert doc.version == "1.0"
+    assert doc.version == "1.1"
 
 
 def test_translation_document_json_schema_generation():
