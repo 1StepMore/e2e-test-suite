@@ -16,7 +16,6 @@ import argparse
 import asyncio
 import json
 import os
-import subprocess
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -137,6 +136,12 @@ async def _call_tool(session, tool_name: str, arguments: dict) -> dict:
     return await session.call_tool(tool_name, arguments)
 
 
+def _opp_payload(resp: dict) -> dict:
+    """OPP MCP returns {"success": ..., "content": <real response>}."""
+    inner = resp.get("content")
+    return inner if isinstance(inner, dict) else resp
+
+
 # ---------------------------------------------------------------------------
 # Cell execution
 # ---------------------------------------------------------------------------
@@ -212,7 +217,7 @@ async def _run_one_cell_mcp(
                 "resource_dir": str(cell_dir / "opp" / "resources"),
             })
             opp_tool = "extract_document"
-            md_content = opp_resp.get("md_content")
+            md_content = _opp_payload(opp_resp).get("md_content")
             if not md_content:
                 return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
                                      opp_tool=opp_tool,
@@ -265,7 +270,7 @@ async def _run_one_cell_mcp(
                 "resource_dir": str(cell_dir / "opp" / "resources"),
             })
             opp_tool = "extract_document"
-            xliff_content = opp_resp.get("xliff_content")
+            xliff_content = _opp_payload(opp_resp).get("xliff_content")
             if not xliff_content:
                 return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
                                      opp_tool=opp_tool,
