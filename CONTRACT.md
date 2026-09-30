@@ -1,8 +1,8 @@
 # Omni Suite — OPP → OL → ORF Handoff Contract
 
-**Version**: 1.0
+**Version**: 1.1
 **Status**: Active
-**Last Updated**: 2026-07-03
+**Last Updated**: 2026-09-30
 
 This document defines the formal handoff contract between the three pipeline stages.
 It exists to prevent silent breakage at handoff boundaries (e.g., the OPP→OL silent
@@ -108,10 +108,44 @@ OPP produces XLIFF 1.2. Required elements:
 Table cell text is addressed by a positional `resname` with this grammar:
 
 ```
-table_{t}_r{r}_c{c}
+table_{t}_r{r}_c{c}              # whole cell (legacy form)
+table_{t}_r{r}_c{c}_para{p}       # one paragraph within a multi-paragraph cell
 ```
 
-where `{t}` is the table, `{r}` the row and `{c}` the column.
+where `{t}` is the table, `{r}` the row, `{c}` the column and `{p}` the
+paragraph index within the cell.
+
+A consumer MUST treat the two forms differently:
+
+| Form | Meaning |
+|---|---|
+| `table_{t}_r{r}_c{c}` | The WHOLE cell. One trans-unit carries every paragraph, joined with `"\n"`. |
+| `table_{t}_r{r}_c{c}_para{p}` | ONLY paragraph `{p}` of that cell. |
+
+`{p}` is the 0-based index into the cell's **RAW direct-child paragraph list,
+INCLUDING empty paragraphs**. It MUST match the consumer's own enumeration of
+that cell's paragraph children. An extractor MUST NOT skip empty paragraphs when
+computing `{p}`; skipping them shifts every later index and silently targets the
+wrong paragraph.
+
+When a cell has MORE THAN ONE paragraph and the extractor emits per-paragraph
+units, EVERY paragraph MUST carry the `_para{p}` suffix — including `{p}` = 0.
+A consumer MUST NOT receive a mix of suffixed and bare units for the same cell.
+The reason is destructive: a bare unit makes a legacy consumer write positionally
+and then clear the cell's remaining paragraph runs, destroying their text.
+
+If any unit for a cell carries `_para`, a consumer MUST treat every unit for that
+cell as per-paragraph. A bare unit arriving for such a cell MUST be skipped with
+a warning — it MUST NOT fall back to whole-cell writing, which would clear the
+per-paragraph writes already applied.
+
+An out-of-range or duplicated `{p}` MUST be skipped with a warning. A consumer
+MUST NOT guess a paragraph and MUST NOT crash.
+
+The `_para` form is opt-in and additive: a consumer that does not implement it
+MUST still accept the bare form. A consumer predating this clause will not match
+the `_para` form at all and will fall through to its text-matching path, which
+MUST NOT be relied on for correctness.
 
 `t`/`r`/`c` are RAW NODE INDICES into the extractor's source tree. They are NOT
 expanded to a merged-cell grid: a cell that spans several grid columns still
@@ -141,9 +175,17 @@ A numeric sort of slide filenames is INCORRECT. A valid package can list
 slide10.xml before slide2.xml, and the sldIdLst order can disagree with the
 filenames.
 
-When a cell contains multiple paragraphs, OPP joins the paragraph texts with
-`"\n"`. The consumer MUST split on that newline to restore the paragraphs: a
-single trans-unit per cell carries the joined text.
+When a cell contains multiple paragraphs and the extractor emits the BARE form,
+OPP joins the paragraph texts with `"\n"`, and the consumer MUST split on that
+newline to restore the paragraphs.
+
+That newline split is NOT RELIABLE on its own: the newline count belongs to the
+translated text, so a translation that changes the number of lines silently
+changes the paragraph count, and a consumer that distributes lines across the
+cell's paragraph runs will CLEAR the runs it has no line for, losing source text.
+The bare form therefore guarantees only best-effort paragraph restoration.
+Extractors SHOULD prefer the `_para{p}` form for multi-paragraph cells; see
+`OPP_TABLE_PARAGRAPH_UNITS` in the OPP README for the opt-in switch.
 
 ---
 
