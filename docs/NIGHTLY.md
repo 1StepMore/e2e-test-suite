@@ -95,28 +95,45 @@ cd <repo>
 
 ---
 
-## 【活区】当前差距矩阵（基线 2026-09-30）
+## 【活区】当前差距矩阵（真基线 2026-10-01）
 
-**基线尚未取得 —— 环境正在修**。已确认的事实：
+**CLI 通道：跑通了。** 真基线（`.venv_ol`，三件套齐全，`--json --out-dir`）：
 
-| 事项 | 状态 |
-|:---|:---|
-| CLI 通道矩阵能否跑 | ❌ 不能，见下方两个根因 |
-| MCP 通道矩阵 | 未试（先修 CLI） |
-| 已测到的矩阵 | `total 195 / passed 0 / failed 128 / skipped 67` —— **这是假红**，不是真实差距 |
+| 通道 | Cells | Pass | Skip | Fail | 时长 |
+|:---|---:|---:|---:|---:|---:|
+| **CLI** | 195 | **128** | 67 | **0** | 809.8s |
+| MCP | — | — | — | — | 起不来，见下 |
 
-**两个根因（都已定位到行级）**：
+> CLI 通道 **非跳过的 128 格 100% 通过**，0 失败。
+> 产物是真的：例 `md_html_to_docx/result.docx` 10,661 字节、
+> `md_eml_to_eml/result.eml` 等，每格都有独立产出目录。
 
-1. `e2e-test-suite/.venv_ol` 是软链 → 指向**已废弃的 `.venv`**（缺 `opp`、`orf`）。
-   验证器优先取 `suite_root/.venv_ol/bin/python`（`format_matrix_verifier.py:280`），
-   于是 195 格在 OPP 那一步全部 `ModuleNotFoundError`。
-2. 规范环境 `01-Projects/.venv_ol`（SETUP.md 指定的那个）**没装全 OL** ——
-   `ol_pool` 可导入但 **`ol_cli` 缺失**，OL 那步全军覆没。
-   已按 SETUP.md 路径补装 `omni-pre-processor`；`omni-localizer` 正在补。
+**MCP 通道：一格都没跑过**，两个缺陷（都已提 issue）：
 
-**已知的 67 个 skip**（待与真基线对齐）：来自 `SKIP_RULES` —— 缺 `pandoc` /
-`md2pptx` / `aspose` 等外部二进制，以及若干"通用 MD 承载不了该结构"的输入×输出组合
-（JSON / XLSX / SRT 等）。**这 67 个是当前冻结基线**。
+1. **起不来** —— 验证器漏设 OL 白名单变量（`OPP_MCP_ALLOWED_DIRS` /
+   `ORF_MCP_ALLOWED_DIRS` 都设了，**唯独漏 OL**），而 OL 的 MCP 服务是 fail-CLOSED，
+   没白名单就拒绝启动 → `McpError: Connection closed`，整条通道死在启动阶段。
+   **issue #109**。实测补上 `OL_MCP_ALLOWED_DIRS` 后三个服务全起。
+2. **起来也全红** —— 验证器读 `opp_resp["md_content"]`，但 OPP 实际返回标准
+   envelope `{success, content}`，md 文本在 `content.content`，顶层没有 `md_content`
+   → 每个非跳过格子恒判 fail。**issue #110**。
+   小样实测：`--subset docx --path-filter md` → `pass 0 / fail 2 / skip 13`，
+   2 个非跳过格子全部因这条判红，而同格 CLI 通道是 PASS。
+
+**67 个 skip**：来自 `SKIP_RULES` —— 缺 `pandoc` / `md2pptx` / `aspose` 等外部
+二进制，以及若干"通用 MD 承载不了该结构"的输入×输出组合（JSON / XLSX / SRT 等）。
+**这 67 个是当前冻结基线**；把它们装成 pass 才是真进展。
+
+**读法**：CLI 通道已经是一条**真的、能出产物的链路**（这是本计划第一个真基线）。
+MCP 通道的数字目前**一个都不能信**——不是"全红"，是"没跑"。
+
+### 计算器自身修掉的一个假绿（自我披露）
+
+第一版 `nightly_gap.py` 在验证器没落 `matrix.json` 时（`total/passed/failed/skipped`
+全为 0）算出 `gap = 0 + 0 = 0`，于是**打印「两通道 390 格全过」**——拿不到数据被判成了通过。
+已修：任一通道取不到矩阵、或总数 ≠ 预期 390，一律 **exit 2 并说明原因**，绝不判绿。
+配套修了取数：CLI 验证器**只有传 `--json` 才写 `matrix.json`**（不传只写 `matrix.md`），
+且 MCP 验证器不认 `--parallel` —— 两者开关差异改为按能力探测。
 
 ---
 
@@ -124,18 +141,24 @@ cd <repo>
 
 > 策略（L1 §4）：**先纵后横** —— 先把一条通道打穿，再复制。
 
-1. **让验收命令真的能跑**（当前唯一阻塞）：修好解释器（已补 OPP，补 OL 中），
-   跑通 `--subset docx --path-filter md`，拿到第一格真 `pass`。**这之前一切数字都不可信。**
-2. **跑出 CLI 通道真基线**：`format_matrix_verifier.py --parallel 4`，记录
-   passed / failed / skipped 三个数，写回本节。
-3. **跑 MCP 通道基线**：`mcp_matrix_verifier.py`，与 CLI 对比，验「通道一致」（DoD ③）。
-4. **清 skip**：把 `pandoc` 等外部二进制装上，逐条把 skip 换成本真的 pass（DoD 真进展）。
+1. **修 issue #109**（补 OL 白名单变量）→ MCP 通道才起得来。这是 MCP 一切的前提。
+2. **修 issue #110**（`md_content` 取值层级）→ MCP 格子才可能真判 pass 而不恒红。
+3. **跑出 MCP 通道基线**：`mcp_matrix_verifier.py --out-dir …`，与 CLI 的
+   `195/128/67/0` 对比，验「通道一致」（DoD ③）。
+4. **清 skip（真进展）**：把 `pandoc` / `md2pptx` / `aspose` 等外部二进制装上，
+   逐条把 skip 换成本真的 pass。**skip 数下降才算进度**。
 5. **错误面（DoD ④）**：越界/缺配置/坏输入 → 稳定错误码，不是 `INTERNAL_ERROR`。
 
 ### 已完成（agent 追加）
 
-- 2026-09-30：本机环境补装 `omni-pre-processor`（editable）；定位并修正
-  `e2e-test-suite/.venv_ol` 指向废弃 `.venv` 的软链。
+- 2026-10-01：**CLI 通道跑出真基线** `Cells 195 | Pass 128 | Skip 67 | Fail 0`（809.8s），
+  非跳过格子 100% 通过、每格都有真实产物文件。
+- 2026-10-01：本机环境修好三处 —— 补装 `omni-pre-processor` 与 `omni-localizer`（editable）；
+  `e2e-test-suite/.venv_ol` 软链从误指的废弃 `.venv` 改指到三件套齐全的环境。
+  手工验通完整链路：OPP 提取 → OL 翻译（en→zh）→ ORF 转换（产出 478 字节 XML）。
+- 2026-10-01：`nightly_gap.py` 修掉自身一个**假绿**（拿不到矩阵时判成"全过"）——
+  改为取数失败即 exit 2；并修取数开关（CLI 需 `--json` 才落 json、MCP 不认 `--parallel`，
+  按能力探测）。
 
 ---
 
@@ -145,8 +168,11 @@ cd <repo>
 
 | 日期 | 发现 | 是否挡住 DoD | 处置 |
 |:---|:---|:---|:---|
-| 2026-09-30 | `SETUP.md` 引用的 `.venv/DEPRECATED.md` **不存在** | 否 | 记账（已提 issue） |
-| 2026-09-30 | 验证器解释器解析失败时**静默产出假红**，不报环境错 | **是**（挡住第 1 项） | 已在 `nightly_gap.py` 加探活闸；仓库侧已提 issue |
+| 2026-09-30 | `SETUP.md` 引用的 `.venv/DEPRECATED.md` **不存在** | 否 | 记账（已提 issue #106） |
+| 2026-09-30 | 验证器解释器解析失败时**静默产出假红**，不报环境错 | **是** | 已加探活闸；仓库侧已提 issue #105 |
+| 2026-10-01 | MCP 验证器漏设 OL 白名单变量 → 整条 MCP 通道死在启动 | **是**（挡住 DoD ③） | 已提 issue #109 |
+| 2026-10-01 | MCP 验证器取 `md_content` 层级错 → 非跳过格恒判红 | **是**（挡住 DoD ③） | 已提 issue #110 |
+| 2026-10-01 | `nightly_gap.py` 自身在取数失败时判"全过" | **是**（假绿） | 已自修（取数失败即 exit 2），见上「自我披露」 |
 
 ---
 
