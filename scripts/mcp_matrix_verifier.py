@@ -16,7 +16,6 @@ import argparse
 import asyncio
 import json
 import os
-import subprocess
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -336,6 +335,7 @@ async def _run_matrix(args) -> int:
         str(SUITE_ROOT / "Omni_Re_Formatter" / "src"),
     ]))
     env["OPP_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
+    env["OL_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
     env["ORF_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
 
     out_dir = args.out_dir.resolve()
