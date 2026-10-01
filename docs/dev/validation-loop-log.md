@@ -57,9 +57,38 @@
 - [ ] **py3.13 动态 `exec_module` 前必须注册 `sys.modules[name]`**——模块内 `@dataclass` 在类创建时经 `dataclasses._is_type` 读 `sys.modules[cls.__module__]`，未注册即 `AttributeError: 'NoneType' object has no attribute '__dict__'`（OL test_ol_mcp_error_boundary）。exec 完 pop 掉。
 - [ ] **修一个 env 泄漏会把被它掩盖的失败全放出来**——`MCP_ALLOWED_DIRECTORIES=/tmp` 进程级泄漏曾让 OPP path-denial 假绿；PR#87 收敛泄漏 + baseline 后，test_e2e_opp_mcp 冒出 5 个 combined-run-only 的 path-denied（#88，根因未确认，带可证伪诊断步骤）。收泄漏前先盘点"哪些测试在靠泄漏过"。
 - [ ] **后台 agent 的任务状态 ≠ 实际交付状态**——模型商故障 + 30 分钟 inactivity timeout 会把 agent 标成 error/aborted，但它可能已经把 PR 建好甚至 merge 完（PR #87 报 failed 实为 merged）。收尾一律以 `git`/`gh` 里的真实状态为准，不要按任务状态决定重做。
+- [ ] **在 `git worktree` 里跑测试必须显式 `PYTHONPATH=<worktree>/src`，否则测的是主检出目录的代码**——`.venv_ol` 的 editable `.pth` 硬编码了 4 条绝对路径（`Omni_Localizer/src`、`Omni_Pre_Processor/src`、`Omni_Re_Formatter/src`、`omni_security/src`），指向**主检出目录**。worktree 只是同仓库的另一份工作区，`.pth` 不会跟着走：`cd /tmp/opencode/opp-82 && pytest` 里`import opp` 解析到的是 `/mnt/d/贯维/Omni_Suite/Omni_Pre_Processor/src/opp`，worktree 的改动**完全没被跑到**，测试可以全绿而实际没测到任何新代码。判据（一行）：`PYTHONPATH=<worktree>/src $PY -c "import opp,ol_pool; print(opp.__file__, ol_pool.__file__)"` 必须打印 worktree 路径。2026-10-01 实测：OPP#82 cherry-pick 后 11/13 假失败，补上 `PYTHONPATH` 后 13/13 过、全量 1147 passed——**先确认 import 解析到哪，再判定失败是 bug 还是环境**。
+- [ ] **module-scoped autouse fixture 删 env 后，不能把恢复委托给 function-scoped fixture**——conftest 的 `_isolate_process_state` 是 function-scoped，它拍的快照在 module-scoped fixture**之后**，所以还原的就是被删空的状态，泄漏一路影响会话后续所有测试。表现为「新加的 4 个 e2e 全过，但 CI 挂在 `test_ol_lqa_autoinvoke.py` 的 7 个 `ModelPoolInitError` + 一个 pipeline 用例」——失败的是**别的**文件、且按文件名字典序排在 `test_e2e_*` 之后。判据：报错文件不是本次改的文件，先查本次新增的 module-scoped fixture 有没有改 `os.environ`/`sys.modules`/全局单例。修法：让 module-scoped fixture **自己**快照并还原（e2e-test-suite PR #118，commit `28a192b`）。与本文件上面「新增测试禁止在模块级设 allowlist env」同族，但方向相反：那坑是**设**泄漏，这坑是**删**泄漏。
+- [ ] **门禁自己看不见它要验的东西时，会满屏假红——先确认门禁的输入齐不齐，再判定它红**——`scripts/doc_inventory.py --check` 在**没有 `Omni_*` 子仓的 worktree 里**报 155 条（`source opp: ... missing -> 0` → 满屏 "claims 9 tools, source truth is 0"）。三个子仓是各自独立的 git repo，`git worktree add` 不会带出来。同一命令在真实检出里是 **exit 0**。我一度把这 155 条当成"main 上既有的红"写进 commit message——**若不是先在真实检出复核过，就会把一个假红结论固化进仓库历史**。判据：门禁报的每条 issue 指向的文件你是否**本来就该在那个目录里**；`source ... missing -> 0` 是"看不见"而非"不存在"。修法：worktree 里 `ln -sfn <真实检出>/Omni_X Omni_X`（三个都在 `.gitignore`，不会污染 git），或直接在真实检出跑。同族：`omni-module-entry-check` 会因临时验证软链指向 worktree 而报 `.git is a FILE`——那个 hook 是对的，别用 skip 绕。
+- [ ] **跨仓改了对外面（CLI flag / MCP 参数）要连带重冻对侧的契约 fixture**——e2e-test-suite 冻结 37 个 MCP 工具的 schema（`tests/contract/fixtures/{opp,orf,ol}_mcp_schemas.json`）。我在 OL 加了 `no_quality_gates` 参数（工具的 `inputSchema` 因此变了）却没重新冻结，于是**之后每一次 e2e CI 都红**，且红在 `test_ol_mcp_schemas_frozen` 这种与改动毫无字面关系的地方。合并顺序上必须先合 fixture 刷新，否则后续 PR 全被拖红（本轮实测 3 个 PR 同时红，其中一个纯文档改动）。重新冻结时逐行核对 diff「只有新参数、没有删改、没有工具名/数量漂移」，并**对着子仓 `origin/main` 生成**（本机 OL 主检出当时停在已合并的旧分支 `refactor/prompt-extraction`，对着它生成会把 pre-#115 的 schema 冻进去）。
 - [ ] **AST 字面量 guard 会把"提到 env 变量的句子"当硬编码**——`OMNI_TEST_FAKE_LLM=1 is active...` 这类消息文本触发 test_no_hardcoded_fake_llm；分类器必须区分"赋值形态"与"句子内嵌"（e2e#56e：只标 bare/shell 前缀形态，句子继续词为动词/连词的放行）。
 
 ## 循环事件（major events，newest on top）
+
+### 2026-10-01（第二轮）：3 个「不眠计划」遗留 issue 收口（#105/#106/#112）+ 自己踩出的契约 fixture 红
+
+- Date: 2026-10-01, round: 第一轮清账后剩 3 个 issue，我按「需不需要产品口径」判断为「不需要」并推进
+- Scope: e2e-test-suite（`scripts/format_matrix_verifier.py`、SETUP.md + 新增 `docs/venv-migration.md`、`docs/NIGHTLY.md`、`contract-tests.yml`、`tests/contract/fixtures/ol_mcp_schemas.json`）
+- Result: **#105/#106/#112 全部合并并自动关单**（PR #119/#120/#121），另**先合 PR #122 修掉一个我自己造成的红**。4 仓 open issue = 0、open PR = 0、backup == origin。
+- **判断修正**：我上一轮把这 3 个标成「需要产品口径」。复核后不成立——#112 写明「待 #111 合并后」，条件已满足；#105 的参考实现已随 #107 落地；#106 只是失效文档引用。**「需要口径」是比「缺信息」更容易用来推迟的借口，先核对 issue 自身的前置条件。**
+- **#106 的 issue 建议在结构上不成立**：建议「补 `.venv/DEPRECATED.md`」，但 `.venv/` 在 `.gitignore:55`，放在那里的文件无法提交、也不会出现在任何新clone 上。改放 `docs/venv-migration.md`。另实测 issue 的两条事实已过期：`.venv_ol` **不是**软链（是真实目录），且 `.venv/` 缺的是 **OL**（`import ol_cli` 失败）——这才是它该被废弃的真实理由。
+- **#105 的闸必须与格子用同一个解释器和环境**（`_cell_env` / `_select_interpreter`）：三件套靠 `PYTHONPATH` 解析而非安装，用干净环境探活会「闸放行而每格仍失败」，正是本 issue 的假绿形状。双向实测：stub 解释器 exit 2 且不落 matrix；真实 suite root 放行并跑出 PASS。
+- **自己造成的红（新坑，已入清单）**：第一轮我在 OL 加了 `no_quality_gates`（MCP 工具参数→`inputSchema` 变），没重冻 e2e 侧 37 工具契约 fixture，于是之后每次 e2e CI 都红在 `test_ol_mcp_schemas_frozen`。**3 个 PR 同时红、其中一个是纯文档改动**——红在与你改动毫无字面关系的地方时，先查是不是跨仓契约。修法顺序：先合 fixture 刷新（#122），再合其余；重新冻结时逐行核对 diff「只有新参数、无删除、工具名/数量无漂移」，且对着子仓 `origin/main` 生成（本机 OL 主检出停在已合并的旧分支，对着我生成会把 pre-#115 的 schema 冻进去）。
+- **门禁自身假红（新坑，已入清单）**：`doc_inventory --check` 在没有 `Omni_*` 子仓的 worktree 里报 155 条 `source ... missing -> 0`，真实检出里是 exit 0。我一度把 155 条当成「main 既有红」写进 commit message——**复核后才没把假红结论固化进历史**。
+- **新坑**（已入上方清单）：门禁看不见输入时的假红；跨仓对外改动需连带重冻对侧契约 fixture。
+- Conclusion: 3 个遗留 issue 归零；连带修掉 1 个自造回归；4 仓全清。
+
+### 2026-10-01：12 个 issue 清账收口（6 PR 合并）+ 2 个新坑（worktree PYTHONPATH / module-scoped env 泄漏）
+
+- Date: 2026-10-01, round: 用户令「继续手头的事」+ 给出 12 个 issue 的 e2e 清单与合并优先级 → 逐项核实远端真状态 → 修复/合并/关单
+- Scope: e2e-test-suite（PR #107/#111/#115/#116/#117/#118）、OPP（PR #86/#87）、OL（PR #116/#117）、ORF（PR #63）
+- Result: **6 个 PR 全部合并，12 个 issue 全部关闭**（e2e#102/#103/#109/#110/#113/#114、OPP#82/#83、OL#111/#113、ORF#60）。4 仓 backup == origin。合并顺序按文件冲突排：`mcp_matrix_verifier.py` 三 PR（#111/#115/#116）先 #115（base）→ #116（基于它）→ #111，实测三者无冲突。
+- **首轮判断被证伪一次（重要）**：先前会话的总结把 OPP#82/#83、OL#111/#113、ORF#60 记为「已合并」，实测 `git ls-remote --heads origin` 全为空、`merge-base --is-ancestor` 全为 NO——**5 个修复从未推送过**。教训同清单第 59 条：agent/会话的任务状态 ≠ 交付状态，收尾一律以 `git`/`gh` 真实状态为准。
+- **PR #118 的红不是既有失败，是新测试自己污染会话**：`test_e2e_cli_vs_mcp_equivalence.py` 的 module-scoped `_no_llm_configuration` 删掉 3 个 LLM env 后把恢复委托给 function-scoped `_isolate_process_state`，而后者快照拍在删除之后 → 泄漏。CI 因此挂在按字典序排在 `test_e2e_*` 之后的 `test_ol_lqa_autoinvoke.py`（7 个 `ModelPoolInitError`）+ `test_pipeline_keep_intermediate_survives`。修法：fixture 自己快照还原（`28a192b`）+ 补「无key 泄漏回环境」回归测试；修后本地 13 passed、CI 全绿。
+- **排查上述假失败时踩到 `.pth` 陷阱**：在 worktree 里 `import opp` 解析到的是主检出目录（venv 的 editable `.pth` 硬编码 4 条绝对路径），worktree 改动根本没被跑到，11/13 假失败。补 `PYTHONPATH=<worktree>/src` 后 13/13 过 + 全量 **1147 passed / 24 skipped**。**已入坑清单。**
+- 收尾细节：squash merge 会丢 body 里的 `Fixes #N` trailer → e2e#102/#103 未自动关闭，按「先验证 fix 真在 origin/main 上」再手动 close 并附证据（`git ls-tree origin/main` 确认 4 个 e2e 文件与 `omni_suite/cli_json.py` 均在）。`git push` 对 OPP/OL/ORF 的 ssh remote 报 `Could not read from remote`，改用 `git push https://github.com/1StepMore/<repo>.git` 一次成功。
+- **新坑**（已入上方清单）：worktree PYTHONPATH 假绿；module-scoped fixture 删 env 的泄漏方向（与既有「模块级设 allowlist env」那坑反向同族）。
+- Conclusion: 4 仓 open PR = 0；12 个 issue 归零；剩余在办：OL#112（提示词外置）、OL#115（质检门 fail-loud），两个均以独立 worktree 派 agent 实现中。
 
 ### 2026-09-21（第三轮）：4 仓 issue/PR 全清账 + #56 umbrella 收口
 
