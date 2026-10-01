@@ -1,6 +1,7 @@
 """omni-suite — suite-level CLI for the Omni document localization pipeline."""
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import shlex
@@ -8,12 +9,33 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
-from . import run_manifest
+from . import cli_json, run_manifest
 
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
 _COMPAT_FILE = Path(__file__).parent.parent / "COMPATIBILITY.md"
 _VENV_BIN = Path(__file__).parent.parent / ".venv_ol" / "bin"
+
+# The three sub-repos, in report order. Single source of truth for both
+# `check` (which runs their test suites) and `status` (which reads their
+# versions).
+_MODULE_DIRS: tuple[tuple[str, str], ...] = (
+    ("OPP", "Omni_Pre_Processor"),
+    ("OL", "Omni_Localizer"),
+    ("ORF", "Omni_Re_Formatter"),
+)
+
+# MCP-aligned error codes (omni_mcp/_errors.py) for a failing pipeline stage.
+_STAGE_ERROR_CODES = {
+    "opp": "OPP_FAILED",
+    "ol": "OL_FAILED",
+    "orf": "ORF_FAILED",
+}
+
+#: Machine-readable output mode for this invocation (``omni-suite --json``).
+#: Inactive ⇒ every method is a no-op and the CLI behaves exactly as before.
+_JSON = cli_json.JsonOutput()
 
 # Canonical LLM provider keys OL uses for translation/judging/restoration —
 # the priorities in Omni_Localizer/config/default.yaml
@@ -65,7 +87,12 @@ def _validate_env(require_llm: bool = False) -> None:
         # T-05: agents parse stdout — the warning belongs on stderr.
         print(msg, file=sys.stderr)
         if require_llm:
-            sys.exit(1)
+            _JSON.failure(
+                1,
+                "OMNI_MISSING_LLM_KEYS",
+                "No LLM provider keys found — set at least one of: "
+                + ", ".join(_LLM_API_KEYS),
+            )
     elif missing_keys:
         # At least one provider is configured; the unset entries are fallbacks
         # the router skips, not a misconfiguration. Names only — never echo
@@ -92,35 +119,58 @@ def _no_llm_needed(args: list[str]) -> bool:
 
 
 def main() -> None:
-    if len(sys.argv) < 2 or sys.argv[1] in ("--help", "-h"):
+    """Entry point: ``omni-suite [--json] <command> [options]``."""
+    json_mode, argv = cli_json.split_json_flag(sys.argv[1:])
+    _JSON.reset(active=json_mode, command=argv[0] if argv else "--help")
+    try:
+        with _JSON.human_output_on_stderr():
+            content = _dispatch(argv)
+    except Exception as exc:
+        # The envelope is the only channel an agent has left, so a crash must
+        # still answer. Inactive mode re-raises to keep the traceback intact.
+        if not _JSON.active:
+            raise
+        _JSON.failure(1, "OMNI_INTERNAL_ERROR", f"{type(exc).__name__}: {exc}")
+    # SystemExit is a BaseException and never reaches here: every failure site
+    # emits its own envelope before exiting (see _JSON.failure).
+    _JSON.success(content)
+
+
+def _dispatch(argv: list[str]) -> dict[str, Any]:
+    """Route *argv* (already stripped of ``--json``) and return its payload."""
+    if not argv or argv[0] in ("--help", "-h"):
         _validate_env(require_llm=False)
-        _print_usage()
-        return
-    cmd = sys.argv[1]
+        return {"usage": _JSON.human(_print_usage)}
+    cmd = argv[0]
     if cmd == "--version":
-        print(_VERSION_FILE.read_text(encoding="utf-8").strip())
-    elif cmd == "--versions":
-        _print_versions()
-    elif cmd == "--compatibility":
-        print(_COMPAT_FILE.read_text(encoding="utf-8"))
-    elif cmd in ("pipeline", "translate"):
-        remaining = sys.argv[2:]
+        return _print_version()
+    if cmd == "--versions":
+        return _print_versions()
+    if cmd == "--compatibility":
+        return {
+            "compatibility": _JSON.human(
+                lambda: print(_COMPAT_FILE.read_text(encoding="utf-8"))
+            )
+        }
+    if cmd in ("pipeline", "translate"):
+        remaining = argv[1:]
         # Show help without requiring API keys
         if not remaining or remaining[0] in ("--help", "-h"):
-            _run_pipeline(["--help"])
-        else:
-            # Non-obvious: gates-only/fake-llm run real OPP/OL subprocesses,
-            # yet none of the three bypass flags needs an LLM key at this boundary.
-            _validate_env(require_llm=not _no_llm_needed(remaining))
-            _run_pipeline(remaining)
-    elif cmd == "check":
-        _run_check(sys.argv[2:])
-    elif cmd == "status":
-        _run_status(sys.argv[2:])
-    else:
-        print(f"Unknown command: {cmd}")
-        _print_usage()
-        sys.exit(1)
+            return _run_pipeline(["--help"])
+        # Non-obvious: gates-only/fake-llm run real OPP/OL subprocesses,
+        # yet none of the three bypass flags needs an LLM key at this boundary.
+        _validate_env(require_llm=not _no_llm_needed(remaining))
+        return _run_pipeline(remaining)
+    if cmd == "check":
+        return _run_check(argv[1:])
+    if cmd == "status":
+        return _run_status(argv[1:])
+
+    _JSON.human(lambda: print(f"Unknown command: {cmd}"))
+    usage = _JSON.human(_print_usage)
+    _JSON.failure(
+        1, "OMNI_UNKNOWN_COMMAND", f"Unknown command: {cmd}", content={"usage": usage}
+    )
 
 
 def _resolve_tool(name: str) -> str:
@@ -132,14 +182,21 @@ def _resolve_tool(name: str) -> str:
     return shutil.which(name) or name
 
 
-def _run_pipeline(args: list[str]) -> None:
+def _run_pipeline(args: list[str]) -> dict[str, Any]:
     """Orchestrate OPP → OL → ORF on a single file.
 
     Usage: omni-suite pipeline <file> [--source-lang en] [--target-lang zh] [--target-format docx] [--fake-llm] [--resume-from opp|ol|orf] [--run-id ID] [--output <path>]
     """
     if not args or args[0] in ("--help", "-h"):
-        print("Usage: omni-suite pipeline <file> [--source-lang en] [--target-lang zh] [--target-format docx] [--fake-llm] [--resume-from opp|ol|orf] [--run-id ID] --output <path>")
-        return
+        return {
+            "usage": _JSON.human(
+                lambda: print(
+                    "Usage: omni-suite pipeline <file> [--source-lang en] "
+                    "[--target-lang zh] [--target-format docx] [--fake-llm] "
+                    "[--resume-from opp|ol|orf] [--run-id ID] --output <path>"
+                )
+            )
+        }
 
     # Parse args
     file_path, kwargs = _parse_pipeline_args(args)
@@ -154,11 +211,12 @@ def _run_pipeline(args: list[str]) -> None:
     run_id = kwargs.get("run-id") or Path(file_path).stem
 
     if resume_from is True or (resume_from is not None and resume_from not in run_manifest.STAGES):
-        print(
-            f"❌ Invalid --resume-from {resume_from!r}; expected one of {', '.join(run_manifest.STAGES)}",
-            file=sys.stderr,
+        message = (
+            f"Invalid --resume-from {resume_from!r}; "
+            f"expected one of {', '.join(run_manifest.STAGES)}"
         )
-        sys.exit(2)
+        print(f"❌ {message}", file=sys.stderr)
+        _JSON.failure(2, "OMNI_INVALID_INPUT", message)
 
     suite_root = Path(__file__).parent.parent
     opp = _resolve_tool("opp")
@@ -183,10 +241,17 @@ def _run_pipeline(args: list[str]) -> None:
                "--output-dir", str(opp_dir)]
 
     if dry_run:
+        ol_cmd = [ol, "translate-md", str(opp_dir / f"{stem}.md"), "-s", src, "-t", tgt, "-o", str(ol_dir)]
+        orf_cmd = [orf, "apply-md", str(ol_dir / f"{stem}.md"), "--target-format", fmt, "-o", out_path]
         print(f"[1/3] OPP would run: {shlex.join(opp_cmd)}")
-        print(f"[2/3] OL would run: {shlex.join([ol, 'translate-md', str(opp_dir / f'{stem}.md'), '-s', src, '-t', tgt, '-o', str(ol_dir)])}")
-        print(f"[3/3] ORF would run: {shlex.join([orf, 'apply-md', str(ol_dir / f'{stem}.md'), '--target-format', fmt, '-o', out_path])}")
-        return
+        print(f"[2/3] OL would run: {shlex.join(ol_cmd)}")
+        print(f"[3/3] ORF would run: {shlex.join(orf_cmd)}")
+        return {
+            "dry_run": True,
+            "input": file_path,
+            "output": out_path,
+            "commands": [shlex.join(c) for c in (opp_cmd, ol_cmd, orf_cmd)],
+        }
 
     # R-01: decide which stages to reuse BEFORE touching the filesystem. A
     # missing intermediate (or a stale manifest whose artifacts were deleted)
@@ -231,7 +296,7 @@ def _run_pipeline(args: list[str]) -> None:
             print(f"[1/3] OPP extracting {file_path} → {opp_dir}")
             manifest.mark("opp", run_manifest.RUNNING)
             manifest.save(manifest_path)
-            subprocess.run(opp_cmd, check=True, env=env, timeout=120)
+            subprocess.run(opp_cmd, check=True, env=env, timeout=120, **_JSON.stage_stdout())
             manifest.mark("opp", run_manifest.COMPLETE, str(opp_dir))
             manifest.save(manifest_path)
 
@@ -254,7 +319,8 @@ def _run_pipeline(args: list[str]) -> None:
                 ol_result = subprocess.run(ol_cmd, check=True, env=env, timeout=300,
                                            capture_output=True, text=True)
             else:
-                subprocess.run(ol_cmd, check=True, env=env, timeout=300)
+                subprocess.run(ol_cmd, check=True, env=env, timeout=300,
+                               **_JSON.stage_stdout())
             manifest.mark("ol", run_manifest.COMPLETE, str(ol_dir))
             manifest.save(manifest_path)
 
@@ -277,7 +343,7 @@ def _run_pipeline(args: list[str]) -> None:
                     print("--- OL translate-md stdout (tail) ---")
                     print(tail)
                 print("(ol extract-warnings unavailable — showing OL stdout tail instead)")
-            return
+            return _manifest_payload(manifest, gates_only=True, warnings=warnings_run.stdout)
 
         # Step 3: ORF backfill
         current_stage = "orf"
@@ -285,40 +351,48 @@ def _run_pipeline(args: list[str]) -> None:
         manifest.mark("orf", run_manifest.RUNNING)
         manifest.save(manifest_path)
         subprocess.run([orf, "apply-md", str(ol_md), "--target-format", fmt, "-o", out_path],
-                      check=True, env=env, timeout=120)
+                       check=True, env=env, timeout=120, **_JSON.stage_stdout())
         manifest.mark("orf", run_manifest.COMPLETE, out_path)
         manifest.status = run_manifest.RUN_COMPLETE
         manifest.save(manifest_path)
 
         print(f"✅ Pipeline complete: {out_path}")
+        return _manifest_payload(manifest)
     except KeyboardInterrupt:
         failed = True
         manifest.mark(current_stage, run_manifest.FAILED, "interrupted")
         manifest.save(manifest_path)
         _print_partial(manifest)
         print("❌ Interrupted — intermediates kept for --resume-from", file=sys.stderr)
-        sys.exit(130)
+        _JSON.failure(130, "OMNI_INTERRUPTED",
+                      "Interrupted — intermediates kept for --resume-from",
+                      _manifest_payload(manifest))
     except subprocess.TimeoutExpired:
         failed = True
         manifest.mark(current_stage, run_manifest.FAILED, "timeout")
         manifest.save(manifest_path)
         _print_partial(manifest)
         print("❌ Timeout: a pipeline step exceeded its time limit", file=sys.stderr)
-        sys.exit(1)
+        _JSON.failure(1, "CLI_TIMEOUT",
+                      "Timeout: a pipeline step exceeded its time limit",
+                      _manifest_payload(manifest))
     except subprocess.CalledProcessError as e:
         failed = True
         manifest.mark(current_stage, run_manifest.FAILED, f"exit {e.returncode}")
         manifest.save(manifest_path)
         _print_partial(manifest)
         print(f"❌ Pipeline step failed: {e}", file=sys.stderr)
-        sys.exit(1)
+        _JSON.failure(1, _STAGE_ERROR_CODES.get(current_stage, "OMNI_INTERNAL_ERROR"),
+                      f"Pipeline step failed: {e}", _manifest_payload(manifest))
     except Exception as e:
         failed = True
         manifest.mark(current_stage, run_manifest.FAILED, type(e).__name__)
         manifest.save(manifest_path)
         _print_partial(manifest)
         print(f"❌ Pipeline error: {e}", file=sys.stderr)
-        sys.exit(1)
+        _JSON.failure(1, "OMNI_INTERNAL_ERROR", f"Pipeline error: {e}",
+                      _manifest_payload(manifest))
+
     finally:
         if keep_intermediate or gates_only:
             print(f"Intermediate files kept at: {temp_dir}")
@@ -330,6 +404,19 @@ def _run_pipeline(args: list[str]) -> None:
                   file=sys.stderr if failed else sys.stdout)
         else:
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _manifest_payload(
+    manifest: run_manifest.RunManifest, **extra: Any
+) -> dict[str, Any]:
+    """Machine payload for a pipeline run: manifest summary + stage states."""
+    return {
+        "run": manifest.summary(),
+        "input": manifest.input_file,
+        "output": manifest.output,
+        "stages": {s: st.to_dict() for s, st in manifest.stages.items()},
+        **extra,
+    }
 
 
 def _print_partial(manifest) -> None:
@@ -360,40 +447,44 @@ def _parse_pipeline_args(args: list[str]) -> tuple[str, dict]:
     return file_path, kwargs
 
 
-def _run_check(args: list[str]) -> None:
+def _run_check(args: list[str]) -> dict[str, Any]:
     """Run all 3 module test suites or readiness checks."""
-    readiness = "--readiness" in args
-    quick = "--quick" in args
-    suite_root = Path(__file__).parent.parent
+    if "--readiness" in args:
+        return _run_readiness_check(args)
+    if "--quick" in args:
+        return _run_quick_check()
+    return _run_module_tests(Path(__file__).parent.parent)
 
-    if readiness:
-        _run_readiness_check(args)
-        return
 
-    modules = [
-        ("OPP", suite_root / "Omni_Pre_Processor"),
-        ("OL", suite_root / "Omni_Localizer"),
-        ("ORF", suite_root / "Omni_Re_Formatter"),
-    ]
+def _run_quick_check() -> dict[str, Any]:
+    """Dependency/env probe behind ``check --quick``."""
+    pandoc = shutil.which("pandoc")
+    weasyprint = _module_available("weasyprint")
+    fake_llm = os.environ.get("OMNI_TEST_FAKE_LLM")
+    print("Quick check: dependencies and env")
+    print(f"  pandoc: {'✅' if pandoc else '❌'} {pandoc or 'not found'}")
+    print(f"  weasyprint: {'✅' if weasyprint else '❌ not installed'}")
+    print(f"  OMNI_TEST_FAKE_LLM: {'✅' if fake_llm else '❌'} set={bool(fake_llm)}")
+    return {
+        "quick": True,
+        "pandoc": pandoc,
+        "weasyprint": weasyprint,
+        "fake_llm": bool(fake_llm),
+    }
 
-    if quick:
-        print("Quick check: dependencies and env")
-        # Check pandoc
-        pandoc = shutil.which("pandoc")
-        print(f"  pandoc: {'✅' if pandoc else '❌'} {pandoc or 'not found'}")
-        # WeasyPrint
-        try:
-            import weasyprint  # noqa
-            print("  weasyprint: ✅")
-        except ImportError:
-            print("  weasyprint: ❌ not installed")
-        # FAKE_LLM
-        print(f"  OMNI_TEST_FAKE_LLM: {'✅' if os.environ.get('OMNI_TEST_FAKE_LLM') else '❌'} set={bool(os.environ.get('OMNI_TEST_FAKE_LLM'))}")
-        return
 
-    for name, path in modules:
+def _run_module_tests(suite_root: Path) -> dict[str, Any]:
+    """Run each module's pytest suite; report each summary line.
+
+    Never fails the command: a red module suite is reported in the payload, and
+    the exit code stays 0 as it has always been.
+    """
+    results: list[dict[str, Any]] = []
+    for name, rel in _MODULE_DIRS:
+        path = suite_root / rel
         if not (path / "tests").exists():
             print(f"  {name}: tests/ not found — skip")
+            results.append({"module": name, "status": "skipped"})
             continue
         print(f"  Running {name} tests...")
         result = subprocess.run(
@@ -404,55 +495,103 @@ def _run_check(args: list[str]) -> None:
         last = lines[-1] if lines else "(no output)"
         passed = " passed" in last
         print(f"  {name}: {'✅' if passed else '❌'} {last}")
+        results.append({
+            "module": name,
+            "status": "passed" if passed else "failed",
+            "returncode": result.returncode,
+            "summary": last,
+        })
+    return {"modules": results}
 
 
-def _run_status(args: list[str]) -> None:
+def _run_status(args: list[str]) -> dict[str, Any]:
     """Show env, dependency, and version status."""
+    modules = _module_versions()
+    dependencies = {
+        "pandoc": shutil.which("pandoc"),
+        "weasyprint": _module_available("weasyprint"),
+        "aspose.email": _module_available("aspose.email"),
+        "fake_llm": bool(os.environ.get("OMNI_TEST_FAKE_LLM")),
+    }
+    _print_status(_VERSION_FILE.read_text(encoding="utf-8").strip(), modules, dependencies)
+    return {
+        "suite": _read_repo_version(_VERSION_FILE),
+        "modules": modules,
+        "dependencies": dependencies,
+    }
+
+
+def _module_versions() -> dict[str, str]:
+    """Each sub-repo's ``pyproject.toml`` version, ``?`` when undiscoverable."""
     suite_root = Path(__file__).parent.parent
-
-    print(f"Omni Suite: {_VERSION_FILE.read_text(encoding='utf-8').strip()}")
-    print()
-
-    # Module versions
-    for name, path in [
-        ("OPP", suite_root / "Omni_Pre_Processor"),
-        ("OL", suite_root / "Omni_Localizer"),
-        ("ORF", suite_root / "Omni_Re_Formatter"),
-    ]:
-        pyproject = path / "pyproject.toml"
+    versions = {}
+    for name, rel in _MODULE_DIRS:
+        pyproject = suite_root / rel / "pyproject.toml"
         version = "?"
         if pyproject.exists():
             for line in pyproject.read_text().splitlines():
                 if line.startswith("version ="):
                     version = line.split("=", 1)[1].strip().strip('"').strip("'")
                     break
+        versions[name] = version
+    return versions
+
+
+def _module_available(name: str) -> bool:
+    """True when *name* imports — the probe behind the ✅/❌ dependency lines."""
+    try:
+        importlib.import_module(name)
+    except ImportError:
+        return False
+    return True
+
+
+def _print_status(
+    suite_text: str, modules: dict[str, str], dependencies: dict[str, Any]
+) -> None:
+    print(f"Omni Suite: {suite_text}")
+    print()
+
+    for name, version in modules.items():
         print(f"  {name}: {version}")
 
     print()
     print("Dependencies:")
-    print(f"  pandoc:       {shutil.which('pandoc') or '❌ not found'}")
-    try:
-        import weasyprint; del weasyprint; print("  weasyprint:   ✅")
-    except ImportError:
-        print("  weasyprint:   ❌ not installed")
-    try:
-        import aspose.email; del aspose.email; print("  aspose.email: ✅ (.msg available)")
-    except ImportError:
-        print("  aspose.email: ❌ not installed (.msg requires)")
-    print(f"  FAKE_LLM:     {'set' if os.environ.get('OMNI_TEST_FAKE_LLM') else 'not set'}")
+    print(f"  pandoc:       {dependencies['pandoc'] or '❌ not found'}")
+    print(f"  weasyprint:   {'✅' if dependencies['weasyprint'] else '❌ not installed'}")
+    print(f"  aspose.email: {'✅ (.msg available)' if dependencies['aspose.email'] else '❌ not installed (.msg requires)'}")
+    print(f"  FAKE_LLM:     {'set' if dependencies['fake_llm'] else 'not set'}")
 
 
-def _run_readiness_check(args: list[str]) -> None:
+def _run_readiness_check(args: list[str]) -> dict[str, Any]:
     """Run the production-readiness checker."""
     checker = Path(__file__).parent.parent / "scripts" / "check_readiness.py"
     if not checker.exists():
         print("❌ Production-readiness checker not found at scripts/check_readiness.py")
-        sys.exit(1)
+        _JSON.failure(
+            1,
+            "CLI_NOT_FOUND",
+            "Production-readiness checker not found at scripts/check_readiness.py",
+        )
     cmd = [sys.executable, str(checker)]
     if "--verbose" in args or "-v" in args:
         cmd.append("--verbose")
-    result = subprocess.run(cmd, cwd=Path(__file__).parent.parent)
-    sys.exit(result.returncode)
+    result = subprocess.run(cmd, cwd=Path(__file__).parent.parent,
+                            **_JSON.stage_stdout())
+    content = {
+        "checker": str(checker),
+        "returncode": result.returncode,
+        "verbose": len(cmd) > 2,
+    }
+    if result.returncode != 0:
+        _JSON.failure(
+            result.returncode,
+            "OMNI_READINESS_FAILED",
+            f"Production-readiness check failed (exit {result.returncode})",
+            content,
+        )
+    _JSON.success(content)
+    sys.exit(0)
 
 
 _VERSION_SOURCES = [
@@ -485,10 +624,24 @@ def _read_repo_version(path: Path) -> str:
     return "N/A (not found)"
 
 
-def _print_versions() -> None:
+def _print_version() -> dict[str, Any]:
+    """Print the suite version file, exactly as ``--version`` always has."""
+    text = _JSON.human(
+        lambda: print(_VERSION_FILE.read_text(encoding="utf-8").strip())
+    )
+    return {"version": _read_repo_version(_VERSION_FILE), "text": text}
+
+
+def _print_versions() -> dict[str, Any]:
     """Print all 4 component versions from the repo source of truth."""
-    for label, path in _VERSION_SOURCES:
-        print(f"{label}: {_read_repo_version(path)}")
+    versions = {label: _read_repo_version(path) for label, path in _VERSION_SOURCES}
+
+    def emit() -> None:
+        for label, value in versions.items():
+            print(f"{label}: {value}")
+
+    _JSON.human(emit)
+    return {"versions": versions}
 
 
 def _print_usage() -> None:
