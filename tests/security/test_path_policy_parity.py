@@ -80,12 +80,14 @@ CANONICAL_BLOCKED_EXTENSIONS: frozenset[str] = frozenset({
     ".js",
 })
 
-#: 各模块扩展名白名单**有意**不同（OPP 摄入 16 种输入格式、OL 摄入词典/TMX/XLIFF/MD
+#: 各模块扩展名白名单**有意**不同（OPP 摄入 20 种输入格式、OL 摄入词典/TMX/XLIFF/MD
 #: 7 种、ORF 产出 21 种格式），所以分别冻结；差异本身不是漂移，未经本表确认的改动才是。
+#: OPP 的 .htm/.tsv/.msg/.ipynb 由 OPP#88 补入：四者均为「extractor 已支持、MCP 门禁却拒绝」
+#: 的漂移，修复后 extractor 声明集与白名单之差归零（.msg 是 Outlook 输入，与 ORF 行的输出去重无关）。
 OPP_ALLOWED_EXTENSIONS: frozenset[str] = frozenset({
     ".md", ".docx", ".pptx", ".pdf", ".xliff", ".xlf", ".xml",
-    ".html", ".odt", ".epub", ".zip", ".txt",
-    ".xlsx", ".csv", ".json", ".eml",
+    ".html", ".htm", ".odt", ".epub", ".zip", ".txt",
+    ".xlsx", ".csv", ".tsv", ".json", ".eml", ".msg", ".ipynb",
 })
 OL_ALLOWED_EXTENSIONS: frozenset[str] = frozenset({
     ".json", ".tmx", ".xlf", ".xliff", ".md", ".yaml", ".yml",

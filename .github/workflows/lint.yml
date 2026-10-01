@@ -77,6 +77,18 @@ jobs:
         run: |
           pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter
 
+      # omni_security is the FOURTH path-policy copy (the orchestrator imports
+      # it). It is tracked in-tree, not cloned, and is NOT in the uv-workspace
+      # install set above -- so without this, `import omni_security` resolves to
+      # the top-level `omni_security/` directory as an implicit namespace package
+      # and the parity step dies with "cannot import name 'BLOCKED_EXTENSIONS'
+      # from 'omni_security' (unknown location)". Masked until now: the
+      # changed-file scoping no-ops the parity gate unless a PR touches the
+      # policy surface. tests/contract/test_workflow_self_containment.py only
+      # covers the MCP-matrix job, not this one.
+      - name: Install omni_security (4th path-policy copy)
+        run: pip install -e ./omni_security
+
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
 
