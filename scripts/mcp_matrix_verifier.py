@@ -229,6 +229,7 @@ async def _run_one_cell_mcp(
                 "content": md_content,
                 "source_lang": "en",
                 "target_lang": "zh",
+                "config_path": str(SUITE_ROOT / "Omni_Localizer" / "config" / "default.yaml"),
             }
             if opp_traceparent:
                 ol_args["traceparent"] = opp_traceparent
@@ -275,6 +276,11 @@ async def _run_one_cell_mcp(
                 return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
                                      opp_tool=opp_tool,
                                      detail=f"OPP MCP: no xliff_content: {opp_resp}")
+            skeleton_path = _opp_payload(opp_resp).get("skeleton_path")
+            if not skeleton_path:
+                return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
+                                     opp_tool=opp_tool,
+                                     detail=f"OPP MCP: 未返回 skeleton_path: {opp_resp}")
             opp_traceparent = opp_resp.get("traceparent")
             xlf_file = cell_dir / "opp" / f"{Path(src).stem}.xlf"
             xlf_file.write_text(xliff_content, encoding="utf-8")
@@ -286,6 +292,7 @@ async def _run_one_cell_mcp(
                 "source_lang": "en",
                 "target_lang": "zh",
                 "output_path": str(ol_xlf),
+                "config_path": str(SUITE_ROOT / "Omni_Localizer" / "config" / "default.yaml"),
             }
             if opp_traceparent:
                 ol_args["traceparent"] = opp_traceparent
@@ -302,7 +309,7 @@ async def _run_one_cell_mcp(
 
             orf_out = cell_dir / f"result.{outp}"
             orf_args = {
-                "input_file": str(xlf_file),
+                "input_file": skeleton_path,
                 "xliff_path": str(ol_xlf),
                 "output_path": str(orf_out),
                 "format": outp,
