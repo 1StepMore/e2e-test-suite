@@ -26,7 +26,6 @@ import sys
 import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Optional
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +42,65 @@ def _can_import(name: str) -> bool:
         return True
     except ImportError:
         return False
+
+
+#: Modules every cell needs. Probed before the matrix runs so a broken
+#: environment reports one clear error instead of ~195 red cells (e2e#105).
+REQUIRED_MODULES = ("opp.cli", "ol_cli", "orf")
+
+
+def _select_interpreter(suite_root: Path) -> Path:
+    """The interpreter the cells will run under.
+
+    Factored out so ``preflight`` probes exactly what the cells will use.
+    A preflight that checked a *different* interpreter would pass while
+    every cell failed.
+    """
+    py = suite_root / ".venv_ol" / "bin" / "python"
+    if py.exists():
+        return py
+    return Path(sys.executable)
+
+
+def _cell_env(suite_root: Path) -> dict[str, str]:
+    """The environment every cell subprocess runs under.
+
+    The three modules are resolved through ``PYTHONPATH``, not through an
+    installed distribution, so the preflight has to import them with this
+    same env or it will probe a path the cells never use.
+    """
+    env = os.environ.copy()
+    env["OMNI_TEST_FAKE_LLM"] = "1"
+    env["OMNI_TEST_FAKE_PANDOC"] = "1"
+    env["PYTHONPATH"] = ":".join(filter(None, [
+        env.get("PYTHONPATH", ""),
+        str(suite_root / "Omni_Pre_Processor" / "src"),
+        str(suite_root / "Omni_Localizer" / "src"),
+        str(suite_root / "Omni_Re_Formatter" / "src"),
+        str(suite_root / ".venv_ol" / "lib" / "python3.13" / "site-packages"),
+    ]))
+    return env
+
+
+def preflight(python: Path, env: dict[str, str]) -> list[str]:
+    """Return the modules this interpreter cannot import. Empty = usable.
+
+    Mirrors ``scripts/nightly_gap.py:preflight`` so both matrix entry
+    points agree on what "the environment is broken" means.
+    """
+    missing: list[str] = []
+    for mod in REQUIRED_MODULES:
+        try:
+            r = subprocess.run(
+                [str(python), "-c", f"import {mod}"],
+                capture_output=True, text=True, timeout=120, env=env,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            missing.append(f"{mod} ({type(exc).__name__})")
+            continue
+        if r.returncode != 0:
+            missing.append(mod)
+    return missing
 
 
 AVAILABILITY = {
@@ -266,20 +324,8 @@ def _run_one_cell(
     if not _resolve_fixture(inp, src, corpus_mode, suite_root):
         return CellResult(inp, outp, path, "skip", 0.0, skip_reason=f"no fixture for {inp}")
 
-    env = os.environ.copy()
-    env["OMNI_TEST_FAKE_LLM"] = "1"
-    env["OMNI_TEST_FAKE_PANDOC"] = "1"
-    env["PYTHONPATH"] = ":".join(filter(None, [
-        env.get("PYTHONPATH", ""),
-        str(suite_root / "Omni_Pre_Processor" / "src"),
-        str(suite_root / "Omni_Localizer" / "src"),
-        str(suite_root / "Omni_Re_Formatter" / "src"),
-        str(suite_root / ".venv_ol" / "lib" / "python3.13" / "site-packages"),
-    ]))
-
-    py = suite_root / ".venv_ol" / "bin" / "python"
-    if not py.exists():
-        py = Path(sys.executable)
+    env = _cell_env(suite_root)
+    py = _select_interpreter(suite_root)
 
     if path == "md":
         result = _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
@@ -633,10 +679,33 @@ def main() -> int:
     parser.add_argument("--fidelity", action="store_true",
                         help="Compute content fidelity scores (text/table/image preservation) "
                              "after each successful cell. Requires --corpus real for meaningful scores.")
+    parser.add_argument("--skip-preflight", action="store_true",
+                        help="Bypass the environment gate (e2e#105). Only useful when you "
+                             "deliberately want the per-cell verdicts from an incomplete "
+                             "environment, e.g. to inspect which cells skip.")
     args = parser.parse_args()
 
-    import tempfile
     suite_root: Path = args.suite_root.resolve()
+
+    # Environment gate (e2e#105): without it a half-installed venv turns all
+    # 195 cells red and sends the nightly loop to debug cells that were never
+    # broken. Refuse to emit a matrix, and name the interpreter probed.
+    interpreter = _select_interpreter(suite_root)
+    cell_env = _cell_env(suite_root)
+    missing = [] if args.skip_preflight else preflight(interpreter, cell_env)
+    print(f"Interpreter: {interpreter}")
+    if missing:
+        print(
+            f"\n环境不可用，退出（不产出矩阵）：{interpreter}\n"
+            f"  缺模块：{', '.join(missing)}\n"
+            f"  这不是格式矩阵的差距，是环境问题。在这种解释器下每一格都会\n"
+            f"  走到子进程再失败（实测 128 fail / 0 pass 的全假红）。\n"
+            f"  修法：用装了 OPP/OL/ORF 三件套的 .venv_ol 解释器重跑，详见 SETUP.md。\n"
+            f"  确实要在这个环境里跑（例如只想看哪些格子会 skip）：加 --skip-preflight。",
+            file=sys.stderr,
+        )
+        return 2
+
     if args.out_dir is None:
         out_dir = suite_root / "test_artifacts" / "format_matrix" / time.strftime("%Y%m%d-%H%M%S")
     else:
