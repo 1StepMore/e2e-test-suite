@@ -14,15 +14,37 @@ on:
       - 'Omni_Localizer/src/ol_mcp/**'
       - 'Omni_Re_Formatter/src/orf/cli.py'
       - 'Omni_Re_Formatter/src/orf/mcp/**'
+      # Self-trigger (e2e#112 follow-up): otherwise editing this file skips this
+      # workflow, so the guard test below never runs when it matters.
+      - '.github/workflows/contract-tests.yml'
   pull_request:
     branches: [main, master]
     paths:
       - 'CONTRACT.md'
       - 'tests/contract/**'
       - 'scripts/mcp_matrix_verifier.py'
+      - '.github/workflows/contract-tests.yml'
   workflow_dispatch:
 
 jobs:
+  workflow-self-containment:
+    name: Workflow self-containment (e2e#112)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install test deps
+        run: pip install --upgrade pytest pyyaml
+      # Hermetic and clone-free, unlike its sibling jobs: this only parses this
+      # workflow and the verifier source.
+      # --noconftest: tests/conftest.py imports docx, which this job does not
+      # install; without this the run dies at collection, not at an assertion.
+      - name: Assert the MCP matrix job is self-sufficient
+        run: python -m pytest tests/contract/test_workflow_self_containment.py -v --tb=short --noconftest
+
   contract-documentation:
     name: CONTRACT.md documentation (P3-T3/T4)
     runs-on: ubuntu-latest
