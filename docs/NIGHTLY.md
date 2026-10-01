@@ -127,6 +127,51 @@ cd <repo>
 **读法**：CLI 通道已经是一条**真的、能出产物的链路**（这是本计划第一个真基线）。
 MCP 通道的数字目前**一个都不能信**——不是"全红"，是"没跑"。
 
+### 差距计算器用法：口径与参数（活区补充 2026-10-01）
+
+`scripts/nightly_gap.py` 的**用法段落**（只补参数说明；上面【冻结区】的完成定义与验收判据未动）：
+
+```bash
+# 全量（默认口径：minimal 夹具、无子集、不算保真度）
+.venv_ol/bin/python scripts/nightly_gap.py \
+    --json-out test_artifacts/nightly/gap.json \
+    --md-out  test_artifacts/nightly/gap.md
+
+# 只跑子集 + 真实夹具 + 保真度（三个参数都原样透传给 CLI 与 MCP 两个验证器）
+.venv_ol/bin/python scripts/nightly_gap.py \
+    --subset docx --corpus real --fidelity \
+    --json-out test_artifacts/nightly/gap.json
+```
+
+| 参数 | 默认 | 含义 |
+|:---|:---|:---|
+| `--subset` | 空 = **全量** | 透传：只跑指定输入子集（逗号分隔，如 `docx,md`）。子集跑总格数变小，需同时给 `--expect-total`（不自动放行） |
+| `--corpus` | `minimal` | 透传：矩阵夹具口径。`minimal` = 最小夹具（**默认事实口径**）；`real` = `test_corpus/` 真实夹具 |
+| `--fidelity` | 关 | 透传：通过的格子再算内容保真度分数。按能力探测透传——MCP 验证器暂不认 `--fidelity`，会跳过并在 markdown 里写明，不硬传报错 |
+| `--max-skip` | `67` | **每通道**跳过基线（不是两条通道相加后的合计基线） |
+
+**每通道基线**（2026-10-01 裁定）：
+
+```text
+gap = fail 合计 + Σ_通道 max(0, skipped_通道 − --max-skip)
+```
+
+- CLI、MCP **各自**跟 `--max-skip` 比一次；JSON 看 `per_channel_gap: {CLI: N, MCP: M}`
+  （两数之和 = `gap_units`），顶层 `channels` 里保留各通道原始 `total/passed/skipped`。
+- JSON 另带 `run_options: {subset, corpus, fidelity}` —— 每份矩阵自带口径，横向可比。
+
+**豁免清单 `EXEMPT_SKIP_REASONS`（夹具内容依赖类跳过，单独计数）** —— 子串匹配：
+
+- `MD→SRT requires timestamped cues`
+- `MD→JSON requires JSON code block`
+- `XLSX→PPTX: no slide content`
+- `PPTX→XLSX: no table content`
+
+这些理由的跳过按通道计入 JSON 的 `exempt_skips`（附 `exempt_skip_reasons` 明细），
+markdown 里写成「skip 67 = 豁免 23 + 需清理 44」，**豁免 = 夹具内容依赖，非能力缺陷；
+要清掉它们需要补语料**（不是装二进制）。它们**照原样保留在各通道 `skipped` 总数里**，
+不静默吞掉；`pandoc` / `nbformat` / `xliff` 之类**环境或能力类跳过不豁免**，仍属「需清理的 skip」。
+
 ### 计算器自身修掉的一个假绿（自我披露）
 
 第一版 `nightly_gap.py` 在验证器没落 `matrix.json` 时（`total/passed/failed/skipped`
