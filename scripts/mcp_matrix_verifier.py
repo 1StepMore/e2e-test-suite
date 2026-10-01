@@ -146,53 +146,19 @@ def _opp_payload(resp: dict) -> dict:
 # Cell execution
 # ---------------------------------------------------------------------------
 
-# Mirror the skip rules from format_matrix_verifier.py
-SKIP_RULES = [
-    ("output", "pptx", "md2pptx CLI not installed"),
-    ("output", "docx", "pandoc not installed"),
-    ("output", "pdf", "pandoc/weasyprint not installed"),
-    ("output", "odt", "pandoc not installed"),
-    ("output", "epub", "pandoc not installed"),
-    ("output", "rtf", "pandoc not installed"),
-    ("output", "icml", "pandoc not installed"),
-    ("output", "msg", "aspose-email-foss not installed"),
-    ("input", "ipynb", "nbformat not installed"),
-    ("*", "json", "MD→JSON requires JSON code block or OPP key=value source"),
-    ("*", "srt", "MD→SRT requires timestamped cues; no timestamps in fixture"),
-    ("pptx", "xlsx", "PPTX→XLSX: no table content in slide fixture"),
-    ("xlsx", "pptx", "XLSX→PPTX: no slide content in table fixture"),
-    ("*", "csv", "MD→CSV: apply_md doesn't produce CSV (use batch_convert for tabular data)"),
-    ("*", "xlsx", "MD→XLSX: apply_md doesn't produce XLSX (use batch_convert for tabular data)"),
-    ("*", "ipynb", "MD→IPYNB: apply_md doesn't produce IPYNB"),
-    ("*", "eml", "MD→EML: apply_md doesn't produce EML"),
-    ("xliff", "xlsx", "XLIFF: OPP doesn't produce skeleton for XLSX"),
-    ("xliff", "html", "XLIFF: OPP doesn't produce skeleton for HTML"),
-    ("xliff", "epub", "XLIFF: OPP doesn't produce skeleton for EPUB"),
-    ("xliff", "eml", "XLIFF: OPP doesn't produce skeleton for EML"),
-    ("xliff_xfmt", "*", "XLIFF cross-format not supported by ORF converters"),
-]
-
 XLIFF_INPUTS = {"docx", "pptx", "xlsx", "html", "epub", "eml"}
 XLIFF_OUTPUTS = {"docx", "pptx", "epub", "html", "odt"}
 
 
 def _should_skip(inp: str, outp: str, path: str) -> str | None:
-    """Return skip reason or None. Simplified version of the CLI check."""
-    for rule in SKIP_RULES:
-        axis, fmt, reason = rule
-        if axis == "input" and fmt == inp:
-            return reason
-        if axis == "output" and fmt == outp:
-            return reason
-        if axis == "*" and fmt == outp:
-            return reason
-        if axis == inp and fmt == outp:
-            return reason
-        if axis == "xliff" and fmt == inp and path == "xliff":
-            return reason
-        if axis == "xliff_xfmt" and path == "xliff" and inp != fmt:
-            return reason
-    return None
+    """Return skip reason or None.
+
+    Delegates to the CLI verifier's dynamic availability check so both
+    transports share one rule table (e2e-test-suite#128).
+    """
+    from format_matrix_verifier import _check_skip
+
+    return _check_skip(inp, outp, path)
 
 
 async def _run_one_cell_mcp(
