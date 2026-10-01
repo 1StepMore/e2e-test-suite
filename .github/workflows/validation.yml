@@ -173,8 +173,13 @@ jobs:
       # (requires_env: OL_CONFIG_PATH / OPP_CONFIG_PATH /
       #  OPP_ALLOWED_DIRECTORIES on pipeline + translate_file scenarios).
       OPP_ALLOWED_DIRECTORIES: /tmp
-      OPP_CONFIG_PATH: Omni_Pre_Processor/config/default.yaml
-      OL_CONFIG_PATH: Omni_Localizer/config/local.yaml
+      # Absolute, not repo-relative: scenario steps are launched with no explicit
+      # cwd and inherit the runner's working-directory, which only happens to be
+      # github.workspace. A relative path therefore resolves by accident, and a
+      # "Config file not found" would read as an OL defect rather than a
+      # workflow coupling. Anchoring states the dependency instead of implying it.
+      OPP_CONFIG_PATH: ${{ github.workspace }}/Omni_Pre_Processor/config/default.yaml
+      OL_CONFIG_PATH: ${{ github.workspace }}/Omni_Localizer/config/local.yaml
       # Real LLM keys for the canonical OL model pool (single source of truth:
       # Omni_Localizer/config/default.yaml — DeepSeek-V4.1-Flash and
       # glm-4.7-flash). `|| ''` is HONEST: a missing secret leaves the
