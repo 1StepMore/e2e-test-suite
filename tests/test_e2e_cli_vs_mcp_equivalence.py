@@ -28,6 +28,7 @@ import os
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
 
@@ -121,16 +122,32 @@ def _call_opp_mcp_extract_document(docx_path: Path, resource_dir: Path) -> dict:
 
 
 @pytest.fixture(scope="module", autouse=True)
-def _no_llm_configuration() -> None:
+def _no_llm_configuration() -> Iterator[None]:
     """Remove every LLM key and the fake seam for the whole module.
 
     Without this the file would only be *probably* hermetic — it would inherit
-    whatever the ambient environment happened to export. Restored on teardown
-    by the suite's autouse ``_isolate_process_state`` fixture.
+    whatever the ambient environment happened to export.
+
+    This fixture restores the environment *itself*. It cannot delegate to the
+    suite's autouse ``_isolate_process_state``, because that fixture is
+    function-scoped: its snapshot is taken when the first test in this module
+    runs, which is already *after* this module fixture has popped the keys, so
+    the popped state would be what it restores. The deletion would then escape
+    into the rest of the session and break every later test that depends on
+    ``OMNI_TEST_FAKE_LLM=1`` (e.g. ``test_ol_lqa_autoinvoke.py``, which fails
+    with ``ModelPoolInitError`` when the seam is gone).
     """
+    saved = {name: os.environ.get(name) for name in _LLM_ENV_VARS}
     for name in _LLM_ENV_VARS:
         os.environ.pop(name, None)
-    yield
+    try:
+        yield
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 @pytest.fixture(scope="module")
