@@ -26,8 +26,10 @@
 > **Venv prereq (one-time):** The suite ships with a single consolidated venv at
 > `.venv_ol/` that contains all three components (OPP, OL, ORF) installed in
 > editable mode. An older `.venv/` may still be present on disk but is
-> **DEPRECATED** — see `.venv/DEPRECATED.md`. All commands below use
-> `.venv_ol/bin/python`.
+> **DEPRECATED** — it never had OL installed, so running the verifiers with it
+> produces an all-red matrix that is an environment fault, not 128 real defects.
+> Migration steps and the two symlink traps: [`docs/venv-migration.md`](docs/venv-migration.md).
+> All commands below use `.venv_ol/bin/python`.
 >
 > If you ever need to rebuild the venv from scratch, run:
 > ```bash
