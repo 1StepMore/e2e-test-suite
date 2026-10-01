@@ -1017,6 +1017,12 @@
           "title": "No Glossary",
           "type": "boolean"
         },
+        "no_quality_gates": {
+          "default": false,
+          "description": "Deliberately skip the post-translation quality gates. The response reports quality_gates.status='skipped' so the skip is visible to the caller and distinguishable from the gates failing to run (issue #115).",
+          "title": "No Quality Gates",
+          "type": "boolean"
+        },
         "no_restoration": {
           "default": false,
           "description": "Skip the A12.4 post-translation placeholder restoration (CLI: --no-restoration)",
@@ -1136,6 +1142,12 @@
           "description": "Path to input XLIFF file",
           "title": "Input Path",
           "type": "string"
+        },
+        "no_quality_gates": {
+          "default": false,
+          "description": "Deliberately skip the post-translation quality gates. The response reports quality_gates.status='skipped' so the skip is visible to the caller and distinguishable from the gates failing to run (issue #115).",
+          "title": "No Quality Gates",
+          "type": "boolean"
         },
         "output_path": {
           "anyOf": [
