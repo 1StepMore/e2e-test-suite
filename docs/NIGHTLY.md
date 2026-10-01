@@ -97,6 +97,35 @@ cd <repo>
 
 ## 【活区】当前差距矩阵（真基线 2026-10-01）
 
+### 2026-10-02 夜间复跑（在最新 main 上）
+
+| 通道 | Cells | Pass | Skip | Fail | 时长 |
+|:---|---:|---:|---:|---:|---:|
+| **CLI** | 195 | **141** | 54 | **0** | 4021.3s |
+| **MCP** | 195 | **141** | 54 | **0** | 613.0s |
+| **合计** | 390 | **282** | 108 | **0** | — |
+
+`nightly_gap.py`：`gap_units 88 → 41`、`passing_units 256 → 282`、`skipped 134 → 108`、`failed 0 → 0`。
+两个通道**逐格一致**（同样的 skip_reasons 计数）→ DoD ③ 通道一致继续成立。
+
+剩余 54 skip/通道，全部是**内容/能力类**，已无 `X not installed` 的环境类条目：
+
+| skip 理由 | 每通道格数 |
+|:---|---:|
+| MD→SRT 需要时间戳（夹具无） | 11 |
+| MD→JSON 需要 JSON 代码块或 OPP key=value | 11 |
+| XLIFF 跨格式 ORF 不支持 | 10 |
+| XLIFF：OPP 不产 XLSX 骨架 | 4 |
+| XLIFF：OPP 不产 HTML 骨架 | 5 |
+| XLIFF：OPP 不产 EPUB 骨架 | 5 |
+| XLIFF：OPP 不产 EML 骨架 | 5 |
+| PPTX→XLSX / XLSX→PPTX（夹具无对应内容） | 3 |
+
+> **口径提醒**：`max_skip` 从 200（旧基线）变为 67（当前 main 的 `nightly_gap.py` 默认），
+> 因此「gap_units 由 88 → 41」是同口径下的真实下降；`regression_gap` 仍为护栏，不跨通道累加。
+
+### 2026-10-01 基线（历史）
+
 **CLI 通道：跑通了。** 真基线（`.venv_ol`，三件套齐全，`--json --out-dir`）：
 
 | 通道 | Cells | Pass | Skip | Fail | 时长 |
@@ -151,6 +180,10 @@ MCP 通道的数字目前**一个都不能信**——不是"全红"，是"没跑
 
 ### 已完成（agent 追加）
 
+- 2026-10-02：**MCP 通道跑通**（`195 | 141 | 54 | 0`，613.0s），与 CLI 通道逐格一致。
+  队列第 1–3 项（#109 白名单、#110 `md_content` 层级、跑 MCP 基线）**均已闭合**。
+- 2026-10-02：两通道合计 `390 | 282 | 108 | 0`；`gap_units 88 → 41`（同口径）。
+  剩余 skip 全部为内容/能力类，**已无环境类（`X not installed`）条目**。
 - 2026-10-01：**CLI 通道跑出真基线** `Cells 195 | Pass 128 | Skip 67 | Fail 0`（809.8s），
   非跳过格子 100% 通过、每格都有真实产物文件。
 - 2026-10-01：本机环境修好三处 —— 补装 `omni-pre-processor` 与 `omni-localizer`（editable）；
@@ -173,6 +206,8 @@ MCP 通道的数字目前**一个都不能信**——不是"全红"，是"没跑
 | 2026-10-01 | MCP 验证器漏设 OL 白名单变量 → 整条 MCP 通道死在启动 | **是**（挡住 DoD ③） | 已提 issue #109 |
 | 2026-10-01 | MCP 验证器取 `md_content` 层级错 → 非跳过格恒判红 | **是**（挡住 DoD ③） | 已提 issue #110 |
 | 2026-10-01 | `nightly_gap.py` 自身在取数失败时判"全过" | **是**（假绿） | 已自修（取数失败即 exit 2），见上「自我披露」 |
+| 2026-10-02 | OPP 本地 `.venv` 缺 `nbformat`（`src/opp/extractors/ipynb.py` 需它），但矩阵跑在 `.venv_ol`（有 nbformat），因此**不影响矩阵**；L1 §2.3 记的「nbformat 未声明」已过期（OPP/ORF 的 pyproject 都有 `notebook` extra） | 否 | 记账（L1 文字由 owner/code profile 改） |
+| 2026-10-02 | `.venv_ol` 缺 `extract_msg` / `aspose.email`，但本轮 msg 相关格未出现在 skip_reasons 里，故未构成实际 gap | 否 | 记账（若将来 msg 格转红再处理） |
 
 ---
 
