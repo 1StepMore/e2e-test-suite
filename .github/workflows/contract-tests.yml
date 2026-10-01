@@ -40,8 +40,10 @@ jobs:
         run: pip install --upgrade pytest pyyaml
       # Hermetic and clone-free, unlike its sibling jobs: this only parses this
       # workflow and the verifier source.
+      # --noconftest: tests/conftest.py imports docx, which this job does not
+      # install; without this the run dies at collection, not at an assertion.
       - name: Assert the MCP matrix job is self-sufficient
-        run: python -m pytest tests/contract/test_workflow_self_containment.py -v --tb=short
+        run: python -m pytest tests/contract/test_workflow_self_containment.py -v --tb=short --noconftest
 
   contract-documentation:
     name: CONTRACT.md documentation (P3-T3/T4)
