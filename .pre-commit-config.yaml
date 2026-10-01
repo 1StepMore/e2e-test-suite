@@ -167,21 +167,30 @@ repos:
       # unrelated to the change. The authoritative CI execution of this gate
       # is the Validation Framework workflow Structural job
       # (.github/workflows/validation.yml — runs on every PR/push with the
-      # full install). So the entry first probes the exact import; only when
-      # omni_mcp + omni_security are importable under .venv_ol does the real
-      # gate run. Otherwise it prints a visible SKIP naming the missing
-      # modules — never a silent pass. (This subsumes the previous
+      # full install). So the entry first probes the exact imports; only when
+      # omni_mcp + omni_security + fastmcp are importable under .venv_ol does
+      # the real gate run. Otherwise it prints a visible SKIP naming the
+      # missing modules — never a silent pass. (This subsumes the previous
       # .venv_ol-not-runnable skip: an interpreter that cannot execute fails
       # the same probe and takes the same SKIP branch.)
+      #
+      # `fastmcp` is in that probe because the execution-backed path imports
+      # fastmcp.Client (dispatch.py:781) even though the probe itself does not.
+      # It is declared only in Omni_Pre_Processor's `[mcp]` extra, which the lint
+      # job does not install — so the probe passed and the gate then died with
+      # `ModuleNotFoundError: No module named 'fastmcp'`. Same shape as the
+      # omni_security gap above, masked until a `scenarios/` PR activated this
+      # hook. validation.yml:95-102 installs a pinned fastmcp instead; copying
+      # that pin here would recreate the drift this probe exists to prevent.
       - id: omni-coverage-audit
         name: Omni Suite MCP tool coverage audit (execution-backed)
         verbose: true
         entry: |
           bash -c '
-            if err=$(.venv_ol/bin/python -c "import omni_mcp.server, omni_security" 2>&1); then
+            if err=$(.venv_ol/bin/python -c "import omni_mcp.server, omni_security, fastmcp" 2>&1); then
               exec .venv_ol/bin/python scripts/validation/coverage_audit.py
             fi
-            echo "SKIP: omni-coverage-audit needs omni_mcp.server + omni_security importable under .venv_ol — the authoritative execution is the Validation Framework workflow Structural job (CI validation.yml, full install). Probe said:"
+            echo "SKIP: omni-coverage-audit needs omni_mcp.server + omni_security + fastmcp importable under .venv_ol — the authoritative execution is the Validation Framework workflow Structural job (CI validation.yml, which installs fastmcp explicitly at a pinned version). Probe said:"
             echo "$err"
             exit 0
           '

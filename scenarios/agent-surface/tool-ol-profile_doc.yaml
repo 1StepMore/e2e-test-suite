@@ -17,7 +17,11 @@ steps:
   - name: 'profile_doc profiles the document text'
     kind: python
     command: |
-      import asyncio, json, sys
+      import asyncio, os, shutil, sys
+      FIXT = "/tmp/omni-agent-surface"
+      os.makedirs(FIXT, exist_ok=True)
+      if not os.path.exists(os.path.join(FIXT, "default.yaml")):
+          shutil.copy("Omni_Localizer/config/default.yaml", os.path.join(FIXT, "default.yaml"))
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import ProfileDocInput, profile_doc
       r = asyncio.run(profile_doc(params=ProfileDocInput(content="# Hello World\n\nThis is a test.", source_lang="en", config_path="/tmp/omni-agent-surface/default.yaml")))
@@ -29,6 +33,8 @@ steps:
       stdout_has: ['"success": true', '"profile"']
     standard: STANDARDS.md#tool-contract
     instructions: 'Real LLM profiling: runs only with a provider key (requires_env). Expect success with a profile object.'
+    collect_artifacts:
+      - path: '/tmp/omni-agent-surface/default.yaml'
   - name: 'profile_doc returns a clean error for wrong-shaped params'
     kind: python
     command: |

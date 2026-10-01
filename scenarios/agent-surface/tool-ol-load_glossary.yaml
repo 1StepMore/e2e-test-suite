@@ -3,7 +3,7 @@ description: "OL load_glossary loads a JSON glossary fixture and returns a clean
 level: agent-user
 category: agent-surface
 tier: 1
-requires_env: [OL_MCP_ALLOWED_DIRS]
+requires_env: [MCP_ALLOWED_DIRECTORIES]
 instructions: |
   Agent-user conformance (draft D13, mission axis 1): this scenario proves the
   live tool responds as an agent-user expects — schema-shaped arguments accepted,
