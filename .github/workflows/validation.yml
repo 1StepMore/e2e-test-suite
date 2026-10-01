@@ -253,6 +253,15 @@ jobs:
       - name: Configure OL local config (OL_CONFIG_PATH target for keyed scenarios)
         run: cp Omni_Localizer/config/default.yaml Omni_Localizer/config/local.yaml
 
+      # Preflight, not another assertion: `partition_usable_models` silently
+      # drops models whose provider key is absent, so a role degrades to one
+      # model and the first rate limit fails the run with a downstream symptom
+      # (CJK density on still-Chinese source) that names none of the real cause.
+      # Exit 1 = pool below the fallback floor; exit 2 stays an env/usage error
+      # so a misconfigured runner is never read as "pool too small" (e2e#125).
+      - name: Preflight LLM pool retains a rate-limit fallback
+        run: .venv_ol/bin/python scripts/validation/check_llm_pool.py --min-per-role 2
+
       - name: Run full validation library (all tiers, real keys)
         run: .venv_ol/bin/python scripts/validation/run_validation.py
 
