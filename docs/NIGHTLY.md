@@ -122,7 +122,8 @@ cd <repo>
 
 **67 个 skip**：来自 `SKIP_RULES` —— 缺 `pandoc` / `md2pptx` / `aspose` 等外部
 二进制，以及若干"通用 MD 承载不了该结构"的输入×输出组合（JSON / XLSX / SRT 等）。
-**这 67 个是当前冻结基线**；把它们装成 pass 才是真进展。
+**这 67 个是当前冻结基线**（`--max-skip`，回归护栏用）；把它们装成 pass 才是真进展。
+其中**豁免 23**（夹具内容依赖，不计入 `gap_units`）+ **需清理 44**（计入 `gap_units`）。
 
 **读法**：CLI 通道已经是一条**真的、能出产物的链路**（这是本计划第一个真基线）。
 MCP 通道的数字目前**一个都不能信**——不是"全红"，是"没跑"。
@@ -148,17 +149,33 @@ MCP 通道的数字目前**一个都不能信**——不是"全红"，是"没跑
 | `--subset` | 空 = **全量** | 透传：只跑指定输入子集（逗号分隔，如 `docx,md`）。子集跑总格数变小，需同时给 `--expect-total`（不自动放行） |
 | `--corpus` | `minimal` | 透传：矩阵夹具口径。`minimal` = 最小夹具（**默认事实口径**）；`real` = `test_corpus/` 真实夹具 |
 | `--fidelity` | 关 | 透传：通过的格子再算内容保真度分数。按能力探测透传——MCP 验证器暂不认 `--fidelity`，会跳过并在 markdown 里写明，不硬传报错 |
-| `--max-skip` | `67` | **每通道**跳过基线（不是两条通道相加后的合计基线） |
+| `--max-skip` | `67` | **回归护栏**的每通道跳过基线（不是两条通道相加后的合计基线）。**不参与判定与退出码** |
 
-**每通道基线**（2026-10-01 裁定）：
+**两个口径，物理分开（2026-10-01 裁定，活区）**：
 
 ```text
-gap = fail 合计 + Σ_通道 max(0, skipped_通道 − --max-skip)
+# 1) DoD 口径 —— 判定与退出码只用它
+gap_units      = fail 合计 + Σ_通道 (skipped_通道 − exempt_通道)      # = 还需清理的跳过格子数
+
+# 2) 回归护栏 —— 只抓「跳过数变多」的退步，不参与判定
+regression_gap = fail 合计 + Σ_通道 max(0, skipped_通道 − --max-skip)  # 每通道比，各比各的
 ```
 
-- CLI、MCP **各自**跟 `--max-skip` 比一次；JSON 看 `per_channel_gap: {CLI: N, MCP: M}`
-  （两数之和 = `gap_units`），顶层 `channels` 里保留各通道原始 `total/passed/skipped`。
+- **`gap_units == 0` → exit 0；否则 exit 1。** 护栏通过 **≠ 达标**：
+  把 `--max-skip` 调宽只会洗掉退步告警，洗不掉 DoD 差距（exit 仍由 `gap_units` 定）。
+- CLI、MCP **各自**跟 `--max-skip` 比一次；JSON 看顶层 `regression_gap`（= 各通道
+  `regression_excess` 之和 + fail）与 `per_channel: {CLI: {total, passed, skipped,
+  failed, exempt, needs_cleanup, regression_excess}, MCP: {…}}`，
+  顶层 `channels` 里保留各通道原始 `total/passed/skipped`。
 - JSON 另带 `run_options: {subset, corpus, fidelity}` —— 每份矩阵自带口径，横向可比。
+
+> **为什么必须分开**：只有护栏口径时，本仓实测会出现
+> 「每通道 skip 67 ≤ 基线 67 → `gap_units 0` → exit 0」的**假达标**，
+> 而实际每通道还有 **44 个需清理的 skip**（环境类 15 + 能力类 29）。
+> 两个口径同时存在：护栏抓退步，`gap_units` 认差距。
+
+**本仓当前真值（2026-10-01，两通道实测）**：
+`gap_units = 88`（每通道需清理 44 × 2）、`regression_gap = 0`、**exit 1**。
 
 **豁免清单 `EXEMPT_SKIP_REASONS`（夹具内容依赖类跳过，单独计数）** —— 子串匹配：
 
@@ -169,8 +186,9 @@ gap = fail 合计 + Σ_通道 max(0, skipped_通道 − --max-skip)
 
 这些理由的跳过按通道计入 JSON 的 `exempt_skips`（附 `exempt_skip_reasons` 明细），
 markdown 里写成「skip 67 = 豁免 23 + 需清理 44」，**豁免 = 夹具内容依赖，非能力缺陷；
-要清掉它们需要补语料**（不是装二进制）。它们**照原样保留在各通道 `skipped` 总数里**，
-不静默吞掉；`pandoc` / `nbformat` / `xliff` 之类**环境或能力类跳过不豁免**，仍属「需清理的 skip」。
+要清掉它们需要补语料**（不是装二进制）。**豁免项不计入 `gap_units`，但仍原样出现在
+`skipped` 总数里**（不静默吞掉）；`pandoc` / `nbformat` / `xliff` 之类
+**环境或能力类跳过不豁免**，仍属「需清理的 skip」，照常计入 `gap_units`。
 
 ### 计算器自身修掉的一个假绿（自我披露）
 

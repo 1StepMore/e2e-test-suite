@@ -13,16 +13,19 @@ DoD：**195 个格子 × 2 条通道（CLI / MCP）= 390 次格子运行**全部
 
 1. **跳过 ≠ 通过**。验证器对缺外部二进制的格子（pandoc / md2pptx / aspose）
    自动 skip，且 "exits 0 if all non-skipped cells pass" —— 也就是说
-   **什么都不装、全靠 skip，也能拿 exit 0**。故 skip 单独计数，
-   并要求 **每通道 skip 数不得超过冻结基线**（基线按通道口径，新增 skip = 退步，
-   不是进步）。其中**因夹具内容缺失而必然跳过**的理由（`EXEMPT_SKIP_REASONS`）
-   另计进 `exempt_skips` —— 豁免 = 夹具内容依赖、非能力缺陷，与「需清理的 skip」
-   分开看，但**原样保留在通道 skipped 总数里**，不静默吞掉。
+   **什么都不装、全靠 skip，也能拿 exit 0**。故 skip 单独计数，并拆成两半：
+   **需清理的 skip**（环境/能力类，装上二进制或补能力才算真进展）进 `gap_units`
+   —— 它是 DoD 的差距本体；**豁免的 skip**（因夹具内容缺失而必然跳过，
+   `EXEMPT_SKIP_REASONS`）是夹具内容依赖、非能力缺陷，**不计入 `gap_units`**，
+   要清掉它们需要补语料。豁免项**仍原样出现在通道 skipped 总数里**，不静默吞掉。
+   另设**回归护栏** `regression_gap`（每通道 skip 不得超过 `--max-skip`），
+   专门抓「跳过数变多」的退步。
 2. **解释器必须先探活**。验证器按 `suite_root/.venv_ol/bin/python` 选解释器，
    选到缺 `opp`/`orf`/`ol_cli` 的环境时**不会报环境错**，而是让 195 格逐个 FAIL ——
    实测拿到过 128 fail / 0 pass 的**全假红**矩阵。故先探活，不通即 exit 2。
 3. **拿不到数据 ≠ 通过**。第一版脚本在这里犯过错：验证器没落 `matrix.json` 时
-   `total/passed/failed/skipped` 全是 0，而 `gap = failed + 超额skip = 0`
+   `total/passed/failed/skipped` 全是 0，两个口径都算出 0
+   （`gap_units = 0 + 0`、`regression_gap = 0 + 0`）
    于是**报了「390 格全过」的假绿**。现在：任一通道拿不到矩阵、或总数不等于
    预期 390，一律 **exit 2**，绝不判绿。
 
@@ -31,8 +34,19 @@ DoD：**195 个格子 × 2 条通道（CLI / MCP）= 390 次格子运行**全部
 
 用法：python3 scripts/nightly_gap.py [--out-dir DIR] [--subset S] [--corpus minimal|real]
                                       [--fidelity] [--max-skip N] [--parallel N] [--skip-run]
-口径：gap = fail 合计 + Σ_通道 max(0, skipped_通道 − --max-skip)（**每通道**基线，不两通道相加）
-退出码：0 = 两通道 390 格全过且 skip 未超基线 / 1 = 仍有差距 / 2 = 环境、用法或取数错误
+两个口径，**别混用**（混用会重演「跳过就等于达标」的假绿）：
+
+1. **DoD 口径（判定与退出码只用它）**
+   `gap_units = fail 合计 + Σ_通道 (skipped_通道 − exempt_通道)`
+   ——「还需清理的跳过格子数」，夹具内容依赖的豁免项不算差距。
+   `gap_units == 0` → exit 0；否则 exit 1。
+2. **回归护栏（只抓退步，不参与判定）**
+   `regression_gap = fail 合计 + Σ_通道 max(0, skipped_通道 − --max-skip)`
+   —— **每通道**基线（默认 67/通道），两条通道各自比、不相加。
+   护栏 0 **≠ 达标**：把 `--max-skip` 调宽只会洗掉退步告警，
+   洗不掉 DoD 差距（exit 仍由 `gap_units` 定）。
+
+退出码：0 = gap_units 归零 / 1 = 仍有差距（fail 或需清理的 skip > 0）/ 2 = 环境、用法或取数错误
 """
 from __future__ import annotations
 
@@ -160,8 +174,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--python", default=sys.executable)
     ap.add_argument("--out-dir", default="/tmp/omni-nightly")
     ap.add_argument("--max-skip", type=int, default=DEFAULT_MAX_SKIP,
-                    help=f"**每通道**跳过基线（默认 {DEFAULT_MAX_SKIP}）：每通道 "
-                         "max(0, skipped − 本值) 计入 gap，两通道各自比、不相加")
+                    help=f"**回归护栏**的每通道跳过基线（默认 {DEFAULT_MAX_SKIP}）："
+                         "每通道 max(0, skipped − 本值) 计入 regression_gap，"
+                         "两通道各自比、不相加。**它不决定判定与退出码**"
+                         "（判定只看 gap_units）；调宽它不会让差距消失")
     ap.add_argument("--expect-total", type=int, default=EXPECTED_TOTAL,
                     help="预期格子总数（矩阵形状变了就要人来确认，不是自动放行）")
     ap.add_argument("--subset", default="",
@@ -242,22 +258,42 @@ def main(argv: list[str] | None = None) -> int:
               f"  不自动放行，需人确认后调整 --expect-total。{hint}", file=sys.stderr)
         return 2
 
-    # —— 口径（2026-10-01 裁定）：跳过基线按**每通道**算 ——
-    #    gap = fail 合计 + Σ_通道 max(0, skipped_通道 − max_skip)
+    # —— 两个口径，物理分开 ——
+    # 1) DoD 口径（判定与退出码用它）：gap = fail 合计 + Σ_通道 (skipped − exempt)
+    #    即「还需清理的跳过格子数」——夹具内容依赖的豁免项不算能力差距。
+    # 2) 回归护栏（只抓退步）：gap = fail 合计 + Σ_通道 max(0, skipped − max_skip)
     #    （老口径把两条通道的 skip 相加后比一次，134 恒超 67，永远收敛不到 0。）
+    #
+    # ⚠️ 两者不能互相顶替：护栏判 0 只说明「跳过没变多」，不说明「没有差距」。
+    #    反过来，DoD 口径也不该被护栏替代——否则 44 个需清理的 skip 会被
+    #    `--max-skip 200` 洗成 exit 0，又回到「跳过就等于达标」的老毛病。
+    needs_cleanup: dict[str, int] = {}
     excess: dict[str, int] = {}
-    per_channel_gap: dict[str, int] = {}
     exempt_reasons: dict[str, dict] = {}
     exempt_skips: dict[str, int] = {}
+    per_channel: dict[str, dict] = {}
     for name, c in channels.items():
         ch_failed = c.get("failed") or 0
         ch_skipped = c.get("skipped") or 0
-        excess[name] = max(0, ch_skipped - args.max_skip)
-        per_channel_gap[name] = ch_failed + excess[name]
         exempt_reasons[name] = c.get("exempt_skip_reasons") or {}
-        exempt_skips[name] = sum(exempt_reasons[name].values())
+        ch_exempt = sum(exempt_reasons[name].values())
+        exempt_skips[name] = ch_exempt
+        ch_needs = max(0, ch_skipped - ch_exempt)
+        needs_cleanup[name] = ch_needs
+        excess[name] = max(0, ch_skipped - args.max_skip)
+        per_channel[name] = {
+            "total": c.get("total") or 0,
+            "passed": c.get("passed") or 0,
+            "skipped": ch_skipped,
+            "failed": ch_failed,
+            "exempt": ch_exempt,
+            "needs_cleanup": ch_needs,
+            "regression_excess": excess[name],
+        }
+    needs_cleanup_total = sum(needs_cleanup.values())
     excess_total = sum(excess.values())
-    gap = failed + excess_total
+    gap_units = failed + needs_cleanup_total            # DoD 口径：判定与退出码
+    regression_gap = failed + excess_total              # 回归护栏：只抓退步
 
     result = {
         "schema": "nightly-gap/1",
@@ -270,8 +306,14 @@ def main(argv: list[str] | None = None) -> int:
         "skipped": skipped,
         "max_skip": args.max_skip,
         "baseline_mode": "per_channel",
-        "gap_units": gap,
-        "per_channel_gap": per_channel_gap,
+        # —— 判定口径：DoD（还需清理的跳过 + fail）。exit 由它决定 ——
+        "gap_units": gap_units,
+        "gap_mode": "needs_cleanup_plus_failed",
+        # —— 回归护栏：跳过数有没有变多（每通道比 --max-skip）。**不参与判定** ——
+        "regression_gap": regression_gap,
+        "regression_mode": "per_channel_max_skip",
+        "needs_cleanup_total": needs_cleanup_total,
+        "per_channel": per_channel,
         "exempt_skips": exempt_skips,
         "exempt_skip_reasons": exempt_reasons,
         "run_options": {"subset": args.subset, "corpus": args.corpus,
@@ -279,48 +321,74 @@ def main(argv: list[str] | None = None) -> int:
         "channels": channels,
     }
 
-    if gap > 0:
-        verdict = (f"- 判定：**仍有差距（fail {failed} + 超额 skip "
-                   f"{excess_total}）**（每通道基线 ≤{args.max_skip}/通道 → "
-                   f"gap_units {gap}，exit 1）")
-    elif skipped:
-        verdict = (f"- 判定：**仍有差距（fail {failed} + 超额 skip "
-                   f"{excess_total}）**（每通道基线 ≤{args.max_skip}/通道 → "
-                   f"gap_units 0，exit 0；未过的格子全是 skip，不是 fail）")
+    # —— 护栏与判定是两个数，判定行必须同时给出，避免「护栏 0 = 达标」的误读 ——
+    if regression_gap > 0:
+        guard = (f"回归护栏 {regression_gap} > 基线 {args.max_skip}/通道："
+                 f"跳过数变多 = 退步")
     else:
-        verdict = (f"- 判定：**两通道 {total} 格全过，skip 未超基线**"
-                   f"（每通道基线 ≤{args.max_skip}/通道 → gap_units 0，exit 0）")
+        guard = f"回归护栏 {regression_gap} ≤ 基线 {args.max_skip}/通道"
+    split = " · ".join(f"{n} {needs_cleanup[n]} = 总 skip "
+                       f"{per_channel[n]['skipped']} − 豁免 "
+                       f"{per_channel[n]['exempt']}" for n in channels)
+    if gap_units > 0:
+        verdict = (f"- 判定：**仍有差距（fail {failed} + 需清理 skip "
+                   f"{needs_cleanup_total}）**（{split}；{guard} → "
+                   f"gap_units {gap_units}，exit 1）")
+    elif skipped:
+        verdict = (f"- 判定：**仍有差距（fail {failed} + 需清理 skip "
+                   f"{needs_cleanup_total}）**（{split}；{guard} → "
+                   f"gap_units {gap_units}，exit 1；剩下的 skip 全是豁免项，"
+                   f"不算能力差距，但要清掉它们需要补语料）")
+    else:
+        verdict = (f"- 判定：**两通道 {total} 格全过，无 fail、无需清理的 skip**"
+                   f"（{guard} → gap_units {gap_units}，exit 0）")
     md = ["# Omni Suite 差距矩阵", "", verdict, "",
-          "- 口径：**每通道基线** —— gap = fail 合计 + Σ_通道 "
-          f"max(0, skipped_通道 − {args.max_skip})（两条通道各自比，不相加）",
+          "- 判定口径（DoD，决定 exit）：`gap_units` = fail 合计 + "
+          f"Σ_通道 (skipped − exempt) = {failed} + {needs_cleanup_total} = "
+          f"**{gap_units}**（= 还需清理的跳过格子数，**豁免项不算差距**）",
+          f"- 回归护栏（只抓退步，**不决定判定**）：`regression_gap` = fail 合计 + "
+          f"Σ_通道 max(0, skipped − {args.max_skip}) = {failed} + {excess_total} = "
+          f"**{regression_gap}**（基线 {args.max_skip}/通道；**护栏通过 ≠ 达标**，"
+          "调宽 `--max-skip` 不会让差距消失）",
           f"- 解释器：`{python}`（已探活 {', '.join(REQUIRED_MODULES)}）",
           f"- 合计：**{total}** 格（CLI + MCP）· passed **{passed}** · "
-          f"failed **{failed}** · skipped **{skipped}**（每通道基线 ≤{args.max_skip}）",
+          f"failed **{failed}** · skipped **{skipped}**"
+          f"（豁免 {sum(exempt_skips.values())} + 需清理 {needs_cleanup_total}）",
           "- 运行口径（run_options）："
           f"subset={args.subset or '（空=全量）'} · corpus={args.corpus} · "
           f"fidelity={'开' if args.fidelity else '关'}",
-          "- per_channel_gap：" + " · ".join(f"{n} {per_channel_gap[n]}"
-                                             for n in channels)
-          + f"（合计 = gap_units {gap}）"]
+          "- per_channel（判定数 needs_cleanup / 护栏数 regression_excess）："
+          + " · ".join(
+              f"{n} total={per_channel[n]['total']} "
+              f"passed={per_channel[n]['passed']} "
+              f"skipped={per_channel[n]['skipped']} "
+              f"failed={per_channel[n]['failed']} "
+              f"exempt={per_channel[n]['exempt']} "
+              f"needs_cleanup={per_channel[n]['needs_cleanup']} "
+              f"regression_excess={per_channel[n]['regression_excess']}"
+              for n in channels)]
     for name, c in channels.items():
-        ch_skipped = c.get("skipped") or 0
-        ch_exempt = exempt_skips.get(name, 0)
+        pc = per_channel[name]
         md.append(f"  - {name} 通道：total={c.get('total')} passed={c.get('passed')} "
-                  f"failed={c.get('failed')} skipped={ch_skipped} "
+                  f"failed={c.get('failed')} skipped={pc['skipped']} "
                   f"rc={c.get('returncode')}")
-        md.append(f"    - 每通道比较：skip {ch_skipped} vs 基线 {args.max_skip} → "
-                  f"超额 {excess[name]}；fail {c.get('failed') or 0} → "
-                  f"本通道 gap {per_channel_gap[name]}")
-        md.append(f"    - skip 拆分：豁免 {ch_exempt}（夹具内容依赖）+ "
-                  f"需清理 {ch_skipped - ch_exempt}")
+        md.append(f"    - DoD 口径：skip {pc['skipped']} − 豁免 {pc['exempt']} = "
+                  f"**需清理 {pc['needs_cleanup']}**"
+                  + (f" + fail {pc['failed']} → 本通道 gap_units "
+                     f"{pc['needs_cleanup'] + pc['failed']}"
+                     if pc["failed"] else "（fail 0）"))
+        md.append(f"    - 回归护栏：skip {pc['skipped']} vs 基线 {args.max_skip} → "
+                  f"超额 {pc['regression_excess']}")
+        md.append(f"    - skip 拆分：豁免 {pc['exempt']}（夹具内容依赖）+ "
+                  f"需清理 {pc['needs_cleanup']}")
     md.append("")
     md.append(f"- 豁免 skip（exempt_skips）：CLI {exempt_skips.get('CLI', 0)} · "
               f"MCP {exempt_skips.get('MCP', 0)}"
               " —— **豁免 = 夹具内容依赖，非能力缺陷；"
               "要清掉它们需要补语料（见 docs/NIGHTLY.md）**")
-    md.append("  - 豁免跳过照原样保留在各通道 skipped 总数里（不静默吞掉），"
-              "单列只为与「需清理的 skip」分开；pandoc / nbformat / xliff 之类"
-              "环境或能力类跳过**不豁免**。")
+    md.append("  - **豁免项不计入 `gap_units`，但仍原样出现在 skipped 总数里**"
+              "（不静默吞掉）；单列只为与「需清理的 skip」分开；pandoc / nbformat / "
+              "xliff 之类环境或能力类跳过**不豁免**，照常计入 `gap_units`。")
     for name in channels:
         er = exempt_reasons.get(name) or {}
         if er:
@@ -347,7 +415,7 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.md_out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.md_out).write_text(md_text, encoding="utf-8")
     print(md_text)
-    return 0 if gap == 0 else 1
+    return 0 if gap_units == 0 else 1
 
 
 if __name__ == "__main__":
