@@ -17,6 +17,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "structlog>=24.1.0",
+    # Probed by scripts/format_matrix_verifier.py (AVAILABILITY["nbformat"]) to
+    # gate the ipynb input row of the 390-cell matrix. Looks redundant — nbformat
+    # is in OPP's `notebook` extra and validation.yml installs it — but that is
+    # exactly why it drifted once: the probe resolved by accident, via a sibling
+    # member's extra and an ungated `uv pip install` line (e2e#130).
+    "nbformat>=5.0.0",
 ]
 
 [project.scripts]

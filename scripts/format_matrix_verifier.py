@@ -112,6 +112,22 @@ AVAILABILITY = {
     "nbformat": _can_import("nbformat"),
 }
 
+# Per-key accounting for the probe above. kind is "binary" (an external
+# executable, never a pip dependency — installed by scripts/install_md2pptx.sh
+# or check_deps.sh) or "pip" (an importable package); the second element names
+# the manifest that declares it. tests/test_probe_declaration_consistency.py
+# holds every AVAILABILITY key to one of the two kinds and every "pip" key to a
+# real manifest entry, so the same probe cannot resolve differently on two
+# machines (e2e#130).
+KNOWN_ENV_DEPENDENCIES: dict[str, tuple[str, str]] = {
+    "pandoc": ("binary", "scripts/install_md2pptx.sh / check_deps.sh"),
+    "md2pptx": ("binary", "scripts/install_md2pptx.sh"),
+    "weasyprint": ("pip", "Omni_Re_Formatter/pyproject.toml"),
+    "aspose_email": ("pip", "Omni_Re_Formatter/pyproject.toml"),
+    "extract_msg": ("pip", "Omni_Pre_Processor/pyproject.toml"),
+    "nbformat": ("pip", "pyproject.toml"),
+}
+
 # Map format names to their availability key in AVAILABILITY.
 # Used by both input and output availability checks in _check_skip().
 _AVAIL_MAP: dict[str, str] = {
