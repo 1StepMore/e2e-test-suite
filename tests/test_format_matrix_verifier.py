@@ -61,6 +61,56 @@ class TestSkipRules:
         assert "aspose" in reason.lower()
 
 
+class TestXLIFFSameFormatRuns:
+    """Same-format XLIFF cells must stay runnable.
+
+    Regression: the rule ("xliff_xfmt", "*") parks a wildcard in the format
+    slot, but _check_skip compared `inp != fmt` against that wildcard instead
+    of against the OUTPUT format. `inp` is always a real format name, so the
+    condition held for every xliff cell and the entire channel was skipped --
+    including the same-format cells ORF does support, which the rule's own
+    comment asserts ("Only same-format XLIFF cells are supported"). docx ->
+    docx, the suite's primary XLIFF round-trip, was never verified through
+    the matrix.
+
+    The pairs below are the ones observed in a real matrix run, so each
+    assertion discriminates instead of passing for an unrelated reason.
+    """
+
+    def test_same_format_cell_is_not_skipped(self, monkeypatch):
+        monkeypatch.setitem(fmv.AVAILABILITY, "pandoc", True)
+        assert fmv._check_skip("docx", "docx", "xliff") is None
+
+    def test_cross_format_cell_is_still_skipped(self, monkeypatch):
+        monkeypatch.setitem(fmv.AVAILABILITY, "pandoc", True)
+        xfmt = next(r[2] for r in fmv.SKIP_RULES if r[0] == "xliff_xfmt")
+        assert fmv._check_skip("docx", "odt", "xliff") == xfmt
+        assert fmv._check_skip("pptx", "docx", "xliff") == xfmt
+
+
+class TestEPUBXLIFFSkeletonRuleReclaimed:
+    """EPUB produces a skeleton, so no static skip rule may hide its cells.
+
+    The rule was written 6-21 (bc527b9), when EPUB genuinely had no skeleton
+    and was therefore correct. OPP#39 (a8d9499, 6-29) gave EPUB a skeleton with
+    data-trans-unit-id injected, but the rule was never reclaimed -- the same
+    failure shape as #130. Kept separate from TestXLIFFSameFormatRuns so a
+    future regression can be attributed to the right cause.
+    """
+
+    def test_no_static_skip_rule_for_epub(self):
+        assert not [r for r in fmv.SKIP_RULES if r[0] == "xliff" and r[1] == "epub"]
+
+    def test_epub_xliff_cell_is_not_skipped(self, monkeypatch):
+        monkeypatch.setitem(fmv.AVAILABILITY, "pandoc", True)
+        assert fmv._check_skip("epub", "epub", "xliff") is None
+
+    def test_gap_formats_keep_their_rules(self):
+        """XLSX / HTML / EML measured skeleton=None -- these are real gaps."""
+        kept = {r[1] for r in fmv.SKIP_RULES if r[0] == "xliff"}
+        assert {"xlsx", "html", "eml"} <= kept
+
+
 class TestMatrixDefinition:
     def test_matrix_has_docx_inputs(self):
         docx_cells = [c for c in fmv.MD_PATH_MATRIX if c[0] == "docx"]
