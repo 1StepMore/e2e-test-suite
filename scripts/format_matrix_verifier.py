@@ -210,10 +210,13 @@ SKIP_RULES: list[tuple[str, str, str]] = [
     # Cross-format jumps with no logical content mapping (table↔slide).
     ("pptx", "xlsx", "PPTX→XLSX: no table content in slide fixture"),
     ("xlsx", "pptx", "XLSX→PPTX: no slide content in table fixture"),
-    # XLIFF path: OPP doesn't produce skeleton.zip for non-DOCX/PPTX inputs.
+    # XLIFF path: OPP produces skeleton.zip only for SOME input formats.
+    # EPUB DOES (OPP#39 a8d9499 — epub.py builds one with data-trans-unit-id
+    # injected; ORF declares EPUB backfill at apply_xliff.py:108), and the
+    # epub → epub cell passes end-to-end, so its cells are runnable.
+    # XLSX/HTML/EML measured skeleton=None — rules stay, gap tracked in #92.
     ("xliff", "xlsx", "XLIFF: OPP doesn't produce skeleton for XLSX"),
     ("xliff", "html", "XLIFF: OPP doesn't produce skeleton for HTML"),
-    ("xliff", "epub", "XLIFF: OPP doesn't produce skeleton for EPUB"),
     ("xliff", "eml", "XLIFF: OPP doesn't produce skeleton for EML"),
     # XLIFF cross-format: ORF converters assume same-format skeleton+output.
     # Only same-format XLIFF cells are supported.
