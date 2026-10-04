@@ -296,7 +296,7 @@ def _check_skip(inp: str, outp: str, path: str) -> str | None:
             return reason
         elif axis == "xliff" and fmt == inp and path == "xliff":
             return reason
-        elif axis == "xliff_xfmt" and path == "xliff" and inp != fmt:
+        elif axis == "xliff_xfmt" and path == "xliff" and inp != outp:
             return reason
     return None
 

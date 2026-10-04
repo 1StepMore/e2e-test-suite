@@ -61,6 +61,33 @@ class TestSkipRules:
         assert "aspose" in reason.lower()
 
 
+class TestXLIFFSameFormatRuns:
+    """Same-format XLIFF cells must stay runnable.
+
+    Regression: the rule ("xliff_xfmt", "*") parks a wildcard in the format
+    slot, but _check_skip compared `inp != fmt` against that wildcard instead
+    of against the OUTPUT format. `inp` is always a real format name, so the
+    condition held for every xliff cell and the entire channel was skipped --
+    including the same-format cells ORF does support, which the rule's own
+    comment asserts ("Only same-format XLIFF cells are supported"). docx ->
+    docx, the suite's primary XLIFF round-trip, was never verified through
+    the matrix.
+
+    The pairs below are the ones observed in a real matrix run, so each
+    assertion discriminates instead of passing for an unrelated reason.
+    """
+
+    def test_same_format_cell_is_not_skipped(self, monkeypatch):
+        monkeypatch.setitem(fmv.AVAILABILITY, "pandoc", True)
+        assert fmv._check_skip("docx", "docx", "xliff") is None
+
+    def test_cross_format_cell_is_still_skipped(self, monkeypatch):
+        monkeypatch.setitem(fmv.AVAILABILITY, "pandoc", True)
+        xfmt = next(r[2] for r in fmv.SKIP_RULES if r[0] == "xliff_xfmt")
+        assert fmv._check_skip("docx", "odt", "xliff") == xfmt
+        assert fmv._check_skip("pptx", "docx", "xliff") == xfmt
+
+
 class TestMatrixDefinition:
     def test_matrix_has_docx_inputs(self):
         docx_cells = [c for c in fmv.MD_PATH_MATRIX if c[0] == "docx"]
