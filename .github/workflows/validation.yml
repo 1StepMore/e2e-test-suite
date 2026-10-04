@@ -251,7 +251,14 @@ jobs:
             -c /tmp/lock-constraints.txt
 
       - name: Configure OL local config (OL_CONFIG_PATH target for keyed scenarios)
-        run: cp Omni_Localizer/config/default.yaml Omni_Localizer/config/local.yaml
+        # e2e#142: the step name always claimed to set OL_CONFIG_PATH, but it only
+        # copied the file. `ol translate-md` then fell through to the RELATIVE
+        # path `config/default.yaml`, resolved against the workspace root where no
+        # such file exists -> "Config file not found". Export an ABSOLUTE path;
+        # the job cwd is the suite root, so a relative one would not resolve.
+        run: |
+          cp Omni_Localizer/config/default.yaml Omni_Localizer/config/local.yaml
+          echo "OL_CONFIG_PATH=$GITHUB_WORKSPACE/Omni_Localizer/config/local.yaml" >> "$GITHUB_ENV"
 
       # Preflight, not another assertion: `partition_usable_models` silently
       # drops models whose provider key is absent, so a role degrades to one
