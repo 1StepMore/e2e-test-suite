@@ -108,20 +108,31 @@ cd <repo>
 `nightly_gap.py`：`gap_units 88 → 41`、`passing_units 256 → 282`、`skipped 134 → 108`、`failed 0 → 0`。
 两个通道**逐格一致**（同样的 skip_reasons 计数）→ DoD ③ 通道一致继续成立。
 
-剩余 54 skip/通道，全部是**内容/能力类**，已无 `X not installed` 的环境类条目：
+剩余 skip/通道（**下表为 2026-10-04 在 main `6eb6f42` 上的重测值**，非 10-02 原始值）：
 
-| skip 理由 | 每通道格数 |
-|:---|---:|
-| MD→SRT 需要时间戳（夹具无） | 11 |
-| MD→JSON 需要 JSON 代码块或 OPP key=value | 11 |
-| XLIFF 跨格式 ORF 不支持 | 10 |
-| XLIFF：OPP 不产 XLSX 骨架 | 4 |
-| XLIFF：OPP 不产 HTML 骨架 | 5 |
-| XLIFF：OPP 不产 EPUB 骨架 | 5 |
-| XLIFF：OPP 不产 EML 骨架 | 5 |
-| PPTX→XLSX / XLSX→PPTX（夹具无对应内容） | 3 |
+| skip 理由 | 每通道格数 | 10-02 原值 | 变化原因 |
+|:---|---:|---:|:---|
+| `md2pptx` CLI 未安装 | 17 | — | **环境类**，见下方口径更正 |
+| MD→SRT 需要时间戳（夹具无） | 11 | 11 | — |
+| MD→JSON 需要 JSON 代码块或 OPP key=value | 11 | 11 | — |
+| XLIFF 跨格式 ORF 不支持 | 10 | 10 | — |
+| XLIFF：OPP 不产 XLSX 骨架 | 4 | 4 | — |
+| XLIFF：OPP 不产 HTML 骨架 | 4 | 5 | `md2pptx` 缺失先命中，格数少1 |
+| XLIFF：OPP 不产 EML 骨架 | 4 | 5 | 同上 |
+| ~~XLIFF：OPP 不产 EPUB 骨架~~ | **0** | 5 | **规则已回收**，见 #140 |
+| PPTX→XLSX（夹具无对应内容） | 1 | 3 | `md2pptx` 缺失先命中 |
 
-> **口径提醒**：`max_skip` 从 200（旧基线）变为 67（当前 main 的 `nightly_gap.py` 默认），
+**合计 62 skip/通道**（10-02 记录为 54）。
+
+> **口径更正（重要）**：10-02 那版称「剩余 54 skip 全部是内容/能力类，
+> **已无 `X not installed` 的环境类条目**」。**该断言不成立**——在main `6eb6f42` 上
+> 重测，`md2pptx CLI not installed` 命中 **17 格/通道**，是最大的单一 skip 理由，
+> 且明确属于环境类。10-02 的表格把它漏掉了，因此 54 这个总数与「无环境类」的结论
+> 都不成立。差异来源：`html→pptx` / `xlsx→pptx` / `epub→pptx` / `docx→pptx` 等格在
+> `md2pptx` 缺失时**先命中输出可用性规则**，不再走到骨架规则，故 EPUB 的 5 格变 0
+> （规则回收，见 e2e-test-suite#140）、HTML/EML 各少 1 格。
+
+> **另一处口径提醒**：`max_skip` 从 200（旧基线）变为 67（当前 main 的 `nightly_gap.py` 默认），
 > 因此「gap_units 由 88 → 41」是同口径下的真实下降；`regression_gap` 仍为护栏，不跨通道累加。
 
 ### 2026-10-01 基线（历史）
@@ -183,7 +194,9 @@ MCP 通道的数字目前**一个都不能信**——不是"全红"，是"没跑
 - 2026-10-02：**MCP 通道跑通**（`195 | 141 | 54 | 0`，613.0s），与 CLI 通道逐格一致。
   队列第 1–3 项（#109 白名单、#110 `md_content` 层级、跑 MCP 基线）**均已闭合**。
 - 2026-10-02：两通道合计 `390 | 282 | 108 | 0`；`gap_units 88 → 41`（同口径）。
-  剩余 skip 全部为内容/能力类，**已无环境类（`X not installed`）条目**。
+  ⚠️ 2026-10-04 更正：本条「已无环境类」的结论**不成立** —— main `6eb6f42` 重测显示
+  `md2pptx CLI not installed` 命中 17 格/通道，为最大单一理由且属环境类。
+  详见上方「口径更正」。
 - 2026-10-01：**CLI 通道跑出真基线** `Cells 195 | Pass 128 | Skip 67 | Fail 0`（809.8s），
   非跳过格子 100% 通过、每格都有真实产物文件。
 - 2026-10-01：本机环境修好三处 —— 补装 `omni-pre-processor` 与 `omni-localizer`（editable）；
