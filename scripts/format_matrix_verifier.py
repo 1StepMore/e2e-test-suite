@@ -214,9 +214,12 @@ SKIP_RULES: list[tuple[str, str, str]] = [
     # EPUB DOES (OPP#39 a8d9499 — epub.py builds one with data-trans-unit-id
     # injected; ORF declares EPUB backfill at apply_xliff.py:108), and the
     # epub → epub cell passes end-to-end, so its cells are runnable.
-    # XLSX/HTML/EML measured skeleton=None — rules stay, gap tracked in #92.
+    # HTML DOES too (OPP#92, 1ac5357 — pipeline.save_skeleton packages
+    # skeleton_html as a top-level index.html entry, which ORF's
+    # detect_from_skeleton and xliff2html both accept), so its cells are
+    # runnable as well.
+    # XLSX/EML measured skeleton=None — rules stay, gap tracked in #92.
     ("xliff", "xlsx", "XLIFF: OPP doesn't produce skeleton for XLSX"),
-    ("xliff", "html", "XLIFF: OPP doesn't produce skeleton for HTML"),
     ("xliff", "eml", "XLIFF: OPP doesn't produce skeleton for EML"),
     # XLIFF cross-format: ORF converters assume same-format skeleton+output.
     # Only same-format XLIFF cells are supported.
