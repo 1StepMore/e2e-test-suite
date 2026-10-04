@@ -106,9 +106,21 @@ class TestEPUBXLIFFSkeletonRuleReclaimed:
         assert fmv._check_skip("epub", "epub", "xliff") is None
 
     def test_gap_formats_keep_their_rules(self):
-        """XLSX / HTML / EML measured skeleton=None -- these are real gaps."""
+        """XLSX / EML measured skeleton=None -- these remain real gaps.
+
+        HTML was in this set until OPP#92 taught it to emit a skeleton
+        (``1ac5357``); its rule is reclaimed, so only the two genuine gaps
+        must survive. Asserting the exact set, not a subset, is deliberate:
+        it is what catches the next stale rule being quietly added back.
+        """
         kept = {r[1] for r in fmv.SKIP_RULES if r[0] == "xliff"}
-        assert {"xlsx", "html", "eml"} <= kept
+        assert kept == {"xlsx", "eml"}
+
+    def test_html_rule_is_reclaimed(self, monkeypatch):
+        """HTML emits a skeleton (OPP#92), so no static rule may hide its cells."""
+        monkeypatch.setitem(fmv.AVAILABILITY, "pandoc", True)
+        assert not [r for r in fmv.SKIP_RULES if r[0] == "xliff" and r[1] == "html"]
+        assert fmv._check_skip("html", "html", "xliff") is None
 
 
 class TestMatrixDefinition:
