@@ -132,7 +132,7 @@ writes 16 output formats. Verified OPP→OL→ORF paths as of 2026-06-23:
 | (any MD) | ORF pure-Python | HTML, PDF | W1.3 — `markdown` + WeasyPrint, no pandoc |
 | (any MD) | ORF pandoc | DOCX, ODT, EPUB, RTF, ICML | W1.1 — `pypandoc-binary` (auto-installed) |
 | EML (email) | OPP → MD → OL → ORF | MSG | W2.1 — graceful fallback on missing headers |
-| (any XLIFF) | ORF `--force` | cross-format | W2.2 — bypass format validation with warning |
+| (any XLIFF) | ORF `apply-xliff` | cross-format | W2.2 — refused, not converted (format-preserving; `--force` is inert) |
 | `.url` (YouTube) | OPP auto-detect | MD | W3.1 — `markitdown[youtube-transcription]` |
 | PDF → XLIFF | OPP guard | (blocked) | W3.2 — correctly blocked (case-insensitive guard) |
 

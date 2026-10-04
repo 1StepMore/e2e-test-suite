@@ -10,7 +10,7 @@ Path matrix groups:
   Paths 17-21: OPP extractors — HTML/CSV/JSON/IPYNB/EML → MD
   Paths 22-26: OPP extractors — XML/XLSX/DOCX/PPTX/PDF → MD (already working)
   Paths 27-33: ORF MD → {csv,json,xlsx,xml,ipynb,eml,srt} (format coverage)
-  Paths 34-36: Cross-format XLIFF backfill (--force) + summary
+  Paths 34-36: Cross-format XLIFF backfill must be refused (not converted) + summary
 """
 
 import csv as csv_module
@@ -1415,57 +1415,59 @@ class TestOrfMdToFormats:
 
 
 class TestCrossFormat:
-    """Paths 34-36: Cross-format XLIFF backfill with --force + summary."""
+    """Paths 34-36: cross-format XLIFF backfill must be REFUSED + summary."""
 
     # ------------------------------------------------------------------
-    # Path 34: DOCX XLIFF → PPTX (cross-format with --force)
+    # Path 34: DOCX XLIFF → PPTX (cross-format must fail, with --force too)
     # ------------------------------------------------------------------
 
-    def test_path_34_docx_xliff_to_pptx_force(self, tmp_path: Path, use_fake_llm):
-        """Path 34: DOCX→XLF→OL→ORF→PPTX (--force). Pass: cross-format produces output with warning."""
+    def test_path_34_docx_xliff_to_pptx_refused(self, tmp_path: Path, use_fake_llm):
+        """Path 34: DOCX→XLF→OL→ORF→PPTX. Pass: ORF refuses, and emits nothing.
+
+        What this proves is the ORF step alone: a DOCX source asked for a PPTX
+        output must exit non-zero with a "not implemented" message and leave no
+        artifact. The OPP/OL steps only supply a real XLIFF to hand it; the
+        translation's content is not under assertion here.
+        """
         opp_dir = tmp_path / "opp"
         ol_dir = tmp_path / "ol"
         orf_dir = tmp_path / "orf"
         for d in (opp_dir, ol_dir, orf_dir):
             d.mkdir(parents=True)
 
-        # Extract XLIFF from DOCX
         result = _run_opp(DOCX_FIXTURE, opp_dir, target_format="xlf")
         assert result.returncode == 0, f"OPP failed: {result.stderr}"
         xlf_path = opp_dir / f"{DOCX_FIXTURE.stem}.xlf"
 
-        # Translate XLIFF
         result = _run_ol_translate_xliff(xlf_path, ol_dir)
         assert result.returncode == 0, f"OL translate-xliff failed: {result.stderr}"
         translated_xlf = ol_dir / xlf_path.name
 
-        # Cross-format: DOCX skeleton → PPTX output with --force
         pptx_out = orf_dir / "result_cross.pptx"
         result = _run_orf_apply_xliff(
             DOCX_FIXTURE, translated_xlf, pptx_out, "pptx", force=True,
         )
-        # With --force, the command should succeed (exit 0) but may produce a warning
-        assert result.returncode == 0, (
-            f"ORF apply-xliff --force failed: {result.stderr}"
+        combined = (result.stderr or "") + (result.stdout or "")
+        assert result.returncode != 0, (
+            f"cross-format XLIFF backfill is not implemented and must not exit 0: "
+            f"rc={result.returncode}\n{combined}"
         )
-        # Verify output exists (may be incomplete per the --force contract)
-        assert pptx_out.exists(), (
-            f"Cross-format --force did not produce output: {result.stderr}"
+        assert "not implemented" in combined, (
+            f"rejection must say cross-format is not implemented:\n{combined}"
         )
-        # Check for warning in stderr about force mode
-        combined_output = (result.stderr or "") + (result.stdout or "")
-        assert "force" in combined_output.lower() or pptx_out.stat().st_size > 0, (
-            f"Expected force warning or non-empty output: {combined_output[:300]}"
+        assert "orf apply-md" in combined, (
+            f"rejection must point at the MD path:\n{combined}"
+        )
+        assert not pptx_out.exists(), (
+            f"a refused cross-format request must write no artifact: {pptx_out}"
         )
 
     # ------------------------------------------------------------------
-    # Path 35: DOCX XLIFF → EPUB (cross-format with --force)
+    # Path 35: DOCX XLIFF → EPUB (cross-format must fail, with --force too)
     # ------------------------------------------------------------------
 
-    # EPUB cross-format via XLIFF requires pandoc for EPUB generation
-    @pytest.mark.skipif(not PANDOC_AVAILABLE, reason="pandoc not available for EPUB generation")
-    def test_path_35_docx_xliff_to_epub_force(self, tmp_path: Path, use_fake_llm):
-        """Path 35: DOCX→XLF→OL→ORF→EPUB (--force). Pass: cross-format produces output."""
+    def test_path_35_docx_xliff_to_epub_refused(self, tmp_path: Path, use_fake_llm):
+        """Path 35: DOCX→XLF→OL→ORF→EPUB. Pass: ORF refuses, and emits nothing."""
         opp_dir = tmp_path / "opp"
         ol_dir = tmp_path / "ol"
         orf_dir = tmp_path / "orf"
@@ -1484,14 +1486,24 @@ class TestCrossFormat:
         result = _run_orf_apply_xliff(
             DOCX_FIXTURE, translated_xlf, epub_out, "epub", force=True,
         )
-        if result.returncode != 0:
-            # EPUB cross-format may fail; that's acceptable for --force experimental path
-            combined = (result.stderr or "") + (result.stdout or "")
-            assert epub_out.exists() or "force" in combined.lower(), (
-                f"Cross-format EPUB --force: no output and no force warning: {combined[:300]}"
+        combined = (result.stderr or "") + (result.stdout or "")
+        assert result.returncode != 0, (
+            f"cross-format XLIFF backfill is not implemented and must not exit 0: "
+            f"rc={result.returncode}\n{combined}"
+        )
+        assert not epub_out.exists(), (
+            f"a refused cross-format request must write no artifact: {epub_out}"
+        )
+        # Format validity, not existence: nothing in the output dir may be a
+        # real EPUB (mimetype + META-INF/container.xml). The pre-fix artifact was
+        # a DOCX-shaped zip under a .epub extension.
+        for path in orf_dir.iterdir():
+            if not path.is_file():
+                continue
+            names = zipfile.ZipFile(path).namelist()
+            assert not ("mimetype" in names and "META-INF/container.xml" in names), (
+                f"{path} is a valid EPUB but the cross-format request was refused"
             )
-        else:
-            assert epub_out.exists(), "Cross-format EPUB --force succeeded but no output file"
 
     # ------------------------------------------------------------------
     # Path 36: Cross-format e2e summary

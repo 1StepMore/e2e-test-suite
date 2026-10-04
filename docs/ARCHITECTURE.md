@@ -159,9 +159,9 @@ memory. The eight MCP tools cover the full surface.
 - MD file → `apply_md` produces any of 16 formats: DOCX, ODT, EPUB, HTML,
   RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON.
 - XLIFF file + `input_file` (typically the OPP skeleton) → `apply_xliff`
-  backfills the original layout. **Use `--force` for cross-format
-  conversions** (e.g. DOCX XLIFF → PPTX); without it, ORF refuses a
-  skeleton/output format mismatch with a clear error.
+  backfills the original layout. It is format-preserving: a skeleton/output
+  format mismatch (e.g. DOCX XLIFF → PPTX) is refused with a clear error, and
+  `--force` does not override it. Cross-format goes through `apply_md`.
 - Optional `images=[{path, position, ...}]` for image injection.
 
 **Output**: a single file at the requested `output_path`. ORF validates the
@@ -226,9 +226,9 @@ output_dir/
 
 **Contract rule**: when ORF's `apply_xliff` is invoked with an `input_file`
 that came from OPP's `save_skeleton`, the manifest's `format` must match the
-target `--format`. ORF validates this and raises a clear error otherwise; the
-operator can override with `--force` (see `Omni_Re_Formatter/README.md` for
-the cross-format override semantics).
+target `--format`. ORF validates this and raises a clear error otherwise. There
+is no override: cross-format XLIFF backfill is not implemented (see
+`Omni_Re_Formatter/README.md`).
 
 **Floating image contract** (DOCX only): OPP emits `is_floating: true` and
 `wp_anchor_h` / `wp_anchor_v` (in EMU, 914400 = 1 inch) in `images.json` for
@@ -405,7 +405,7 @@ observability story (see Phase 4 in
 | 4 | **PDF → XLIFF is blocked at OPP** | A PDF cannot be backfilled into a structural DOCX/PPTX layout. The case-insensitive guard is intentional. | `Omni_Pre_Processor/src/opp/...` (PDF guard) |
 | 5 | **FAKE_LLM seam (`OMNI_TEST_FAKE_LLM=1`)** | Tests must never require real API keys. The seam is the contract for CI and local dev. | All three modules |
 | 6 | **MCP over stdio, one server per module** | Stdio is the only transport agents uniformly support; one server per module keeps failure domains and security allowlists independent. | `Omni_*/src/*/mcp/server.py` × 3 |
-| 7 | **Cross-format XLIFF needs `--force`** | ORF's default is to refuse a format-mismatched backfill (e.g. DOCX xlf → PPTX) because silent fallbacks lose layout. `--force` makes the override explicit. | `Omni_Re_Formatter/src/orf/cli.py` |
+| 7 | **Cross-format XLIFF is refused, not overridden** | ORF refuses a format-mismatched backfill (e.g. DOCX xlf → PPTX) because a "backfill" into another container would emit a file that only carries the right extension — every real reader of the target format rejects it. `--force` is kept as an accepted-but-inert flag; cross-format output goes through `apply_md`. | `Omni_Re_Formatter/src/orf/commands/apply_xliff.py` |
 | 8 | **Coordinate releases via `bumpversion.py` + `VERSION_COMPATIBILITY.md`** | The three modules version independently (different teams, different cadences) but every shipped combination must be matrix-tested before it lands in the compat table. | `scripts/bumpversion.py`, `VERSION_COMPATIBILITY.md` |
 | 9 | **(removed 2026-06-24) src/Omni_*/ git submodules no longer exist** | OPP/OL/ORF are now regular top-level directories. The `.gitmodules` entries were dropped; `scripts/sync_shallow.sh` is now a deprecation stub. | `.gitmodules` (removed), `scripts/sync_shallow.sh` (stub) |
 | 10 | **Single shared venv at `.venv_ol/` (Python 3.13)** | Eliminates "wrong venv" bugs. `.venv/` (Python 3.12) is deprecated. | `.venv_ol/`, `README.md` (Environment section) |
@@ -505,7 +505,7 @@ Omni_Suite/                              ← this repo (parent / test suite)
 ### Per-module
 - **OPP**: `Omni_Pre_Processor/README.md` — extractor reference, format table, `manifest.json` schema, skeleton key-files table
 - **OL**: `Omni_Localizer/README.md` — translation pipeline, glossary & TM support
-- **ORF**: `Omni_Re_Formatter/README.md` — 16 output formats, `--force` cross-format semantics, image injection
+- **ORF**: `Omni_Re_Formatter/README.md` — 16 output formats, format-preserving XLIFF backfill, image injection
 
 ### Companion docs (in this directory)
 - `docs/API_STABILITY.md` — SemVer commitment, deprecation policy, contract test strategy
