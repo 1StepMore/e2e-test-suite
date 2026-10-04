@@ -167,7 +167,7 @@ See `README.md` → "Cross-Format Production-Readiness" for the full 36-path ver
 1. **FAKE_LLM — two distinct uses** — `OMNI_TEST_FAKE_LLM=1` is a deterministic fallback seam. **(i) CLI smoke/contract runs: allowed** (plumbing, schema/exit-code checks, zero-cost dry runs). **(ii) Validation runs: forbidden for human-quality evidence** — in a human-quality scenario (`pipeline-*` prefix or any step citing a HUMAN-QUALITY anchor) a fallback-active run reports `invalid`, never `passed`; fallbacks are never quality evidence. `--allow-fake` is the contract-only escape hatch (all-AGENT-SURFACE scenarios only). Citable bar: [`scenarios/STANDARDS.md#fallbacks-never-evidence`](scenarios/STANDARDS.md#fallbacks-never-evidence).
 2. **pandoc dependency** — DOCX, ODT, EPUB, RTF, ICML outputs require pandoc (auto-installed via `pypandoc-binary`).
 3. **MSG → use .eml** — MSG output requires commercial Aspose.Email. Use `.eml` instead (open standard, fully supported).
-4. **Cross-format XLIFF** — Converting DOCX XLIFF → PPTX needs `orf apply-xliff --force`.
+4. **Cross-format XLIFF** — Not implemented. `orf apply-xliff` is format-preserving and refuses a format-mismatched skeleton with a clear error; `--force` is accepted but inert. Use `orf apply-md --target-format <fmt>`.
 5. **PDF XLIFF blocked** — OPP intentionally blocks PDF → XLIFF generation (unsupported).
 6. **Docs are gate-enforced** — `python3 scripts/doc_inventory.py --check` verifies doc truth (tool counts, scenario counts, canonical numbers, archive markers, link/path integrity, skill line-claims). Regenerate with `python3 scripts/doc_inventory.py` after any `docs/` change; wired into pre-commit. Full reference: `.opencode/skills/omni-docmap/SKILL.md`.
 

@@ -99,8 +99,8 @@ Omni Suite 是一个三阶段文档本地化流水线，将源文档从一种语
 | ID | 期望 | 注意 |
 |----|------|------|
 | **F16** | DOCX → OPP(MD) → OL → ORF(apply-md) → EPUB | 跨格式标准路径 |
-| **F17** | DOCX → OPP(XLIFF) → OL → ORF(apply-xliff --force) → PPTX | 跨格式 XLIFF 需要 `--force` |
-| **F18** | 跨格式回写时 ORF 给出明确警告 | `--force` 使覆盖显式化 |
+| **F17** | DOCX → OPP(XLIFF) → OL → ORF(apply-xliff --format pptx) → PPTX | 跨格式 XLIFF **未实现**，请求被拒绝 |
+| **F18** | 跨格式请求时 ORF 给出明确错误 | 说明未实现并指向 `orf apply-md`；`--force` 不再是绕过开关 |
 | **F19** | 不兼容的格式组合给出可理解的错误信息 | 不静默失败 |
 
 ---
@@ -165,7 +165,7 @@ Omni Suite 是一个三阶段文档本地化流水线，将源文档从一种语
 | **"一键安装，三模块就绪"** | ✅ `setup_dev.sh` + `.venv_ol/` 统一 venv | — |
 | **"三种格式端到端"** | ✅ DOCX/PPTX/EPUB 均已验证 | — |
 | **"双通道任选"** | ✅ MD 路径（16 格式）+ XLIFF 路径（布局保真） | — |
-| **"跨格式转换"** | ✅ DOCX→EPUB（标准），XLIFF→PPTX（需 --force） | — |
+| **"跨格式转换"** | ✅ DOCX→EPUB（MD 路径标准）；XLIFF 路径保格式，跨格式被拒绝 | — |
 | **"Agent 原生"** | ✅ 34 个 MCP 工具，三个独立服务器 | 服务器命名不一致 `ol-mcp` vs `*-server` |
 | **"零成本测试"** | ✅ FAKE_LLM seam + FAKE_PANDOC seam | T14 已修复（span_aligner 模拟） |
 | **"安全边界"** | ✅ PathValidator + 共享密钥 + 速率限制 | ORF MCP 默认 CWD（fail-open，需显式配置） |
@@ -450,7 +450,7 @@ orf apply-md ol_out/sample.md --target-format epub -o ./result.epub
 
 **实际结果:** _________ **PASS / FAIL:** _________
 
-**场景 5.2: XLIFF 跨格式（需 --force）**
+**场景 5.2: XLIFF 跨格式请求（应被拒绝）**
 ```bash
 opp sample.docx --target-format both --output-dir ./opp2
 ol translate-xliff opp2/sample.xlf -s en -t zh -o ./ol2
@@ -458,9 +458,9 @@ orf apply-xliff opp2/sample.skeleton.zip \
   --xliff ol2/sample.xlf --output ./out.pptx --format pptx --force
 ```
 **预期结果：**
-- ✅ Exit code 0（因为 --force）
-- ✅ 输出文件存在
-- ⚠️ 警告信息提醒跨格式覆盖
+- ✅ Exit code 非 0（加不加 `--force` 都一样）
+- ✅ 不产生任何输出文件
+- ✅ 错误信息说明「跨格式 XLIFF 回写未实现」并指向 `orf apply-md`
 
 **实际结果:** _________ **PASS / FAIL:** _________
 
@@ -469,7 +469,7 @@ orf apply-xliff opp2/sample.skeleton.zip \
 | 场景 | 结果 |
 |------|------|
 | 5.1 DOCX→EPUB | ⬜ |
-| 5.2 XLIFF 跨格式 --force | ⬜ |
+| 5.2 XLIFF 跨格式请求被拒绝 | ⬜ |
 | **总体** | ⬜ |
 
 ---

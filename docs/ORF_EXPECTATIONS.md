@@ -21,7 +21,7 @@ ORF is the last mile. OPP extracts, OL translates — but if ORF can't produce a
 | **Foreman/Specialist** | Complex jobs decompose intelligently; Foreman routes to specialists with error recovery. |
 | **HITL for risk** | Files >100 MB, cloud uploads, manual_intervention recovery need human approval. |
 | **Graceful degradation** | Missing pandoc → pure-Python fallback. Missing md2pptx → pandoc fallback. Both missing → actionable install hint. No tracebacks. |
-| **Honest about gaps** | MSG requires Aspose. PDF→XLIFF blocked. Cross-format XLIFF needs `--force`. |
+| **Honest about gaps** | MSG requires Aspose. PDF→XLIFF blocked. Cross-format XLIFF refused (not implemented). |
 
 ### 1.3 Expectation Catalog
 
@@ -61,13 +61,13 @@ ORF is the last mile. OPP extracts, OL translates — but if ORF can't produce a
 | **Guard** | `tests/turnkey/test_image_fidelity.py::test_drawing_count_equals_source` |
 | **Expected** | Output `<w:drawing>` count equals source count. No duplicate images. |
 
-#### F05 — Cross-format XLIFF via --force
+#### F05 — Cross-format XLIFF is refused
 | Aspect | Spec |
 |--------|------|
 | **Scenario** | DOCX XLIFF → backfill to PPTX (different format) |
-| **CLI** | `orf apply-xliff source.docx --xliff translated.xlf --output out.pptx --force --format pptx` |
-| **Behavior** | Prints "Warning: skeleton format (docx) differs from target (pptx)" then proceeds. Layout is best-effort. |
-| **Expected** | Translation text appears. WARNING printed. Some layout fidelity lost (expected). |
+| **CLI** | `orf apply-xliff source.docx --xliff translated.xlf --output out.pptx --format pptx` (add `--force` if you like: it is inert) |
+| **Behavior** | Exit 2. Error names the detected source format, the requested `--format`, states cross-format XLIFF backfill is not implemented, and points at `orf apply-md --target-format pptx`. |
+| **Expected** | No output file. `--force` changes nothing. Use `orf apply-md` for cross-format output. |
 
 #### F06 — MCP server (7 tools + PathValidator)
 | Aspect | Spec |
@@ -323,18 +323,18 @@ assert len(deduped) == 2
 
 ---
 
-### Q6-ORF: Cross-format XLIFF (--force)?
+### Q6-ORF: Cross-format XLIFF — how do I get PPTX?
 
 **User:** "DOCX translation, but I need PPTX output." · **Why:** Enables workflows across formats.
 
-#### 6.1 🟢 With --force `orf apply-xliff source.docx --xliff translated.xlf --output cross.pptx --format pptx --force`
-**Expected:** ✅ Exit 0. Warning about format mismatch. File has translated text.
+#### 6.1 🔴 XLIFF path `orf apply-xliff source.docx --xliff translated.xlf --output cross.pptx --format pptx`
+**Expected:** ✅ Exit 2, actionable error, no artifact. Cross-format XLIFF backfill is not implemented.
 
-#### 6.2 🔴 Without --force `orf apply-xliff source.docx --xliff translated.xlf --output cross.pptx --format pptx`
-**Expected:** ⚠️ Exit != 0 or warning. Cross-format blocked/warned without `--force`.
+#### 6.2 ✅ MD path (the supported route) `orf apply-md translated.md --target-format pptx --output cross.pptx`
+**Expected:** ✅ Exit 0, a real PPTX python-pptx can open. Layout is re-built, not preserved.
 
-| 6.1 With --force | 6.2 Without --force |
-|------------------|---------------------|
+| 6.1 XLIFF cross-format | 6.2 MD path |
+|------------------------|-------------|
 | ⬜ | ⬜ |
 
 **OVERALL: ⬜**
@@ -531,7 +531,7 @@ for i in 1 2 3; do echo "# Ch $i" > "ch$i.md"; done
 | Batch conversion works | ⬜ |
 | Foreman routes & recovers | ⬜ |
 | HITL triggers > 100 MB | ⬜ |
-| Cross-format --force works with warning | ⬜ |
+| Cross-format XLIFF refused clearly; `--force` inert | ⬜ |
 | MSG recommends .eml when dep missing | ⬜ |
 
 ---

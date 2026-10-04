@@ -1,35 +1,44 @@
-"""``orf apply-xliff --force``: warn-and-proceed on a cross-format backfill.
+"""``orf apply-xliff --force``: accepted, but inert — it is not a bypass.
 
 Rebuilt after e2e-test-suite#102 (11 e2e files existed only on one machine and
-were never committed, so CI never ran them).
+were never committed, so CI never ran them); contract rewritten by
+e2e-test-suite#64.
 
-What the filename implies, and what is actually true
-----------------------------------------------------
-``--force`` reads like "ignore errors". It does not: ORF's XLIFF channel is
-format-preserving, and there are three sequential guards that each reject a
+What the flag implies, and what is actually true
+------------------------------------------------
+``--force`` reads like "ignore errors". ORF's XLIFF channel is
+format-preserving and there are three sequential guards that each reject a
 skeleton whose container does not match ``--format``:
 
-1. the skeleton **extension** check (``src/orf/commands/apply_xliff.py:204-217``),
+1. the skeleton **extension** check (``src/orf/commands/apply_xliff.py``),
 2. the skeleton **ZIP content** check, which probes ``word/document.xml`` vs
-   ``ppt/presentation.xml`` etc. (``:236-253``),
-3. the **final converter gate** ``converter.validate_input`` (``:336``).
+   ``ppt/presentation.xml`` etc.,
+3. the **final converter gate** ``converter.validate_input``.
 
-Guards 1 and 2 raise ``click.BadParameter`` (exit 2) without ``--force`` and
-downgrade to a ``FORCE MODE`` warning with it. Guard 3 is the one ORF#86 fixed:
-it used to re-reject *after* the force warnings had already been printed, so
-``--force`` exited 1 with "Input file ... is not valid for pptx format" — a
-contract that said "warn + proceed" in one place and "hard fail" in another.
-``git blame`` puts the current ``if not force and not converter.validate_input(...)``
-on commit 3ee61a9, with no later commit touching the file, and the tests below
-confirm the behaviour at runtime rather than trusting that history.
+Before #64, guards 1 and 2 raised ``click.BadParameter`` (exit 2) without
+``--force`` and downgraded to a ``FORCE MODE`` warning with it. That downgrade
+was a validation bypass, not a conversion: the backfill only ever rewrote the
+declared content type, so a DOCX skeleton came out as a DOCX-shaped zip named
+``cross.pptx`` / ``cross.epub``. python-pptx raised "not a PowerPoint file,
+content type is ...wordprocessingml.document.main+xml"; an EPUB reader found no
+``mimetype`` and no ``META-INF/container.xml``; python-docx happily opened the
+``.epub`` one as a document. The CLI printed ``Created <path>`` and exited 0.
 
-Two contract details this file pins because they are easy to get wrong:
+#64 removes the downgrade. All three guards now reject with or without
+``--force``, and the flag is kept accepted so an existing caller gets the real
+cross-format error instead of "No such option".
 
-* the warning goes to **stderr** only. ``--json`` puts the envelope on stdout
-  and the converter's own ``warnings`` array on stdout, and neither carries the
-  FORCE MODE text — a test that asserts on the JSON payload alone would pass
-  with the warning silently dropped.
-* without ``--force`` the same invocation exits **2** and produces no file.
+Three contract details this file pins:
+
+* the rejection message is actionable: it names the detected source format,
+  the requested ``--format``, says cross-format XLIFF backfill is not
+  implemented, and names ``orf apply-md`` as the path that does work.
+* a rejected cross-format request writes **no file** — and not merely "no file
+  at the requested path": no file the target format's own library would accept
+  is produced anywhere. Existence-plus-non-empty is what let the disguised
+  artifact pass unnoticed.
+* the same-format path with ``--force`` is untouched: exit 0, a real DOCX that
+  python-docx opens.
 
 Hermetic: no API keys, no network, no LLM, no pandoc, no OPP. The fixtures are
 a two-entry DOCX zip and a one-trans-unit XLIFF, both built by the helpers below.
@@ -54,9 +63,9 @@ pytestmark = [
 #: ORF's own console handler prefixes warnings with this (src/orf/logging).
 _WARNING_PREFIX = "[WARNING]"
 
-#: The two literals ORF emits, one per guard. Matched on the stable head only
-#: so a wording tweak in the trailing advice does not fail the test.
-_FORCE_MODE_MARKER = "FORCE MODE:"
+#: The stable head of the cross-format rejection, one per guard. Matched on the
+#: head only so a wording tweak in the trailing advice does not fail the test.
+_NOT_IMPLEMENTED_MARKER = "Cross-format XLIFF backfill is not implemented"
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -64,12 +73,34 @@ _FORCE_MODE_MARKER = "FORCE MODE:"
 # ─────────────────────────────────────────────────────────────────────
 
 
-def _write_docx_skeleton(path: Path) -> Path:
-    """A minimal but *real* DOCX zip: ``word/document.xml`` + ``[Content_Types].xml``.
+_CONTENT_TYPES_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+    '<Default Extension="xml" ContentType="application/xml"/>'
+    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+    "</Types>"
+)
 
-    Real, not the 4-byte ``PK\\x03\\x04`` stub: with a stub the guards warn and
-    then the converter fails to load the skeleton, so the test would be
-    asserting on a run that ends in exit 1 rather than on warn-and-proceed.
+_PACKAGE_RELS_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    '<Relationship Id="rId1" '
+    'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+    'Target="word/document.xml"/>'
+    "</Relationships>"
+)
+
+
+def _write_docx_skeleton(path: Path) -> Path:
+    """A minimal but *real* DOCX package: body part + content types + rels.
+
+    Real, not the 4-byte ``PK\\x03\\x04`` stub: the content-level guard needs to
+    actually detect DOCX so the rejection is attributable to the guard under
+    test rather than to an unreadable input. It is also a valid OPC package
+    (content types + ``_rels/.rels``), so a same-format backfill of it yields a
+    DOCX python-docx can actually open -- which is what makes the
+    format-validity assertions below meaningful instead of vacuous.
     """
     document_xml = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -81,7 +112,8 @@ def _write_docx_skeleton(path: Path) -> Path:
     )
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("word/document.xml", document_xml)
-        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr("[Content_Types].xml", _CONTENT_TYPES_XML)
+        archive.writestr("_rels/.rels", _PACKAGE_RELS_XML)
     return path
 
 
@@ -95,7 +127,7 @@ def _write_xliff(path: Path) -> Path:
         "    <body>\n"
         '      <trans-unit id="p_1" resname="para_index_0">\n'
         "        <source>Hello World</source>\n"
-        '        <target state="translated">\u4f60\u597d\u4e16\u754c</target>\n'
+        '        <target state="translated">你好世界</target>\n'
         "      </trans-unit>\n"
         "    </body>\n"
         "  </file>\n"
@@ -130,10 +162,9 @@ def _run_apply_xliff(
     * ``cwd=workdir`` — ORF's logging module creates ``logs/`` relative to the
       process cwd at import time, so this keeps the repo tree clean.
     * a per-invocation ``OMNI_CACHE_DIR`` — ORF checks its conversion cache
-      *before* any of the three force guards, and the cache key does not
-      include ``--force``. A warm shared cache would short-circuit the run and
-      suppress the FORCE MODE line, making these assertions pass or fail for
-      reasons unrelated to ``--force``.
+      before the skeleton guards, and the cache key does not include
+      ``--force``. A warm shared cache would short-circuit the run, making
+      these assertions pass or fail for reasons unrelated to the contract.
     """
     workdir.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
@@ -171,11 +202,13 @@ def _run_apply_xliff(
 # ─────────────────────────────────────────────────────────────────────
 
 
-class TestForceWarnsAndProceeds:
-    """``--force`` downgrades a format-mismatch rejection to a warning."""
+class TestForceIsInert:
+    """``--force`` no longer downgrades either skeleton guard to a warning."""
 
-    def test_extension_mismatch_completes_with_warning(self, force_case: dict[str, Path]) -> None:
-        """A ``.docx`` skeleton with ``--format pptx --force`` exits 0 and warns."""
+    def test_extension_mismatch_still_rejected_with_force(
+        self, force_case: dict[str, Path]
+    ) -> None:
+        """A ``.docx`` skeleton with ``--format pptx --force`` exits 2, no output."""
         workdir = force_case["workdir"]
         output = workdir / "forced.pptx"
 
@@ -189,27 +222,33 @@ class TestForceWarnsAndProceeds:
         )
 
         combined = result.stdout + result.stderr
-        assert result.returncode == 0, (
-            f"--force did not complete the conversion (rc={result.returncode}). "
-            f"ORF#86 fixed exactly this: the final converter gate used to re-reject "
-            f"with exit 1 after the force warnings. Output:\n{combined}"
+        assert result.returncode == 2, (
+            f"--force must not buy a cross-format artifact; rc={result.returncode}\n"
+            f"{combined}"
         )
-        assert f"{_WARNING_PREFIX} {_FORCE_MODE_MARKER}" in result.stderr, (
-            f"expected a FORCE MODE warning on stderr, got:\n"
-            f"stdout={result.stdout}\nstderr={result.stderr}"
+        assert "does not match --format 'pptx'" in result.stderr, (
+            f"rejection does not name the format mismatch:\n{combined}"
         )
-        assert output.is_file(), f"--force exited 0 but wrote no output at {output}"
-        assert zipfile.is_zipfile(output), f"{output} is not a valid zip container"
+        assert _NOT_IMPLEMENTED_MARKER in result.stderr, (
+            f"rejection must say cross-format is not implemented:\n{combined}"
+        )
+        assert "orf apply-md" in result.stderr, (
+            f"rejection must point at the MD path:\n{combined}"
+        )
+        assert "FORCE MODE" not in combined, (
+            f"the FORCE MODE downgrade path must be gone:\n{combined}"
+        )
+        assert not output.exists(), f"--force still wrote {output}"
 
-    def test_zip_content_mismatch_completes_with_warning(
+    def test_zip_content_mismatch_still_rejected_with_force(
         self, tmp_path: Path, force_case: dict
     ) -> None:
-        """A ``.zip`` skeleton whose *contents* are DOCX also warns instead of failing.
+        """A ``.zip`` skeleton whose *contents* are DOCX is rejected too.
 
         This is guard 2, reached only when the suffix is exactly ``.zip``: the
         extension check passes and the format probe on the zip entries is what
-        catches the mismatch. A different warning from guard 1, so it is worth
-        its own case.
+        catches the mismatch. A different message from guard 1, so it earns its
+        own case.
         """
         zipped = tmp_path / "input.skeleton.zip"
         zipped.write_bytes(force_case["skeleton"].read_bytes())
@@ -226,20 +265,45 @@ class TestForceWarnsAndProceeds:
         )
 
         combined = result.stdout + result.stderr
-        assert result.returncode == 0, (
-            f"--force did not complete the zip-content mismatch (rc={result.returncode}):\n"
+        assert result.returncode == 2, (
+            f"--force must not buy a cross-format artifact; rc={result.returncode}\n"
             f"{combined}"
         )
-        assert f"{_WARNING_PREFIX} {_FORCE_MODE_MARKER}" in result.stderr, (
-            f"expected a FORCE MODE warning on stderr, got:\n{combined}"
+        assert "Skeleton ZIP contains 'DOCX' format content" in result.stderr, (
+            f"expected the ZIP-content guard's rejection wording, got:\n{combined}"
         )
-        assert "Skeleton ZIP contains" in result.stderr, (
-            f"expected the ZIP-content guard's warning wording, got:\n{combined}"
+        assert not output.exists(), f"--force still wrote {output}"
+
+    def test_extensionless_skeleton_rejected_with_force(
+        self, tmp_path: Path, force_case: dict
+    ) -> None:
+        """An extensionless skeleton skips guards 1-2; guard 3 must not yield to --force."""
+        skeleton = tmp_path / "skeleton"
+        skeleton.write_bytes(force_case["skeleton"].read_bytes())
+
+        workdir = force_case["workdir"]
+        output = workdir / "forced_noext.pptx"
+        result = _run_apply_xliff(
+            workdir,
+            skeleton,
+            force_case["xliff"],
+            output,
+            target_format="pptx",
+            force=True,
         )
-        assert output.is_file(), f"--force exited 0 but wrote no output at {output}"
+
+        combined = result.stdout + result.stderr
+        assert result.returncode != 0, (
+            f"--force must not bypass the final converter gate; "
+            f"rc={result.returncode}\n{combined}"
+        )
+        assert "is not valid for pptx format" in combined, (
+            f"expected the final validate_input gate to fire:\n{combined}"
+        )
+        assert not output.exists(), f"--force still wrote {output}"
 
     def test_matching_format_needs_no_force(self, force_case: dict[str, Path]) -> None:
-        """The control case: ``--format docx`` on a ``.docx`` warns about nothing."""
+        """The control case: ``--format docx`` on a ``.docx`` is accepted with --force."""
         workdir = force_case["workdir"]
         output = workdir / "matched.docx"
 
@@ -249,20 +313,25 @@ class TestForceWarnsAndProceeds:
             force_case["xliff"],
             output,
             target_format="docx",
-            force=False,
+            force=True,
         )
 
         combined = result.stdout + result.stderr
         assert result.returncode == 0, f"matched-format backfill failed:\n{combined}"
-        assert _FORCE_MODE_MARKER not in combined, (
-            f"a format-preserving backfill emitted a FORCE MODE warning:\n{combined}"
+        assert _NOT_IMPLEMENTED_MARKER not in combined, (
+            f"a format-preserving backfill was rejected as cross-format:\n{combined}"
         )
         assert output.is_file(), f"no output at {output}"
         assert zipfile.is_zipfile(output), f"{output} is not a valid DOCX zip"
 
+        from docx import Document
+
+        doc = Document(str(output))
+        assert len(doc.paragraphs) >= 1, "control DOCX has no paragraphs"
+
 
 class TestWithoutForceHardFails:
-    """The same inputs without ``--force`` are rejected, loudly and early."""
+    """The unforced path is unchanged — this contract predates #64 and still holds."""
 
     def test_extension_mismatch_exits_two_without_force(self, force_case: dict[str, Path]) -> None:
         """No ``--force`` on a mismatched extension: exit 2, no output, no warning."""
@@ -288,7 +357,7 @@ class TestWithoutForceHardFails:
         assert "does not match --format" in result.stderr, (
             f"rejection does not name the format mismatch:\n{combined}"
         )
-        assert _FORCE_MODE_MARKER not in combined, (
+        assert "FORCE MODE" not in combined, (
             f"the rejected run must not also print a FORCE MODE warning:\n{combined}"
         )
         assert not output.exists(), f"rejected run still wrote {output}"
@@ -319,15 +388,56 @@ class TestWithoutForceHardFails:
         assert not output.exists(), f"rejected run still wrote {output}"
 
 
-class TestForceWarningPlumbing:
-    """Where the warning is observable — and where it is not."""
+class TestNoDisguisedArtifact:
+    """A rejected cross-format request leaves nothing the target format accepts.
 
-    def test_warning_is_on_stderr_not_stdout(self, force_case: dict[str, Path]) -> None:
-        """The FORCE MODE line is on stderr; stdout carries only the result line.
+    Existence-plus-non-empty is the check that let the pre-#64 artifact pass:
+    a DOCX-shaped zip named ``cross.pptx`` exists and is 38 KB, yet python-pptx
+    rejects it. These tests therefore ask the *target format's own library*.
+    """
+
+    @pytest.mark.parametrize("target_format", ["pptx", "epub"])
+    def test_no_artifact_the_target_library_accepts(
+        self, force_case: dict[str, Path], target_format: str
+    ) -> None:
+        workdir = force_case["workdir"]
+        output = workdir / f"forced.{target_format}"
+
+        result = _run_apply_xliff(
+            workdir,
+            force_case["skeleton"],
+            force_case["xliff"],
+            output,
+            target_format=target_format,
+            force=True,
+        )
+        assert result.returncode != 0, (
+            f"--force must not succeed for {target_format}: rc={result.returncode}\n"
+            f"{result.stdout}{result.stderr}"
+        )
+
+        produced = [p for p in workdir.iterdir() if p.is_file() and p.suffix != ".xlf"]
+        assert produced == [], f"rejected run produced files: {[p.name for p in produced]}"
+        if target_format == "pptx":
+            from pptx import Presentation
+
+            for path in produced:
+                Presentation(str(path))  # would raise on a disguised DOCX zip
+        else:
+            for path in produced:
+                names = zipfile.ZipFile(path).namelist()
+                assert "mimetype" in names and "META-INF/container.xml" in names
+
+
+class TestInertFlagPlumbing:
+    """Where the flag is observable — and where it is not."""
+
+    def test_inert_notice_is_on_stderr_not_stdout(self, force_case: dict[str, Path]) -> None:
+        """The "--force is accepted but inert" note is a console warning on stderr.
 
         Worth pinning because ORF's console handler is bound to stderr while
-        the success message is a plain ``print`` to stdout, so an agent that
-        parses stdout sees a clean run and misses the warning entirely.
+        the rejection itself is click's own stderr output: both land in the same
+        stream, and an agent parsing stdout sees no trace of either.
         """
         workdir = force_case["workdir"]
         output = workdir / "forced_plumbing.pptx"
@@ -341,24 +451,16 @@ class TestForceWarningPlumbing:
             force=True,
         )
 
-        assert result.returncode == 0, f"forced run failed: {result.stderr[-800:]}"
-        assert _FORCE_MODE_MARKER in result.stderr, (
-            f"FORCE MODE missing from stderr:\n{result.stderr}"
+        assert result.returncode != 0, f"forced run unexpectedly succeeded: {result.stdout}"
+        assert f"{_WARNING_PREFIX} --force is accepted but inert" in result.stderr, (
+            f"inert-flag notice missing from stderr:\n{result.stderr}"
         )
-        assert _FORCE_MODE_MARKER not in result.stdout, (
-            f"FORCE MODE unexpectedly on stdout:\n{result.stdout}"
+        assert "--force is accepted but inert" not in result.stdout, (
+            f"inert-flag notice unexpectedly on stdout:\n{result.stdout}"
         )
 
-    def test_json_envelope_reports_success_but_not_the_warning(
-        self, force_case: dict[str, Path]
-    ) -> None:
-        """``--json`` + ``--force``: envelope on stdout, warning still on stderr.
-
-        The envelope's ``warnings`` array mirrors the converter's own warnings
-        and never contains the FORCE MODE text — ORF#86's contract is a console
-        warning, not a machine-readable one. This test documents that gap so a
-        future agent reading the JSON does not conclude the force was silent.
-        """
+    def test_json_envelope_reports_the_failure(self, force_case: dict[str, Path]) -> None:
+        """``--json`` + ``--force``: the envelope must not claim success."""
         workdir = force_case["workdir"]
         output = workdir / "forced_json.pptx"
 
@@ -372,24 +474,36 @@ class TestForceWarningPlumbing:
             extra=["--json"],
         )
 
-        assert result.returncode == 0, f"forced --json run failed: {result.stderr[-800:]}"
+        assert result.returncode != 0, f"--force unexpectedly succeeded: {result.stdout}"
+        assert not output.exists(), f"--force wrote {output}"
+        assert '"success": true' not in result.stdout, (
+            f"a success envelope would tell an agent the conversion happened:\n"
+            f"{result.stdout}"
+        )
+
+    def test_json_envelope_still_parses_on_same_format(self, force_case: dict[str, Path]) -> None:
+        """The control under ``--json``: a real success envelope, parseable."""
+        workdir = force_case["workdir"]
+        output = workdir / "matched_json.docx"
+
+        result = _run_apply_xliff(
+            workdir,
+            force_case["skeleton"],
+            force_case["xliff"],
+            output,
+            target_format="docx",
+            force=True,
+            extra=["--json"],
+        )
+
+        assert result.returncode == 0, f"same-format run failed: {result.stderr[-800:]}"
         envelope = json.loads(result.stdout)
         assert envelope["success"] is True, f"envelope reports failure: {envelope}"
         assert envelope["output_path"] == str(output), (
             f"envelope output_path {envelope.get('output_path')!r} != {output}"
         )
-        assert _FORCE_MODE_MARKER in result.stderr, (
-            "the FORCE MODE warning vanished under --json:\n" + result.stderr
-        )
-        assert _FORCE_MODE_MARKER not in result.stdout, (
-            "FORCE MODE text must not leak into the JSON payload:\n" + result.stdout
-        )
-        assert all(
-            _FORCE_MODE_MARKER not in item.get("message", "")
-            for item in envelope.get("warnings", [])
-        ), f"envelope warnings unexpectedly carry the FORCE MODE text: {envelope.get('warnings')}"
 
-    def test_force_rejects_unknown_format_option_names(self, force_case: dict[str, Path]) -> None:
+    def test_apply_xliff_rejects_unknown_format_option_names(self, force_case: dict[str, Path]) -> None:
         """``apply-xliff`` has no ``--target-format`` and no ``--dry-run``.
 
         ``apply-md`` uses ``--target-format``; ``apply-xliff`` uses ``--format``.
