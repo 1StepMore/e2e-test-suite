@@ -147,7 +147,7 @@ def _opp_payload(resp: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 XLIFF_INPUTS = {"docx", "pptx", "xlsx", "html", "epub", "eml"}
-XLIFF_OUTPUTS = {"docx", "pptx", "epub", "html", "odt"}
+XLIFF_OUTPUTS = {"docx", "pptx", "epub", "html", "odt", "xlsx"}  # xlsx: #92
 
 
 def _should_skip(inp: str, outp: str, path: str) -> str | None:

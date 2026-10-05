@@ -106,15 +106,30 @@ class TestEPUBXLIFFSkeletonRuleReclaimed:
         assert fmv._check_skip("epub", "epub", "xliff") is None
 
     def test_gap_formats_keep_their_rules(self):
-        """XLSX / EML measured skeleton=None -- these remain real gaps.
+        """Only EML remains a genuine skeleton gap.
 
-        HTML was in this set until OPP#92 taught it to emit a skeleton
-        (``1ac5357``); its rule is reclaimed, so only the two genuine gaps
-        must survive. Asserting the exact set, not a subset, is deliberate:
-        it is what catches the next stale rule being quietly added back.
+        HTML was reclaimed at OPP#92 (``1ac5357``) and XLSX at OPP#94
+        (``6c2a5d8``). EML stays: OPP's email extractor yields ONE trans-unit
+        for the whole body and mail has no layout to preserve, so it was
+        deferred by decision rather than by omission.
+
+        Asserting the exact set, not a subset, is deliberate: it is what
+        catches the next stale rule being quietly added back.
         """
         kept = {r[1] for r in fmv.SKIP_RULES if r[0] == "xliff"}
-        assert kept == {"xlsx", "eml"}
+        assert kept == {"eml"}
+
+    def test_xlsx_rule_is_reclaimed(self, monkeypatch):
+        """XLSX emits a skeleton (OPP#94) and ORF backfills it (ORF#66).
+
+        Also pins ``xlsx`` into XLIFF_OUTPUTS: without it the cell is never
+        generated, so it would vanish from the matrix instead of being
+        reported — the failure mode a skip-rule reclaim alone would hide.
+        """
+        monkeypatch.setitem(fmv.AVAILABILITY, "pandoc", True)
+        assert not [r for r in fmv.SKIP_RULES if r[0] == "xliff" and r[1] == "xlsx"]
+        assert "xlsx" in fmv.XLIFF_OUTPUTS
+        assert fmv._check_skip("xlsx", "xlsx", "xliff") is None
 
     def test_html_rule_is_reclaimed(self, monkeypatch):
         """HTML emits a skeleton (OPP#92), so no static rule may hide its cells."""

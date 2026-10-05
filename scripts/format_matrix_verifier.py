@@ -165,7 +165,11 @@ XLIFF_INPUTS: list[str] = [
 ]
 
 XLIFF_OUTPUTS: list[str] = [
-    "docx", "pptx", "epub", "html", "odt",
+    # xlsx added by e2e-test-suite#92 (OPP#94 + ORF#66): xliff2xlsx now
+    # backfills a spreadsheet skeleton, so `xlsx -> xlsx` is a real cell.
+    # Without it here the cell is never generated and silently disappears
+    # from the matrix rather than being reported.
+    "docx", "pptx", "epub", "html", "odt", "xlsx",
 ]
 
 
@@ -218,8 +222,13 @@ SKIP_RULES: list[tuple[str, str, str]] = [
     # skeleton_html as a top-level index.html entry, which ORF's
     # detect_from_skeleton and xliff2html both accept), so its cells are
     # runnable as well.
-    # XLSX/EML measured skeleton=None — rules stay, gap tracked in #92.
-    ("xliff", "xlsx", "XLIFF: OPP doesn't produce skeleton for XLSX"),
+    # XLSX DOES too (OPP#94, 6c2a5d8 — the skeleton is the original workbook
+    # bytes verbatim plus an `xliff_map.json` sidecar; ORF's xliff2xlsx consumes
+    # it). The map is a sidecar rather than injected data-trans-unit-id
+    # attributes because SpreadsheetML is strict OOXML and would reject them.
+    # EML measured skeleton=None — rule stays, deferred by decision (see
+    # ACCEPTED_GAPS.md: OPP's email extractor yields ONE trans-unit for the whole
+    # body, and mail has no layout to preserve, so XLIFF adds nothing there).
     ("xliff", "eml", "XLIFF: OPP doesn't produce skeleton for EML"),
     # XLIFF cross-format: ORF converters assume same-format skeleton+output.
     # Only same-format XLIFF cells are supported.
