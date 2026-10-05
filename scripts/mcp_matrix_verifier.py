@@ -316,6 +316,9 @@ async def _run_matrix(args) -> int:
     env["OPP_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
     env["OL_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
     env["ORF_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
+    # 矩阵是能力普查、不是压测，harness 不得被 OPP 的生产限流拦住（e2e#147）
+    env["OMNI_RATE_LIMIT_RPM"] = "0"
+    env["OMNI_RATE_LIMIT_BURST"] = "0"
 
     out_dir = args.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
