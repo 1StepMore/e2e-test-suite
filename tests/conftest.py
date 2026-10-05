@@ -397,16 +397,36 @@ def _copy_latest_final_outputs():
     if not runs_dir.exists():
         return
 
+    #: Safety net for the case the early exit cannot help: when the file is
+    # absent altogether (which is the normal state unless the LQA/E2E tests just
+    # ran), the walk still reaches every run dir. Without a ceiling that is
+    #: ~10k dirs x 3 specs, enough to overrun pytest-timeout at teardown on a
+    #: slow filesystem. Generous, because it only decides "is the source recent
+    #: enough to refresh", never "which run is newest" — the early exit owns
+    #: that. Existing final/ copies are left untouched either way.
+    MAX_RUN_DIRS_SCANNED = 1000
+
+    def iter_run_dirs_newest_first():
+        """Yield run dirs newest-first, capped at MAX_RUN_DIRS_SCANNED.
+
+        Run dirs are ISO timestamps, so reverse name order is reverse
+        chronological order — no stat needed to sort. Sorting the names is
+        cheap; the cap only limits how many are then descended into.
+        """
+        run_dirs = [d.name for d in runs_dir.iterdir() if d.is_dir()]
+        run_dirs.sort(reverse=True)
+        return [runs_dir / name for name in run_dirs[:MAX_RUN_DIRS_SCANNED]]
+
     def find_latest(test_name_substr, *sub_path_parts):
         """Find the most recent file at runs/<run>/<test>/<sub_path>.
 
         Walks the tree manually because rglob's pattern matching is
         unreliable when the pattern contains `*` in a directory name.
+        Stops at the newest run that has the file: these outputs are written
+        during the run that produces them, so the first hit walking backwards
+        is the most recent one.
         """
-        candidates = []
-        for run_dir in runs_dir.iterdir():
-            if not run_dir.is_dir():
-                continue
+        for run_dir in iter_run_dirs_newest_first():
             for test_dir in run_dir.iterdir():
                 if not test_dir.is_dir():
                     continue
@@ -414,10 +434,8 @@ def _copy_latest_final_outputs():
                     continue
                 candidate = test_dir.joinpath(*sub_path_parts)
                 if candidate.is_file():
-                    candidates.append(candidate)
-        if not candidates:
-            return None
-        return max(candidates, key=lambda p: p.stat().st_mtime)
+                    return candidate
+        return None
 
     output_specs = [
         ("test_lqa_xliff_final_docx", "orf", "haier_final.docx", "latest_haier_en_xliff.docx"),
