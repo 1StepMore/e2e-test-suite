@@ -191,9 +191,10 @@ OL translation tool, and which ORF backfill tool you should use.
 |-------------|---------|------------|-------|
 | DOCX | ✅ | ✅ | Preferred path for both |
 | PPTX | ✅ | ✅ | XLIFF preserves slide masters |
+| XLSX | ✅ | ✅ | Skeleton = original workbook + `xliff_map.json` sidecar |
 | EPUB | ✅ | ✅ | XLIFF preserves CSS layout |
 | PDF | ✅ | ❌ | PDF→XLIFF intentionally blocked |
-| HTML | ✅ | ❌ | No skeleton.zip |
+| HTML | ✅ | ✅ | Skeleton = synthesized `index.html` with `data-trans-unit-id` |
 | CSV / JSON / XML | ✅ | ❌ | Data formats, no layout |
 | EML / MSG | ✅ | ❌ | Email formats |
 | Images (OCR) | ✅ | ❌ | Text extraction only |
