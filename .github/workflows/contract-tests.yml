@@ -70,7 +70,10 @@ jobs:
         run: |
           # omni_security too: omni_mcp.server (in the declared import surface)
           # imports it, and it is a suite-repo workspace member, not a sub-repo.
-          pip install -e ./omni_security -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter
+          # markdownify/readability-lxml = OPP's HTML-capable deps (its [web]
+          # extra, minus the heavy docling). Without them OPP's HTML extractor
+          # silently degrades; see the mcp-matrix job for the full rationale.
+          pip install -e ./omni_security -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify readability-lxml
       - name: Install root deps + pytest/python-docx (contract doc test)
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog python-docx
       - name: Run contract documentation tests
@@ -96,7 +99,9 @@ jobs:
         run: mkdir -p .venv_ol/bin && ln -sf $(which python) .venv_ol/bin/python
       - name: Install suite + 3 sub-repos (root-level clones via uv workspace)
         run: |
-          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter
+          # markdownify/readability-lxml: OPP's [web] deps, minus the heavy
+          # docling. Rationale in the mcp-matrix job (e2e#148).
+          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify readability-lxml
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: Run CLI contract tests
@@ -131,7 +136,9 @@ jobs:
         run: mkdir -p .venv_ol/bin && ln -sf $(which python) .venv_ol/bin/python
       - name: Install suite + 3 sub-repos (root-level clones via uv workspace)
         run: |
-          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter
+          # markdownify/readability-lxml: OPP's [web] deps, minus the heavy
+          # docling. Rationale in the mcp-matrix job (e2e#148).
+          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify readability-lxml
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: Run MCP schema contract tests (allow failure to capture .actual.json)
@@ -175,7 +182,17 @@ jobs:
         run: mkdir -p .venv_ol/bin && ln -sf $(which python) .venv_ol/bin/python
       - name: Install suite + 3 sub-repos (root-level clones via uv workspace)
         run: |
-          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter
+          # markdownify/readability-lxml are OPP's [web] deps minus the heavy
+          # docling, and they are NOT optional here. Without markdownify OPP's
+          # HTML extractor silently concatenates text nodes, collapsing every
+          # block into ONE paragraph ("Test" + "Hello, world." -> the single
+          # glued "htmlTestHello, world."). One paragraph means no per-block
+          # anchors, so OPP emits no skeleton.zip, `extract_document` returns no
+          # `skeleton_path`, and the html -> html (xliff) cell FAILs — looking
+          # like a missing OPP capability when the HTML/XLIFF path is fine.
+          # Install OPP bare and you get that failure; install these two and the
+          # cell passes with a real skeleton (verified both ways). See e2e#148.
+          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify readability-lxml
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: 'Run MCP matrix (XLIFF: ${{ matrix.xliff_format }})'
