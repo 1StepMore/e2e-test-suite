@@ -11,6 +11,10 @@
 # URLs can be overridden via env vars:
 #   OMNI_OPP_URL, OMNI_OL_URL, OMNI_ORF_URL
 #
+# Defaults point at the 1StepMore primaries. The renanzai40/*_BackUp
+# mirrors are backup-only and must NOT be a CI dependency (they can lag
+# or stop being synced, and the matrix would silently test old code).
+#
 # Versions can be pinned via env vars (default: branch=main):
 #   OMNI_OPP_REF, OMNI_OL_REF, OMNI_ORF_REF
 #   (any git ref: branch, tag, or SHA)
@@ -22,9 +26,9 @@ set -euo pipefail
 ws="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 declare -a subs=(
-    "Omni_Pre_Processor|${OMNI_OPP_URL:-https://github.com/renanzai40/OPP_BackUp.git}|${OMNI_OPP_REF:-main}"
-    "Omni_Localizer|${OMNI_OL_URL:-https://github.com/renanzai40/OL_BackUp.git}|${OMNI_OL_REF:-main}"
-    "Omni_Re_Formatter|${OMNI_ORF_URL:-https://github.com/renanzai40/ORF_BackUp.git}|${OMNI_ORF_REF:-main}"
+    "Omni_Pre_Processor|${OMNI_OPP_URL:-https://github.com/1StepMore/Omni_Pre_Processor.git}|${OMNI_OPP_REF:-main}"
+    "Omni_Localizer|${OMNI_OL_URL:-https://github.com/1StepMore/Omni_Localizer.git}|${OMNI_OL_REF:-main}"
+    "Omni_Re_Formatter|${OMNI_ORF_URL:-https://github.com/1StepMore/Omni_Re_Formatter.git}|${OMNI_ORF_REF:-main}"
 )
 
 for entry in "${subs[@]}"; do
