@@ -73,7 +73,7 @@ jobs:
           # markdownify = OPP's load-bearing HTML dep (its [web] extra).
           # Without it OPP's HTML extractor silently degrades; see the
           # mcp-matrix job for the full rationale.
-          pip install -e ./omni_security -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify
+          pip install -e ./omni_security -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify readability-lxml
       - name: Install root deps + pytest/python-docx (contract doc test)
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog python-docx
       - name: Run contract documentation tests
@@ -101,7 +101,7 @@ jobs:
         run: |
           # markdownify: OPP's load-bearing HTML dep. Rationale in the
           # mcp-matrix job (e2e#148).
-          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify
+          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify readability-lxml
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: Run CLI contract tests
@@ -138,7 +138,7 @@ jobs:
         run: |
           # markdownify: OPP's load-bearing HTML dep. Rationale in the
           # mcp-matrix job (e2e#148).
-          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify
+          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify readability-lxml
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: Run MCP schema contract tests (allow failure to capture .actual.json)
@@ -193,11 +193,15 @@ jobs:
           # get that failure; install this and the cell passes with a real
           # skeleton (verified both ways). See e2e#148.
           #
-          # readability-lxml and docling are deliberately NOT installed: the
-          # former returns an empty summary for low-content HTML, which blanks
-          # the whole PDF-via-HTML path (12 md cells fail with it installed, 0
-          # without); the latter is heavy and genuinely optional.
-          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify
+          # readability-lxml is deliberately NOT excluded here. It was, because it
+          # emptied the extraction of any multi-page PDF -- 12 pdf md cells were
+          # red with it installed. OPP#100 fixed the cause rather than the
+          # symptom: PDF2HTMLExtractor now passes use_readability=False, since it
+          # knows its own markup is machine-generated. So it is installed, the 12
+          # cells pass anyway, and readability stays covered where it still does
+          # the work -- authored web-page HTML.
+          # docling stays out: heavy, and OPP degrades cleanly without it.
+          pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify readability-lxml
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
       - name: 'Run MCP matrix (XLIFF: ${{ matrix.xliff_format }})'
