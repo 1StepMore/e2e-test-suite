@@ -13,9 +13,9 @@
 
 **生产单元 = 格子 × 通道**。
 
-- **格子 195 个** = md 路径 11 输入 × 15 输出（**165**）+ xliff 路径 6 输入 × 5 输出（**30**）
-- **通道 2 条** = CLI（`scripts/format_matrix_verifier.py`）× MCP（`scripts/mcp_matrix_verifier.py`），**同一个 195 格矩阵**，一条走子进程 CLI、一条走 MCP 工具调用
-- **合计 390 次格子运行**，全部通过才算达标
+- **格子 201 个** = md 路径 11 输入 × 15 输出（**165**）+ xliff 路径 6 输入 × 6 输出（**36**）
+- **通道 2 条** = CLI（`scripts/format_matrix_verifier.py`）× MCP（`scripts/mcp_matrix_verifier.py`），**同一个 201 格矩阵**，一条走子进程 CLI、一条走 MCP 工具调用
+- **合计 402 次格子运行**，全部通过才算达标
 
 > 说明：L1 §2.3 写的「16 输入 × 2 通道 = 32」是**粗估，不准**。真实定义以验证器里的
 > `FULL_MATRIX` 为准（`ALL_INPUTS` / `ALL_OUTPUTS` / `XLIFF_INPUTS` / `XLIFF_OUTPUTS`）。
@@ -43,7 +43,7 @@ docstring 明确写着 *"exits 0 if all non-skipped cells pass"*。
 ### ⚠️ 抗作弊规矩二：**解释器必须先探活**
 
 验证器按 `suite_root/.venv_ol/bin/python` 选解释器（`format_matrix_verifier.py:280`）。
-选到缺 `opp` / `orf` / `ol_cli` 的环境时，**它不报环境错**，而是让 195 格**逐个 FAIL**。
+选到缺 `opp` / `orf` / `ol_cli` 的环境时，**它不报环境错**，而是让 201 格**逐个 FAIL**。
 
 **实测拿到过 `128 fail / 0 pass / 67 skip` 的整张假红矩阵**（2026-09-30，本机）——
 两次原因不同，一次是 `e2e-test-suite/.venv_ol` 指向了已废弃的 `.venv`（缺 `opp`/`orf`），
@@ -61,7 +61,7 @@ docstring 明确写着 *"exits 0 if all non-skipped cells pass"*。
 
 | 判据 | 谁判 |
 |:---|:---|
-| 390 格归零且 skip 未超基线（`nightly_gap.py` exit 0） | **机器**（agent 跑） |
+| 402 格归零且 skip 未超基线（`nightly_gap.py` exit 0） | **机器**（agent 跑） |
 | 连续 2 轮不新增「挡住 DoD」的项 | **机器**（agent 跑） |
 | **「本计划完成 / Omni 产出没问题」总裁决** | **owner（人工保留）** |
 
@@ -79,7 +79,7 @@ cd <repo>
 .venv_ol/bin/python scripts/nightly_gap.py \
     --json-out test_artifacts/nightly/gap.json \
     --md-out  test_artifacts/nightly/gap.md
-# exit 0 = 390 格全过且 skip 未超基线 / 1 = 仍有差距 / 2 = 环境或用法错误（需人介入）
+# exit 0 = 402 格全过且 skip 未超基线 / 1 = 仍有差距 / 2 = 环境或用法错误（需人介入）
 
 # —— 单通道直跑（定位用；注意必须用 .venv_ol 且三件套齐全）——
 .venv_ol/bin/python scripts/format_matrix_verifier.py --json --out-dir /tmp/fm
@@ -228,7 +228,7 @@ regression_gap = fail 合计 + Σ_通道 max(0, skipped_通道 − --max-skip)  
 `skipped` 就下降；把依赖卸掉，`skipped` 就上升。因此**任何只写数字不写环境的
 「真值」都是不可复现的** —— 这正是 #131 说的「skip 基线不可判定」。
 
-下表由 `_check_skip`（CLI）与 `_should_skip`（MCP）在**全 195 格网格**上逐一求值得出
+下表由 `_check_skip`（CLI）与 `_should_skip`（MCP）在**全 201 格网格**上逐一求值得出
 （不是抽样，也不是估算）：
 
 | 可用依赖 | skipped | 豁免 | 需清理 | 实跑 | CLI vs MCP |
@@ -270,7 +270,7 @@ markdown 里写成「skip 67 = 豁免 23 + 需清理 44」，**豁免 = 夹具�
 
 第一版 `nightly_gap.py` 在验证器没落 `matrix.json` 时（`total/passed/failed/skipped`
 全为 0）算出 `gap = 0 + 0 = 0`，于是**打印「两通道 390 格全过」**——拿不到数据被判成了通过。
-已修：任一通道取不到矩阵、或总数 ≠ 预期 390，一律 **exit 2 并说明原因**，绝不判绿。
+已修：任一通道取不到矩阵、或总数 ≠ 预期 402，一律 **exit 2 并说明原因**，绝不判绿。
 配套修了取数：CLI 验证器**只有传 `--json` 才写 `matrix.json`**（不传只写 `matrix.md`），
 且 MCP 验证器不认 `--parallel` —— 两者开关差异改为按能力探测。
 
