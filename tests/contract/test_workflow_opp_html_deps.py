@@ -52,11 +52,20 @@ OPP_EDITABLE = "-e ./Omni_Pre_Processor"
 #: paragraphs carry their tags.
 REQUIRED_HTML_DEPS = ("markdownify",)
 
-#: Same optional ``web`` extra, deliberately not installed. readability-lxml
-#: scores the document and returns an empty summary when it judges the content
-#: too small — which blanks the PDF-via-HTML path entirely. docling is heavy
-#: and genuinely optional. Both exclusions are measured, not stylistic.
-FORBIDDEN_HTML_DEPS = ("readability-lxml", "docling")
+#: Same optional ``web`` extra, deliberately not installed. docling is heavy and
+#: OPP falls back to readability without it, so nothing is lost by leaving it out.
+#:
+#: readability-lxml was on this list until OPP#100 and has been removed: the
+#: reason it was excluded no longer holds. It used to empty the extraction of
+#: any multi-page PDF, which is what made 12 ``pdf -> * (md)`` matrix cells red.
+#: ``PDF2HTMLExtractor`` now passes ``use_readability=False`` because it knows
+#: its own markup is machine-generated, so those cells pass with the library
+#: installed — verified across the full 201-cell matrix with readability-lxml
+#: 0.8.4.1 present. Keeping it installed matters: readability IS still the path
+#: for authored web-page HTML (``pipeline.py`` constructs the default
+#: extractor for ``FormatType.HTML``), so excluding it would leave that path
+#: untested while testing nothing in exchange.
+FORBIDDEN_HTML_DEPS = ("docling",)
 
 
 def _opp_install_steps() -> list[tuple[str, str]]:
@@ -101,7 +110,7 @@ def test_opp_installs_carry_html_capable_deps():
 
 
 def test_opp_installs_exclude_degrading_html_deps():
-    """readability-lxml must stay out: it empties low-content HTML, not just PDF."""
+    """docling must stay out: heavy, and OPP works without it."""
     offenders = [
         f"{job}: {dep}"
         for job, cmd in _opp_install_steps()
@@ -109,14 +118,13 @@ def test_opp_installs_exclude_degrading_html_deps():
         if re.search(rf"\b{dep}\b", cmd)
     ]
     assert not offenders, (
-        "readability-lxml returns an empty summary when it scores a document as "
-        "too small to be readable content. OPP routes PDF through HTML, so the "
-        "smallest fixtures come back with `paragraphs: []` and `content: ''` — "
-        "measured: the pdf md subset goes 12 fail / 0 pass with it installed and "
-        "0 fail / 12 pass without. Installing it to 'match the [web] extra' "
-        "would reintroduce a silent-wrong-output path (OPP#97) that this matrix "
-        "would then report as a capability gap. docling stays out as well: it is "
-        "heavy and OPP falls back cleanly without it.\n"
+        "docling is the third member of OPP's optional `web` extra and by far the "
+        "heaviest (it pulls a full document-AI stack). OPP degrades cleanly to "
+        "readability without it, so installing it buys no coverage and costs CI "
+        "time. Note readability-lxml was removed from this list in the same change "
+        "that added it back to the workflow: OPP#100 stopped PDF2HTMLExtractor "
+        "from routing its own machine-generated HTML through readability, which "
+        "was the only thing that made those 12 pdf cells red.\n"
         f"forbidden deps installed: {offenders}"
     )
 
