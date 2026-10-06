@@ -4,10 +4,10 @@
 把「当前产出 vs 完成定义（DoD）」算成机器可读矩阵。
 **冻结区**：coding agent 只跑、不改。
 
-DoD：**195 个格子 × 2 条通道（CLI / MCP）= 390 次格子运行**全部通过。
-- 195 = md 路径 11 输入 × 15 输出（165）+ xliff 路径 6 × 5（30）
-- 两条通道各 195 格：CLI 走 scripts/format_matrix_verifier.py，
-  MCP 走 scripts/mcp_matrix_verifier.py（同 195 格，改走 MCP 工具调用）
+DoD：**201 个格子 × 2 条通道（CLI / MCP）= 402 次格子运行**全部通过。
+- 201 = md 路径 11 输入 × 15 输出（165）+ xliff 路径 6 × 6（36）
+- 两条通道各 201 格：CLI 走 scripts/format_matrix_verifier.py，
+  MCP 走 scripts/mcp_matrix_verifier.py（同 201 格，改走 MCP 工具调用）
 
 ⚠️ 三条抗作弊规矩（都来自实测，不是推测）：
 
@@ -21,13 +21,13 @@ DoD：**195 个格子 × 2 条通道（CLI / MCP）= 390 次格子运行**全部
    另设**回归护栏** `regression_gap`（每通道 skip 不得超过 `--max-skip`），
    专门抓「跳过数变多」的退步。
 2. **解释器必须先探活**。验证器按 `suite_root/.venv_ol/bin/python` 选解释器，
-   选到缺 `opp`/`orf`/`ol_cli` 的环境时**不会报环境错**，而是让 195 格逐个 FAIL ——
+   选到缺 `opp`/`orf`/`ol_cli` 的环境时**不会报环境错**，而是让 201 格逐个 FAIL ——
    实测拿到过 128 fail / 0 pass 的**全假红**矩阵。故先探活，不通即 exit 2。
 3. **拿不到数据 ≠ 通过**。第一版脚本在这里犯过错：验证器没落 `matrix.json` 时
    `total/passed/failed/skipped` 全是 0，两个口径都算出 0
    （`gap_units = 0 + 0`、`regression_gap = 0 + 0`）
    于是**报了「390 格全过」的假绿**。现在：任一通道拿不到矩阵、或总数不等于
-   预期 390，一律 **exit 2**，绝不判绿。
+   预期 402，一律 **exit 2**，绝不判绿。
 
    （配套：CLI 验证器**只有传 `--json` 才写 `matrix.json`**，不传只写 `matrix.md`；
    MCP 验证器无条件写 json 但不认 `--parallel`。两者的开关差异按能力探测。）
@@ -60,7 +60,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 REQUIRED_MODULES = ("opp.cli", "orf", "ol_pool")
-EXPECTED_TOTAL = 390          # 195 格 × 2 通道
+EXPECTED_TOTAL = 402          # 201 格 × 2 通道
 DEFAULT_MAX_SKIP = 67         # 冻结基线（**每通道**口径，2026-10-01 裁定）：2026-09-30 实测
 EXEMPT_SKIP_REASONS = (
     # 因**夹具内容缺失**而必然跳过的理由子串（豁免 = 夹具内容依赖，非能力缺陷；
@@ -203,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     if missing:
         print(f"解释器不可用：{python}\n"
               f"  缺模块：{', '.join(missing)}\n"
-              f"  这条不是差距，是环境问题。验证器在这种环境下会把 195 格逐个\n"
+              f"  这条不是差距，是环境问题。验证器在这种环境下会把 201 格逐个\n"
               f"  判成 FAIL（实测 128 fail / 0 pass 的全假红），所以这里直接拦下。\n"
               f"  修法见 SETUP.md：用装了 OPP/OL/ORF 三件套的 .venv_ol 解释器。",
               file=sys.stderr)
