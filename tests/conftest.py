@@ -262,6 +262,58 @@ if _VENV_BIN.exists() and _VENV_BIN.is_dir():
 _ARTIFACTS_ROOT = Path(__file__).resolve().parents[1] / "test_artifacts"
 
 
+#: How many session dirs to keep under test_artifacts/runs. Nothing prunes this
+#: tree by design (see `artifact_dir`), so it grew unbounded — 10,580 dirs here,
+#: enough that `du -sh` and a bare `ls` on it overran the shell timeout, which is
+#: a local-ergonomics problem long before it is a disk-space one.
+KEEP_SESSION_DIRS = 50
+
+#: Deleting thousands of directories is slow on some filesystems (/mnt/d here), so
+#: the prune is time-budgeted rather than exhaustive. It converges over a few
+#: runs instead of stalling one, and it runs before the scan in
+#: `_copy_latest_final_outputs` that this originally existed to protect.
+PRUNE_BUDGET_SECONDS = 30
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _prune_old_artifact_runs():
+    """Keep only the newest KEEP_SESSION_DIRS session dirs under runs/."""
+    runs_dir = _ARTIFACTS_ROOT / "runs"
+    if not runs_dir.is_dir():
+        return
+    try:
+        session_dirs = sorted(
+            (d for d in runs_dir.iterdir() if d.is_dir()),
+            key=lambda d: d.name,
+            reverse=True,
+        )
+    except OSError:
+        return
+
+    doomed = session_dirs[KEEP_SESSION_DIRS:]
+    if not doomed:
+        return
+
+    import time
+
+    deadline = time.monotonic() + PRUNE_BUDGET_SECONDS
+    removed = 0
+    for stale in doomed:
+        if time.monotonic() > deadline:
+            break
+        try:
+            shutil.rmtree(stale)
+            removed += 1
+        except OSError:
+            # Another process may be mid-write, or the path may be locked. This
+            # is housekeeping; it must never fail a test session.
+            break
+    print(
+        f"\n[artifacts] pruned {removed}/{len(doomed)} stale run dirs "
+        f"(kept {KEEP_SESSION_DIRS}, {PRUNE_BUDGET_SECONDS}s budget)"
+    )
+
+
 @pytest.fixture
 def artifact_dir(request) -> Path:
     """Per-test persistent artifact directory under test_artifacts/runs/.
