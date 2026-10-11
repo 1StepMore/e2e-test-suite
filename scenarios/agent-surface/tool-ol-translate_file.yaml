@@ -1,5 +1,5 @@
 name: tool-ol-translate_file
-description: "OL translate_file runs the OPP-OL-ORF pipeline on a document (requires real LLM keys) and returns the shipped clean ORF_INPUT_MISSING defect error."
+description: "OL translate_file runs the OPP-OL-ORF pipeline on a document (requires real LLM keys) and returns a structured success envelope naming the backfilled output path."
 level: agent-user
 category: agent-surface
 tier: 2
@@ -16,7 +16,7 @@ instructions: |
   runs in a fully configured env (real LLM keys plus the CLI config vars
   declared in requires_env); key-less runs report unconfigured honestly.
 steps:
-  - name: "translate_file with valid args returns the shipped clean ORF_INPUT_MISSING defect error"
+  - name: "translate_file with valid args backfills the document and returns the structured success envelope"
     kind: python
     command: |
       import os, sys
@@ -41,10 +41,10 @@ steps:
     expect:
       success: true
       exit_code: 0
-      stdout_has: ["ORF_INPUT_MISSING", "does not exist"]
+      stdout_has: ['"success": true', 'output_path', 'pipeline']
       stdout_not_has: ["Traceback (most recent call last)"]
-    standard: STANDARDS.md#error-clarity
-    instructions: "KNOWN DEFECTS (findings, verified with a fully configured keyed env): (1) the md path expects the OL CLI output at <temp>/<stem>.translated.md but `ol translate-md` writes <temp>/<stem>.md, so ORF_INPUT_MISSING fires; (2) the xliff path passes --target-format to `orf apply-xliff`, whose real option is --format. This step pins the REAL shipped behavior of the md path: a clean ORF_INPUT_MISSING error naming the missing file, no traceback. Report both defects to the OL bug track."
+    standard: STANDARDS.md#tool-contract
+    instructions: "Happy contract: translate_file drives OPP -> OL -> ORF on the fixture and returns the structured success envelope naming the backfilled output_path and the pipeline it used, with no traceback. HISTORY: this step used to pin two KNOWN DEFECTS (the md path looked for <temp>/<stem>.translated.md while `ol translate-md` writes <temp>/<stem>.md, and the xliff path passed --target-format to `orf apply-xliff` whose real option is --format). Both were fixed in Omni_Localizer by `a18b882` (OL#83) — see translate_file.py:223 `_find_output_file(...)` and the --format/--xliff args at :233-238. The assertion was flipped to the success contract so it tracks the fixed product instead of the defect; do not re-pin the old error. Keep stdout_not_has on the traceback: a failure here must still surface as a clean JSON envelope, never stack-trace soup."
     collect_artifacts:
       - path: "/tmp/omni-agent-surface/sample.docx"
   - name: "translate_file returns a clean error for wrong-shaped params"
