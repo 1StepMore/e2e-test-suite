@@ -30,9 +30,15 @@ Clone URLs can be overridden via environment variables:
 
 | Env Var | Default |
 |---------|---------|
-| `OMNI_OPP_URL` | `https://github.com/renanzai40/OPP_BackUp.git` |
-| `OMNI_OL_URL` | `https://github.com/renanzai40/OL_BackUp.git` |
-| `OMNI_ORF_URL` | `https://github.com/renanzai40/ORF_BackUp.git` |
+| `OMNI_OPP_URL` | `https://github.com/1StepMore/Omni_Pre_Processor.git` |
+| `OMNI_OL_URL` | `https://github.com/1StepMore/Omni_Localizer.git` |
+| `OMNI_ORF_URL` | `https://github.com/1StepMore/Omni_Re_Formatter.git` |
+
+These defaults track the real ones in `setup_dev.sh` (and `clone_subrepos.sh`), which point at
+the `1StepMore` primaries. The `renanzai40/*_BackUp` mirrors are **frozen disaster-recovery
+snapshots** (last written when `origin` was unreachable) — never point these at them, or a fresh
+setup silently develops against stale sub-repo code. `clone_subrepos.sh` also accepts
+`OMNI_*_REF` to pin a branch/tag/SHA; CI leaves it at `main`.
 
 Set any of these to point to a fork, a local path (for offline testing), or a mirror:
 
