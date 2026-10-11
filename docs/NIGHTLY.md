@@ -97,6 +97,20 @@ cd <repo>
 
 ## 【活区】当前差距矩阵（真基线 2026-10-01）
 
+### 2026-10-10 夜间复跑（在最新 main `c0c951e` 上）
+
+`.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，0 fail）**，与 2026-10-09 复跑一致，无退步。
+
+- 合计 **402** 格（CLI + MCP）· passed **292** · failed **0** · skipped **110**（豁免 52 + 需清理 58）。
+- 每通道：CLI `201 / 146 / 55 / 0` · MCP `201 / 146 / 55 / 0`（逐格一致 → DoD ③ 通道一致成立）；`needs_cleanup = 29 / 通道`。
+- 回归护栏：`regression_gap 0`（skipped 55 ≤ 基线 67/通道）。
+- **环境类 skip 本轮为 0**（`md2pptx not installed` 等已不再命中）。
+- 剩余 29 skip/通道 = **两类已登记的能力债**：
+  - `XLIFF cross-format not supported by ORF converters` —— 23 格/通道（跨格式回填 = 研究级工作，见 `ACCEPTED_GAPS.md`）。
+  - `XLIFF: OPP doesn't produce skeleton for EML` —— 6 格/通道（**按决定延期**，非遗漏；见 `ACCEPTED_GAPS.md`）。
+
+**读法**：余下 58 是**成对的两类能力债**，已在 `ACCEPTED_GAPS.md` 明面登记，且**故意留在 `gap_units` 里**（不靠改口径洗白）。它不会靠装二进制或补夹具消失，需要 owner 裁定是否投研究级工作量。**最终裁决由 owner 保留**。
+
 ### 2026-10-02 夜间复跑（在最新 main 上）
 
 | 通道 | Cells | Pass | Skip | Fail | 时长 |
@@ -304,6 +318,7 @@ markdown 里写成「skip 67 = 豁免 23 + 需清理 44」，**豁免 = 夹具�
 - 2026-10-01：`nightly_gap.py` 修掉自身一个**假绿**（拿不到矩阵时判成"全过"）——
   改为取数失败即 exit 2；并修取数开关（CLI 需 `--json` 才落 json、MCP 不认 `--parallel`，
   按能力探测）。
+- 2026-10-10：夜间复跑 `gap_units 58` 不变（两类能力债），`regression_gap 0`，无退步。
 
 ---
 
