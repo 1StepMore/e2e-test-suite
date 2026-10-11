@@ -16,43 +16,24 @@ steps:
   - name: 'Provision fixtures'
     kind: python
     command: |
-      import os, shutil, sys
-      sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      import os, sys
+      FIXT = "/tmp/omni-batch-convert-fixture"
       os.makedirs(FIXT, exist_ok=True)
-      import json as _json
-      from docx import Document
-      if not os.path.exists(os.path.join(FIXT, "sample.docx")):
-          d = Document()
-          d.add_heading("Meridian Robotics — Product Overview", level=1)
-          d.add_paragraph("Meridian Robotics is a global manufacturer of industrial automation systems.")
-          d.save(os.path.join(FIXT, "sample.docx"))
-      if not os.path.exists(os.path.join(FIXT, "sample.md")):
-          open(os.path.join(FIXT, "sample.md"), "w").write("# Hello World\n\nThis is a test document.\n")
-      if not os.path.exists(os.path.join(FIXT, "sample_fm.md")):
-          open(os.path.join(FIXT, "sample_fm.md"), "w").write("---\nsource_lang: en\ntarget_lang: zh\n---\n# Frontmatter Doc\n\nBody text here.\n")
-      if not os.path.exists(os.path.join(FIXT, "glossary.json")):
-          _json.dump({"API endpoint": {"translation": "API 端点", "confidence": 0.95}}, open(os.path.join(FIXT, "glossary.json"), "w"))
-      if not os.path.exists(os.path.join(FIXT, "memory.tmx")):
-          open(os.path.join(FIXT, "memory.tmx"), "w").write('<?xml version="1.0"?><tmx version="1.4"><body><tu><tuv xml:lang="en"><seg>Click the button</seg></tuv><tuv xml:lang="zh"><seg>点击按钮</seg></tuv></tu></body></tmx>')
-      if not os.path.exists(os.path.join(FIXT, "sample.xlf")):
-          open(os.path.join(FIXT, "sample.xlf"), "w").write('<?xml version="1.0" encoding="utf-8"?><xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2"><file original="sample.md" source-language="en" target-language="zh"><body><trans-unit id="1"><source>Hello World</source><target>你好世界</target></trans-unit></body></file></xliff>')
-      if not os.path.exists(os.path.join(FIXT, "warn.md")):
-          open(os.path.join(FIXT, "warn.md"), "w").write("# Hi\n<!-- OL_WARN:missing_shields key1 -->\nbody\n")
-      if not os.path.exists(os.path.join(FIXT, "default.yaml")):
-          shutil.copy("Omni_Localizer/config/default.yaml", os.path.join(FIXT, "default.yaml"))
+      target = os.path.join(FIXT, "sample_fm.md")
+      if not os.path.exists(target):
+          open(target, "w").write("---\nsource_lang: en\ntarget_lang: zh\n---\n# Frontmatter Doc\n\nBody text here.\n")
       print("fixtures provisioned")
     timeout_seconds: 120
     expect:
       success: true
       exit_code: 0
     standard: STANDARDS.md#tool-contract
-    instructions: 'Write the hermetic fixture set including sample_fm.md (frontmatter-marked so convert-batch accepts it) under /tmp/omni-agent-surface.'
+    instructions: "Write ONE frontmatter-marked .md under a directory dedicated to this scenario. It must not be /tmp/omni-agent-surface: 22 agent-surface scenarios share that directory, `orf convert-batch` scans recursively (rglob *.md) and counts every file carrying frontmatter, so any sibling scenario that translates into the shared dir silently changes this scenario's `succeeded` count. That happened — the 2026-10-06..11 nightlies all reported succeeded 2 instead of 1 because a tier-2 OL scenario ran first in the all-tier pass and dropped a translated .md beside the fixture."
   - name: 'batch_convert converts the fixture dir and reports structured success'
     kind: mcp
     tool: orf.mcp.server.batch_convert
     arguments:
-      input_dir: /tmp/omni-agent-surface
+      input_dir: /tmp/omni-batch-convert-fixture
       target_format: html
     timeout_seconds: 120
     expect:
@@ -63,7 +44,7 @@ steps:
         - {path: data.content.status, value: complete}
         - {path: data.content.succeeded, value: 1}
     standard: STANDARDS.md#tool-contract
-    instructions: 'Call batch_convert on the fixture dir; the ORF CLI emits a pure-JSON payload (its progress line goes to stderr) so the MCP layer parses it and the response reports structured success — data.success true, data.status "complete", data.succeeded 1, with no spurious error envelope. The tool must return an agent-readable success payload, never a raw stack trace.'
+    instructions: 'Call batch_convert on the dedicated fixture dir; the ORF CLI emits a pure-JSON payload (its progress line goes to stderr) so the MCP layer parses it and the response reports structured success — data.success true, data.status "complete", data.succeeded 1, with no spurious error envelope. The count is asserted exactly because the dir is isolated: a shared dir would make this number depend on whatever other scenarios ran first. The tool must return an agent-readable success payload, never a raw stack trace.'
   - name: 'batch_convert denies an out-of-allowlist directory'
     kind: mcp
     tool: orf.mcp.server.batch_convert

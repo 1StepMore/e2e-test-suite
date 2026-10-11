@@ -3,10 +3,9 @@ description: >-
   R-04 partial-success contract + policy (T-21). `orf convert-batch` on a
   2-of-3-valid batch reports status "partial" with honest counts; without
   `--allow-partial` it exits non-zero, and with the flag it exits 0. The
-  invalid member is graded as its own red step — the partial in
-  partial-success — and the scenario's `min_passing` / `pass_ratio` bar
-  accepts it, so the verdict is `partial-pass`: never `passed` and never a
-  misleading success. Tier 1 / hermetic.
+  invalid member is graded against its own real contract — single-member
+  conversion exits 1 with a parseable error and no artifact — so all five
+  steps are satisfiable and the scenario reaches `passed`. Tier 1 / hermetic.
 level: agent-user
 category: orf-md
 tier: 1
@@ -23,10 +22,10 @@ instructions: |
   3. Re-run without `--allow-partial`: exit non-zero while the JSON still says
      status "partial" and failed 1 — the flag changes the exit code, never the
      counts.
-  4. Convert the invalid member directly: it is the failed member by
-     construction, so this step is RED. The scenario accepts it via the
-     `min_passing: 2` / `pass_ratio: 0.5` partial bar (the R-04 policy under
-     test), which is why the verdict is `partial-pass`, not `failed`.
+  4. Convert the invalid member directly: it must exit 1 with a parseable
+     `Error: Conversion failed` line and leave no artifact. That is the
+     single-member contract; the partial-success policy is covered by the
+     batch steps.
   5. Adversarially re-run (2) and parse the JSON: exit 0 must never pair with
      status "complete"; the failed member must leave no output artifact, and
      the output dir holds exactly the two successful html files (no stale
@@ -87,18 +86,28 @@ steps:
       Without the flag the same partial batch exits 1 (STANDARDS.md#exit-codes)
       while the JSON counts are unchanged — the exit code is the only thing the
       flag may move.
-  - name: "Invalid member conversion is the red partial (accepted by the bar)"
+  - name: "Invalid member conversion fails cleanly and leaves no artifact"
     kind: cli
     command: orf apply-md /tmp/omni_val/t21-orf-batch-partial/src/bad.md --target-format html -o /tmp/omni_val/t21-orf-batch-partial/out/bad.html
     timeout_seconds: 120
     expect:
-      exit_code: 0
+      exit_code: 1
+      stderr_has: ['Error: Conversion failed', 'utf-8']
+      stdout_not_has: ['Traceback (most recent call last)']
     standard: STANDARDS.md#error-clarity
     instructions: >-
-      This member is invalid by construction (invalid UTF-8), so the real CLI
-      fails (exit 1, no artifact) — this step is RED. It is the "partial" in
-      partial-success: the scenario's min_passing/pass_ratio bar accepts the
-      red instead of failing the whole scenario, yielding `partial-pass`.
+      This member is invalid by construction (invalid UTF-8), and the correct
+      contract is that the real CLI fails cleanly: exit 1, a parseable
+      `Error: Conversion failed` line on stdout carrying remediation hints, no
+      traceback, and no `bad.html` written. Asserting that contract is what
+      makes this step worth running. It previously asserted `exit_code: 0`
+      while calling itself "RED ... accepted by the bar" via `min_passing` —
+      an assertion of something untrue about the product, which guaranteed the
+      scenario could never reach `passed` and, because `partial-pass` never
+      blocks, could never catch a regression either. The partial-success policy
+      itself is covered by the two `convert-batch` steps above and the
+      adversarial step below; this one covers the single-member path. Measured
+      against the real CLI on 2026-10-12: exit 1, no artifact written.
   - name: "Adversarial: exit 0 never means complete; failed member leaves no artifact"
     kind: python
     command: |
