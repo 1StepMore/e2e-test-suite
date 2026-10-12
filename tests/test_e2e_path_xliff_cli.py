@@ -48,11 +48,10 @@ class TestPathXliffCLI:
         Uses the canonical en→zh English fixture (meridian_robotics.docx), not
         the 海尔 zh→en fixture: under OMNI_TEST_FAKE_LLM=1 the OL fake pool
         (ol_pool/fake.py) ECHOES the source prefixed with the target lang
-        ("[zh] <source>"), and the shipped default.yaml sets
-        block_on_source_script_fragment: true with target_locale en-US — so a
-        Chinese source (CJK) echoed into the "target" is correctly blocked by
-        quality Gate 6 (SOURCE_SCRIPT_FRAGMENT, rc=4). An English source keeps
-        the hermetic chain green while still exercising the full plumbing.
+        ("[zh] <source>"), so a Chinese source echoed into an en target leaves
+        CJK in the output — not a translation this fixture can assert on. An
+        English source keeps the hermetic chain green while still exercising
+        the full plumbing.
         """
         output_dir = tmp_path / "xliff_cli"
         opp_out = output_dir / "opp"
