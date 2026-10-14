@@ -60,7 +60,7 @@ class TestUnicodeEndToEnd:
     ])
     def test_unicode_via_opp_ol_pipeline(self, text, desc, tmp_path):
         """OPP (file-based) → OL translation with special characters.
-        
+
         Create a DOCX with special characters, extract via OPP CLI,
         translate via OL CLI, verify characters are preserved.
         """
@@ -69,18 +69,18 @@ class TestUnicodeEndToEnd:
 
         # Create a minimal DOCX with our special text
         docx_path = tmp_path / f"test_{desc}.docx"
-        
+
         # Build document.xml with the test text
         w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
         r_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-        
+
         body = etree.Element(f"{{{w_ns}}}body")
         p = etree.SubElement(body, f"{{{w_ns}}}p")
         r = etree.SubElement(p, f"{{{w_ns}}}r")
         t = etree.SubElement(r, f"{{{w_ns}}}t")
         t.text = text
         t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-        
+
         doc_xml = etree.tostring(
             etree.ElementTree(
                 etree.Element(f"{{{w_ns}}}document",
@@ -93,7 +93,7 @@ class TestUnicodeEndToEnd:
         doc = etree.Element(f"{{{w_ns}}}document", nsmap={"w": w_ns})
         doc.append(body)
         doc_xml = etree.tostring(doc, xml_declaration=True, encoding="UTF-8", pretty_print=True)
-        
+
         with zipfile.ZipFile(docx_path, "w") as zf:
             zf.writestr("word/document.xml", doc_xml)
             zf.writestr("[Content_Types].xml",
@@ -121,7 +121,7 @@ class TestUnicodeEndToEnd:
 
     def test_ol_translate_preserves_unicode_content(self, tmp_path):
         """OL should preserve Unicode content end-to-end with FAKE_LLM.
-        
+
         The translated output should at minimum be valid UTF-8 and not
         garble the source content (FAKE_LLM replaces with [ZH] marker
         for unknown text, but known text is translated).

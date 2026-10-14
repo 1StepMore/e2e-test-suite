@@ -1,9 +1,9 @@
 # Omni Suite Comprehensive E2E Test Plan (Integrated)
 
-**Version:** 0.4.0  
-**Date:** 2026-07-16  
-**Scope:** OPP → OL → ORF localization pipeline  
-**Audience:** AI agents (Hermes, Claude, Cursor, OpenCode) + human developers  
+**Version:** 0.4.0
+**Date:** 2026-07-16
+**Scope:** OPP → OL → ORF localization pipeline
+**Audience:** AI agents (Hermes, Claude, Cursor, OpenCode) + human developers
 
 ---
 

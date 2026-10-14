@@ -42,7 +42,7 @@ The plan is designed so that any AI agent can execute it independently and repor
 - **Q3:** Can I translate and convert to a different format?
 - **Q4:** Can I batch-process multiple documents?
 
-### Part 2: Format Support Mastery  
+### Part 2: Format Support Mastery
 - **Q5:** Does every supported format extract correctly?
 - **Q6:** Does every supported output format convert correctly?
 
@@ -159,13 +159,13 @@ HAIER = SUITE / "爱上海尔_第二章_全球创牌 - E2E测试专用.docx"
 with patch("ol_mcp.tools.ModelPool") as mock_pool:
     mock_pool.get_instance.return_value = _FakeModelPool()
     mock_pool.return_value = _FakeModelPool()
-    
+
     # OPP MCP generate_markdown
     from opp.mcp.server import generate_markdown
     r = await generate_markdown(str(HAIER), output_path="/tmp/q1/mcp/opp.md")
     assert r["success"]; assert Path("/tmp/q1/mcp/opp.md").exists()
-    
-    # OL MCP translate_md_text  
+
+    # OL MCP translate_md_text
     from ol_mcp.tools import TranslateInput
     from ol_mcp.translate_md import translate_md_text
     result = await translate_md_text(TranslateInput(
@@ -174,7 +174,7 @@ with patch("ol_mcp.tools.ModelPool") as mock_pool:
     ))
     data = json.loads(result)
     assert data["success"]; assert data["translated"] != ""
-    
+
     # ORF MCP apply_md
     from orf.mcp.server import apply_md
     r = apply_md(input_md="/tmp/q1/mcp/translated.md",
@@ -199,7 +199,7 @@ Run the same MD translation twice. Both outputs should be identical.
 ol translate-md /tmp/q1/opp/*.md -s zh -t en -c Omni_Localizer/config/default.yaml -o /tmp/q1/ol1
 md5sum /tmp/q1/ol1/*.md > /tmp/q1/hash1
 
-# Run 2  
+# Run 2
 ol translate-md /tmp/q1/opp/*.md -s zh -t en -c Omni_Localizer/config/default.yaml -o /tmp/q1/ol2
 md5sum /tmp/q1/ol2/*.md > /tmp/q1/hash2
 
@@ -584,7 +584,7 @@ from tests.test_e2e_pipeline_fixtures import _FakeModelPool
 with patch("ol_mcp.tools.ModelPool") as mock:
     mock.get_instance.return_value = _FakeModelPool()
     mock.return_value = _FakeModelPool()
-    
+
     from ol_mcp.tools import batch_translate_texts
     result = await batch_translate_texts(
         texts=["# Hello World", "Goodbye", "Paragraph three"],
@@ -1414,7 +1414,7 @@ from tests.test_e2e_pipeline_fixtures import _FakeModelPool
 with patch("ol_mcp.tools.ModelPool") as mock:
     mock.get_instance.return_value = _FakeModelPool()
     mock.return_value = _FakeModelPool()
-    
+
     texts = [f"# Document {i}\n\nContent paragraph for doc {i}." for i in range(5)]
     from ol_mcp.tools import batch_translate_texts
     result = await batch_translate_texts(texts=texts, source_lang="en", target_lang="zh", concurrency=5)
@@ -2092,7 +2092,7 @@ Compare real pandoc output content against source markdown:
 
 **Why this matters:** Performance determines whether the system is usable for real workloads. The 14MB slim DOCX (7,681 paragraphs, 390 images) is the stress test.
 
-**Prerequisites:** 
+**Prerequisites:**
 - `（slim）爱上海尔.docx` (14MB, exists) for large document testing
 - Existing benchmark infrastructure in `tests/benchmarks/`
 
@@ -2751,7 +2751,7 @@ source /mnt/d/贯维/Omni_Suite/.env
 ol translate-md /tmp/q21/opp/sample_ja.md -s ja -t zh -o /tmp/q21/ol_real --config Omni_Localizer/config/local.yaml
 ```
 
-**Expected Result:** ⚠️ May partially succeed or fail. If: 
+**Expected Result:** ⚠️ May partially succeed or fail. If:
 - ✅ Translation produced → check quality manually (is it real Chinese? preserved 日本語 terms?)
 - ❌ Error → document the error for upstream (zh↔en is the calibrated pair)
 

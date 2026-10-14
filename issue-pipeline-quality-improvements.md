@@ -151,7 +151,7 @@ def detect_metaphors(text):
 
 译前检测到则 warn，提醒用户注意文化转换。
 
-**位置**：`src/ol_translate/preprocessor.py` 或 `src/cli/` 
+**位置**：`src/ol_translate/preprocessor.py` 或 `src/cli/`
 
 **代码量**：~30 行
 

@@ -1,6 +1,6 @@
 # Omni Suite Full Validation — Final Report
 
-**Date:** 2026-07-23 | **Environment:** WSL, Python 3.13, FAKE_LLM=1, FAKE_PANDOC=1  
+**Date:** 2026-07-23 | **Environment:** WSL, Python 3.13, FAKE_LLM=1, FAKE_PANDOC=1
 **Versions:** Suite v0.4.0 | OPP v0.6.5 | OL v0.7.0 | ORF v0.4.16
 
 ---

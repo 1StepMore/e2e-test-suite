@@ -83,7 +83,7 @@ if __name__ == "__main__":
     src_lang = sys.argv[3]
     tgt_lang = sys.argv[4]
     threshold = float(sys.argv[5]) if len(sys.argv) > 5 else 0.85
-    
+
     result = search(tmx_path, source_text, src_lang, tgt_lang, threshold)
     print(json.dumps(result, ensure_ascii=False))
 """.format(ol_src=OL_SRC, ol_sp=OL_SP)

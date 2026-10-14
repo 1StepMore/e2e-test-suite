@@ -85,12 +85,12 @@ md, xliff
 
 ### Source Tree (src/opp/)
 ```
-cli.py, pipeline.py, detector.py, chunker.py, transcriber.py, 
+cli.py, pipeline.py, detector.py, chunker.py, transcriber.py,
 resource_manager.py, logger.py, error_handler.py, cliutils.py
 commands/       — extract.py, batch.py, mcp.py
 config/         — constants.py
 contracts/      — frontmatter.py, images.py, manifest.py, xliff.py
-extractors/     — docx.py, pptx.py, pdf.py, pdf2html.py, html/, xlsx.py, 
+extractors/     — docx.py, pptx.py, pdf.py, pdf2html.py, html/, xlsx.py,
                   csv.py, json.py, xml.py, epub.py, email.py, image_ocr.py,
                   ipynb.py, youtube.py, audio.py, video.py, base.py
 mcp/            — server.py, config.py, security.py, auth.py, rate_limiter.py,
@@ -98,7 +98,7 @@ mcp/            — server.py, config.py, security.py, auth.py, rate_limiter.py,
                   _errors.py, tools/ (9 tool modules)
 markdown/       — generator.py
 xliff/          — generator.py, validator.py, xliff_dataclasses.py
-utils/          — cache.py, security.py, images_json.py, exceptions.py, 
+utils/          — cache.py, security.py, images_json.py, exceptions.py,
                   dataclasses.py, mcp_errors.py
 channels/       — table_channel.py, keyvalue_channel.py
 ```
@@ -228,14 +228,14 @@ ol_cli.py                     — CLI entry (Typer)
 ol_review_extractor.py        — Review warning extraction
 ol_config/                    — schema.py, loader.py
 ol_pool/                      — router.py, fake.py
-ol_md/                        — shield.py, extractor.py, pipeline.py, 
+ol_md/                        — shield.py, extractor.py, pipeline.py,
                                  repair/ (level1-4), token_stream.py
 ol_xliff/                     — parser.py, bus.py, polish.py, shield.py,
                                  repair/ (level1-4)
 ol_buses/                     — md_bus, xliff_bus
 ol_batch/                     — BatchProcessor
 ol_terminology/               — extractor.py, disambiguator.py, rag_injector.py,
-                                 verifier.py, coverage.py, glossary.py, 
+                                 verifier.py, coverage.py, glossary.py,
                                  glossary_class.py, schema.py
 ol_lqa/                       — judge.py, scorer.py, report.py, stability.py,
                                  qa_rules.py
@@ -245,7 +245,7 @@ ol_retry/                     — RetryManager
 ol_logging/                   — Structured JSON + console
 ol_checkpoint/                — Translation checkpointing
 ol_mcp/                       — server.py, config.py, security.py, auth.py,
-                                 rate_limiter.py, metrics.py, health.py, 
+                                 rate_limiter.py, metrics.py, health.py,
                                  tracing.py, tools/ (20 tool modules)
 ol_post/                      — punctuation.py
 ol_style/                     — schema.py, doc_profiler.py, cache.py
@@ -373,15 +373,15 @@ DOCX, PPTX, EPUB, HTML, ODT, PDF, JSON
 ### Source Tree (src/orf/)
 ```
 cli.py
-commands/         — apply_md.py, apply_xliff.py, convert_batch.py, 
+commands/         — apply_md.py, apply_xliff.py, convert_batch.py,
                     detect_format.py, info.py, capabilities.py
 channels/         — md2docx.py, md2pptx.py, md2html.py, md2pdf.py, md2odt.py,
                     md2epub.py, md2rtf.py, md2icml.py, md2srt.py, md2csv.py,
                     md2xlsx.py, md2json.py, md2xml.py, md2ipynb.py, md2eml.py,
-                    md2msg.py, xliff2docx/ (5 files), xliff2pptx.py, 
+                    md2msg.py, xliff2docx/ (5 files), xliff2pptx.py,
                     xliff2html/ (4 files), xliff2epub.py, xliff2odf.py,
                     xliff2pdf.py, xliff2json.py
-converters/       — base.py, options.py, stream_converter.py, 
+converters/       — base.py, options.py, stream_converter.py,
                     chunked_md_converter.py
 parsers/          — manifest.py, frontmatter.py
 detection/        — magic_bytes.py, format_detector.py

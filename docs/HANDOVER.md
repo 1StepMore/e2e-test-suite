@@ -618,4 +618,3 @@ after tu id=9 src='深耕全球创牌...': 段10 runs=['']
 2. 用户决定 OPP+ORF 修复方式（要不要走 recursive scan + 嵌套独立 trans-unit）
 3. 修复后跑 Full-Standard 验证段 10-38 w:t 是否被独立翻译
 4. A3 (ORF xml_container stash) 仍保留等 B/D 路径 TaskGroup 错误诊断后用户拍板
-

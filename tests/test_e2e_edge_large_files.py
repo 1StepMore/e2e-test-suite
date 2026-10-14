@@ -43,22 +43,22 @@ class TestOPPLargeFileRejection:
 
     def test_file_exceeds_limit_rejected(self, tmp_path, monkeypatch):
         """File larger than max_file_size_bytes should be rejected.
-        
+
         Use a tiny limit (100 bytes) and a slightly larger file to trigger rejection.
         """
         monkeypatch.setenv("OPP_MCP_ALLOWED_DIRS", str(tmp_path))
-        
+
         # Create PathValidator with a tiny limit
         from opp.mcp.security import PathValidator
-        
+
         big_file = tmp_path / "big.docx"
         big_file.write_bytes(b"X" * 200)  # 200 bytes > 100 byte limit
-        
+
         validator = PathValidator(
             allowed_directories=[tmp_path],
             max_file_size_bytes=100,  # Tiny limit
         )
-        
+
         result = validator.validate_path(str(big_file))
         assert result.success is False
         assert "size" in result.error.lower()
@@ -66,10 +66,10 @@ class TestOPPLargeFileRejection:
     def test_file_within_limit_passes_path_validation(self, tmp_path):
         """File within size limit should pass path validation (content still needs to be valid)."""
         from opp.mcp.security import PathValidator
-        
+
         small_file = tmp_path / "small.docx"
         small_file.write_bytes(b"X" * 50)  # 50 bytes < default 100MB
-        
+
         validator = PathValidator(
             allowed_directories=[tmp_path],
         )
@@ -83,7 +83,7 @@ class TestOLLargeTextHandling:
 
     def test_ol_translate_very_long_text(self, tmp_path):
         """OL translate needs to handle long text without timeout or crash.
-        
+
         Uses FAKE_LLM so no real API calls; verifies the CLI doesn't crash.
         """
         long_text = "Hello world. " * 20_000  # ~300K chars
@@ -114,11 +114,11 @@ class TestORFLargeFileHandling:
     def test_orf_apply_md_large_file(self, tmp_path):
         """ORF apply-md with large input should not crash."""
         from orf.mcp.server import apply_md
-        
+
         large_md = tmp_path / "large.md"
         large_md.write_text("# Large Doc\\n\\n" + "Hello world. " * 5_000)
         out = tmp_path / "out.docx"
-        
+
         result = json.loads(apply_md(
             input_md=str(large_md),
             target_format="docx",

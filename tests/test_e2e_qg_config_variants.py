@@ -42,7 +42,7 @@ class TestQualityGateDefaultBehavior:
 
     def test_fake_llm_triggers_length_ratio(self, tmp_path):
         """FAKE_LLM short markers should trigger length_ratio gate.
-        
+
         Translate via CLI with FAKE_LLM=1 (default) — length_ratio should fire
         because FAKE_LLM returns ~4 chars for 100+ char source.
         """
@@ -68,15 +68,15 @@ class TestQualityGateDefaultBehavior:
 
     def test_length_ratio_warning_shape(self, tmp_path):
         """Check that quality gate warnings have the expected structure.
-        
+
         Instead of parsing CLI output (fragile), test the quality_gates
         function directly.
         """
         from ol_lqa.quality_gates import run_quality_gates
-        
+
         source = "Hello world, this is a test sentence that is fairly long."
         target = "[ZH]"  # FAKE_LLM output (very short)
-        
+
         warnings = run_quality_gates(
             source, target,
             inline_tags_enabled=True,
@@ -97,10 +97,10 @@ class TestQualityGateConfigVariants:
     def test_disable_length_ratio_suppresses_warning(self, tmp_path):
         """With length_ratio disabled, the gate should not fire."""
         from ol_lqa.quality_gates import run_quality_gates
-        
+
         source = "Hello world, this is a test sentence that is fairly long."
         target = "[ZH]"
-        
+
         warnings = run_quality_gates(
             source, target,
             inline_tags_enabled=True,
@@ -116,7 +116,7 @@ class TestQualityGateConfigVariants:
     def test_disable_all_gates_no_warnings(self, tmp_path):
         """With all gates disabled, no warnings should fire."""
         from ol_lqa.quality_gates import run_quality_gates
-        
+
         warnings = run_quality_gates(
             "Hello world", "[ZH]",
             inline_tags_enabled=False,
@@ -129,10 +129,10 @@ class TestQualityGateConfigVariants:
     def test_inline_tag_mismatch_detected(self, tmp_path):
         """Inline tag count mismatch should trigger INLINE_TAG_MISMATCH."""
         from ol_lqa.quality_gates import run_quality_gates
-        
+
         source = "Press <bx1/>here<ex1/> to continue."
         target = "点击这里继续。"  # Stripped tags
-        
+
         warnings = run_quality_gates(
             source, target,
             inline_tags_enabled=True,
@@ -146,10 +146,10 @@ class TestQualityGateConfigVariants:
     def test_locale_gate_en_us(self, tmp_path):
         """Locale gate should fire for non-US conventions in en-US target."""
         from ol_lqa.quality_gates import run_quality_gates
-        
+
         source = "The price is 1,000.00 dollars."
         target = "价格是1.000,00欧元。"  # EU digit grouping in en-US target
-        
+
         warnings = run_quality_gates(
             source, target,
             inline_tags_enabled=False,

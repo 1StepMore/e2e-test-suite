@@ -33,12 +33,12 @@ def list_tools_from_code(repo_dir, module_name):
                 for m in re.finditer(r'@mcp\.tool\(\)\s*\n\s*(?:async\s+)?def\s+(\w+)', content):
                     name = m.group(1)
                     tools[name] = tools.get(name, []) + [path]
-                    
+
                 # Also look for tool() calls with name=, or mcp.tool(name=)
                 for m in re.finditer(r'\.tool\(.*?name\s*=\s*["\'](\w+)["\']', content):
                     name = m.group(1)
                     tools[name] = tools.get(name, []) + [path]
-                    
+
                 # Server.tool registration pattern
                 for m in re.finditer(r'@tool\s*\n\s*(?:async\s+)?def\s+(\w+)', content):
                     if m.group(1) not in tools:

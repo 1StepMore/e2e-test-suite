@@ -155,13 +155,13 @@ print("=" * 70)
 
 def analyze_text(doc_xml, label):
     texts = re.findall(r'<w:t[^>]*>([^<]*)</w:t>', doc_xml)
-    
+
     zh_runs = [t for t in texts if re.search(r'[\u4e00-\u9fff]', t)]
     en_runs = [t for t in texts if re.search(r'[a-zA-Z]', t)]
-    
+
     zh_chars = sum(len(re.findall(r'[\u4e00-\u9fff]', t)) for t in texts)
     en_chars = sum(len(re.findall(r'[a-zA-Z]', t)) for t in texts)
-    
+
     paras = re.split(r'</w:p>', doc_xml)
     zh_paras = []
     for p in paras:
@@ -169,7 +169,7 @@ def analyze_text(doc_xml, label):
         combined = ''.join(p_texts).strip()
         if combined and re.search(r'[\u4e00-\u9fff]', combined):
             zh_paras.append(combined)
-    
+
     # Source echo: paragraphs with both ZH and significant EN
     echo_paras = []
     for p in paras:
@@ -177,9 +177,9 @@ def analyze_text(doc_xml, label):
         combined = ''.join(p_texts).strip()
         if combined and re.search(r'[\u4e00-\u9fff]', combined) and re.search(r'[a-zA-Z]{3,}', combined):
             echo_paras.append(combined[:120])
-    
+
     has_en_prefix = '[en]' in doc_xml or '&#91;en&#93;' in doc_xml
-    
+
     print(f"\n--- {label} ---")
     print(f"  Total text runs: {len(texts)}")
     print(f"  ZH text runs: {len(zh_runs)}")
@@ -190,17 +190,17 @@ def analyze_text(doc_xml, label):
     print(f"  Paragraphs with ZH: {len(zh_paras)}")
     print(f"  Source echo paragraphs: {len(echo_paras)}")
     print(f"  [en] prefix: {'YES' if has_en_prefix else 'NO'}")
-    
+
     if zh_paras:
         print("  ⚠ Chinese content samples:")
         for p in zh_paras[:15]:
             print(f"    >>> {p[:100]}")
-    
+
     if echo_paras:
         print("  ⚠ Source echo samples:")
         for p in echo_paras[:5]:
             print(f"    >>> {p[:120]}")
-    
+
     return zh_paras, echo_paras
 
 print("### Body Text ###")

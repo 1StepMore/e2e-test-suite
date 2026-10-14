@@ -43,7 +43,7 @@ async def test_all():
         print(f"  Result: {repr(r['result'][:60])}")
         if r['error']:
             print(f"  ERROR: {r['error']}")
-    
+
     print("\n" + "="*60)
     print("SUMMARY")
     print("="*60)
@@ -56,7 +56,7 @@ async def test_all():
         got_ok = r['success']
         match = "OK" if expected_ok == got_ok else "MISMATCH"
         print(f"  {uid:<6} {chars:<6} {str(expected_ok):<12} {str(got_ok):<12} {match}")
-    
+
     out_path = Path(tempfile.gettempdir()) / "ol_unit_diag_results.json"
     with open(out_path, "w") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
