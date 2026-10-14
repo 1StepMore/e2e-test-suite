@@ -44,12 +44,14 @@ class TestOPPLargeFileRejection:
     def test_file_exceeds_limit_rejected(self, tmp_path, monkeypatch):
         """File larger than max_file_size_bytes should be rejected.
 
-        Use a tiny limit (100 bytes) and a slightly larger file to trigger rejection.
+        Contract（与 OPP 自身 tests/mcp/test_security.py 一致）：超限时
+        ``PathValidator.validate_path`` **抛 ``opp.utils.security.PathValidationError``**
+        —— 由调用方的 ``@mcp_error_boundary`` 翻成 OPP_PATH_DENIED 响应；
+        它**不是**返回 ``ValidationResult(success=False)``。
         """
         monkeypatch.setenv("OPP_MCP_ALLOWED_DIRS", str(tmp_path))
 
-        # Create PathValidator with a tiny limit
-        from opp.mcp.security import PathValidator
+        from opp.mcp.security import PathValidationError, PathValidator
 
         big_file = tmp_path / "big.docx"
         big_file.write_bytes(b"X" * 200)  # 200 bytes > 100 byte limit
@@ -59,9 +61,8 @@ class TestOPPLargeFileRejection:
             max_file_size_bytes=100,  # Tiny limit
         )
 
-        result = validator.validate_path(str(big_file))
-        assert result.success is False
-        assert "size" in result.error.lower()
+        with pytest.raises(PathValidationError, match="size"):
+            validator.validate_path(str(big_file))
 
     def test_file_within_limit_passes_path_validation(self, tmp_path):
         """File within size limit should pass path validation (content still needs to be valid)."""
