@@ -8,7 +8,6 @@ Usage:
   python run_with_env.py            # full suite (83 scenarios)
 """
 import os
-import re
 import sys
 
 ENV_FILE = os.path.expanduser("~/.hermes/.env")

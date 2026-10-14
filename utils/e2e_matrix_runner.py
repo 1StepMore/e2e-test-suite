@@ -10,7 +10,6 @@ Usage:
 
 import asyncio
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -140,7 +139,7 @@ async def run_pipeline(scene_num: int, fmt: str, out_dir: Path) -> dict:
         t0 = time.time()
         output_path = str(scene_dir / f"output.{fmt}")
         async with MCPClient("orf") as orf:
-            apply_result = await orf.call_tool("apply_md", {
+            await orf.call_tool("apply_md", {
                 "input_md": translated,
                 "target_format": fmt,
                 "output_path": output_path,
@@ -201,7 +200,6 @@ async def main():
     print(f"{'=' * 60}\n")
 
     for sn in scenes_to_run:
-        scene_name = SCENE_DEFS[sn]["name"]
         for fmt in formats_to_run:
             for path in PATHS:
                 completed += 1

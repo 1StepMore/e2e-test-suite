@@ -9,7 +9,6 @@ Run with:
     OMNI_TEST_FAKE_LLM=1 OMNI_TEST_FAKE_PANDOC=1 pytest tests/test_e2e_qg_config_variants.py -v
 """
 
-import json
 import os
 import subprocess
 import sys
@@ -63,7 +62,6 @@ class TestQualityGateDefaultBehavior:
         # CLI may return 0 (translation succeeded) or 1 (warning)
         # Check stderr for quality gate warnings
         assert result.returncode in (0, 1)
-        has_length_ratio = "length_ratio" in result.stderr.lower() or "ratio" in result.stderr.lower()
         # With FAKE_LLM, the ratio should be very low (~0.008 for 500→4)
         # This is below the default min of 0.5, so gate fires
         # Note: This is a soft test — we're checking the behavior exists

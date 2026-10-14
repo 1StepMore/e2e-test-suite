@@ -68,7 +68,7 @@ else:
     print(f"\n✅ All {len(common)} common images have identical content (MD5 match)")
 
 if missing_from_tgt:
-    print(f"\n⚠ Missing from target:")
+    print("\n⚠ Missing from target:")
     for img in sorted(missing_from_tgt):
         print(f"  - {img} ({src_zip.getinfo(img).file_size} bytes in source)")
 
@@ -140,7 +140,7 @@ for i, img in enumerate(tgt_order):
 if src_order == tgt_order:
     print(f"\n✅ Image order identical ({len(src_order)} images)")
 else:
-    print(f"\n⚠ Image order differences:")
+    print("\n⚠ Image order differences:")
     # Check if it's just the total count
     if len(src_order) != len(tgt_order):
         print(f"  Count: src={len(src_order)}, tgt={len(tgt_order)}")
@@ -192,12 +192,12 @@ def analyze_text(doc_xml, label):
     print(f"  [en] prefix: {'YES' if has_en_prefix else 'NO'}")
     
     if zh_paras:
-        print(f"  ⚠ Chinese content samples:")
+        print("  ⚠ Chinese content samples:")
         for p in zh_paras[:15]:
             print(f"    >>> {p[:100]}")
     
     if echo_paras:
-        print(f"  ⚠ Source echo samples:")
+        print("  ⚠ Source echo samples:")
         for p in echo_paras[:5]:
             print(f"    >>> {p[:120]}")
     
@@ -262,7 +262,6 @@ def get_img_paragraphs(doc_xml, label):
     paras = re.split(r'</w:p>', doc_xml)
     img_paras = []
     for i, p in enumerate(paras):
-        has_drawing = '<w:drawing>' in p or ('r:embed' in p and 'media/' in src_doc[:1000])
         # More reliable: check for blip
         has_blip = 'r:embed' in p and 'media/' in (p[p.find('r:embed'):p.find('r:embed')+80] if 'r:embed' in p else '')
         if not has_blip:

@@ -9,7 +9,7 @@ Usage:
     python3 audio_extract.py <input_path> <output_dir>
 """
 
-import sys, os, json, subprocess, tempfile
+import sys, json, subprocess
 
 HERMES_PYTHON = "/home/renanzai/.hermes/hermes-agent/venv/bin/python3"
 OPP_SRC = "/mnt/d/Hermes-Workspace/01-Projects/Omni_Pre_Processor/src"

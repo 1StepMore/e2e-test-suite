@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Compare OPP & ORF MCP tool interfaces across repos."""
-import os, sys, subprocess, re, json
+import os, subprocess, re
 
 def find_servers(dir_path):
     """Find all MCP server startup commands in config.yaml files."""

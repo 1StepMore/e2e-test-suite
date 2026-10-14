@@ -10,7 +10,6 @@ Run with:
     OMNI_TEST_FAKE_LLM=1 OMNI_TEST_FAKE_PANDOC=1 pytest tests/test_e2e_edge_unicode.py -v
 """
 
-import json
 import os
 import subprocess
 import sys
