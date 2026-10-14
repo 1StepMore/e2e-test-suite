@@ -3,9 +3,12 @@
 # is its own git repo with its own .gitignore — see those for per-repo rules.
 
 # ---- Sub-repos: each is its own git repo, never track them from here ----
-Omni_Pre_Processor/
-Omni_Localizer/
-Omni_Re_Formatter/
+# 坑（2026-10-14 实测）：带尾斜杠的模式**匹配不到符号链接**。本仓里的 Omni_*/
+# 与 .venv_ol 都是 symlink（→ ../Omni_*），写成 `Omni_Localizer/` 时 git 仍把它们
+# 报成未跟踪（`git check-ignore` 直接报 "beyond a symbolic link"）。故不带尾斜杠。
+Omni_Pre_Processor
+Omni_Localizer
+Omni_Re_Formatter
 
 # ---- Secrets / env files (also ignored per-sub-repo) ----
 .env
@@ -52,11 +55,11 @@ build/
 # ---- Virtualenvs ----
 # .venv/ and .venv_ol/ are Linux (uv) venvs shared with WSL/CI — do not touch.
 # .venv_win/ is the native-Windows venv created by scripts/setup_dev.ps1.
-.venv/
-.venv_ol/
-.venv312/
-.venv_win/
-.env/
+.venv
+.venv_ol
+.venv312
+.venv_win
+.env
 
 # ---- Test outputs / logs ----
 test-artifacts/
@@ -130,3 +133,20 @@ scripts/**/__pycache__/
 # commit generated benchmark artifacts.
 benchmarks/results/
 benchmarks/format-fidelity/fixtures/rich.docx
+
+# ---- 2026-10-14 补：本仓根目录下跑测产物与草稿工作区 ----
+# 判据：可由测试重跑再生成、或只是过程草稿 → 不进仓库（文件仍留在磁盘上）。
+/--output-dir/
+/_审查/
+/campaign-realistic-e2e/
+/validation-run-*.md
+# 根级二进制产物（跑测生成）。注意 fixtures 在子目录里，故只限根级。
+/*.docx
+/*.pdf
+/*.xlf
+/*.zip
+/*_images/
+/*_images.json
+/*_manifest.json
+# config/default.yaml 是指向 Omni_Localizer 的符号链接（不是本仓内容）
+/config/default.yaml
