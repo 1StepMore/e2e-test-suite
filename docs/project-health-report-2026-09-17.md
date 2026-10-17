@@ -1695,6 +1695,25 @@ pip download ruff==0.15.11 -i https://pypi.org/simple                           
 
 含义（**登记，不据此宣称 §5 #2 已完成**）：§5 #2 Phase 2 一直被记为「外部阻塞：索引返回 403」。该 403 只出现在**本机配置的镜像**上，公网 PyPI 可达且可下载。所以这更像**本地环境问题（镜像不可用）**，而非「外部状态」。切公网索引后 Phase 2 大概率可推进，但它要重生成 `uv.lock`、动跨仓库依赖，属独立任务；本轮只做登记，是否推进由用户定夺（且需先确认镜像 403 是否持续）。
 
+### 21.7 复跑验证：真实 config 下三仓库 `check-secrets` 双环境取证（2026-10-17）
+
+§21.4 指出的取证缺陷（对照组 rc 取错、运行时被网络挂断——v1 输出不算证据）已用修正版脚本闭环：`99-Tools/validation-scratch/omni-suite/probe_subrepo_hook_v2.sh`（rc 改用 `${PIPESTATUS[0]}`；每仓记录 HEAD / venv 布局 / `python3 --version` 对照 / 正例 / 负例 / 收尾 `git status`）。两环境各跑一遍，原始输出存于同目录（v1 证据保留未动）：
+
+| 环境（pre-commit） | 输出文件 | OPP（`75fc6c2`） | OL（`b80b940`） | ORF（`9592268`） |
+|---|---|---|---|---|
+| Git Bash（4.5.1；`python3`=Store 占位 rc=49） | `subrepo_hook_out_20261017_gitbash.txt` | 正例 Passed rc0；负例拦截 rc1 | 正/负例均 rc1 **fail-loud**（解析器第 2 层：`.venv/` 存在但本平台无可执行解释器；fail-closed，未达扫描） | 正例 Passed rc0；负例拦截 rc1 |
+| WSL（4.6.0；`python3`=3.14.4） | `subrepo_hook_out_20261017_wsl.txt` | 正例 Passed rc0；负例拦截 rc1 | 正例 Passed rc0（第 1 层命中 `.venv/bin/python`）；负例拦截 rc1 | 正例 Passed rc0；负例拦截 rc1 |
+
+负例 = 仓库根写入 `probe_tmp_secret.txt`（内容为 `aws_access_key_id =` + 假 AWS key：`AKIA` 前缀 + 16 位大写字母；为免触发本仓 `omni-no-hardcoded-keys` 钩子，字面量不在本报告复写，见 v2 脚本与原始输出）；拦截报文均为 `[aws_access_key]`（OL-Git Bash 为例外：先被解析器 fail-loud 拒绝）。事后三仓 `git status --porcelain` 均空、HEAD 未动、临时文件已删。
+
+要点：
+
+1. **对照组证据**：旧写法 `python3` 在 Git Bash 下三仓 rc=49（Store 占位、无输出）；WSL 下正常（3.14.4 rc0）——修复前 `entry: python3` 在 Windows 先天坏，v1 恰好在此取错 rc。
+2. **OL fail-loud 被真实 config 确认**：§21.4 的原话是「若该 venv 在某平台不可执行，解析器第 2 层会 fail-loud（刻意设计）」——Git Bash 实测正是该情形（拒绝、报文明确）；WSL 下同一 venv 第 1 层可执行 → Passed。非缺陷。
+3. **9-18 的网络阻断未复现**：Git Bash 侧本轮 `[INFO] Initializing environment for https://github.com/gitleaks/gitleaks.` 成功、钩子照常执行（`pre-commit run` 需先枚举各 repo 的 hook manifest，该 clone 无可避免）。
+4. **副作用干净**：负例文件已清理；两环境下三仓收尾 `git status --porcelain` 均为空。
+5. 范围声明：本条只验证「钩子写法」在真实 config 可用；候选 (c)（给三仓库安装 pre-commit 框架、使钩子进入本地提交路径）仍未做。备注：Git Bash 输出中 em dash 显示为 `��`（本地控制台代码页），不影响判定。
+
 ---
 
 ## 二十二、第十四轮：ADR 0007 Phase 2A 落地（`omni_security` 共享包 + 套件侧采用）（2026-09-18）
@@ -1738,6 +1757,7 @@ doc_inventory --check                                 -> 通过
 *报告生成：2026-09-17 · 审计人：AI Agent（TraeCode）· 结论基于实测，非文档转述*
 *第二十节追加：2026-09-18 · 完成度审计 + 第三处自我更正*
 *第二十一节追加：2026-09-18 · 子仓库门禁补齐 + 第四处自我更正*
+*第二十一节复跑追加：2026-10-17 · 三仓库 check-secrets 真实 config 端到端复跑（Git Bash + WSL，v2 取证）*
 *第二十二节追加：2026-09-18 · ADR 0007 Phase 2A 落地（omni_security 共享包）*
 *第十九节追加：2026-09-18 · §3.4 收口 + 第二处因果更正*
 *第十八节追加：2026-09-17（同日续做，第十轮）· §3.3 落地 + 因果更正*
