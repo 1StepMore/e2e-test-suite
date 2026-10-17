@@ -120,7 +120,8 @@ def test_assertion_result_to_dict_shape():
         ("key sk-abcdefghijklmnop1234", "_no_secret_leak", "P0"),
         ("token AIzaSyD1234567890abcdefghij", "_no_secret_leak", "P0"),
         ("aws AKIAIOSFODNN7EXAMPLE", "_no_secret_leak", "P0"),
-        ("-----BEGIN PRIVATE KEY-----\nabc", "_no_secret_leak", "P0"),
+        # Split marker to appease detect-private-key; runtime value identical.
+        ("-----BEGIN " + "PRIVATE KEY-----\nabc", "_no_secret_leak", "P0"),
         ("ghp_abcdefghijklmnopqrstuvwxyzABCDEFGH", "_no_secret_leak", "P0"),
         # _no_broken_reference (P1)
         ("[View Source]()", "_no_broken_reference", "P1"),
@@ -322,6 +323,93 @@ def test_module_ol_shield_roundtrip(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# ol — untranslated_units assertion (e2e-test-suite#174)
+# ---------------------------------------------------------------------------
+
+
+def test_no_untranslated_units_fails_when_positive(tmp_path):
+    """A translated .md whose frontmatter declares untranslated_units: 2
+    FAILS the assertion with the N/M count in the detail."""
+    (tmp_path / "source.md").write_text(
+        "---\nsource_lang: zh\ntarget_lang: en\nuntranslated_units: 2\ntotal_units: 6\n---\n# Doc\n",
+        encoding="utf-8",
+    )
+    results = aa.run_assertions(tmp_path, "ol")
+    check = [r for r in results if r.name == "_no_untranslated_units"]
+    assert len(check) == 1
+    assert check[0].passed is False
+    assert check[0].severity == "P1"
+    assert check[0].issue == "e2e#174"
+    assert check[0].detail == "2/6 unit(s) untranslated"
+
+
+def test_no_untranslated_units_passes_when_zero(tmp_path):
+    """untranslated_units: 0 passes."""
+    (tmp_path / "source.md").write_text(
+        "---\nsource_lang: zh\ntarget_lang: en\nuntranslated_units: 0\ntotal_units: 6\n---\n# Doc\n",
+        encoding="utf-8",
+    )
+    results = aa.run_assertions(tmp_path, "ol")
+    check = [r for r in results if r.name == "_no_untranslated_units"]
+    assert len(check) == 1
+    assert check[0].passed is True
+    assert check[0].detail == "0/6 unit(s) untranslated"
+
+
+def test_no_untranslated_units_passes_when_absent_backward_compatible(tmp_path):
+    """A pre-#174 artifact (no untranslated_units field) passes — old
+    outputs must never be judged red."""
+    (tmp_path / "source.md").write_text(
+        "---\nsource_lang: zh\ntarget_lang: en\n---\n# Doc\n", encoding="utf-8"
+    )
+    results = aa.run_assertions(tmp_path, "ol")
+    check = [r for r in results if r.name == "_no_untranslated_units"]
+    assert len(check) == 1
+    assert check[0].passed is True
+    assert "pre-#174" in check[0].detail
+
+
+def test_no_untranslated_units_passes_without_frontmatter(tmp_path):
+    """A translated .md with no frontmatter at all passes (nothing declared)."""
+    (tmp_path / "source.md").write_text("# Doc\n\nbody\n", encoding="utf-8")
+    results = aa.run_assertions(tmp_path, "ol")
+    check = [r for r in results if r.name == "_no_untranslated_units"]
+    assert len(check) == 1
+    assert check[0].passed is True
+
+
+def test_untranslated_units_violation_message_with_and_without_total(tmp_path):
+    """untranslated_units_violation: names the path and N/M when total is
+    readable, N alone otherwise; None on 0/absent."""
+    assert aa.untranslated_units_violation("---\nuntranslated_units: 0\n---\n") is None
+    assert aa.untranslated_units_violation("# no frontmatter\n") is None
+    assert (
+        aa.untranslated_units_violation(
+            "---\nuntranslated_units: 3\ntotal_units: 9\n---\n", "out.md"
+        )
+        == "out.md: 3/9 unit(s) untranslated"
+    )
+    assert (
+        aa.untranslated_units_violation("---\nuntranslated_units: 3\n---\n", "out.md")
+        == "out.md: 3 unit(s) untranslated"
+    )
+
+
+def test_untranslated_units_violation_at_reads_the_file(tmp_path):
+    """The file-reading entry point the scenario steps use: returns the
+    violation naming the path for a positive artifact, None for a clean one,
+    and a violation (never a raise) for an unreadable path."""
+    bad = tmp_path / "bad.md"
+    bad.write_text("---\nuntranslated_units: 2\ntotal_units: 5\n---\n", encoding="utf-8")
+    good = tmp_path / "good.md"
+    good.write_text("---\ntarget_lang: en\n---\n", encoding="utf-8")
+    assert aa.untranslated_units_violation_at(bad) == f"{bad}: 2/5 unit(s) untranslated"
+    assert aa.untranslated_units_violation_at(good) is None
+    missing = aa.untranslated_units_violation_at(tmp_path / "nope.md")
+    assert missing is not None and "cannot read OL output" in missing
+
+
+# ---------------------------------------------------------------------------
 # orf — backfill structure assertions
 # ---------------------------------------------------------------------------
 
@@ -417,15 +505,16 @@ def test_module_all_json_gets_opp_and_orf_checks(tmp_path):
 
 def test_module_all_md_gets_opp_and_ol_checks(tmp_path):
     """Under 'all' a translated .md gets opp md checks + ol checks + 4
-    hard-security = 9 total, all passing."""
+    hard-security = 10 total, all passing."""
     (tmp_path / "doc.md").write_text(
         "---\nsource_lang: en\ntarget_lang: zh\n---\n# Title\n", encoding="utf-8"
     )
     results = aa.run_assertions(tmp_path, "all")
     names = {r.name for r in results}
-    assert len(results) == 9
+    assert len(results) == 10
     assert {
         "_md_nonempty", "_html_no_tag_leak",
         "_target_complete", "_no_source_echo", "_shield_roundtrip",
+        "_no_untranslated_units",
     } <= names
     assert all(r.passed for r in results)

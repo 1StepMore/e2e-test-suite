@@ -6,7 +6,12 @@ One step -> one REAL call on a surface, never a mock (guide §4.1):
 - ``kind: cli``    -> subprocess against the real module CLIs (``opp``,
                       ``ol``, ``orf``, ``omni-mcp`` console scripts in
                       ``.venv_ol/bin/``), capturing stdout / stderr / exit
-                      code
+                      code.  **stderr is always persisted into the step's
+                      ``actual``** — a CLI warning written to stderr (e.g.
+                      OL's ``WARNING: N of M unit(s) were returned
+                      untranslated``) is therefore visible in the scenario
+                      record, never dropped in favour of stdout
+                      (e2e-test-suite#174).
 - ``kind: mcp``    -> in-process call of the REAL module tool functions
                       (``opp.mcp.server.*``, ``ol_mcp.tools.*``,
                       ``orf.mcp.server.*`` — the same functions the MCP
@@ -235,6 +240,9 @@ def _run_cli_step(step: dict[str, Any], env: dict[str, str] | None) -> StepResul
         actual = {
             "success": False,
             "error": f"command not found: {command!r}",
+            "exit_code": None,
+            "stdout": "",
+            "stderr": "",
         }
     return _make_result(
         step, f"cli: {command}", command, actual, time.monotonic() - start

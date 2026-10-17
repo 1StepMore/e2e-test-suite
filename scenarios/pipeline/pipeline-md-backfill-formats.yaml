@@ -129,6 +129,29 @@ steps:
       keys are present). This is the nightly quality run. Check: exit 0 and
       stdout contains "Translated" (both fresh "Translated: ..." and cached
       "Translated (cached): ..." markers contain it).
+  - name: Assert no untranslated units
+    kind: python
+    command: |-
+      import sys
+      from scripts.validation.artifact_assertions import untranslated_units_violation_at
+      msg = untranslated_units_violation_at("/tmp/omni_val/pipeline-md-formats/ol_out/source.md")
+      if msg:
+          print("ERROR: " + msg)
+          sys.exit(1)
+      print("OK: no untranslated units")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: no untranslated units"]
+    standard: STANDARDS.md#untranslated-units
+    instructions: |-
+      Direct translation-completeness floor (issue #174): read the OL
+      output MD's YAML frontmatter and require no declared untranslated
+      units — absent or 0 passes (backward compatible with pre-#174
+      artifacts), > 0 fails naming "N/M unit(s) untranslated" and the
+      artifact path. This is a count check, so a long document cannot
+      dilute a small residue below the CJK-density 5% ratio threshold.
+      Check: exit 0 + OK marker.
   - name: Backfill 11 non-MSG MD-path targets and assert structure anchors
     kind: python
     command: |-
@@ -279,6 +302,27 @@ steps:
       Real-LLM translation of the JSON-derived MD (zh -> en). OL shields code
       fences, so the ```json block survives translation and remains the
       md2json input. Check: exit 0 + stdout "Translated".
+  - name: Assert no untranslated units (JSON-derived MD)
+    kind: python
+    command: |-
+      import sys
+      from scripts.validation.artifact_assertions import untranslated_units_violation_at
+      msg = untranslated_units_violation_at("/tmp/omni_val/pipeline-md-formats/ol_json/source.md")
+      if msg:
+          print("ERROR: " + msg)
+          sys.exit(1)
+      print("OK: no untranslated units")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: no untranslated units"]
+    standard: STANDARDS.md#untranslated-units
+    instructions: |-
+      Same direct translation-completeness floor (issue #174) on the
+      JSON-derived MD output: read its YAML frontmatter and require no
+      declared untranslated units — absent or 0 passes, > 0 fails naming
+      "N/M unit(s) untranslated" and the artifact path. Check: exit 0 +
+      OK marker.
   - name: Backfill JSON target and assert parseable JSON
     kind: python
     command: |-

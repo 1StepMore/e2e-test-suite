@@ -364,6 +364,97 @@ def _load_frontmatter(text: str) -> dict[str, Any]:
         return {}
 
 
+def read_untranslated_units(text: str) -> tuple[int | None, int | None]:
+    """Read ``(untranslated_units, total_units)`` out of a translated MD
+    document's leading YAML frontmatter (e2e-test-suite#174).
+
+    Returns ``(None, None)`` when the frontmatter is absent/unparseable or
+    does not declare ``untranslated_units`` — the pre-#174 artifact shape,
+    which every caller treats as "no untranslated units" (a pass, never a
+    false failure).  A non-integer, negative, or boolean value is likewise
+    treated as absent.  ``total_units`` may be ``None`` even when
+    ``untranslated_units`` is present; the message then names the count
+    alone.
+    """
+    fm = _load_frontmatter(text)
+    if not fm:
+        return None, None
+
+    def _count(value: Any) -> int | None:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return None
+        return value
+
+    return _count(fm.get("untranslated_units")), _count(fm.get("total_units"))
+
+
+def untranslated_units_violation(
+    text: str, path: str | Path | None = None
+) -> str | None:
+    """The failure message when a translated MD declares untranslated units,
+    else ``None`` (e2e-test-suite#174).
+
+    Shared by the OL artifact assertion and the scenario python assertion
+    steps so there is exactly one implementation.  The message names the
+    artifact path (when given) and the count: ``"<path>: N/M unit(s)
+    untranslated"`` when ``total_units`` is readable, ``"<path>: N unit(s)
+    untranslated"`` otherwise.  Missing or ``0`` yields ``None``.
+    """
+    untranslated, total = read_untranslated_units(text)
+    if not untranslated:
+        return None
+    where = f"{path}: " if path is not None else ""
+    if total:
+        return f"{where}{untranslated}/{total} unit(s) untranslated"
+    return f"{where}{untranslated} unit(s) untranslated"
+
+
+def untranslated_units_violation_at(md_path: str | Path) -> str | None:
+    """Read the translated MD at *md_path* and return the untranslated-units
+    violation message (or ``None``) — the file-reading entry point the
+    scenario assertion steps use (e2e-test-suite#174).  An unreadable file
+    is itself a violation (the OL step should have produced it)."""
+    path = Path(md_path)
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return f"{path}: cannot read OL output for untranslated-units check: {exc}"
+    return untranslated_units_violation(text, path)
+
+
+def _no_untranslated_units(
+    path: Path, text: str, artifact: str, module: str
+) -> AssertionResult:
+    """e2e-test-suite#174 (P1) — a translated ``.md`` artifact declares no
+    untranslated units: the OL output's YAML frontmatter ``untranslated_units``
+    must be absent or ``0`` (backward compatible with pre-#174 artifacts); a
+    value ``> 0`` fails naming ``N/M unit(s) untranslated`` and the artifact.
+
+    This is a DIRECT count check.  The CJK-density bar is a ratio, so a long
+    document can dilute a handful of untranslated units below its 5%
+    threshold and let a partially-translated result pass (issue #174); this
+    assertion is the count-level floor the ratio cannot provide."""
+    untranslated, total = read_untranslated_units(text)
+    if not untranslated:
+        if untranslated is None:
+            detail = "no untranslated_units declared (pre-#174 artifact)"
+        elif total:
+            detail = f"0/{total} unit(s) untranslated"
+        else:
+            detail = "0 unit(s) untranslated"
+        return AssertionResult(
+            "_no_untranslated_units", True, "e2e#174", "P1", module, artifact, detail,
+        )
+    detail = (
+        f"{untranslated}/{total} unit(s) untranslated"
+        if total
+        else f"{untranslated} unit(s) untranslated"
+    )
+    return AssertionResult(
+        "_no_untranslated_units", False, "e2e#174", "P1", module, artifact, detail,
+    )
+
+
 def _target_complete(path: Path, text: str, artifact: str, module: str) -> AssertionResult:
     """ol (P1) — a translated artifact is non-empty AND (if it has YAML
     frontmatter) ``target_lang`` is declared; an ``.xlf`` must have every
@@ -529,7 +620,6 @@ def _docx_pptx_zip_ok(path: Path, text: str, artifact: str, module: str) -> Asse
     (OOXML structure integrity). ``text`` carries the raw bytes for binary
     artifacts (``run_assertions`` passes bytes when the file is not
     text-decodable)."""
-    raw = text.encode("utf-8", errors="surrogateescape") if isinstance(text, str) else text
     try:
         with zipfile.ZipFile(Path(path)) as zf:
             names = zf.namelist()
@@ -570,6 +660,7 @@ OL_STRUCTURE: tuple[AssertionFn, ...] = (
     _target_complete,
     _no_source_echo,
     _shield_roundtrip,
+    _no_untranslated_units,
 )
 
 # orf structure assertions, keyed by artifact extension.

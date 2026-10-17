@@ -68,7 +68,7 @@ groups run only when the artifact's extension matches the selected module.
 | Module | Structure assertions | Applies to |
 |--------|---------------------|------------|
 | `opp` | `_md_nonempty`, `_html_no_tag_leak`, `_manifest_json_parseable`, `_csv_structure` | `.md`, `.json`, `.csv` |
-| `ol` | `_target_complete`, `_no_source_echo`, `_shield_roundtrip` | `.md`, `.xlf` |
+| `ol` | `_target_complete`, `_no_source_echo`, `_shield_roundtrip`, `_no_untranslated_units` | `.md`, `.xlf` |
 | `orf` | `_html_has_structure`, `_srt_timecodes`, `_json_parseable`, `_xml_parseable`, `_docx_pptx_zip_ok` | `.html`/`.htm`, `.srt`, `.json`, `.xml`, `.docx`, `.pptx` |
 | `suite` | none (hard-security only) | every text artifact |
 | `all` | every group whose extension the artifact matches | union of the above |
@@ -98,6 +98,7 @@ groups run only when the artifact's extension matches the selected module.
 | `_target_complete` | P1 | Empty translated artifact; frontmatter without `target_lang`; an `.xlf` with any `<trans-unit>` whose `<target>` is empty |
 | `_no_source_echo` | P1 | An `.xlf` whose `<target>` equals `<source>` for more than half its trans-units; an `.md` with identical `source_lang`/`target_lang` (self-translation) |
 | `_shield_roundtrip` | P1 | Leftover `[OL:TYPE:NNNN]` shield markers in an OL `.md` (module-specific stricter check on top of the P0 placeholder leak). Source: E2E-77/78 |
+| `_no_untranslated_units` | P1 | A translated `.md` whose frontmatter declares `untranslated_units > 0` (part of the document carries the source verbatim). Absent or `0` passes (backward compatible). A direct count floor the CJK-density ratio cannot provide in long documents. Source: e2e-test-suite#174 |
 
 ### ORF structure (backfill)
 

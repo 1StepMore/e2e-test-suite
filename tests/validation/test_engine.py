@@ -476,6 +476,33 @@ def test_arguments_echo_cli(tmp_path):
     assert rec["arguments"] == {"command": "true"}
 
 
+def test_cli_stderr_lands_in_scenario_record(tmp_path):
+    """e2e-test-suite#174: a CLI step's stderr is persisted in the scenario
+    record — OL writes its ``WARNING: N of M unit(s) ... untranslated`` to
+    stderr, and the harness must keep it visible (never stdout-only).  Both
+    the in-memory step record and the persisted scenarios.json carry it."""
+    runs = tmp_path / "runs"
+    _write(tmp_path, "warn.yaml", """
+name: warn
+description: "cli stderr is persisted in the scenario record"
+steps:
+  - name: "warn"
+    kind: cli
+    command: |-
+      sh -c "echo OL-WARNING 2-of-6-untranslated 1>&2"
+    expect:
+      exit_code: 0
+      stderr_has: ["OL-WARNING"]
+""")
+    run = run_scenarios(tmp_path, runs_dir=runs, persist=True)
+    rec = run.scenarios[0].steps[0]
+    assert run.scenarios[0].status == "passed"
+    assert "OL-WARNING" in rec["actual"]["stderr"]
+    payload = json.loads((runs / run.run_id / "scenarios.json").read_text(encoding="utf-8"))
+    persisted = payload["scenarios"][0]["steps"][0]["actual"]
+    assert "OL-WARNING" in persisted["stderr"]
+
+
 def test_timeout_step_failed_with_timeout_flag(tmp_path):
     # Dispatch already records timeouts as failed steps (timeout: True in
     # the actual block) — the engine propagates that, no extra work.
