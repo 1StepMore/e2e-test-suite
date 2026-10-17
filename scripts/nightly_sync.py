@@ -18,8 +18,12 @@ whisper / 磁盘，**没有任何 git fetch / merge 步骤** ⇒ 一晚的差距
        current      —— fetch 成功且 before == after，本就最新
        FETCH_FAILED —— fetch 失败（超时 / 非零 / 仓不可达）
        NO_FF        —— fetch 成功但 `merge --ff-only` 失败（分叉等）
-  3) `stale` = 未能停到 main 的仓（FETCH_FAILED / NO_FF）；`ff` 与 `current`
-     都算同步到位，**不进** stale。
+       WRONG_BRANCH —— 工作树停在非 main 分支（`branch != "main"`，含取不到
+                       分支名的 null）；必须计入 stale——它根本没停到 main，
+                       矩阵测的不是 main 代码。此类只记账、不做 fetch/merge，
+                       避免把 origin/main 快进到功能分支上。
+  3) `stale` = 未能停到 main 的仓（FETCH_FAILED / NO_FF / WRONG_BRANCH）；
+     `ff` 与 `current` 都算同步到位，**不进** stale。
 
 用法：
   python3 scripts/nightly_sync.py --sync-only          # 同步 + 打印 + 落 JSON
@@ -80,14 +84,44 @@ def _rev(path: str, timeout: int) -> str | None:
     return out if code == 0 and out else None
 
 
+def _branch(path: str, timeout: int) -> str | None:
+    """取 `<path>` 当前分支名（`git rev-parse --abbrev-ref HEAD`）；失败返回 None。
+
+    detached HEAD 会返回 "HEAD"，同样应视为非 main（计 WRONG_BRANCH）。
+    """
+    code, out, _ = _git(path, "rev-parse", "--abbrev-ref", "HEAD", timeout=timeout)
+    return out if code == 0 and out else None
+
+
 def sync_repo(path: str, timeout: int) -> dict[str, str | None]:
     """同步单个仓：fetch origin main → merge --ff-only origin/main。
 
-    返回 `{name, path, before, after, mode}`；任何一步失败都落到对应 mode，
-    不抛异常、不产生非零退出。
+    返回 `{name, path, branch, before, after, mode}`；任何一步失败都落到对应
+    mode，不抛异常、不产生非零退出。
+
+    工作树不在 main 时（`branch != "main"`，含取不到分支名的 null）只记账为
+    `WRONG_BRANCH`，不做 fetch/merge——否则 `merge --ff-only origin/main` 会把
+    origin/main 快进到功能分支上，矩阵也就测错了树。
     """
     name = os.path.basename(path.rstrip("/")) or path
+    branch = _branch(path, timeout)
     before = _rev(path, timeout)
+
+    if branch != "main":
+        shown = branch if branch is not None else "<unknown>"
+        print(
+            f"[sync] {name}: 未同步 (mode=WRONG_BRANCH): 工作树停在 {shown}，"
+            f"非 main；已跳过 fetch/merge",
+            file=sys.stderr,
+        )
+        return {
+            "name": name,
+            "path": path,
+            "branch": branch,
+            "before": before,
+            "after": before,
+            "mode": "WRONG_BRANCH",
+        }
 
     fetch_code, _, fetch_err = _git(path, "fetch", "origin", "main", timeout=timeout)
     fetch_ok = fetch_code == 0
@@ -118,7 +152,14 @@ def sync_repo(path: str, timeout: int) -> dict[str, str | None]:
     if mode not in SYNCED_MODES:
         print(f"[sync] {name}: 未同步 (mode={mode}): {merge_err}", file=sys.stderr)
 
-    return {"name": name, "path": path, "before": before, "after": after, "mode": mode}
+    return {
+        "name": name,
+        "path": path,
+        "branch": branch,
+        "before": before,
+        "after": after,
+        "mode": mode,
+    }
 
 
 def build_report(repos: list[str], timeout: int) -> dict:
@@ -165,7 +206,10 @@ def main(argv: list[str] | None = None) -> int:
     for r in report["repos"]:
         before = r["before"] if r["before"] is not None else "<unknown>"
         after = r["after"] if r["after"] is not None else "<unknown>"
-        print(f"[sync] {r['name']}: {before} -> {after} ({r['mode']})")
+        print(
+            f"[sync] {r['name']}: {before} -> {after} ({r['mode']}) "
+            f"branch={r['branch']}"
+        )
 
     out = Path(args.json_out)
     out.parent.mkdir(parents=True, exist_ok=True)
