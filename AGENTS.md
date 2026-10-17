@@ -11,7 +11,7 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 | Component | Version | Status |
 |---|---|---|
 | Omni_Suite | v0.5.0 | Suite-level orchestration + E2E tests |
-| OPP | v0.10.0 | 13+ input formats, MCP with path security |
+| OPP | v0.10.0 | 14 input formats, MCP with path security |
 | OL | v0.7.1 | 21 MCP tools, 4-layer repair pipeline, StyleGuide injection, --polish pass, 8 quality gates |
 | ORF | v0.5.0 | 16 backfill formats, Foreman/Specialist |
 
@@ -41,9 +41,9 @@ omni-suite --version
 | **OPP** | Extract documents → MD + XLIFF + skeleton | `opp <file> --target-format both --output-dir <dir>` | 9 tools (`extract_document`, `batch_extract`…) | `Omni_Pre_Processor/src/` |
 | **OL** | Translate MD/XLIFF between languages | `ol translate-md <file> -s <src> -t <tgt> -o <dir>` | 21 tools (`translate_md_text`, `judge_text`…) | `Omni_Localizer/src/` |
 | **ORF** | Backfill translated content → target format | `orf apply-md <file> --target-format <fmt> -o <out>` | 7 tools (`apply_md`, `apply_xliff`…) | `Omni_Re_Formatter/src/` |
-| **Validation** | Agent-agnostic validation — scenario library + standards + director loop | `python scripts/validation/run_validation.py --list` | 2 tools (`list_validation_scenarios`, `run_validation_scenario`) | `scripts/validation/` + `omni_mcp/validation/` |
+| **Validation** | Agent-agnostic validation — scenario library + standards + director loop | `python scripts/validation/run_validation.py --list` | 4 tools (`translate_file`, `ping`, `list_validation_scenarios`, `run_validation_scenario`; 2 validation-specific) | `scripts/validation/` + `omni_mcp/` |
 
-Full MCP server/tool inventory and namespacing (all 37 tools): [`docs/agent-pipeline-guide.md`](docs/agent-pipeline-guide.md) — full per-tool parameter signatures live in each module's `docs/API.md` (e.g. [`Omni_Pre_Processor/docs/API.md`](Omni_Pre_Processor/docs/API.md)). Per-module internals: each sub-repo's own `AGENTS.md`.
+Full MCP server/tool inventory and namespacing (all 41 tools: 37 module + 4 suite): [`docs/agent-pipeline-guide.md`](docs/agent-pipeline-guide.md) — full per-tool parameter signatures live in each module's `docs/API.md` (e.g. [`Omni_Pre_Processor/docs/API.md`](Omni_Pre_Processor/docs/API.md)). Per-module internals: each sub-repo's own `AGENTS.md`.
 
 ## Common Tasks
 
@@ -153,8 +153,12 @@ Each module exposes its own MCP server. Server/tool inventory, response envelope
 ### OPP MCP Server (9 tools)
 ### OL MCP Server (21 tools)
 ### ORF MCP Server (7 tools)
+### Omni MCP Server / suite aggregator (4 tools)
 
-> **Note**: Server names are not uniform — OPP/ORF use `-server` suffix (`opp-mcp-server`, `orf-mcp-server`), OL omits it (`ol-mcp`). Historical inconsistency; all three follow the same protocol.
+`translate_file`, `ping`, `list_validation_scenarios`, `run_validation_scenario`
+(the last two are validation-specific). Runs as `omni-mcp` from `omni_mcp/server.py`.
+
+> **Note**: Server names are not uniform — OPP/ORF use `-server` suffix (`opp-mcp-server`, `orf-mcp-server`), OL omits it (`ol-mcp`), and the suite server is `omni-mcp`. Historical inconsistency; all four follow the same protocol.
 
 ## Format Support Matrix
 
@@ -185,7 +189,7 @@ See `README.md` → "Cross-Format Production-Readiness" for the full 36-path ver
 
 ## Pre-commit Hooks
 
-Configured in `.pre-commit-config.yaml` at the project root. Install: `pip install pre-commit && pre-commit install`. Run all: `pre-commit run --all-files` (or `make lint`). Hooks: gitleaks, check-added-large-files, check-merge-conflict, detect-private-key, end-of-file-fixer, trailing-whitespace, omni-doc-inventory (doc-truth gate, runs on commit), omni-contract-smoke (manual stage — run explicitly via `make smoke`).
+Configured in `.pre-commit-config.yaml` at the project root. Install: `pip install pre-commit && pre-commit install`. Run all: `pre-commit run --all-files` (the CI-equivalent gate). `make lint` is **not** equivalent: it runs the contract smoke test plus a whole-tree `ruff check .` and `mypy` (the whole-tree ruff baseline is red; see `lint.yml`). Hooks: gitleaks, check-added-large-files, check-merge-conflict, detect-private-key, end-of-file-fixer, trailing-whitespace, omni-doc-inventory (doc-truth gate, runs on commit), omni-contract-smoke (runs in both commit and manual stages — `stages: [commit, manual]`; `make smoke` runs it on demand).
 
 ## Where Things Live (Doc Map)
 
@@ -196,7 +200,7 @@ Configured in `.pre-commit-config.yaml` at the project root. Install: `pip insta
 | Architecture / data flow | `docs/ARCHITECTURE.md` |
 | OPP→OL→ORF handoff contract | `CONTRACT.md` |
 | Shared glossary | `CONTEXT.md` |
-| Decision records (ADR 0001–0006) | `docs/DECISIONS.md` |
+| Decision records (ADR 0001–0007) | `docs/DECISIONS.md` |
 | Setup (real LLM keys) | `SETUP.md` |
 | Test instructions | `TESTS.md` |
 | Retired docs (archive) | `docs/archive/` |
@@ -233,6 +237,6 @@ python scripts/validation/validation_diff.py <newer> --base-sha <sha-prefix>
 | Family | What it proves |
 |---|---|
 | **agent-user conformance** | every agent-facing tool/CLI works as an agent would use it (tool-* scenarios + AGENT-SURFACE anchors: `#tool-contract`, `#json-parseable`, `#error-clarity`, `#path-security`, `#exit-codes`) |
-| **human-quality conformance** | pipeline output satisfies human end-users (pipeline-* scenarios + HUMAN-QUALITY anchors: `#lqa-threshold`, `#para-ratio`, `#cjk-density`, `#punct-hygiene`, `#drawing-count`, `#opens-docx`) |
+| **human-quality conformance** | pipeline output satisfies human end-users (pipeline-* scenarios + HUMAN-QUALITY anchors: `#lqa-threshold`, `#para-ratio`, `#cjk-density`, `#untranslated-units`, `#punct-hygiene`, `#drawing-count`, `#opens-docx`) |
 
 `unconfigured` (missing env, e.g. no LLM keys) is a distinct status — never a pass, never a silent skip. **Standards**: `scenarios/STANDARDS.md` is the single citable bar — every step's `expect` cites `standard: STANDARDS.md#<anchor>`. Read it before judging a verdict; never invent thresholds. **Director checklist**: `docs/dev/validation-director-loop.md` (two-role model, 10-minute per-run loop).

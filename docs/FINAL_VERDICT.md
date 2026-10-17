@@ -1,5 +1,11 @@
 # Omni Suite Full Validation — Final Report
 
+> **Status: HISTORICAL SNAPSHOT (versions below are outdated).** This report
+> captures the 2026-07-23 run against Suite v0.4.0 / OPP v0.6.5 / OL v0.7.0 /
+> ORF v0.4.16. It is retained for the historical record and is **not** a
+> current verdict; see `AGENTS.md` for current versions and
+> `validation-runs/latest.txt` for the newest run.
+
 **Date:** 2026-07-23 | **Environment:** WSL, Python 3.13, FAKE_LLM=1, FAKE_PANDOC=1
 **Versions:** Suite v0.4.0 | OPP v0.6.5 | OL v0.7.0 | ORF v0.4.16
 

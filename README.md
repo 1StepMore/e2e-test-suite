@@ -122,7 +122,7 @@ omni-suite pipeline document.docx --keep-intermediate # 保留 /tmp/omni-suite-p
 
 ## Cross-Format Production-Readiness
 
-OPP accepts 13+ input formats (DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML,
+OPP accepts 14 input formats (DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML,
 EPUB, EML, MSG, images/OCR, IPYNB, plus `.url` auto-detect); ORF `apply-md`
 writes 16 output formats. Verified OPP→OL→ORF paths as of 2026-06-23:
 

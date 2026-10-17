@@ -591,7 +591,7 @@ def _check_scenario_claim_sites(
 def check_scenarios(root: Path, failures: list[str]) -> None:
     """Scenario count DERIVED from the ``scenarios/**/*.yaml`` glob (never a
     pinned number); claim-site docs stating a count/tier-split must match it.
-    Input formats >= 13; '13+' claims.
+    Input formats >= 14; '14' claims.
 
     Skipped (report-only, not a failure) when ``scenarios/`` is absent. The
     library glob is the source of truth — a legitimate scenario addition or
@@ -619,12 +619,12 @@ def check_scenarios(root: Path, failures: list[str]) -> None:
     if opp_dir.is_dir():
         opp_count = len([p for p in opp_dir.glob("*.yaml") if p.is_file()])
         print(f"  scenarios/opp: {opp_count} input-format scenarios")
-        if opp_count < 13:
-            failures.append(f"scenarios/opp: {opp_count} input formats, expected >= 13")
+        if opp_count < 14:
+            failures.append(f"scenarios/opp: {opp_count} input formats, expected >= 14")
         for rel in ("AGENTS.md", "README.md"):
             path = root / rel
-            if path.exists() and "13+" not in read_text(path):
-                failures.append(f"{rel} must claim '13+' input formats")
+            if path.exists() and "14 input formats" not in read_text(path):
+                failures.append(f"{rel} must claim '14 input formats'")
 
 
 def check_test_matrix(root: Path, failures: list[str]) -> None:
@@ -712,6 +712,10 @@ def check_root_samples(root: Path, failures: list[str]) -> None:
     ``scenarios/_fixtures/`` and ``test_fixtures/``, so a recursive scan would
     need an allowlist of those dirs and would rot the moment a new fixture
     directory appears.
+
+    Also catches the OL ``--output-dir`` literal leak: a root directory named
+    like a CLI flag (``--output-dir/``, containing e.g. ``real.md``) is a
+    defect artifact, not content.
     """
     if not root.is_dir():
         print("  Suite root samples: root absent -> skip")
@@ -721,19 +725,39 @@ def check_root_samples(root: Path, failures: list[str]) -> None:
         for p in root.iterdir()
         if p.is_file() and p.suffix.lower() in ROOT_SAMPLE_SUFFIXES
     )
-    if stray:
-        names = ", ".join(stray)
-        print(f"  Sample files in suite root: {names} -> FAIL")
+    flag_dirs = sorted(
+        p.name for p in root.iterdir() if p.is_dir() and p.name.startswith("--")
+    )
+    if stray or flag_dirs:
+        parts = []
+        if stray:
+            parts.append(f"{len(stray)} document sample(s): {', '.join(stray)}")
+        if flag_dirs:
+            parts.append(f"{len(flag_dirs)} CLI-flag directory artifact(s): {', '.join(flag_dirs)}")
+        detail = "; ".join(parts)
+        print(f"  Sample files in suite root: {detail} -> FAIL")
         failures.append(
-            f"suite root contains {len(stray)} document sample(s): {names} — move "
-            "them into scenarios/_fixtures/ (tracked) or test_fixtures/ (gitignored)"
+            f"suite root contains {detail} — move documents into "
+            "scenarios/_fixtures/ (tracked) or test_fixtures/ (gitignored); "
+            "delete CLI-flag directory artifacts"
         )
     else:
         print("  Sample files in suite root: none -> ok")
 
 
+#: One generated inventory row: ``| `relative/path` | 123 | category | ... |``.
+_INVENTORY_ROW_RE = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|", re.MULTILINE)
+
+
 def check_inventory(root: Path, failures: list[str]) -> None:
-    """docs/dev/doc-inventory.md must exist and carry the AUTO-GENERATED header."""
+    """The inventory must exist, carry the AUTO-GENERATED header, and be fresh.
+
+    Freshness is checked as **row-set completeness**: the inventory's
+    ``| `path` | lines | ... |`` rows must match the set of files
+    ``scan_docs()`` finds under ``docs/`` today. A header-only check let a
+    months-old inventory stay green while files were added or removed; the
+    row-set comparison makes that drift red.
+    """
     out = root / "docs" / "dev" / "doc-inventory.md"
     if not out.exists():
         print("  docs/dev/doc-inventory.md: missing -> FAIL")
@@ -749,6 +773,28 @@ def check_inventory(root: Path, failures: list[str]) -> None:
             "docs/dev/doc-inventory.md is stale: missing its AUTO-GENERATED header — "
             "regenerate with python3 scripts/doc_inventory.py"
         )
+
+    expected = {row["path"] for row in scan_docs(root / "docs", out)}
+    listed = {m.group(1) for m in _INVENTORY_ROW_RE.finditer(text)}
+    missing = sorted(expected - listed)
+    extra = sorted(listed - expected)
+    if missing or extra:
+        def _names(items: list[str]) -> str:
+            shown = ", ".join(items[:8])
+            return shown + (f", … (+{len(items) - 8} more)" if len(items) > 8 else "")
+
+        detail = []
+        if missing:
+            detail.append(f"missing {len(missing)} row(s): {_names(missing)}")
+        if extra:
+            detail.append(f"{len(extra)} stale row(s): {_names(extra)}")
+        print(f"  docs/dev/doc-inventory.md: row set MISMATCH ({'; '.join(detail)}) -> FAIL")
+        failures.append(
+            "docs/dev/doc-inventory.md is stale: row set does not match docs/ "
+            f"({'; '.join(detail)}) — regenerate with python3 scripts/doc_inventory.py"
+        )
+    else:
+        print(f"  docs/dev/doc-inventory.md: row set matches {len(expected)} doc(s) -> ok")
 
 
 #: Status-marker convention for archived docs (first content line).
@@ -1082,7 +1128,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Verify source-truth tool counts vs claim sites, scenario/test-matrix "
         "claims, version-sync delegation, stray test_bug_* files and root sample "
-        "files, and inventory freshness. No files are written. Exits 1 on any failure.",
+        "files, and inventory freshness (row set matches docs/). No files are written. "
+        "Exits 1 on any failure.",
     )
     parser.add_argument(
         "--root",
