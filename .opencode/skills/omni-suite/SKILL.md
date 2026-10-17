@@ -1,6 +1,6 @@
 ---
 name: omni-suite
-description: Orchestrate the 3-stage Omni Suite document localization pipeline (OPP extract → OL translate → ORF backfill). Current versions: opp 0.9.1, ol 0.7.1, orf 0.4.17, suite 0.4.0.
+description: Orchestrate the 3-stage Omni Suite document localization pipeline (OPP extract → OL translate → ORF backfill). Current versions: opp 0.10.0, ol 0.7.1, orf 0.5.0, suite 0.5.0.
 ---
 
 # Omni Suite — Document Localization Pipeline
@@ -17,14 +17,14 @@ make test-quick      # pytest tests/ -m "not nightly" -q
 
 If `make doctor` fails, the pipeline won't work. Fix those issues first.
 
-## Current versions (2026-09-05)
+## Current versions (2026-10-18)
 
 | Component | Version | Path | CLI Framework |
 |---|---|---|---|
-| OPP | **0.9.1** | `Omni_Pre_Processor/` | argparse |
+| OPP | **0.10.0** | `Omni_Pre_Processor/` | argparse |
 | OL | **0.7.1** | `Omni_Localizer/` | typer |
-| ORF | **0.4.17** | `Omni_Re_Formatter/` | click |
-| Suite | **0.4.0** | `./` | — |
+| ORF | **0.5.0** | `Omni_Re_Formatter/` | click |
+| Suite | **0.5.0** | `./` | — |
 
 Test matrix status: **131 PASS, 64 SKIP, 0 FAIL** across 195 cells (verified 2026-09-05).
 False-positive rate: **0/200** (was 48/200 before the 2026-06-29 quality_checks.py fix).

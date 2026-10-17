@@ -79,6 +79,14 @@
 - 顺带定性: 本机 `uv lock --check`（默认阿里云镜像）rc=1 为**假阳性**——`uv.lock` registry 全为 pypi.org，`UV_DEFAULT_INDEX=https://pypi.org/simple` 下 rc=0；CI `uv sync --locked` 一直绿。机制同报告 §21.6 后续处置注记（「由 A index 解析的 lock 在 B index 下 check 失败」），非仓库问题
 - Conclusion: 上游产品仓的**合法扩面**会击穿精确计数型断言；集合类断言一律「超集 + `required_*_missing` 计数」（见坑清单）。修复 PR 合并后 main 复跑待绿
 
+### 2026-10-12：全量库复跑（106 场景 0 failed）+ `tool-ol-translate_file` 三型环境漂移探针（27 runs）
+
+- Date: 2026-10-12（**2026-10-18 补记**）；27 个 run（凌晨 7 个小探针 + 晚间 20 个；最新 `20261012-230653` 收尾 ping passed）
+- Scope: 套件 scenario 库全量（agent-surface / per-repo / pipeline / agent-interaction）+ 定点探针（`tool-ol-translate_file`、ORF 批处理、`omni_mcp` ping）；run_meta suite_sha `cce5d01`
+- Result: **全量 run `20261012-214801` = 106 场景：96 passed / 5 unconfigured / 4 recovered / 1 known-gap / 0 failed**。unconfigured 5 项 = OL `search_tm`、OPP ipynb/msg/ocr、ORF msg（客观缺省）；`pipeline-docx-md-docx` 组复核通过（1 passed + 2 known-gap）
+- **探针失败定性（均环境型，非代码/场景缺陷）**：`tool-ol-translate_file` 5 次 failed 分三型——(a) allowlist 未设 → `OL_MCP_NOT_CONFIGURED`（fail-CLOSED 设计）；(b) `config/default.yaml` 缺失 → `OL_FAILED`；(c) 单步 300s 超时 ×2（免费档拥塞）。ORF 探针呈 unconfigured/passed 随 env 漂移
+- Conclusion: 当日全量基线绿；OL 探针类失败先按三型排查（配齐 env 再判代码）。
+
 ### 2026-10-01（第二轮）：3 个「不眠计划」遗留 issue 收口（#105/#106/#112）+ 自己踩出的契约 fixture 红
 
 - Date: 2026-10-01, round: 第一轮清账后剩 3 个 issue，我按「需不需要产品口径」判断为「不需要」并推进

@@ -1606,7 +1606,7 @@ pytest tests/validation/test_coverage_audit.py -q       ->  26 passed, 1 failed
 | 项 | 状态 |
 |---|---|
 | §5 #2 Phase 2（外部索引 403）、§5 #8（tier-2 真 LLM 复验） | **外部阻塞**，需外部状态变化，不可伪绿 |
-| 三个子仓库的本地 git 钩子只有 secrets 类（§18.4） | **主体已于第十三轮处理，见 §21**（OPP 补 lint 门禁 + OL 固定版本 + 结论更正）；pre-commit 本地安装/钩子写法仍待定（§21.4） |
+| 三个子仓库的本地 git 钩子只有 secrets 类（§18.4） | **主体已于第十三轮处理，见 §21**（OPP 补 lint 门禁 + OL 固定版本 + 结论更正）；钩子写法已定案（§21.4 采纳方案 (b)）并经 §21.7 双环境复跑取证（Git Bash + WSL）；候选 (c)（三仓安装 pre-commit 框架、进入本地提交路径）仍未做 |
 | ruff pin 升级（0.16.8 多报的 `UP045`×6、`B023`×4 等） | 未处理（候选下一轮） |
 | `coverage_audit` / `contract` 在本机的执行型失败（WinError 1920） | 环境限制，CI（Linux）为准 |
 

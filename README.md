@@ -255,7 +255,7 @@ means you can switch without re-extracting.
 | OL MCP 专用 venv | `~/.hermes/venvs/omni-localizer` | Python 3.13（OL MCP 服务）|
 
 v0.10.0 · v0.7.1 · v0.5.0 · v0.5.0（last tested 2026-07-22）。
-**Pushed combo (待 push)**: same as above; local commits only, network too slow for `git push` as of 2026-06-23.
+**Push state（2026-10-18）**: origin（1StepMore）已于 2026-10-06 恢复、推送正常；本地 `main` 与 `origin/main` 已同步（2026-10-18 文档修正已推送）。
 
 ---
 
