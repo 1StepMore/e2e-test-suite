@@ -290,6 +290,28 @@ markdown 里写成「skip 67 = 豁免 23 + 需清理 44」，**豁免 = 夹具�
 
 ---
 
+## 【活区】跑批采集步骤（2026-10-17 增补，issue #172）
+
+`scripts/nightly_batch.sh` 此前**只测差距不采语料**（全机无采集 timer）：AutoInfo 21 域语料
+停在 2026-10-01/02，`last_run` 15 天前、143 源 `healthy = 0`、`items_today` 合计 0。
+因此在 **ai 差距步骤之前**加一步采集（复用现有 `run_step` / `state_set`，`state.json` 里落
+`steps["ai-collect"]`）：
+
+```bash
+# ai 步骤内、gap 之前（--only ai 或全量时执行；--only am / --only omni 时不跑）
+.venv/bin/autoinfo collect --all --limit "$collect_limit"
+```
+
+| 参数 | 默认 | 含义 |
+|:---|:---|:---|
+| `--collect-limit` | `20` | ai 采集步骤每源条数上限（只在 ai 步骤生效；不影响 gap 步骤） |
+
+**退出码语义与 gap 不同**：采集非零 = **采集失败**（不是「有差距」），记
+`state_set ai-collect error …` 后**继续**跑后面的 `ai` gap 步骤（与 `nightly_sync.py`
+「记账不把关」一致：单步失败不拖垮整批）。gap 步骤的 `0/1/≥2` 语义不变。
+
+---
+
 ## 【活区】下一步队列
 
 > 策略（L1 §4）：**先纵后横** —— 先把一条通道打穿，再复制。
