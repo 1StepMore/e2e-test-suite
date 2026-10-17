@@ -191,6 +191,25 @@ source characters. Ratio ≥ 5% means the translation is incomplete.
 len(out_text) < 0.05` over python-docx paragraph text. Citable as
 `standard: STANDARDS.md#cjk-density`.
 
+### Untranslated units {#untranslated-units}
+
+A translated artifact must declare **zero untranslated units**: the OL
+``translate-md`` output's YAML frontmatter ``untranslated_units`` must be
+absent or ``0`` (the count is written only when a unit came back
+untranslated — ``Omni_Localizer/src/cli/translate_md.py``; those units carry
+the source text verbatim). A value ``> 0`` means part of the document was
+never translated. This is a **direct count** check: unlike `#cjk-density`,
+which is a ratio, a long document can dilute a handful of untranslated
+units below the 5% CJK threshold and let a partially-translated result pass
+(issue
+[e2e-test-suite#174](https://github.com/1StepMore/e2e-test-suite/issues/174)).
+
+**How to check:** read the OL output ``.md``'s YAML frontmatter;
+``untranslated_units`` absent or ``0`` passes (backward compatible with
+pre-#174 artifacts), ``> 0`` fails naming ``N/M unit(s) untranslated``
+(``M`` shown only when ``total_units`` is readable). Citable as
+`standard: STANDARDS.md#untranslated-units`.
+
 ### Punctuation hygiene {#punct-hygiene}
 
 **Zero foreign-language punctuation** in the output (from `_gate_q5_punctuation`,
