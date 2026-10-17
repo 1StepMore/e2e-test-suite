@@ -79,6 +79,50 @@ _COMPONENT_SRC_DIRS = (
 #: (guide §2.4: "project default ceiling").
 DEFAULT_TIMEOUT_SECONDS = 120.0
 
+#: Env var that overrides the per-step wall-clock cap for ``cli`` / ``python``
+#: steps.  The default stays :data:`DEFAULT_TIMEOUT_SECONDS` (120s); setting
+#: this raises (or lowers) the cap for every dispatched cli/python step, so a
+#: tier-2 run on a rate-limited free tier can wait longer without editing the
+#: scenario library (issue #176).  A ``--step-timeout`` CLI option takes
+#: precedence over this var.  In-process ``mcp`` steps keep their own
+#: resolution — the override is deliberately scoped to the subprocess
+#: adapters.
+STEP_TIMEOUT_ENV = "OMNI_VALIDATION_STEP_TIMEOUT_S"
+
+
+def resolve_step_timeout(
+    step: dict[str, Any],
+    env: dict[str, str] | None = None,
+    override: float | None = None,
+) -> float:
+    """The effective wall-clock cap for one dispatched ``cli``/``python`` step.
+
+    Precedence (issue #176): an explicit *override* (the ``--step-timeout``
+    CLI option) wins; else ``OMNI_VALIDATION_STEP_TIMEOUT_S`` in the
+    effective *env* (the explicit env when given, else ``os.environ``); else
+    the step's own ``timeout_seconds``; else
+    :data:`DEFAULT_TIMEOUT_SECONDS`.  An unparseable or non-positive value
+    at any layer is ignored in favour of the next layer — the resolver never
+    returns a non-positive cap.
+    """
+    if override is not None:
+        try:
+            candidate = float(override)
+        except (TypeError, ValueError):
+            candidate = None
+        if candidate is not None and candidate > 0:
+            return candidate
+    effective = env if env is not None else os.environ
+    raw = effective.get(STEP_TIMEOUT_ENV)
+    if raw:
+        try:
+            candidate = float(raw)
+        except (TypeError, ValueError):
+            candidate = None
+        if candidate is not None and candidate > 0:
+            return candidate
+    return float(step.get("timeout_seconds") or DEFAULT_TIMEOUT_SECONDS)
+
 
 class DispatchError(ValueError):
     """A step named a surface the dispatcher cannot reach (guide §3.2:
@@ -207,10 +251,14 @@ def _make_result(
 # ---------------------------------------------------------------------------
 
 
-def _run_cli_step(step: dict[str, Any], env: dict[str, str] | None) -> StepResult:
+def _run_cli_step(
+    step: dict[str, Any],
+    env: dict[str, str] | None,
+    step_timeout: float | None = None,
+) -> StepResult:
     """SubprocessAdapter: run the exact command line, capture everything."""
     command = step["command"]
-    timeout = float(step.get("timeout_seconds") or DEFAULT_TIMEOUT_SECONDS)
+    timeout = resolve_step_timeout(step, env, step_timeout)
     proc_env = build_cli_env(env)
     start = time.monotonic()
     try:
@@ -249,10 +297,14 @@ def _run_cli_step(step: dict[str, Any], env: dict[str, str] | None) -> StepResul
     )
 
 
-def _run_python_step(step: dict[str, Any], env: dict[str, str] | None) -> StepResult:
+def _run_python_step(
+    step: dict[str, Any],
+    env: dict[str, str] | None,
+    step_timeout: float | None = None,
+) -> StepResult:
     """Run the python snippet as a subprocess in the suite venv."""
     snippet = step["command"]
-    timeout = float(step.get("timeout_seconds") or DEFAULT_TIMEOUT_SECONDS)
+    timeout = resolve_step_timeout(step, env, step_timeout)
     proc_env = build_cli_env(env)
     interpreter = suite_python()
     start = time.monotonic()
@@ -406,7 +458,9 @@ def _run_mcp_step(step: dict[str, Any], env: dict[str, str] | None) -> StepResul
 
 
 def dispatch_step(
-    step: dict[str, Any], env: dict[str, str] | None = None
+    step: dict[str, Any],
+    env: dict[str, str] | None = None,
+    step_timeout: float | None = None,
 ) -> StepResult:
     """Turn one step into one real call on the surface it names.
 
@@ -424,6 +478,11 @@ def dispatch_step(
         the parent env is inherited.  Injected values (FAKE_LLM, path
         allowlists) are NEVER added by the dispatcher itself (D4); the
         caller may pass them only when the scenario declares the need.
+    step_timeout
+        Optional explicit wall-clock cap (the ``--step-timeout`` CLI
+        option).  Applies to ``cli``/``python`` steps only and overrides
+        both ``OMNI_VALIDATION_STEP_TIMEOUT_S`` and the step's own
+        ``timeout_seconds`` (issue #176); ``mcp`` steps resolve their own.
 
     Raises
     ------
@@ -433,9 +492,9 @@ def dispatch_step(
     """
     kind = step.get("kind")
     if kind == "cli":
-        return _run_cli_step(step, env)
+        return _run_cli_step(step, env, step_timeout)
     if kind == "python":
-        return _run_python_step(step, env)
+        return _run_python_step(step, env, step_timeout)
     if kind == "mcp":
         return _run_mcp_step(step, env)
     raise DispatchError(

@@ -128,6 +128,31 @@ def _actual_summary(actual: Any, limit: int = 100) -> str:
     return text[:limit] + ("…" if len(text) > limit else "")
 
 
+def _step_timed_out(step: dict[str, Any]) -> bool:
+    """Whether a step ran out of wall-clock (issue #176).
+
+    The dispatcher records ``actual.timeout: true`` for a cap overrun; the
+    engine also surfaces a distinct step ``status: "timeout"``.  Either
+    signal marks the step as a timeout, so old persisted runs (before the
+    status) still render correctly.
+    """
+    actual = step.get("actual")
+    if isinstance(actual, dict) and actual.get("timeout"):
+        return True
+    return step.get("status") == "timeout"
+
+
+def _evidence_line(step: dict[str, Any], actual: Any, timed_out: bool) -> str:
+    """The D12 six-field evidence line, prefixed with a TIMEOUT marker when
+    the step ran out of wall-clock — so a timeout is never mistaken for an
+    assertion failure in the trace."""
+    body = (
+        f"checked `{step.get('surface', '?')}` against "
+        f"`{step.get('standard', '?')}` → {_actual_summary(actual)}"
+    )
+    return f"**TIMEOUT** — {body}" if timed_out else body
+
+
 def _verdict_marker(status: str) -> str:
     """The status marker: GREEN / RED / UNCONFIGURED / INVALID /
     PARTIAL-PASS / RECOVERED.  ``unconfigured`` is its own distinct status
@@ -217,10 +242,8 @@ def _build_report(
         step_rows = []
         for st in sc.get("steps", []):
             actual = st.get("actual")
-            evidence = (
-                f"checked `{st.get('surface', '?')}` against "
-                f"`{st.get('standard', '?')}` → {_actual_summary(actual)}"
-            )
+            timed_out = _step_timed_out(st)
+            evidence = _evidence_line(st, actual, timed_out)
             step_rows.append(
                 {
                     "step_index": st.get("step_index"),
@@ -235,6 +258,7 @@ def _build_report(
                     "duration_seconds": st.get("duration_seconds"),
                     "passed": st.get("passed"),
                     "status": st.get("status"),
+                    "timed_out": timed_out,
                     "evidence_line": evidence,
                 }
             )
@@ -250,12 +274,14 @@ def _build_report(
             "cleanup": sc.get("cleanup", []),
             "trace_id": sc.get("trace_id"),
             "known_gap": bool(sc.get("known_gap", False)),
+            "timed_out_steps": sum(1 for s in step_rows if s["timed_out"]),
         }
 
         if status == "failed":
             for st in sc.get("steps", []):
                 if st.get("status") != "failed" and st.get("passed") is not False:
                     continue
+                blocked_timed_out = _step_timed_out(st)
                 blocker = {
                     "name": name,
                     "family": family,
@@ -266,6 +292,7 @@ def _build_report(
                     "surface": st.get("surface"),
                     "real_call": st.get("real_call"),
                     "actual": _actual_summary(st.get("actual")),
+                    "timed_out": blocked_timed_out,
                 }
                 blockers.append(blocker)
                 entry.setdefault("blocked_by", []).append(blocker)
@@ -496,8 +523,9 @@ def _render_markdown(report_data: dict[str, Any]) -> str:
                      "step, and the standard it violated._")
         lines.append("")
         for b in blockers:
+            kind = "timed out on" if b.get("timed_out") else "violated"
             lines.append(f"- `{b['name']}` ({b['family']}) — step {b['step_index']} "
-                         f"`{b['step_name']}` violated `{b['standard']}`: {b['actual']}")
+                         f"`{b['step_name']}` {kind} `{b['standard']}`: {b['actual']}")
     lines.append("")
 
     # --- Per-step trace (evidence lines) ---------------------------------

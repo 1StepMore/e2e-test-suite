@@ -30,10 +30,12 @@ import pytest
 
 from omni_mcp.validation.dispatch import (
     DEFAULT_TIMEOUT_SECONDS,
+    STEP_TIMEOUT_ENV,
     DispatchError,
     StepResult,
     build_cli_env,
     dispatch_step,
+    resolve_step_timeout,
     suite_python,
 )
 
@@ -381,3 +383,54 @@ def test_suite_python_resolves_to_venv():
     python-kind snippets (the task requirement)."""
     p = suite_python()
     assert p.endswith(".venv_ol/bin/python")
+
+
+# ---------------------------------------------------------------------------
+# Configurable step timeout (issue #176): default stays 120s, overridable
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_step_timeout_precedence():
+    """resolve_step_timeout: explicit option > env var > step value > default."""
+    step = {"timeout_seconds": 42}
+    assert resolve_step_timeout(step, env={}, override=9) == 9.0
+    assert resolve_step_timeout(step, env={STEP_TIMEOUT_ENV: "5"}) == 5.0
+    assert resolve_step_timeout(step, env={"UNRELATED": "1"}) == 42.0
+    assert resolve_step_timeout({}, env={}) == DEFAULT_TIMEOUT_SECONDS
+
+
+def test_resolve_step_timeout_ignores_invalid_values():
+    """An unparseable or non-positive override falls through to the next
+    layer — the cap is always positive."""
+    assert resolve_step_timeout(
+        {"timeout_seconds": 7}, env={STEP_TIMEOUT_ENV: "not-a-number"}
+    ) == 7.0
+    assert resolve_step_timeout(
+        {"timeout_seconds": 7}, env={STEP_TIMEOUT_ENV: "0"}
+    ) == 7.0
+    assert resolve_step_timeout({"timeout_seconds": 7}, env={}, override=-1) == 7.0
+
+
+def test_env_step_timeout_override_raises_cap(monkeypatch):
+    """OMNI_VALIDATION_STEP_TIMEOUT_S overrides a step's own (too-small) cap:
+    a 2s command with timeout_seconds=1 passes when the env var raises the
+    cap to 5s."""
+    monkeypatch.setenv(STEP_TIMEOUT_ENV, "5")
+    result = dispatch_step(_cli_step("sleep 2", timeout_seconds=1))
+
+    assert result.actual["success"] is True
+    assert result.duration_seconds >= 2
+    assert "timeout" not in result.actual
+
+
+def test_step_timeout_option_overrides_env_and_step(monkeypatch):
+    """The explicit --step-timeout cap wins over both the env var and the
+    step's timeout_seconds."""
+    monkeypatch.setenv(STEP_TIMEOUT_ENV, "30")
+    result = dispatch_step(
+        _cli_step("sleep 5", timeout_seconds=30), step_timeout=1
+    )
+
+    assert result.actual["success"] is False
+    assert result.actual.get("timeout") is True
+    assert "timed out after 1.0s" in result.actual["error"]

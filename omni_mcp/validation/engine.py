@@ -351,10 +351,22 @@ def _step_arguments(step: dict[str, Any]) -> dict[str, Any]:
     return {"command": step["command"]}
 
 
-def _step_status(known_gap: bool, passed: bool) -> str:
+def _step_status(known_gap: bool, passed: bool, timed_out: bool = False) -> str:
+    """The per-step status: ``passed`` | ``known-gap`` | ``timeout`` |
+    ``failed``.
+
+    A timed-out step keeps ``passed`` False (it still drives the scenario
+    verdict exactly as a failure would), but its status is ``timeout`` — a
+    distinct presentation from an assertion failure, so the record and the
+    report separate "we ran out of wall-clock" from "the output was wrong"
+    (issue #176).  Known-gap wins over timeout so a weakened bar stays
+    excluded from the pass bar.
+    """
     if passed:
         return "passed"
-    return "known-gap" if known_gap else "failed"
+    if known_gap:
+        return "known-gap"
+    return "timeout" if timed_out else "failed"
 
 
 def _execute_step(
@@ -364,6 +376,7 @@ def _execute_step(
     index: int,
     *,
     with_recovery: bool = True,
+    step_timeout: float | None = None,
 ) -> dict[str, Any]:
     """Dispatch one step to its real surface, grade the expect block, and
     decorate the record with the trace fields (guide §3.1 phases 2, 3, 5).
@@ -378,10 +391,11 @@ def _execute_step(
 
     *index* is the 1-based step position; recovery records carry the
     primary's index, cleanup records use 0 (documented in the module
-    docstring).
+    docstring).  *step_timeout* (the ``--step-timeout`` cap) is forwarded to
+    the ``cli``/``python`` adapters (issue #176).
     """
     try:
-        sr = dispatch_step(step, env)
+        sr = dispatch_step(step, env, step_timeout)
     except Exception as exc:  # undeclared surface etc. — fail loudly, never fake
         sr = StepResult(
             surface=f"{step.get('kind')}: (dispatch error)",
@@ -394,6 +408,7 @@ def _execute_step(
         )
     grade = grade_step(step.get("expect"), sr.actual)
     known_gap = bool(step.get("known_gap"))
+    timed_out = bool(sr.actual.get("timeout"))
     record: dict[str, Any] = {
         "step_index": index,
         "name": step.get("name") or ("cleanup step" if index == 0 else f"step {index}"),
@@ -409,14 +424,18 @@ def _execute_step(
         "trace_id": trace_id,
         "passed": grade.passed,
         "known_gap": known_gap,
-        "status": _step_status(known_gap, grade.passed),
+        "timed_out": timed_out,
+        "status": _step_status(known_gap, grade.passed, timed_out),
         "grade": dataclasses.asdict(grade),
         "recovery": [],
         "recovery_status": None,
     }
     if with_recovery and not grade.passed and step.get("recovery_steps"):
         for rstep in step["recovery_steps"]:
-            rrec = _execute_step(rstep, env, trace_id, index, with_recovery=False)
+            rrec = _execute_step(
+                rstep, env, trace_id, index, with_recovery=False,
+                step_timeout=step_timeout,
+            )
             record["recovery"].append(rrec)
             if rrec["passed"]:
                 record["status"] = "recovered"
@@ -477,8 +496,13 @@ def _summary(
         return f"{status} — {reason}"
     passed = sum(1 for r in records if r["passed"])
     gap_steps = sum(1 for r in records if r.get("known_gap"))
+    timeout_steps = sum(1 for r in records if r.get("timed_out"))
     suffix = f", {gap_steps} known-gap step(s)" if gap_steps else ""
-    return f"{status} — {len(records)} step(s), {passed} passed{suffix}"
+    timeout_suffix = f", {timeout_steps} timed out" if timeout_steps else ""
+    return (
+        f"{status} — {len(records)} step(s), {passed} passed"
+        f"{timeout_suffix}{suffix}"
+    )
 
 
 def _run_one(
@@ -486,6 +510,7 @@ def _run_one(
     env: dict[str, str] | None,
     trace_id: str,
     allow_fake: bool = False,
+    step_timeout: float | None = None,
 ) -> ScenarioResult:
     """Run one scenario: gate, main steps, recovery, cleanup, aggregate.
 
@@ -508,12 +533,13 @@ def _run_one(
             known_gap=bool(scenario.get("known_gap")),
         )
     records = [
-        _execute_step(s, env, trace_id, i)
+        _execute_step(s, env, trace_id, i, step_timeout=step_timeout)
         for i, s in enumerate(scenario["steps"], 1)
     ]
     status = _aggregate(scenario, records)
     cleanup = [
-        _execute_step(c, env, trace_id, 0, with_recovery=False)
+        _execute_step(c, env, trace_id, 0, with_recovery=False,
+                      step_timeout=step_timeout)
         for c in scenario.get("cleanup_steps", [])
     ]
     fake_reason = _fake_llm_reason(scenario, env, allow_fake)
@@ -622,6 +648,7 @@ def run_scenarios(
     persist: bool = True,
     run_meta: dict[str, Any] | None = None,
     allow_fake: bool = False,
+    step_timeout: float | None = None,
 ) -> RunResult:
     """Run every (filtered) scenario: load -> dispatch -> grade ->
     aggregate -> trace -> persist (guide §3.1 six phases).
@@ -654,6 +681,13 @@ def run_scenarios(
         this flag — ``True`` re-admits it only when EVERY step cites an
         AGENT-SURFACE anchor (anchor-less is ineligible).  A produced
         artifact carrying the fake echo signature is always invalid.
+    step_timeout
+        Optional explicit per-step wall-clock cap for ``cli``/``python``
+        steps (the ``--step-timeout`` option, issue #176).  When None the
+        dispatcher honours ``OMNI_VALIDATION_STEP_TIMEOUT_S`` from the
+        effective *env*, else each step's own ``timeout_seconds``, else the
+        120s default.  It only changes how long a step WAITS — never an
+        assertion, threshold, known-gap or verdict.
 
     Returns
     -------
@@ -677,7 +711,9 @@ def run_scenarios(
         loaded.extend(load_scenarios(d))
     selected = _select(loaded, filters)
     trace_id = str(uuid.uuid4())  # one UUID per run, threaded everywhere
-    results = [_run_one(s, env, trace_id, allow_fake) for s in selected]
+    results = [
+        _run_one(s, env, trace_id, allow_fake, step_timeout) for s in selected
+    ]
     run = RunResult(
         trace_id=trace_id,
         timestamp=datetime.datetime.now().isoformat(timespec="seconds"),
