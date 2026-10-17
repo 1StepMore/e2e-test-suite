@@ -14,7 +14,15 @@
 # 用法：
 #   nightly_batch.sh                                   # 全量三项目（timer 的正常入口）
 #   nightly_batch.sh --only ai                         # 只跑一个（验收小样本；ai|am|omni）
+#   nightly_batch.sh --only ai --collect-limit 2       # 前置采集每源条数上限（默认 20）
 #   nightly_batch.sh --only omni --omni-subset docx,md --omni-expect-total 40
+# 参数：
+#   --only ai|am|omni        只跑一个项目（默认全量）
+#   --collect-limit N        ai 采集步骤每源上限（默认 20；只在 ai 步骤生效）
+#   --omni-subset ...        omni 输入子集
+#   --omni-expect-total N    omni 预期总格数
+#   --omni-json-out P        omni gap.json 输出路径
+#   --omni-md-out P          omni gap.md 输出路径
 set -uo pipefail
 
 H=/home/renanzai
@@ -33,10 +41,11 @@ export HTTPS_PROXY="${HTTPS_PROXY:-http://127.0.0.1:7892}"
 export HTTP_PROXY="${HTTP_PROXY:-http://127.0.0.1:7892}"
 export NO_PROXY="127.0.0.1,localhost,::1"
 
-only=""; omni_subset=""; omni_total=""
+only=""; omni_subset=""; omni_total=""; collect_limit=20
 while [ $# -gt 0 ]; do
   case "$1" in
     --only) only="${2:-}"; shift 2;;
+    --collect-limit) collect_limit="${2:-}"; shift 2;;
     --omni-subset) omni_subset="${2:-}"; shift 2;;
     --omni-expect-total) omni_total="${2:-}"; shift 2;;
     --omni-json-out) omni_json="${2:-}"; shift 2;;
@@ -145,6 +154,13 @@ preflight() {
 preflight
 
 if [ -z "$only" ] || [ "$only" = "ai" ]; then
+  # issue #172：先产语料再算差距。此前只测差距不采集 ⇒ 补新鲜度判据后必然常红。
+  # 采集退出码语义与 gap 不同：非零 = 采集失败（不是「有差距」）⇒ 记 error，
+  # 但**不中断整批**，与 nightly_sync.py 的「记账不把关」一致，后面的 ai gap 步骤照跑。
+  run_step ai-collect "$WS/AutoInfo" .venv/bin/autoinfo collect --all --limit "$collect_limit"
+  if [ "$STEP_CODE" -eq 0 ]; then cst=ok; else cst=error; fi
+  state_set ai-collect "$cst" "$STEP_CODE" "$STEP_DUR" "" ""
+
   run_step ai "$WS/AutoInfo" .venv/bin/python scripts/nightly_gap.py \
     --json-out nightly/gap.json --md-out nightly/gap.md
   st=$(step_status "$STEP_CODE")
