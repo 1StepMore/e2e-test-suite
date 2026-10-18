@@ -63,7 +63,21 @@
 - [ ] **跨仓改了对外面（CLI flag / MCP 参数）要连带重冻对侧的契约 fixture**——e2e-test-suite 冻结 37 个 MCP 工具的 schema（`tests/contract/fixtures/{opp,orf,ol}_mcp_schemas.json`）。我在 OL 加了 `no_quality_gates` 参数（工具的 `inputSchema` 因此变了）却没重新冻结，于是**之后每一次 e2e CI 都红**，且红在 `test_ol_mcp_schemas_frozen` 这种与改动毫无字面关系的地方。合并顺序上必须先合 fixture 刷新，否则后续 PR 全被拖红（本轮实测 3 个 PR 同时红，其中一个纯文档改动）。重新冻结时逐行核对 diff「只有新参数、没有删改、没有工具名/数量漂移」，并**对着子仓 `origin/main` 生成**（本机 OL 主检出当时停在已合并的旧分支 `refactor/prompt-extraction`，对着它生成会把 pre-#115 的 schema 冻进去）。
 - [ ] **AST 字面量 guard 会把"提到 env 变量的句子"当硬编码**——`OMNI_TEST_FAKE_LLM=1 is active...` 这类消息文本触发 test_no_hardcoded_fake_llm；分类器必须区分"赋值形态"与"句子内嵌"（e2e#56e：只标 bare/shell 前缀形态，句子继续词为动词/连词的放行）。
 
+### 2026-10-18（main 红修复新增）
+
+- [ ] **集合类断言用「超集 + required 计数」，不要 pin 精确计数**——上游产品仓的合法扩面（OL#139 把 roles 3→4 对齐 config）会击穿 `len(...)==N` 型断言，且红在与你无改动关联的地方（suite main run `39084375604`）。精确计数只用于契约本身即计数的地方；成员集合一律「required 成员逐一存在 + `required_*_missing=0`」。
+- [ ] **`uv lock --check` 本机失败先看 index registry**——`uv.lock` 记录解析所用 index（当前 293 处全为 `pypi.org`）；本机镜像（阿里云/Tsinghua）下会对 pypi.org 解析的 lock 报假阳性，`UV_DEFAULT_INDEX=https://pypi.org/simple` 复显 rc=0 即为镜像现象，判准以 CI（默认 pypi）`uv sync --locked` 为准。与上方「`uv lock --check` 必须在仓库自身语境里跑」条互补：那条管 workspace/仓锁混淆，本条管 index 不一致。
+
 ## 循环事件（major events，newest on top）
+
+### 2026-10-18：套件 main 红（`ol-capabilities-contract`）→ 定性=断言漂移 + 超集断言修复
+
+- Date: 2026-10-18；触发：suite main（`7aecf21`，push）Validation run `39084375604` 红（Totals: 95 passed / 1 failed / 5 unconfigured / 4 recovered / 1 known-gap，106 场景）
+- Scope: `scenarios/ol/ol-capabilities-contract.yaml`（库内唯一 pin 角色计数的场景）
+- Result: 定性=**断言漂移**（非回归、非 flake）。OL PR #139（`3ef7f7f`，00:47:02Z 合并；含 `e092a31`「get_capabilities 补 profiling」）把 `src/ol_mcp/get_capabilities.py` 的 `_ROLES` 修为与 `config/default.yaml` 四角色桶一致（+`profiling`，OL 侧自带 pin=4 回归测试）；场景自 2026-10-06 起 pin `len(roles)==3`。时间线：00:32Z / 00:41Z 两 run 绿（roles=3）→ 00:47Z OL 合并 → 00:52Z run 红（roles=4）
+- 修复: 场景改**超集断言**（required 四角色逐一存在性检查 + `required_roles_missing` 计数；`role_count` 保留为信息性输出；与同文件工具清单同哲学）→ issue #181
+- 顺带定性: 本机 `uv lock --check`（默认阿里云镜像）rc=1 为**假阳性**——`uv.lock` registry 全为 pypi.org，`UV_DEFAULT_INDEX=https://pypi.org/simple` 下 rc=0；CI `uv sync --locked` 一直绿。机制同报告 §21.6 后续处置注记（「由 A index 解析的 lock 在 B index 下 check 失败」），非仓库问题
+- Conclusion: 上游产品仓的**合法扩面**会击穿精确计数型断言；集合类断言一律「超集 + `required_*_missing` 计数」（见坑清单）。修复 PR 合并后 main 复跑待绿
 
 ### 2026-10-01（第二轮）：3 个「不眠计划」遗留 issue 收口（#105/#106/#112）+ 自己踩出的契约 fixture 红
 
