@@ -147,7 +147,9 @@ preflight() {
 
   # L1 总纲 §7：开工先同步到最新 main，再算差距（差距必须基于当下代码）。
   # 记账不是把关：nightly_sync.py 单仓失败不非零退出；即便整体失败也绝不中断跑批。
-  python3 "$E2E/scripts/nightly_sync.py" --json-out "$NIGHTLY_DIR/base.json" >> "$LOG" 2>&1 \
+  # issue #186：默认工作树可能停在前一晚的 drift-audit / fix 分支上，矩阵测的
+  # 就不是 main。带 --switch-branch 先切回 main（脏树不切，见 base.json 的 mode）。
+  python3 "$E2E/scripts/nightly_sync.py" --switch-branch --json-out "$NIGHTLY_DIR/base.json" >> "$LOG" 2>&1 \
     || log "nightly_sync 返回非零（不致命：矩阵可能测到过期代码，见 base.json）"
 }
 
