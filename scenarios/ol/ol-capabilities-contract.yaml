@@ -2,9 +2,10 @@ name: ol-capabilities-contract
 description: >
   OL self-description contract (tier 1, hermetic): the REAL
   ol_mcp.get_capabilities.get_capabilities returns parseable JSON naming
-  module ol, its three LLM roles, its documented language pairs and the
-  live tool registry (derived at call time, never a hardcoded stale list).
-  No LLM, no keys.
+  module ol, its configured LLM roles (required superset:
+  translation/judging/restoration/profiling), its documented language
+  pairs and the live tool registry (derived at call time, never a
+  hardcoded stale list). No LLM, no keys.
 level: agent-user
 category: ol-structure
 tier: 1
@@ -12,13 +13,15 @@ requires_env: []
 instructions: |
   Hermetic proof of the OL stage's agent-facing self-description: an
   agent must be able to discover the stage's roles, language pairs and
-  live tools from one parseable JSON response. The tool list is asserted
-  as a superset of the structure-relevant tools so a renamed tool is
-  caught, while additions do not spuriously fail.
+  live tools from one parseable JSON response. The tool list and the
+  role list are asserted as supersets (every required member must be
+  present) so a renamed or lost member is caught, while deliberate
+  additions do not spuriously fail.
 
   What to check:
   1. Call the REAL get_capabilities, json.loads the response, and assert
-     module ol, three roles, the en-zh pair, and the required tool names.
+     module ol, the required role superset, the en-zh pair, and the
+     required tool names.
 
 steps:
   - name: 'get_capabilities returns parseable JSON naming the live OL surface'
@@ -34,12 +37,16 @@ steps:
       required = ["get_capabilities", "load_glossary", "shield_md_text",
                   "translate_md_text", "translate_xliff", "unshield_md_text"]
       missing = [t for t in required if t not in tools]
+      roles = content["roles"]
+      required_roles = ["translation", "judging", "restoration", "profiling"]
+      missing_roles = [r for r in required_roles if r not in roles]
       print("module=%s" % content["module"])
-      print("role_count=%d" % len(content["roles"]))
+      print("role_count=%d" % len(roles))
       print("tool_count=%d" % len(tools))
       print("required_tools_missing=%d" % len(missing))
+      print("required_roles_missing=%d" % len(missing_roles))
       assert content["module"] == "ol", content["module"]
-      assert len(content["roles"]) == 3, content["roles"]
+      assert not missing_roles, "capabilities lost roles: %r" % missing_roles
       assert "en-zh" in content["language_pairs"], content["language_pairs"]
       assert not missing, "capabilities lost tools: %r" % missing
       print("capabilities_contract_ok=true")
@@ -47,9 +54,9 @@ steps:
     expect:
       success: true
       exit_code: 0
-      stdout_has: ["module=ol", "role_count=3", "required_tools_missing=0", "capabilities_contract_ok=true"]
+      stdout_has: ["module=ol", "required_tools_missing=0", "required_roles_missing=0", "capabilities_contract_ok=true"]
       stdout_not_has: ["Traceback (most recent call last)"]
     standard: STANDARDS.md#json-parseable
     instructions: >-
-      Parse the real capabilities response and assert module, roles,
-      language pairs and the live tool registry superset.
+      Parse the real capabilities response and assert module, the required
+      role and tool supersets, and the en-zh pair.
