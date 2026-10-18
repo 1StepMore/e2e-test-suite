@@ -97,6 +97,18 @@ cd <repo>
 
 ## 【活区】当前差距矩阵（真基线 2026-10-01）
 
+### 2026-10-19 夜间复跑（在最新 main `0e94de4` 上）
+
+`.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，fail 0）**，与 2026-10-15 / 2026-10-10 复跑逐项一致，**无退步**。
+
+- 合计 **402** 格 · passed **292** · failed **0** · skipped **110**（豁免 52 + 需清理 58）；每通道 CLI / MCP 各 `201 / 146 / 55 / 0`（逐格一致 → DoD ③ 通道一致成立），`needs_cleanup = 29 / 通道`。
+- 回归护栏：`regression_gap 0`（skipped 55 ≤ 基线 67/通道）；**环境类 skip = 0**（`pandoc` / `md2pptx` / `aspose` 均未命中）。
+- 余额 58 = **两类已登记能力债**（逐行与 `ACCEPTED_GAPS.md` 对得上：`Cross-format XLIFF not supported by ORF converters` 23 格/通道 + `No skeleton producer for EML` 6 格/通道；该文件 Count note 同口径），**owner 2026-10-17 已签字「不投」、作接受终态**；**故意留在 `gap_units` 里**，不靠改口径洗白。
+- 同轮平台：`ai-collect ok(533s) / ai ok(exit 0) / am ok(**exit 0**) / omni gap(exit 1，4298s)`；六仓 `base.json` 全部 `mode: current`（before == after == origin/main）⇒ **矩阵确在 main 上测、无同步漂移**。
+- 通道时长：CLI 3587.2s · MCP 558.1s（本机 `.venv_ol`）。
+
+**读法**：连续多轮 `gap_units 58` 不变、`regression_gap 0`，且余额每一格都能指到 `ACCEPTED_GAPS.md` 的登记行 ⇒ **无新增未登记缺口**；差距仍是那两类能力债，**最终裁决由 owner 保留**。
+
 ### 2026-10-15 夜间复跑（在最新 main `ace522c` 上）
 
 `.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，fail 0）**，与 2026-10-10 复跑一致，**无退步**。
@@ -335,6 +347,7 @@ markdown 里写成「skip 67 = 豁免 23 + 需清理 44」，**豁免 = 夹具�
    `195/128/67/0` 对比，验「通道一致」（DoD ③）。
 4. **清 skip（真进展）**：把 `pandoc` / `md2pptx` / `aspose` 等外部二进制装上，
    逐条把 skip 换成本真的 pass。**skip 数下降才算进度**。
+  → **2026-10-19 状态：环境类 skip 已归零**（`md2pptx` / `pandoc` / `aspose` 均未命中，本轮 skip_reasons 里无任何 `not installed`）；剩余 58 格**不是装二进制能清的**，全部是已登记能力债（见 `ACCEPTED_GAPS.md`），等 owner 裁定是否投研究级工作量。
 5. **错误面（DoD ④）**：越界/缺配置/坏输入 → 稳定错误码，不是 `INTERNAL_ERROR`。
 
 ### 已完成（agent 追加）
@@ -379,4 +392,4 @@ markdown 里写成「skip 67 = 豁免 23 + 需清理 44」，**豁免 = 夹具�
 
 | 日期 | 目标条款 | 理由 + 证据 | 裁定 |
 |:---|:---|:---|:---|
-| 2026-09-30 | L1 §2.3「16 输入 × 2 通道 = 32」 | 真实矩阵是 195 格（165 md + 30 xliff）× 2 通道 = **390**；验证器 `FULL_MATRIX` 为准 | 待裁 |
+| 2026-09-30 | L1 §2.3「16 输入 × 2 通道 = 32」 | 真实矩阵是 195 格（165 md + 30 xliff）× 2 通道 = **390**；验证器 `FULL_MATRIX` 为准 | 已裁（owner 2026-10-17）：形状确认 195 → **201 格/通道**（XLIFF 路径由 5 × 5 扩为 6 × 6）⇒ **201 × 2 = 402**；L1 §2.3 已按此更正并立入「形状变更确认记录」，旧的「16 输入 × 2 = 32」在 L1 内已标注作废。本仓 `scripts/nightly_gap.py` 的 `EXPECTED_TOTAL = 402` 与 `ACCEPTED_GAPS.md` Count note 同口径。 |
