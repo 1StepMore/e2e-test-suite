@@ -119,6 +119,14 @@ omni-suite pipeline document.docx --keep-intermediate # 保留 /tmp/omni-suite-p
 > 建独立原生 venv、editable 安装根工程 + OPP/OL/ORF，并跑 C-3 契约冒烟门禁；
 > 加 `-CheckOnly` 只做校验不安装。详见 §工程规范 risk #5（`docs/project-health-report-2026-09-17.md`）。
 
+> **Git Bash（MINGW64）下的两点设计行为**（issue #177 §4 的「维持现状 + 文档注明」处置）：
+> ① `bash scripts/setup_dev.sh --check-only` 在 Git Bash 下**按设计 fail-closed**——检测到 MINGW 即以
+> rc1 退出并指向 `setup_dev.ps1` / WSL（`.venv_ol/` 是 Linux venv，无法复用）；
+> ② 子仓 `check-secrets` 钩子的解释器包装 `scripts/pre_commit_python.sh` 在「venv 目录存在、但其中
+> 没有本平台可执行的解释器」时 **fail-loud**（rc1，绝不静默跳过）——OL 根目录的 Linux 布局 `.venv/`
+> 会触发此保护；OPP/ORF 无该目录，回落系统 python 正常。二者皆为刻意设计（非缺陷）；判定依据见
+> §21.4（`docs/project-health-report-2026-09-17.md`）。
+
 
 ## Cross-Format Production-Readiness
 
