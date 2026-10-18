@@ -267,6 +267,77 @@ def test_failure_blocker_contains_no_fix_language(tmp_path: Path, word: str):
 
 
 # ---------------------------------------------------------------------------
+# Timeout vs assertion failure (issue #176) — distinct in report + blockers
+# ---------------------------------------------------------------------------
+
+
+def test_report_timeout_step_distinct_from_assertion_failure(tmp_path: Path):
+    """A timed-out step renders a TIMEOUT marker (evidence line, json
+    timed_out flag, blocker phrasing) — never indistinguishable from an
+    assertion failure."""
+    failing = _scenario(
+        "tool-ol-translate_md_text",
+        "failed",
+        steps=[
+            _step(
+                1,
+                "real call times out",
+                "STANDARDS.md#tool-contract",
+                passed=False,
+                actual={
+                    "success": False,
+                    "timeout": True,
+                    "error": "timed out after 120.0s",
+                },
+            ),
+            _step(
+                2,
+                "output assertion fails",
+                "STANDARDS.md#error-clarity",
+                passed=False,
+                actual={"success": False, "error": "assertion mismatch"},
+            ),
+        ],
+    )
+    md, data = report.generate(_write_run(tmp_path, _run_payload([failing])))
+    steps = data["scenarios"][0]["steps"]
+    assert steps[0]["timed_out"] is True
+    assert steps[1]["timed_out"] is False
+    assert "**TIMEOUT**" in steps[0]["evidence_line"]
+    assert "**TIMEOUT**" not in steps[1]["evidence_line"]
+    assert "**TIMEOUT**" in md
+    assert data["scenarios"][0]["timed_out_steps"] == 1
+
+    by_step = {b["step_index"]: b for b in data["blockers"]}
+    assert by_step[1]["timed_out"] is True
+    assert by_step[2]["timed_out"] is False
+    assert "timed out on" in md  # blocker names wall-clock exhaustion
+
+
+def test_report_timeout_status_without_actual_timeout_flag(tmp_path: Path):
+    """A step carrying status "timeout" (the engine's distinct status) is
+    recognized even when actual.timeout is absent."""
+    failing = _scenario(
+        "tool-ol-translate_md_text",
+        "failed",
+        steps=[
+            {
+                **_step(
+                    1,
+                    "timed out",
+                    "STANDARDS.md#tool-contract",
+                    passed=False,
+                    actual={"success": False, "error": "timed out after 300.0s"},
+                ),
+                "status": "timeout",
+            }
+        ],
+    )
+    _, data = report.generate(_write_run(tmp_path, _run_payload([failing])))
+    assert data["scenarios"][0]["steps"][0]["timed_out"] is True
+
+
+# ---------------------------------------------------------------------------
 # Family derivation — standard anchors when the name has no prefix
 # ---------------------------------------------------------------------------
 

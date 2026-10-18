@@ -652,6 +652,54 @@ def test_main_repo_all_dry_run_exits_zero(tmp_path, capsys, monkeypatch):
     assert not (tmp_path / "runs").exists()  # nothing persisted
 
 
+# ---------------------------------------------------------------------------
+# --step-timeout (issue #176): configurable cli/python step cap
+# ---------------------------------------------------------------------------
+
+
+SLOW_STEP = """
+name: slow
+description: "slow cli step whose own cap is too small"
+tier: 1
+level: agent-user
+steps:
+  - name: "slow"
+    kind: cli
+    command: "sleep 2"
+    timeout_seconds: 1
+    expect:
+      success: true
+"""
+
+
+def test_main_help_documents_step_timeout(capsys):
+    """--help names the new option, its env-var counterpart, and the tier-2
+    recommendation (acceptance item 3)."""
+    rc = main(["--help"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "--step-timeout" in out
+    assert "OMNI_VALIDATION_STEP_TIMEOUT_S" in out
+    assert "600" in out  # tier-2 real-model recommendation
+
+
+def test_main_step_timeout_raises_cap(tmp_path, capsys):
+    """A slow step whose own cap is 1s passes when --step-timeout raises the
+    cap to 5s."""
+    _write(tmp_path, "slow.yaml", SLOW_STEP)
+
+    rc = main([
+        "--step-timeout", "5",
+        "--scenarios-dir", str(tmp_path),
+        "--runs-dir", str(tmp_path / "runs"),
+    ])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "passed" in out
+
+
 def test_main_repo_merge_then_run_persists(tmp_path, capsys, monkeypatch):
     """--repo all then a real run persists the merged library with a
     run_meta listing every repo that fed it."""

@@ -392,9 +392,14 @@ def _print_verdict_table(results: list[Any], verbose: bool) -> None:
         print(f"{r.name:<34} {r.status:<13} {r.summary}")
         if verbose:
             for s in r.steps:
-                mark = "recovered" if s["status"] == "recovered" else (
-                    "passed" if s["passed"] else "FAIL"
-                )
+                if s["status"] == "recovered":
+                    mark = "recovered"
+                elif s["passed"]:
+                    mark = "passed"
+                elif s["status"] == "timeout":
+                    mark = "TIMEOUT"
+                else:
+                    mark = "FAIL"
                 print(
                     f"    step {s['step_index']}: {mark:<9} "
                     f"{s.get('name') or ''}  {s.get('surface') or ''}"
@@ -509,6 +514,17 @@ def main(argv: list[str] | None = None) -> int:
         "--check", action="store_true", help="contract lint (falsifiable, no self-echo PASS/FAIL, standard anchors, known-gap location, declared user level) without executing"
     )
     parser.add_argument("--tier", type=int, choices=[1, 2, 3], default=None, help=TIER_HELP)
+    parser.add_argument(
+        "--step-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="override the per-step wall-clock cap for cli/python steps "
+        "(default 120s; also settable via OMNI_VALIDATION_STEP_TIMEOUT_S, "
+        "which this option overrides).  For tier-2 real-model runs on a "
+        "rate-limited/free tier, >=600s is recommended — a timed-out step is "
+        "reported as 'timeout', distinct from an assertion failure",
+    )
     parser.add_argument(
         "--repo",
         choices=["opp", "ol", "orf", "suite", "all"],
@@ -631,6 +647,7 @@ def main(argv: list[str] | None = None) -> int:
             filters=filters,
             runs_dir=args.runs_dir,
             allow_fake=args.allow_fake,
+            step_timeout=args.step_timeout,
         )
     except ScenarioError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

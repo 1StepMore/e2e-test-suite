@@ -505,7 +505,9 @@ steps:
 
 def test_timeout_step_failed_with_timeout_flag(tmp_path):
     # Dispatch already records timeouts as failed steps (timeout: True in
-    # the actual block) — the engine propagates that, no extra work.
+    # the actual block) — the engine propagates that, no extra work.  The
+    # step status is the distinct "timeout" (issue #176); the scenario
+    # verdict stays "failed".
     _write(tmp_path, "slow.yaml", """
 name: slow
 description: "step exceeds its timeout"
@@ -517,11 +519,82 @@ steps:
     expect:
       success: true
 """)
-    rec = run_scenarios(tmp_path, persist=False).scenarios[0].steps[0]
+    sc = run_scenarios(tmp_path, persist=False).scenarios[0]
+    rec = sc.steps[0]
     assert rec["passed"] is False
-    assert rec["status"] == "failed"
+    assert rec["status"] == "timeout"
+    assert rec["timed_out"] is True
+    assert sc.status == "failed"
     assert rec["actual"].get("timeout") is True
     assert "timed out" in rec["actual"].get("error", "")
+
+
+def test_timeout_and_assertion_failure_are_distinct(tmp_path):
+    """A timeout and an assertion failure share the failed scenario verdict
+    but are distinguishable per step: ``timeout`` vs ``failed``, with the
+    timeout count called out in the scenario summary (issue #176)."""
+    _write(tmp_path, "mixed.yaml", """
+name: mixed
+description: "one assertion failure, one timeout"
+steps:
+  - name: "assert-fail"
+    kind: cli
+    command: "false"
+    expect:
+      success: true
+  - name: "slow"
+    kind: cli
+    command: "sleep 5"
+    timeout_seconds: 1
+    expect:
+      success: true
+""")
+    sc = run_scenarios(tmp_path, persist=False).scenarios[0]
+    assert sc.status == "failed"
+    assert [s["status"] for s in sc.steps] == ["failed", "timeout"]
+    assert [s["timed_out"] for s in sc.steps] == [False, True]
+    assert "1 timed out" in sc.summary
+
+
+def test_step_timeout_env_override_applied(tmp_path, monkeypatch):
+    """OMNI_VALIDATION_STEP_TIMEOUT_S lets a slow step finish without
+    editing the scenario: a 2s command capped at 1s passes once the env var
+    raises the cap (issue #176)."""
+    monkeypatch.setenv("OMNI_VALIDATION_STEP_TIMEOUT_S", "5")
+    _write(tmp_path, "slow.yaml", """
+name: slow-ok
+description: "env override raises the step cap"
+steps:
+  - name: "sleepy"
+    kind: cli
+    command: "sleep 2"
+    timeout_seconds: 1
+    expect:
+      success: true
+""")
+    sc = run_scenarios(tmp_path, persist=False).scenarios[0]
+    assert sc.status == "passed"
+    assert sc.steps[0]["status"] == "passed"
+
+
+def test_run_scenarios_step_timeout_argument_applied(tmp_path):
+    """The explicit step_timeout argument (the --step-timeout plumbing)
+    overrides a step's too-small cap."""
+    _write(tmp_path, "slow.yaml", """
+name: slow-opt
+description: "explicit step_timeout raises the cap"
+steps:
+  - name: "sleepy"
+    kind: cli
+    command: "sleep 2"
+    timeout_seconds: 1
+    expect:
+      success: true
+""")
+    sc = run_scenarios(
+        tmp_path, persist=False, step_timeout=5
+    ).scenarios[0]
+    assert sc.status == "passed"
 
 
 # ---------------------------------------------------------------------------
