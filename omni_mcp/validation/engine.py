@@ -570,6 +570,58 @@ def _run_one(
 # ---------------------------------------------------------------------------
 
 
+#: Bytes decoded by :func:`_sanitize_for_json` are truncated to this many
+#: characters so a stray binary blob cannot bloat ``scenarios.json``
+#: (mirrors ``dispatch.py::_decode_output`` / ``_snip``).
+_MAX_SANITIZED_BYTES = 160
+
+
+def _sanitize_for_json(
+    value: Any, path: str = "", problems: list[str] | None = None
+) -> Any:
+    """Recursively coerce *value* into a JSON-serialisable structure.
+
+    Never raises.  ``bytes`` / ``bytearray`` decode to a string
+    (``errors="replace"``, truncated to :data:`_MAX_SANITIZED_BYTES`);
+    ``dict`` / ``list`` / ``tuple`` recurse; any other object falls back to
+    ``str(obj)`` (same spirit as ``dispatch.py::_snip``'s ``default=str``).
+    The coerced *path* of every degraded field is appended to *problems* so
+    a caller can name the exact offending field
+    (``scenarios[3].steps[2].actual.stdout``) when reporting.
+
+    This is the "the record is always writable" backstop
+    (e2e-test-suite#184): one stray field degrades to a string instead of
+    invalidating an entire 80-minute run.
+    """
+    if problems is None:
+        problems = []
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (bytes, bytearray)):
+        text = bytes(value).decode("utf-8", errors="replace")
+        if len(text) > _MAX_SANITIZED_BYTES:
+            text = text[:_MAX_SANITIZED_BYTES] + "..."
+        problems.append(path)
+        return text
+    if isinstance(value, Mapping):
+        out: dict[Any, Any] = {}
+        for key, item in value.items():
+            if isinstance(key, (bytes, bytearray)):
+                safe_key: Any = bytes(key).decode("utf-8", errors="replace")
+            else:
+                safe_key = key if isinstance(key, str) else str(key)
+            child = f"{path}.{safe_key}" if path else str(safe_key)
+            out[safe_key] = _sanitize_for_json(item, child, problems)
+        return out
+    if isinstance(value, (list, tuple, Sequence)) and not isinstance(value, str):
+        return [
+            _sanitize_for_json(item, f"{path}[{index}]", problems)
+            for index, item in enumerate(value)
+        ]
+    problems.append(path)
+    return str(value)
+
+
 def persist_run(run: RunResult, runs_dir: str | Path = "validation-runs") -> Path:
     """Write the run record and refresh the latest pointer (guide §3.1
     phase 6, AutoInfo :54-89).
@@ -600,8 +652,21 @@ def persist_run(run: RunResult, runs_dir: str | Path = "validation-runs") -> Pat
         "scenarios": [s.to_dict() for s in run.scenarios],
         "run_meta": run.run_meta,
     }
+    problems: list[str] = []
+    safe_payload = _sanitize_for_json(payload, "", problems)
+    try:
+        text = json.dumps(safe_payload, ensure_ascii=False, indent=2)
+    except (TypeError, ValueError) as exc:
+        location = (
+            f" — offending field paths: {', '.join(sorted(set(problems)))}"
+            if problems
+            else ""
+        )
+        raise TypeError(
+            f"persist_run could not serialise run record{location}: {exc}"
+        ) from exc
     (run_dir / "scenarios.json").write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        text, encoding="utf-8", errors="replace"
     )
     (base / "latest.txt").write_text(run_dir.name, encoding="utf-8")
     return run_dir

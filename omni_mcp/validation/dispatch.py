@@ -251,6 +251,27 @@ def _make_result(
 # ---------------------------------------------------------------------------
 
 
+def _decode_output(value: Any, limit: int = 160) -> str:
+    """Bytes-safe decode of a subprocess capture for a step's ``actual``.
+
+    ``subprocess.run(..., text=True)`` yields ``str`` on the normal path, but
+    a :class:`subprocess.TimeoutExpired` carries whatever CPython pulled off
+    the pipe — ``bytes`` (e2e-test-suite#184).  A ``bytes`` value left in
+    ``actual`` makes the whole run un-persistable (``json.dumps`` raises
+    ``TypeError: Object of type bytes is not JSON serializable``) and the
+    run is lost, so decode here with ``errors="replace"`` (never ``repr()``,
+    which would leak ``b'...'`` noise) and truncate to *limit*.  ``None``
+    becomes ``""``; an already-decoded ``str`` is passed through.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, (bytes, bytearray)):
+        text = bytes(value).decode("utf-8", errors="replace")
+    else:
+        text = str(value)
+    return text if len(text) <= limit else text[:limit] + "..."
+
+
 def _run_cli_step(
     step: dict[str, Any],
     env: dict[str, str] | None,
@@ -281,8 +302,8 @@ def _run_cli_step(
             "timeout": True,
             "error": f"timed out after {timeout}s",
             "exit_code": None,
-            "stdout": exc.stdout or "",
-            "stderr": exc.stderr or "",
+            "stdout": _decode_output(exc.stdout),
+            "stderr": _decode_output(exc.stderr),
         }
     except FileNotFoundError:
         actual = {
@@ -329,8 +350,8 @@ def _run_python_step(
             "timeout": True,
             "error": f"timed out after {timeout}s",
             "exit_code": None,
-            "stdout": exc.stdout or "",
-            "stderr": exc.stderr or "",
+            "stdout": _decode_output(exc.stdout),
+            "stderr": _decode_output(exc.stderr),
             "python": interpreter,
         }
     return _make_result(
