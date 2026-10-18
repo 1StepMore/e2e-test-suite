@@ -13,16 +13,16 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 47 |
-| Total lines | 26621 |
-| Active files | 39 |
+| Total files | 54 |
+| Total lines | 32280 |
+| Active files | 46 |
 | Archived files | 8 |
 | Category — archive | 8 files / 14157 lines |
 | Category — expectations | 4 files / 2514 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 18 files / 2921 lines |
-| Category — docs/root | 14 files / 5689 lines |
+| Category — docs/dev | 19 files / 3080 lines |
+| Category — docs/root | 20 files / 11189 lines |
 
 ## Inventory
 
@@ -31,8 +31,11 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `ACCEPTANCE.md` | 84 | docs/root | active | — |
 | `API_STABILITY.md` | 307 | docs/root | active | — |
 | `ARCHITECTURE.md` | 515 | docs/root | active | — |
-| `DECISIONS.md` | 20 | docs/root | active | — |
+| `DECISIONS.md` | 21 | docs/root | active | — |
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
+| `FINAL_VERDICT.md` | 114 | docs/root | active | — |
+| `HANDOVER.md` | 620 | docs/root | active | — |
+| `NIGHTLY.md` | 382 | docs/root | active | — |
 | `OL_EXPECTATIONS.md` | 279 | expectations | active | — |
 | `OPP_EXPECTATIONS.md` | 804 | expectations | active | — |
 | `ORF_EXPECTATIONS.md` | 539 | expectations | active | — |
@@ -42,6 +45,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `SECURITY_AUDIT.md` | 954 | security | active | — |
 | `SLA.md` | 128 | docs/root | active | — |
 | `SUITE_EXPECTATIONS.md` | 892 | expectations | active | — |
+| `SUITE_VERDICT.md` | 173 | docs/root | active | — |
 | `adr/0001-cli-framework-defer-unification.md` | 70 | docs/dev | active | — |
 | `adr/0002-three-independent-modules.md` | 56 | docs/dev | active | — |
 | `adr/0003-md-xliff-dual-channels.md` | 62 | docs/dev | active | — |
@@ -51,7 +55,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `adr/0007-path-security-convergence.md` | 297 | docs/dev | active | — |
 | `adr/README.md` | 40 | docs/dev | active | — |
 | `adr/TEMPLATE.md` | 36 | docs/dev | active | — |
-| `agent-pipeline-guide.md` | 346 | docs/root | active | — |
+| `agent-pipeline-guide.md` | 349 | docs/root | active | — |
 | `agent-tester-validation-guide.md` | 1496 | docs/root | active | — |
 | `archive/OL_VALIDATION_MASTER_PLAN.md` | 4489 | archive | archived | — |
 | `archive/OPP_VALIDATION_MASTER_PLAN.md` | 3106 | archive | archived | — |
@@ -61,17 +65,20 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `archive/SUITE_VALIDATION_MASTER_PLAN.md` | 3589 | archive | archived | — |
 | `archive/T14_LIMITATION.md` | 222 | archive | archived | — |
 | `archive/e2e-fix-records.md` | 63 | archive | archived | — |
-| `dev/artifact-assertion-matrix.md` | 278 | docs/dev | active | — |
+| `dev/artifact-assertion-matrix.md` | 279 | docs/dev | active | — |
 | `dev/omni-suite-business-validation-20260902.md` | 292 | docs/dev | active | — |
 | `dev/omni-suite-dev-roadmap-20260902.md` | 172 | docs/dev | active | — |
-| `dev/per-repo-validation-delivery.md` | 187 | docs/dev | active | — |
+| `dev/per-repo-validation-delivery.md` | 197 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 279 | docs/dev | active | — |
-| `dev/validation-loop-log.md` | 228 | docs/dev | active | — |
+| `dev/validation-loop-log.md` | 257 | docs/dev | active | — |
 | `handoff-2026-09-18.md` | 144 | docs/root | active | — |
+| `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
+| `master-validation-template.md` | 4153 | docs/root | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |
 | `observability/README.md` | 136 | docs/observability | active | — |
 | `project-evaluation-pain-points-2026-09-06.md` | 311 | docs/root | active | — |
 | `project-health-report-2026-09-17.md` | 1751 | docs/root | active | — |
+| `venv-migration.md` | 54 | docs/root | active | — |
 | `七阶段AI开发流程-用CodingAgent交付成品的方法论.md` | 230 | docs/root | active | — |

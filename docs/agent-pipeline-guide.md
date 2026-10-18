@@ -84,9 +84,11 @@ See `README.md` for the full matrix with notes.
 |-------------|---------|------------|-------|
 | DOCX | Yes | Yes | Preferred path for both |
 | PPTX | Yes | Yes | XLIFF preserves slide masters |
+| XLSX | Yes | Yes | Skeleton = original workbook + `xliff_map.json` sidecar |
 | EPUB | Yes | Yes | XLIFF preserves CSS layout |
 | PDF | Yes | **No** | PDF to XLIFF intentionally blocked by OPP |
-| HTML | Yes | No | No skeleton.zip produced |
+| HTML | Yes | **Yes** | Skeleton = synthesized `index.html` with `data-trans-unit-id` (resolved 2026-10-05) |
+| ODT | No | No | ORF output format only — OPP has no ODT extractor |
 | CSV / JSON / XML | Yes | No | Data formats, no layout |
 | EML / MSG | Yes | No | Email formats (MSG limited) |
 | Images (OCR) | Yes | No | Text extraction only |
@@ -260,7 +262,7 @@ compares their default behavior and security posture.
 |--------|-------------|---------|-------------------|----------|
 | OPP MCP | `OPP_MCP_ALLOWED_DIRS` | None | Raises `ValueError`, server refuses to start | Fail-closed |
 | OL MCP | `MCP_ALLOWED_DIRECTORIES` (or `OL_MCP_ALLOWED_DIRS`) | None | Raises `ValueError`, server refuses to start | Fail-closed |
-| ORF MCP | `ORF_ALLOWED_DIRECTORIES` | `[Path.cwd()]` | Silently uses CWD | Fail-open |
+| ORF MCP | `MCP_ALLOWED_DIRECTORIES` (or `ORF_MCP_ALLOWED_DIRS`) | None | Raises `ValueError`, server refuses to start | Fail-closed |
 | Omni MCP | N/A | N/A | Relies on underlying server config | N/A |
 
 ### OPP MCP (Fail Closed)
@@ -277,20 +279,21 @@ checks, blocked extension filtering (executables), allowed extension
 whitelist, and file size limits. See
 `Omni_Pre_Processor/AGENTS.md` (Path Configuration section) for details.
 
-### ORF MCP (Fail Open)
+### ORF MCP (Fail Closed)
 
-ORF uses `ORF_ALLOWED_DIRECTORIES` (note: different variable name from
-OPP). If unset, it silently falls back to `[Path.cwd()]` (the current
-working directory at server start). This is a potential security gap
-for production deployments:
+ORF reads a directory allowlist from `MCP_ALLOWED_DIRECTORIES` (unified
+cross-module name) or its ORF-specific fallback `ORF_MCP_ALLOWED_DIRS`.
+If neither is set, server startup raises `ValueError` — there is no
+`[Path.cwd()]` fallback:
 
 ```bash
-export ORF_ALLOWED_DIRECTORIES="/data/documents:/data/output"
+export ORF_MCP_ALLOWED_DIRS="/data/documents:/data/output"
 ```
 
 The same validation pipeline (allowlist, extensions, symlinks, size)
 applies when the variable is set. See
-`Omni_Re_Formatter/AGENTS.md` (Path Configuration section) for details.
+`Omni_Re_Formatter/AGENTS.md` (Path Configuration section) and
+`docs/adr/0007-path-security-convergence.md` for details.
 
 ### OL MCP (Fail Closed)
 

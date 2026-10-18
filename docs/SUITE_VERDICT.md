@@ -1,5 +1,11 @@
 # SUITE Validation Verdict
 
+> **Status: HISTORICAL SNAPSHOT (versions below are outdated).** This verdict
+> captures the 2026-07-23 run against Suite v0.4.0 / OPP v0.6.5 / OL v0.7.0 /
+> ORF v0.4.16. It is retained for the historical record and is **not** a
+> current verdict; see `AGENTS.md` for current versions and
+> `validation-runs/latest.txt` for the newest run.
+
 **Date:** 2026-07-23
 **Environment:** Python 3.13, .venv, WSL, FAKE_LLM=1, FAKE_PANDOC=1
 **Plan ref:** SUITE_VALIDATION_MASTER_PLAN.md
