@@ -807,3 +807,65 @@ def test_run_scenarios_accepts_list_of_dirs(tmp_path):
     _write(d2, "b.yaml", _scenario("beta", steps=_cli_steps("true")))
     run = run_scenarios([str(d1), str(d2)], persist=False)
     assert [s.name for s in run.scenarios] == ["alpha", "beta"]
+
+
+# ---------------------------------------------------------------------------
+# persist_run bytes-safety backstop (e2e-test-suite#184)
+# ---------------------------------------------------------------------------
+
+
+def _run_with_actual(actual):
+    """A one-scenario RunResult whose only step carries *actual*."""
+    step = {
+        "step_index": 1,
+        "surface": "cli: opp",
+        "real_call": {"command": "opp x"},
+        "expect": {"success": True},
+        "actual": actual,
+        "artifact_to_show": None,
+    }
+    scn = ScenarioResult(
+        name="s",
+        status="failed",
+        summary="timed out",
+        missing_env=[],
+        steps=[step],
+        cleanup=[],
+        trace_id="trace",
+    )
+    return RunResult(
+        trace_id="trace",
+        timestamp="2026-01-01T00:00:00",
+        scenarios=[scn],
+    )
+
+
+def test_persist_run_sanitizes_bytes_in_actual(tmp_path):
+    """A step whose ``actual`` carries raw ``bytes`` (the post-timeout shape
+    of issue #184) must still persist — bytes degrade to a decoded string so
+    an entire run is never lost to one non-serialisable field."""
+    runs = tmp_path / "runs"
+    run = _run_with_actual({"success": False, "timeout": True, "stdout": b"partial"})
+    run_dir = persist_run(run, runs_dir=runs)
+
+    payload = json.loads((run_dir / "scenarios.json").read_text(encoding="utf-8"))
+    stdout = payload["scenarios"][0]["steps"][0]["actual"]["stdout"]
+    assert isinstance(stdout, str)
+    assert stdout == "partial"
+    assert (runs / "latest.txt").read_text(encoding="utf-8").strip() == run_dir.name
+
+
+def test_sanitize_for_json_recurses_and_reports_paths():
+    """The sanitizer recurses through dict/list, decodes bytes, stringifies
+    unknown objects, and records the degraded field's path."""
+    from omni_mcp.validation.engine import _sanitize_for_json
+
+    problems = []
+    out = _sanitize_for_json(
+        {"scenarios": [{"steps": [{"actual": {"stdout": b"\xffpartial"}}]}]},
+        "",
+        problems,
+    )
+    assert out["scenarios"][0]["steps"][0]["actual"]["stdout"] == "\ufffdpartial"
+    json.dumps(out)  # must not raise
+    assert any("stdout" in p for p in problems)

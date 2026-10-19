@@ -217,6 +217,51 @@ def test_cli_timeout_records_failure_and_timeout():
     assert result.duration_seconds < 10
 
 
+def test_cli_timeout_bytes_are_decoded_for_json(monkeypatch):
+    """A real ``TimeoutExpired.stdout`` is ``bytes`` — the timeout branch
+    must decode it so ``actual`` stays JSON-serialisable (issue #184)."""
+    import subprocess
+
+    import omni_mcp.validation.dispatch as dispatch
+
+    def fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=["x"], timeout=1, output=b"partial", stderr=None
+        )
+
+    monkeypatch.setattr(dispatch.subprocess, "run", fake_run)
+    result = dispatch._run_cli_step(_cli_step("x", timeout_seconds=1), None)
+
+    assert result.actual["timeout"] is True
+    assert result.actual["stdout"] == "partial"
+    assert isinstance(result.actual["stdout"], str)
+    assert result.actual["stderr"] == ""
+    assert isinstance(result.actual["stderr"], str)
+    json.dumps(result.actual)  # must not raise
+
+
+def test_python_timeout_bytes_are_decoded_for_json(monkeypatch):
+    """The python adapter's timeout branch decodes bytes too (issue #184)."""
+    import subprocess
+
+    import omni_mcp.validation.dispatch as dispatch
+
+    def fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=["x"], timeout=1, output=b"\xffpartial", stderr=None
+        )
+
+    monkeypatch.setattr(dispatch.subprocess, "run", fake_run)
+    result = dispatch._run_python_step(
+        _python_step("print(1)", timeout_seconds=1), None
+    )
+
+    assert result.actual["timeout"] is True
+    assert isinstance(result.actual["stdout"], str)
+    assert "\ufffd" in result.actual["stdout"]
+    json.dumps(result.actual)  # must not raise
+
+
 def test_cli_unknown_binary_clear_error():
     """A step naming a binary that does not exist fails with a clear error
     naming the command (guide §3.2: 'no such surface' must fail with a clear
