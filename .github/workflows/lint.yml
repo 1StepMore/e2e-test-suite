@@ -95,7 +95,7 @@ jobs:
       # ── Explicit lint-tool install ──────────────────────────────────────────
       # ruff / mypy are PINNED to the exact versions the developers run locally
       # and ruff-pre-commit is pinned to the same ruff release
-      # (.pre-commit-config.yaml rev v0.15.11), so a locally-green pre-commit
+      # (.pre-commit-config.yaml rev v0.17.1), so a locally-green pre-commit
       # run can no longer disagree with CI. This matters because the whole-tree
       # F-class baseline is ruff-version dependent (risk #6 in
       # docs/project-health-report-2026-09-17.md: CI pinned 0.6.0 while
@@ -106,8 +106,8 @@ jobs:
       # invalidate uv.lock, and relocking needs the workspace index
       # (pypi.tuna.tsinghua.edu.cn), which is not reachable from every
       # environment; a stale lock then breaks every `uv sync --locked` job.
-      - name: Install lint tools (pre-commit, ruff==0.15.11, mypy==2.3.1)
-        run: pip install pre-commit ruff==0.15.11 mypy==2.3.1
+      - name: Install lint tools (pre-commit, ruff==0.17.1, mypy==2.3.1)
+        run: pip install pre-commit ruff==0.17.1 mypy==2.3.1
 
       # ═══════════════════════════════════════════════════════════════════════
       # EXPLICIT BLOCKING STEPS — GitHub Actions steps fail by default (nothing
@@ -127,24 +127,24 @@ jobs:
         # Runs the repo's OWN declared hook set (.pre-commit-config.yaml):
         # gitleaks, check-added-large-files, check-merge-conflict,
         # detect-private-key, end-of-file-fixer, trailing-whitespace,
-        # ruff v0.15.11 (--select F --fix), omni-contract-smoke (needs
+        # ruff v0.17.1 (--select F --fix), omni-contract-smoke (needs
         # OMNI_TEST_FAKE_LLM=1 and the .venv_ol symlink, both set up above),
         # omni-version-alignment, omni-no-hardcoded-keys,
         # omni-version-docs-sync.
         #
         # SCOPING: runs on CHANGED files only (changed_files.txt from the
         # diff-base steps above), NOT --all-files — a whole-tree run would be
-        # red on day one from pre-existing violations (ruff F-class x107, plus
+        # red on day one from pre-existing violations (ruff F-class x65, plus
         # 5 EOF/trailing-whitespace violations in out-of-scope files), all
         # recorded in .omo/evidence/doc-framework-improvements/
         # task-8-lint-baseline.md (5-file EOF list: F2-quality.md:148). Per
         # the plan guardrail, pre-existing errors are NOT fixed; this is a
         # "no NEW violations on changed files" gate. Note the ruff-pre-commit
-        # hook in this set itself runs v0.15.11 --select F --fix on the changed
+        # hook in this set itself runs v0.17.1 --select F --fix on the changed
         # .py files only, so it too is a changed-file gate (mirroring the
         # dedicated ruff step below).
 
-      - name: "Blocking: ruff F-class check (pinned 0.15.11, changed .py files only)"
+      - name: "Blocking: ruff F-class check (pinned 0.17.1, changed .py files only)"
         env:
           OMNI_TEST_FAKE_LLM: "1"
         run: |
@@ -154,15 +154,18 @@ jobs:
               xargs -r python -m ruff check --select F < changed_py.txt
             fi
           fi
-        # Pinned ruff==0.15.11 (installed above) — the same version the
-        # .pre-commit-config.yaml ruff-pre-commit hook (rev v0.15.11) runs.
+        # Pinned ruff==0.17.1 (installed above) — the same version the
+        # .pre-commit-config.yaml ruff-pre-commit hook (rev v0.17.1) runs.
         # SCOPING: this step gate-keeps CHANGED .py files only
         # (filtered from changed_files.txt). The whole-tree
-        # `ruff check . --select F` baseline under ruff 0.15.11 is 107 findings
-        # (F841 x40, F541 x37, F401 x29, plus 1 invalid-syntax file); re-measure
+        # `ruff check . --select F` baseline under ruff 0.17.1 is 65 findings
+        # (F841 x27, F401 x19, F541 x18, plus 1 invalid-syntax file); re-measure
         # with `ruff check . --select F --statistics` — this is a SNAPSHOT, not a
         # constant: it moved 123 -> 107 on 2026-09-17 because the changed-file
-        # gate fixed real debt in the files it touched. The remainder is kept in
+        # gate fixed real debt in the files it touched, and re-measured at 65 on
+        # 2026-10-19 against the current tree. 0.17.1 reports the same 65
+        # findings as the previous pin on this tree, so the bump introduced no
+        # new F-class violations. The remainder is kept in
         # .omo/evidence/doc-framework-improvements/
         # task-8-lint-baseline.md and NOT fixed (plan guardrail). Note: the
         # grep|sort pipeline above ends with `sort` (exit 0) even when grep
