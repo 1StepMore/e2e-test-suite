@@ -1,0 +1,110 @@
+name: ol-cache-mode-separation
+description: >
+  Regression seed locking OL #135 (tracked as item 5 of
+  e2e-test-suite#177): the OL content-addressed cache MUST separate
+  OMNI_TEST_FAKE_LLM=1 entries from real-mode entries. The cache key mixes
+  the LLM mode, so a fake-mode entry is never served to a real run (and a
+  real entry is never served to fake mode). Hermetic tier 1: the step drives
+  the shipped `cli.cache` functions against an isolated `OMNI_CACHE_DIR`;
+  no LLM keys, no network, no FAKE_LLM in the runner environment.
+level: agent-user
+category: regression
+regression: true
+regression_issue: "1StepMore/e2e-test-suite#177 item 5 — OL #135 cache-key LLM-mode separation"
+tier: 1
+requires_env: []
+instructions: |
+  What to check:
+  1. The real `cli.cache._cache_key` produces a stable key within a mode and
+     DIFFERENT keys for OMNI_TEST_FAKE_LLM unset vs "1". This is the exact
+     seam #135 fixed: before the fix the key ignored the LLM mode, so a
+     fake-mode artifact was reused by a real run (and its missing
+     `untranslated_units` field slipped past the #132 guard).
+  2. Seed a fake-mode entry through the real `_write_cache` path, then prove
+     the positive control: fake mode hits it via `_check_cache` and copies
+     the seeded bytes.
+  3. With the SAME cache directory, input and flags, switch to real mode and
+     assert `_check_cache` misses (does not copy the fake artifact) while the
+     fake entry remains isolated in the cache. A regression that drops the
+     `llm_mode` component makes key equality collapse and step 3 fails.
+
+  The check is module-level on purpose: the CLI's real-mode path runs
+  `precheck_api_keys` before the cache lookup, so a keyless real-mode CLI
+  run would exit before reaching the cache and prove nothing. Driving the
+  shipped cache functions is deterministic and network-free.
+steps:
+  - name: 'fake and real cache keys are disjoint; a fake entry is never served to real mode'
+    kind: python
+    command: |
+      import os, sys, tempfile
+      from pathlib import Path
+
+      sys.path.insert(0, "Omni_Localizer/src")
+      from cli.cache import _cache_key, _cache_root, _check_cache, _write_cache
+
+      with tempfile.TemporaryDirectory(prefix="ol-cache-mode-") as tmp:
+          os.environ["OMNI_CACHE_DIR"] = tmp
+          work = Path(tmp)
+          src = work / "source.md"
+          src.write_text("# Title\n\nHello world.\n", encoding="utf-8")
+
+          kwargs = dict(
+              config_path=None,
+              add_frontmatter=True,
+              concurrency=5,
+              detect_language=True,
+              lqa_enabled=False,
+              no_restoration=True,
+              no_glossary=True,
+              glossary=None,
+              glossary_max_terms=5,
+              src_lang="zh",
+              tgt_lang="en",
+              styleguide=None,
+              no_styleguide=True,
+              polish=False,
+          )
+
+          os.environ.pop("OMNI_TEST_FAKE_LLM", None)
+          real_key = _cache_key(src, **kwargs)
+          assert real_key == _cache_key(src, **kwargs), "real-mode key must be stable"
+
+          os.environ["OMNI_TEST_FAKE_LLM"] = "1"
+          fake_key = _cache_key(src, **kwargs)
+          assert fake_key == _cache_key(src, **kwargs), "fake-mode key must be stable"
+          assert fake_key != real_key, "OL#135: fake and real cache keys must differ"
+
+          fake_out = work / "fake_out"
+          fake_out.mkdir()
+          (fake_out / src.name).write_text("[en] fake output\n", encoding="utf-8")
+          _write_cache(src, fake_out, **kwargs)
+          entries = sorted(p.name for p in _cache_root().iterdir())
+          assert len(entries) == 1, entries
+
+          hit_out = work / "hit_out"
+          hit_out.mkdir()
+          assert _check_cache(src, hit_out, **kwargs) is True, "fake mode must hit its entry"
+          assert (hit_out / src.name).read_text(encoding="utf-8") == "[en] fake output\n"
+
+          os.environ.pop("OMNI_TEST_FAKE_LLM", None)
+          miss_out = work / "miss_out"
+          miss_out.mkdir()
+          assert _check_cache(src, miss_out, **kwargs) is False, (
+              "OL#135: a fake-mode cache entry must never be served to a real run"
+          )
+          assert not (miss_out / src.name).exists(), "real mode must not copy fake output"
+          assert len(sorted(_cache_root().iterdir())) == 1, "the fake entry must stay isolated"
+
+          print("cache_mode_separation_ok=true")
+    timeout_seconds: 60
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ["cache_mode_separation_ok=true"]
+      stderr_not_has: ["AssertionError", "Traceback (most recent call last)"]
+    standard: STANDARDS.md#fallbacks-never-evidence
+    instructions: >-
+      Seed a fake-mode cache entry through the shipped write path and prove
+      fake mode hits it; then flip to real mode over the same cache dir and
+      assert the miss. Any mode-agnostic key collapses key equality and
+      fails the step.

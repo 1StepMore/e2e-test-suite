@@ -17,7 +17,9 @@ implementations from `scripts/omo_loop.py` (Q1-Q6, lines 191-299), and the
 format-engines reference copies `Omni_Re_Formatter/AGENTS.md:101-120` and
 `Omni_Pre_Processor/AGENTS.md:87`.
 
-## Fallbacks are never evidence {#fallbacks-never-evidence}
+## Evidence admissibility
+
+### Fallbacks are never evidence {#fallbacks-never-evidence}
 
 Deterministic fallbacks — `OMNI_TEST_FAKE_LLM=1`,
 `OMNI_TEST_FAKE_PANDOC=1`, and every equivalent test seam in this class
