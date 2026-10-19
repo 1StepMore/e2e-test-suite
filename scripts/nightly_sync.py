@@ -13,20 +13,27 @@ whisper / 磁盘，**没有任何 git fetch / merge 步骤** ⇒ 一晚的差距
 
 三条硬规矩：
   1) **单仓失败不中断其它仓、不非零退出**——这一步是记账；失败的仓记进 `stale`。
-  2) `mode` 语义：
-       ff           —— before != after，已快进到 main（同步成功）
-       current      —— fetch 成功且 before == after，本就最新
-       FETCH_FAILED —— fetch 失败（超时 / 非零 / 仓不可达）
-       NO_FF        —— fetch 成功但 `merge --ff-only` 失败（分叉等）
-       WRONG_BRANCH —— 工作树停在非 main 分支（`branch != "main"`，含取不到
-                       分支名的 null）；必须计入 stale——它根本没停到 main，
-                       矩阵测的不是 main 代码。此类只记账、不做 fetch/merge，
-                       避免把 origin/main 快进到功能分支上。
-  3) `stale` = 未能停到 main 的仓（FETCH_FAILED / NO_FF / WRONG_BRANCH）；
-     `ff` 与 `current` 都算同步到位，**不进** stale。
+  2) `mode` 语义（新增 `SWITCHED` / `DIRTY_SKIPPED` 只在 `--switch-branch` 下出现；
+     不带该 flag 时行为与旧版**逐字段一致**）：
+       SWITCHED      —— 仅 `--switch-branch`：工作树原在非 main 且干净，先
+                        `checkout main` 再 fetch/merge 快进（同步成功）；记
+                        `from_branch` 记下是从哪条分支切回来的。
+       DIRTY_SKIPPED —— 仅 `--switch-branch`：工作树在非 main 但**脏**，不切
+                        （保护正在改的人），只记账。
+       ff            —— before != after，已快进到 main（同步成功）
+       current       —— fetch 成功且 before == after，本就最新
+       FETCH_FAILED  —— fetch 失败（超时 / 非零 / 仓不可达）
+       NO_FF         —— fetch 成功但 `merge --ff-only` 失败（分叉等）
+       WRONG_BRANCH  —— 工作树停在非 main 分支（`branch != "main"`，含取不到
+                        分支名的 null / detached HEAD）；必须计入 stale——它
+                        根本没停到 main，矩阵测的不是 main 代码。只记账、不做
+                        fetch/merge，避免把 origin/main 快进到功能分支上。
+  3) `stale` = 未能停到 main 的仓（DIRTY_SKIPPED / FETCH_FAILED / NO_FF /
+     WRONG_BRANCH）；`SWITCHED` / `ff` / `current` 都算同步到位，**不进** stale。
 
 用法：
   python3 scripts/nightly_sync.py --sync-only          # 同步 + 打印 + 落 JSON
+  python3 scripts/nightly_sync.py --sync-only --switch-branch   # 先切回 main 再同步
   python3 scripts/nightly_sync.py --dirs A B           # 覆盖默认仓列表（测试用）
   python3 scripts/nightly_sync.py --json-out X.json --timeout 60
 
@@ -59,7 +66,7 @@ DEFAULT_REPOS: list[str] = [
 DEFAULT_JSON_OUT = "test_artifacts/nightly/base.json"
 
 # 同步到位的 mode 集合：不落进 stale。
-SYNCED_MODES = ("ff", "current")
+SYNCED_MODES = ("SWITCHED", "ff", "current")
 
 
 def _git(path: str, *args: str, timeout: int) -> tuple[int, str, str]:
@@ -93,21 +100,113 @@ def _branch(path: str, timeout: int) -> str | None:
     return out if code == 0 and out else None
 
 
-def sync_repo(path: str, timeout: int) -> dict[str, str | None]:
+def _is_dirty(path: str, timeout: int) -> bool:
+    """`git status --porcelain` 非空 = 工作树脏；取不到状态时按「脏」保守处理。
+
+    `--switch-branch` 见到脏树一律不切（保护正在改的人），所以「判断不了」时
+    必须落到「脏」这一侧，绝不能误切。
+    """
+    code, out, _ = _git(path, "status", "--porcelain", timeout=timeout)
+    if code != 0:
+        return True
+    return bool(out)
+
+
+def _fetch_and_merge_main(path: str, timeout: int) -> tuple[bool, bool, str]:
+    """`fetch origin main` → `merge --ff-only origin/main`。
+
+    返回 `(fetch_ok, merge_ok, msg)`；msg 在失败时是错误文本，不抛异常。
+    """
+    fetch_code, _, fetch_err = _git(path, "fetch", "origin", "main", timeout=timeout)
+    if fetch_code != 0:
+        return False, False, fetch_err
+    merge_code, _, merge_err = _git(
+        path, "merge", "--ff-only", "origin/main", timeout=timeout
+    )
+    return True, merge_code == 0, merge_err
+
+
+def sync_repo(
+    path: str, timeout: int, switch_branch: bool = False
+) -> dict[str, str | None]:
     """同步单个仓：fetch origin main → merge --ff-only origin/main。
 
-    返回 `{name, path, branch, before, after, mode}`；任何一步失败都落到对应
-    mode，不抛异常、不产生非零退出。
+    返回 `{name, path, branch, before, after, mode, from_branch}`；任何一步失败都
+    落到对应 mode，不抛异常、不产生非零退出。
 
-    工作树不在 main 时（`branch != "main"`，含取不到分支名的 null）只记账为
-    `WRONG_BRANCH`，不做 fetch/merge——否则 `merge --ff-only origin/main` 会把
-    origin/main 快进到功能分支上，矩阵也就测错了树。
+    `switch_branch=False`（默认）时行为与旧版**逐字段一致**：工作树不在 main
+    （`branch != "main"`，含取不到分支名的 null）只记账为 `WRONG_BRANCH`。
+
+    `switch_branch=True` 时，若工作树停在**有明确分支名**的非 main 分支：
+      - 干净 → `checkout main` 后照常 fetch/merge，成功记 `SWITCHED`
+        （`from_branch` 记下从哪切回）；fetch/merge 失败退回相应 mode。
+      - 脏   → 不切，记 `DIRTY_SKIPPED`（保护正在改的人）。
+    detached HEAD / 取不到分支名时无从判断归属，仍按 `WRONG_BRANCH` 记账。
     """
     name = os.path.basename(path.rstrip("/")) or path
     branch = _branch(path, timeout)
     before = _rev(path, timeout)
 
     if branch != "main":
+        # 只有「开了 --switch-branch、有明确非 main 分支名」才尝试切回 main。
+        # detached HEAD（"HEAD"）或取不到分支名（None）无从判断归属 → 不切。
+        if switch_branch and branch is not None and branch != "HEAD":
+            if _is_dirty(path, timeout):
+                print(
+                    f"[sync] {name}: 未同步 (mode=DIRTY_SKIPPED): 工作树停在 "
+                    f"{branch} 且不干净，不切分支（保护正在改的人）",
+                    file=sys.stderr,
+                )
+                return {
+                    "name": name,
+                    "path": path,
+                    "branch": branch,
+                    "before": before,
+                    "after": before,
+                    "mode": "DIRTY_SKIPPED",
+                    "from_branch": branch,
+                }
+
+            checkout_code, _, checkout_err = _git(
+                path, "checkout", "main", timeout=timeout
+            )
+            if checkout_code == 0:
+                fetch_ok, merge_ok, merge_err = _fetch_and_merge_main(path, timeout)
+                after = _rev(path, timeout)
+                if not fetch_ok or after is None:
+                    mode = "FETCH_FAILED"
+                elif not merge_ok:
+                    mode = "NO_FF"
+                else:
+                    mode = "SWITCHED"
+                if mode not in SYNCED_MODES:
+                    print(f"[sync] {name}: 未同步 (mode={mode}): {merge_err}",
+                          file=sys.stderr)
+                return {
+                    "name": name,
+                    "path": path,
+                    "branch": "main",
+                    "before": before,
+                    "after": after,
+                    "mode": mode,
+                    "from_branch": branch,
+                }
+            # checkout 失败（如本地无 main 分支）→ 退回 WRONG_BRANCH 记账
+            print(
+                f"[sync] {name}: 未同步 (mode=WRONG_BRANCH): 工作树停在 {branch}，"
+                f"切 main 失败（{checkout_err}）；已跳过 fetch/merge",
+                file=sys.stderr,
+            )
+            return {
+                "name": name,
+                "path": path,
+                "branch": branch,
+                "before": before,
+                "after": before,
+                "mode": "WRONG_BRANCH",
+                "from_branch": None,
+            }
+
         shown = branch if branch is not None else "<unknown>"
         print(
             f"[sync] {name}: 未同步 (mode=WRONG_BRANCH): 工作树停在 {shown}，"
@@ -121,21 +220,11 @@ def sync_repo(path: str, timeout: int) -> dict[str, str | None]:
             "before": before,
             "after": before,
             "mode": "WRONG_BRANCH",
+            "from_branch": None,
         }
 
-    fetch_code, _, fetch_err = _git(path, "fetch", "origin", "main", timeout=timeout)
-    fetch_ok = fetch_code == 0
-
-    merge_ok = False
-    merge_err = ""  # 提前定值：任何路径（含 after 读不到 HEAD）都不会未定义引用
-    if fetch_ok:
-        merge_code, _, merge_err = _git(
-            path, "merge", "--ff-only", "origin/main", timeout=timeout
-        )
-        merge_ok = merge_code == 0
-    else:
-        merge_err = fetch_err
-
+    # —— 已在 main：与旧版逐字段一致 ——
+    fetch_ok, merge_ok, merge_err = _fetch_and_merge_main(path, timeout)
     after = _rev(path, timeout)
 
     if not fetch_ok:
@@ -159,12 +248,13 @@ def sync_repo(path: str, timeout: int) -> dict[str, str | None]:
         "before": before,
         "after": after,
         "mode": mode,
+        "from_branch": None,
     }
 
 
-def build_report(repos: list[str], timeout: int) -> dict:
+def build_report(repos: list[str], timeout: int, switch_branch: bool = False) -> dict:
     """对每个仓跑同步，汇总成 base.json 的形状。"""
-    results = [sync_repo(p, timeout) for p in repos]
+    results = [sync_repo(p, timeout, switch_branch) for p in repos]
     stale = [r["name"] for r in results if r["mode"] not in SYNCED_MODES]
     return {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -196,12 +286,19 @@ def main(argv: list[str] | None = None) -> int:
         "该开关用于把「同步这一步」单独重跑/验收）",
     )
     parser.add_argument(
+        "--switch-branch",
+        action="store_true",
+        help="工作树停在非 main 时先切回 main 再同步（默认关闭：保持只记账、"
+        "不切分支的旧行为）。只对干净的工作树切换，脏树记 DIRTY_SKIPPED，"
+        "detached HEAD 仍记 WRONG_BRANCH",
+    )
+    parser.add_argument(
         "--timeout", type=int, default=120, help="单条 git 命令超时秒数（默认 120）"
     )
     args = parser.parse_args(argv)
 
     repos = args.dirs if args.dirs else DEFAULT_REPOS
-    report = build_report(repos, args.timeout)
+    report = build_report(repos, args.timeout, args.switch_branch)
 
     for r in report["repos"]:
         before = r["before"] if r["before"] is not None else "<unknown>"

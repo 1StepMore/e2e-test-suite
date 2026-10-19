@@ -51,6 +51,7 @@ DoD：**201 个格子 × 2 条通道（CLI / MCP）= 402 次格子运行**全部
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -77,6 +78,74 @@ EXEMPT_SKIP_REASONS = (
 def is_exempt(reason: str) -> bool:
     """跳过理由是否属于「夹具内容缺失」类 → 计入 exempt_skips，与「需清理的 skip」分开看。"""
     return any(pat in reason for pat in EXEMPT_SKIP_REASONS)
+
+
+_NIGHTLY_BASE = REPO / "test_artifacts" / "nightly" / "base.json"
+
+
+def _load_default_repos() -> list[str]:
+    """从同目录 nightly_sync.py 取默认仓列表，避免两处硬编码漂移。"""
+    path = Path(__file__).resolve().parent / "nightly_sync.py"
+    spec = importlib.util.spec_from_file_location("_nightly_sync_for_gap", path)
+    if spec is None or spec.loader is None:
+        return []
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return list(getattr(module, "DEFAULT_REPOS", []))
+
+
+DEFAULT_REPOS = _load_default_repos()
+
+
+def _git_identity(path: str) -> tuple[str, str]:
+    """现读一个仓的 (branch, sha)；任一取不到都写 "<unknown>"。"""
+    def _run(*args: str) -> str:
+        try:
+            r = subprocess.run(["git", "-C", path, *args],  # noqa: S603
+                               capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+        return r.stdout.strip() if r.returncode == 0 else ""
+
+    branch = _run("rev-parse", "--abbrev-ref", "HEAD") or "<unknown>"
+    sha = _run("rev-parse", "HEAD") or "<unknown>"
+    return branch, sha
+
+
+def _fmt_bench_entry(name: str, branch: str | None, sha: str | None) -> str:
+    return f"{name}={branch or '<unknown>'}@{sha or '<unknown>'}"
+
+
+def bench_line(base_path: Path | None = None) -> str:
+    """构造 gap.md 头部的 bench 行：报告正文自答「这份矩阵测的是哪棵树」。
+
+    优先读本轮同步账本 `test_artifacts/nightly/base.json`（其 `after` 是同步后
+    即将被测的 SHA）；账本缺失时对默认仓列表现读 git；都取不到写 `<unknown>`。
+    """
+    path = base_path if base_path is not None else _NIGHTLY_BASE
+    records: list = []
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            records = data.get("repos") or []
+        except (OSError, ValueError):
+            records = []
+    entries: list[str] = []
+    if records:
+        for r in records:
+            entries.append(_fmt_bench_entry(
+                str(r.get("name") or "<unknown>"),
+                r.get("branch"),
+                r.get("after") or r.get("before"),
+            ))
+    else:
+        for repo_path in DEFAULT_REPOS:
+            name = Path(str(repo_path).rstrip("/")).name or str(repo_path)
+            branch, sha = _git_identity(str(repo_path))
+            entries.append(_fmt_bench_entry(name, branch, sha))
+    if not entries:
+        entries = ["<unknown>"]
+    return "- bench：" + " · ".join(entries)
 
 
 def tally_cells(cells: list) -> tuple[dict, dict, dict]:
@@ -342,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         verdict = (f"- 判定：**两通道 {total} 格全过，无 fail、无需清理的 skip**"
                    f"（{guard} → gap_units {gap_units}，exit 0）")
-    md = ["# Omni Suite 差距矩阵", "", verdict, "",
+    md = ["# Omni Suite 差距矩阵", "", bench_line(), verdict, "",
           "- 判定口径（DoD，决定 exit）：`gap_units` = fail 合计 + "
           f"Σ_通道 (skipped − exempt) = {failed} + {needs_cleanup_total} = "
           f"**{gap_units}**（= 还需清理的跳过格子数，**豁免项不算差距**）",
