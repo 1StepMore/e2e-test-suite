@@ -97,6 +97,19 @@ cd <repo>
 
 ## 【活区】当前差距矩阵（真基线 2026-10-01）
 
+### 2026-10-21 夜间复跑（在最新 main `3d1f5a7` 上）
+
+`.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，fail 0）**，与 2026-10-20 / 2026-10-19 / 2026-10-15 / 2026-10-10 复跑逐项一致，**无退步**。
+
+- 合计 **402** 格（CLI + MCP）· passed **292** · failed **0** · skipped **110**（豁免 52 + 需清理 58）；每通道 CLI / MCP 各 `201 / 146 / 55 / 0`（逐格一致 → DoD ③ 通道一致成立），`needs_cleanup = 29 / 通道`。
+- 回归护栏：`regression_gap 0`（skipped 55 ≤ 基线 67/通道）；**环境类 skip = 0**（`skip_reasons` 里只有夹具内容依赖 + 两类能力债，无任何 `not installed`）。
+- 余额 58 = **两类已登记能力债**（`ACCEPTED_GAPS.md`：`XLIFF cross-format not supported by ORF converters` 23 格/通道 + `XLIFF: OPP doesn't produce skeleton for EML` 6 格/通道）⇒ **无新增未登记缺口**；owner 2026-10-17 已签字「不投」、作接受终态，**故意留在 `gap_units` 里**，不靠改口径洗白。
+- 同步基点：AutoInfo `abf948fb` · AutoMedia `df483ea` · e2e-test-suite `3d1f5a7` · OPP `74692926` · OL `a1dfe3fb` · ORF `9592268f`（六仓 `base.json` 全 `mode: current`，before == after ⇒ 矩阵确在 main 上测）。
+- 同轮平台：`ai-collect ok(691s) / ai ok(exit 0) / am ok(exit 0) / omni gap(exit 1，4916s)`。
+- 通道时长：CLI 4044.9s · MCP 626.7s（本机 `.venv_ol`）。
+
+**读法**：连续多轮 `gap_units 58` 不变、`regression_gap 0`，余额每一格都能指到 `ACCEPTED_GAPS.md` 的登记行 ⇒ **无新增未登记缺口**；差距仍是那两类能力债，**最终裁决由 owner 保留**。
+
 ### 2026-10-20 夜间复跑（在最新 main `c2b1eb4` 上）
 
 `.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，fail 0）**，与 2026-10-19 / 2026-10-15 / 2026-10-10 复跑逐项一致，**无退步**。
