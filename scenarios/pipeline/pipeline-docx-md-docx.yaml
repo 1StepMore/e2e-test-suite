@@ -151,7 +151,7 @@ steps:
   - name: Translate MD with real LLM (ol translate-md)
     kind: cli
     command: ol translate-md /tmp/omni_val/pipeline-docx/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-docx/ol_out -c Omni_Localizer/config/default.yaml
-    timeout_seconds: 900
+    timeout_seconds: 1200
     expect:
       exit_code: 0
       stdout_has: ["Translated"]
