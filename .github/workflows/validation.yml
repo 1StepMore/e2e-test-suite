@@ -257,7 +257,7 @@ jobs:
             -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter \
             -c /tmp/lock-constraints.txt
 
-      - name: Configure OL local config (OL_CONFIG_PATH target for keyed scenarios)
+      - name: Configure OL configs (concurrency=1 for --config and OL_CONFIG_PATH targets)
         # e2e#142: the step name always claimed to set OL_CONFIG_PATH, but it only
         # copied the file. `ol translate-md` then fell through to the RELATIVE
         # path `config/default.yaml`, resolved against the workspace root where no
@@ -271,20 +271,31 @@ jobs:
           # fans out per-unit calls. Serialize per-document unit concurrency so
           # the nightly exercises quality, not the upstream rate limiter; the
           # OL 429 backoff is still the first line of defence.
+          #
+          # Write the override to BOTH configs. The pipeline scenarios pass
+          # `-c Omni_Localizer/config/default.yaml`; `--config` is precedence
+          # level 1 in ol_config.resolver, above OL_CONFIG_PATH (level 3), so
+          # editing only local.yaml leaves those scenarios at the schema default
+          # (max_md_concurrent=5) and re-tripped the AMD concurrency cap.
           .venv_ol/bin/python - <<'PY'
           from pathlib import Path
           import yaml
 
-          path = Path("Omni_Localizer/config/local.yaml")
-          cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
-          cfg["max_xliff_concurrent"] = 1
-          cfg["max_md_concurrent"] = 1
-          path.write_text(
-              yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True),
-              encoding="utf-8",
-          )
-          assert cfg["max_xliff_concurrent"] == 1
-          assert cfg["max_md_concurrent"] == 1
+          for name in (
+              "Omni_Localizer/config/default.yaml",
+              "Omni_Localizer/config/local.yaml",
+          ):
+              path = Path(name)
+              cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
+              cfg["max_xliff_concurrent"] = 1
+              cfg["max_md_concurrent"] = 1
+              path.write_text(
+                  yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True),
+                  encoding="utf-8",
+              )
+              assert cfg["max_xliff_concurrent"] == 1
+              assert cfg["max_md_concurrent"] == 1
+              print(f"{name}: max_xliff_concurrent=1 max_md_concurrent=1")
           PY
           echo "OL_CONFIG_PATH=$GITHUB_WORKSPACE/Omni_Localizer/config/local.yaml" >> "$GITHUB_ENV"
 
