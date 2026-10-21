@@ -304,6 +304,7 @@ steps:
       print("OK: drawings src=%d out=%d (match)" % (src, out))
     timeout_seconds: 180
     known_gap: true
+    recheck_by: "2026-11-30"
     expect:
       exit_code: 0
       stdout_has: ["OK: drawings src="]
@@ -443,6 +444,7 @@ steps:
       print("OK: judge_overall %.2f/5 >= 4.0/5 (n=%d)" % (overall5, len(scores)))
     timeout_seconds: 300
     known_gap: true
+    recheck_by: "2026-11-30"
     expect:
       exit_code: 0
       stdout_has: ["OK: judge_overall"]

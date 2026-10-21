@@ -24,6 +24,7 @@ from omni_mcp.validation.family import (
     HUMAN_QUALITY_ANCHORS,
     _anchor_of,
     all_steps_agent_surface,
+    derived_level,
     family_of,
     has_human_quality_anchor,
 )
@@ -109,6 +110,7 @@ def test_anchor_sets_are_disjoint_and_complete():
         "lqa-threshold",
         "para-ratio",
         "cjk-density",
+        "untranslated-units",
         "punct-hygiene",
         "drawing-count",
         "opens-docx",
@@ -178,3 +180,43 @@ def test_report_uses_the_package_family_of():
     assert report.HUMAN_QUALITY == HUMAN_QUALITY
     assert report.AGENT_SURFACE_ANCHORS == AGENT_SURFACE_ANCHORS
     assert report.HUMAN_QUALITY_ANCHORS == HUMAN_QUALITY_ANCHORS
+
+
+# ---------------------------------------------------------------------------
+# Issue #205 — the declared level is authoritative, override is the escape
+# hatch, and the derivation stays available as the lint cross-check
+# ---------------------------------------------------------------------------
+
+
+def test_untranslated_units_is_human_quality_anchor():
+    steps = [{"standard": "STANDARDS.md#untranslated-units"}]
+    assert family_of("md-not-pipeline-named", steps) == (HUMAN_QUALITY, "standard")
+    assert has_human_quality_anchor(steps) is True
+
+
+def test_declared_level_beats_the_name_prefix():
+    assert family_of("tool-opp-x", [], level="human-quality") == (
+        HUMAN_QUALITY,
+        "level",
+    )
+    assert family_of("pipeline-x", [], level="agent-user") == (AGENT_USER, "level")
+
+
+def test_family_override_beats_declared_level():
+    assert family_of(
+        "pipeline-x", [], level="human-quality", override="agent-user"
+    ) == (AGENT_USER, "override")
+
+
+def test_derivation_ignores_level_and_override():
+    # Called without level/override, family_of is the DERIVED family the
+    # lint compares `level` against — the prefix rule must still apply.
+    assert family_of("pipeline-x", []) == (HUMAN_QUALITY, "prefix")
+    assert family_of("tool-opp-x", []) == (AGENT_USER, "prefix")
+
+
+def test_derived_level_maps_family_back_to_the_level_vocabulary():
+    assert derived_level("pipeline-x", []) == "human-quality"
+    assert derived_level("tool-opp-x", []) == "agent-user"
+    steps = [{"standard": "STANDARDS.md#drawing-count"}]
+    assert derived_level("some-name", steps) == "human-quality"

@@ -282,7 +282,12 @@ def _build_report(
         name = sc.get("name", "?")
         status = sc.get("status", "unknown")
         verdict_counts[status] = verdict_counts.get(status, 0) + 1
-        family, derivation = family_of(name, sc.get("steps", []))
+        family, derivation = family_of(
+            name,
+            sc.get("steps", []),
+            level=sc.get("level"),
+            override=sc.get("family_override"),
+        )
         families[family]["scenarios"] += 1
         if status in GREEN_STATUSES:
             families[family]["passed"] += 1
@@ -313,6 +318,7 @@ def _build_report(
                     "standard": st.get("standard"),
                     "duration_seconds": st.get("duration_seconds"),
                     "passed": st.get("passed"),
+                    "known_gap": bool(st.get("known_gap", False)),
                     "status": st.get("status"),
                     "timed_out": timed_out,
                     "throttled": throttled,
@@ -332,6 +338,8 @@ def _build_report(
             "cleanup": sc.get("cleanup", []),
             "trace_id": sc.get("trace_id"),
             "known_gap": bool(sc.get("known_gap", False)),
+            "waived_steps": sum(1 for s in step_rows if s["known_gap"]),
+            "gap_closed": list(sc.get("gap_closed") or []),
             "timed_out_steps": sum(1 for s in step_rows if s["timed_out"]),
             "throttled_steps": sum(1 for s in step_rows if s["throttled"]),
             "stalled_steps": sum(1 for s in step_rows if s["stalled"]),
@@ -507,6 +515,13 @@ def _render_markdown(report_data: dict[str, Any]) -> str:
             lines.append(f"| {status} | {counts[status]} |")
     for status in sorted(set(counts) - {"passed", "recovered", "partial-pass", "failed", "unconfigured"}):
         lines.append(f"| {status} | {counts[status]} |")
+    waived_total = sum(s.get("waived_steps", 0) for s in report_data["scenarios"])
+    if waived_total:
+        lines.append("")
+        lines.append(
+            f"_{waived_total} step(s) are waived by known_gap — excluded from "
+            "the verdict, never counted as passes (issue #206)._"
+        )
     lines.append("")
 
     # --- Report card (per-repo matrix, OPP#58) --------------------------
@@ -528,6 +543,10 @@ def _render_markdown(report_data: dict[str, Any]) -> str:
                 detail = f"{marker} (missing env: {', '.join(s['missing_env']) or '—'})"
             else:
                 detail = f"{marker} — {s['summary']}"
+            if s.get("waived_steps"):
+                detail += f" · waived: {s['waived_steps']}"
+            if s.get("gap_closed"):
+                detail += f" · GAP CLOSED: {', '.join(s['gap_closed'])}"
             lines.append(f"| `{s['name']}` | {detail} | {len(s['steps'])} |")
         lines.append("")
         if fam["unconfigured"]:

@@ -50,6 +50,10 @@ _SCENARIO_FIELDS = frozenset(
         "level",             # optional (C-01) — user level the scenario
                              # serves: "agent-user" | "human-quality"
                              # (no default; T-19 makes it mandatory)
+        "family_override",   # optional (issue #205) — declared family for a
+                             # scenario whose derived family differs from its
+                             # level; requires family_override_reason
+        "family_override_reason",  # required with family_override (issue #205)
         "known_gap",         # optional (T-17) — scenario asserts a bar the
                              # pipeline cannot yet meet; excluded from the
                              # pass bar.  Must live under a ``known-gaps/``
@@ -83,6 +87,10 @@ _STEP_FIELDS = frozenset(
         "known_gap",          # optional (T-17) — step asserts the published
                               # bar but the pipeline cannot meet it yet; its
                               # failure is excluded from the scenario verdict.
+        "recheck_by",         # required with step-level known_gap (issue
+                              # #206) — ISO date by which the waiver must be
+                              # re-verified; the lint rejects a missing or
+                              # past date.
     }
 )
 
