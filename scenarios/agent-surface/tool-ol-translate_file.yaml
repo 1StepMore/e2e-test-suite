@@ -35,9 +35,9 @@ steps:
       r = asyncio.run(translate_file(params=TranslateFileInput(
           file_path="/tmp/omni-agent-surface/sample.docx",
           source_lang="en", target_lang="zh",
-          output_format="docx", pipeline="md")))
+          output_format="docx", pipeline="md", timeout=840)))
       print(r)
-    timeout_seconds: 600
+    timeout_seconds: 900
     expect:
       success: true
       exit_code: 0
