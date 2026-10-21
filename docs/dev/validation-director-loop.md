@@ -155,7 +155,8 @@ carries a cause marker before the line. `THROTTLED` means the step's captured
 stderr/error names a `429` / `RateLimitError` — the rate-limit retry chain was
 exhausted upstream. `STALLED` means a cli/python subprocess produced no output
 for `OMNI_VALIDATION_STALL_TIMEOUT_S` seconds (default off; the nightly job sets
-180). Both remain scenario failures — they are not assertion failures, so a
+600, after the 2026-10-21 run showed a rate-limited translation can be silent
+longer than the issue's initial 180s). Both remain scenario failures — they are not assertion failures, so a
 `THROTTLED`/`STALLED` blocker is routed as an upstream/infrastructure finding,
 not as a product defect.
 
