@@ -19,6 +19,7 @@ from pathlib import Path
 RESIDUE_MIN_RUN_CJK = 2
 RESIDUE_MIN_LATIN_WORDS = 4
 SKIP_SIMILARITY = 0.98
+UNIT_SOURCE_SIMILARITY = 0.90
 DEGENERATE_RUN = 10
 MIN_TARGET_CHARS = 3
 
@@ -283,18 +284,22 @@ def has_source_language_chars(text: str, target_lang: str) -> bool:
 
 def scan_source_lang_residue(items: list[tuple[str, str]], target_lang: str) -> list[Finding]:
     pattern = LATIN_RUN_RE if target_lang == "zh" else CJK_RUN_RE
-    detail = "Latin-word run in zh target" if target_lang == "zh" else "CJK run in non-zh target"
+    label = "Latin-word run in zh target" if target_lang == "zh" else "CJK run in non-zh target"
     findings: list[Finding] = []
     for location, text in items:
-        for match in pattern.finditer(text):
-            findings.append(
-                Finding(
-                    "source_lang_residue",
-                    location,
-                    make_snippet(text, match.start(), match.end()),
-                    detail,
-                )
+        matches = list(pattern.finditer(text))
+        if not matches:
+            continue
+        longest = max(matches, key=lambda match: match.end() - match.start())
+        length = longest.end() - longest.start()
+        findings.append(
+            Finding(
+                "source_lang_residue",
+                location,
+                make_snippet(text, longest.start(), longest.end()),
+                f"{label}（本段 {len(matches)} 处，最长 {length} 字）",
             )
+        )
     return findings
 
 
@@ -320,17 +325,31 @@ def scan_tag_residue(
 def scan_llm_refusal(items: list[tuple[str, str]]) -> list[Finding]:
     findings: list[Finding] = []
     for location, text in items:
-        for pattern in REFUSAL_PATTERNS:
-            match = re.search(pattern, text, flags=re.IGNORECASE)
-            if match is not None:
-                findings.append(
-                    Finding(
-                        "llm_refusal",
-                        location,
-                        make_snippet(text, match.start(), match.end()),
-                        f"refusal/clarification phrase: {match.group(0)}",
-                    )
-                )
+        matches = [
+            match
+            for pattern in REFUSAL_PATTERNS
+            for match in re.finditer(pattern, text, flags=re.IGNORECASE)
+        ]
+        if not matches:
+            continue
+        matches.sort(key=lambda match: (match.start(), match.end()))
+        phrases: list[str] = []
+        seen: set[str] = set()
+        for match in matches:
+            phrase = match.group(0)
+            key = phrase.casefold()
+            if key not in seen:
+                seen.add(key)
+                phrases.append(phrase)
+        first = matches[0]
+        findings.append(
+            Finding(
+                "llm_refusal",
+                location,
+                make_snippet(text, first.start(), first.end()),
+                "refusal/clarification phrase: " + ", ".join(phrases),
+            )
+        )
     return findings
 
 
@@ -397,18 +416,13 @@ def _tail_alignment(source: DocxContent, result: DocxContent) -> list[Finding]:
     return findings
 
 
-def _xliff_alignment(
-    source: DocxContent, result: DocxContent, xliff: XliffContent
-) -> list[Finding] | None:
-    if not xliff.units:
-        return None
-
-    source_texts = [normalize(paragraph.text) for paragraph in source.paragraphs]
-    result_texts = [normalize(paragraph.text) for paragraph in result.paragraphs]
-
+def _map_units_to_sources(
+    units: list[XliffUnit], source_texts: list[str]
+) -> dict[str, int]:
     unit_to_source: dict[str, int] = {}
     used_sources: set[int] = set()
-    for unit in xliff.units:
+
+    for unit in units:
         unit_source = normalize(unit.source)
         if not unit_source:
             continue
@@ -419,6 +433,47 @@ def _xliff_alignment(
                 unit_to_source[unit.id] = index
                 used_sources.add(index)
                 break
+
+    for unit in units:
+        if unit.id in unit_to_source:
+            continue
+        unit_source = normalize(unit.source)
+        if not unit_source:
+            continue
+        best_index: int | None = None
+        best_ratio = 0.0
+        for index, text in enumerate(source_texts):
+            if index in used_sources or not text:
+                continue
+            ratio = difflib.SequenceMatcher(None, unit_source, text).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_index = index
+        if best_index is not None and best_ratio >= UNIT_SOURCE_SIMILARITY:
+            unit_to_source[unit.id] = best_index
+            used_sources.add(best_index)
+
+    remaining_sources = [
+        index for index in range(len(source_texts)) if index not in used_sources
+    ]
+    remaining_units = [unit for unit in units if unit.id not in unit_to_source]
+    for unit, source_index in zip(remaining_units, remaining_sources, strict=False):
+        unit_to_source[unit.id] = source_index
+        used_sources.add(source_index)
+
+    return unit_to_source
+
+
+def _xliff_alignment(
+    source: DocxContent, result: DocxContent, xliff: XliffContent
+) -> list[Finding] | None:
+    if not xliff.units:
+        return None
+
+    source_texts = [normalize(paragraph.text) for paragraph in source.paragraphs]
+    result_texts = [normalize(paragraph.text) for paragraph in result.paragraphs]
+
+    unit_to_source = _map_units_to_sources(xliff.units, source_texts)
 
     target_to_units: dict[str, list[str]] = {}
     for unit in xliff.units:

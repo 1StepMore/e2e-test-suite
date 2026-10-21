@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -25,20 +26,42 @@ def _copy_run(tmp_path: Path) -> Path:
     return destination
 
 
-def _run_report(run_dir: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [
-            sys.executable,
-            str(SCRIPT),
-            str(run_dir),
-            "--suite",
-            str(SUITE),
-            "--path",
-            "A",
-        ],
-        capture_output=True,
-        text=True,
-    )
+def _run_report(
+    run_dir: Path, *, as_json: bool = False
+) -> subprocess.CompletedProcess[str]:
+    command = [
+        sys.executable,
+        str(SCRIPT),
+        str(run_dir),
+        "--suite",
+        str(SUITE),
+        "--path",
+        "A",
+    ]
+    if as_json:
+        command.append("--json")
+    return subprocess.run(command, capture_output=True, text=True)
+
+
+def _json_findings(completed: subprocess.CompletedProcess[str]) -> list[dict[str, str]]:
+    payload = json.loads(completed.stdout)
+    return payload["paths"]["A"]["findings"]
+
+
+def _locations(findings: list[dict[str, str]], rule: str) -> set[str]:
+    return {finding["location"] for finding in findings if finding["rule"] == rule}
+
+
+def _rule_counts(findings: list[dict[str, str]]) -> dict[str, int]:
+    counts = {
+        "source_lang_residue": 0,
+        "skipped_units": 0,
+        "tag_residue": 0,
+        "llm_refusal": 0,
+    }
+    for finding in findings:
+        counts[finding["rule"]] = counts.get(finding["rule"], 0) + 1
+    return counts
 
 
 def _definition(top: ET.Element) -> list[ET.Element]:
@@ -74,10 +97,17 @@ def edit_docx(path: Path, mutate_fn) -> None:
 
 def test_clean_sample_passes(tmp_path: Path) -> None:
     run_dir = _copy_run(tmp_path)
-    completed = _run_report(run_dir)
+    completed = _run_report(run_dir, as_json=True)
     report = (run_dir / "Comparison-Report-Detailed.md").read_text(encoding="utf-8")
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
+    findings = _json_findings(completed)
+    assert _rule_counts(findings) == {
+        "source_lang_residue": 0,
+        "skipped_units": 0,
+        "tag_residue": 0,
+        "llm_refusal": 0,
+    }
     assert "✅ 本次测试未发现新 Bug" in report
     assert "内容 4 项" in report
 
@@ -101,13 +131,13 @@ def test_source_lang_residue_fails(tmp_path: Path) -> None:
         return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
     edit_docx(result_path, mutate)
-    completed = _run_report(run_dir)
+    completed = _run_report(run_dir, as_json=True)
     report = (run_dir / "Comparison-Report-Detailed.md").read_text(encoding="utf-8")
 
-    assert completed.returncode == 1
-    assert "source_lang_residue" in report
-    for location in ("p3", "p4", "p5"):
-        assert location in report
+    assert completed.returncode == 1, completed.stdout + completed.stderr
+    findings = _json_findings(completed)
+    assert _locations(findings, "source_lang_residue") == {"p3", "p4", "p5"}
+    assert _locations(findings, "skipped_units") <= {"p3", "p4", "p5"}
     assert "✅ 本次测试未发现新 Bug" not in report
 
 
@@ -124,13 +154,12 @@ def test_skipped_units_fails(tmp_path: Path) -> None:
         return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
     edit_docx(result_path, mutate)
-    completed = _run_report(run_dir)
+    completed = _run_report(run_dir, as_json=True)
     report = (run_dir / "Comparison-Report-Detailed.md").read_text(encoding="utf-8")
 
-    assert completed.returncode == 1
-    assert "skipped_units" in report
-    assert "p4" in report
-    assert "p5" in report
+    assert completed.returncode == 1, completed.stdout + completed.stderr
+    findings = _json_findings(completed)
+    assert _locations(findings, "skipped_units") == {"p4", "p5"}
     assert "missing in result" in report
     assert "✅ 本次测试未发现新 Bug" not in report
 
@@ -148,10 +177,14 @@ def test_tag_residue_fails(tmp_path: Path) -> None:
         return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
     edit_docx(result_path, mutate)
-    completed = _run_report(run_dir)
+    completed = _run_report(run_dir, as_json=True)
     report = (run_dir / "Comparison-Report-Detailed.md").read_text(encoding="utf-8")
 
-    assert completed.returncode == 1
-    assert "tag_residue" in report
-    assert "[OL:CODE:0001]" in report or "p4" in report
+    assert completed.returncode == 1, completed.stdout + completed.stderr
+    findings = _json_findings(completed)
+    counts = _rule_counts(findings)
+    assert _locations(findings, "tag_residue") == {"p4"}
+    assert counts["source_lang_residue"] == 0
+    assert counts["skipped_units"] == 0
+    assert counts["llm_refusal"] == 0
     assert "✅ 本次测试未发现新 Bug" not in report
