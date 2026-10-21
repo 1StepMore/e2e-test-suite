@@ -14,15 +14,15 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Metric | Value |
 |--------|-------|
 | Total files | 54 |
-| Total lines | 32337 |
+| Total lines | 32373 |
 | Active files | 46 |
 | Archived files | 8 |
 | Category — archive | 8 files / 14157 lines |
 | Category — expectations | 4 files / 2514 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 19 files / 3102 lines |
-| Category — docs/root | 20 files / 11224 lines |
+| Category — docs/dev | 19 files / 3112 lines |
+| Category — docs/root | 20 files / 11250 lines |
 
 ## Inventory
 
@@ -35,7 +35,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
 | `HANDOVER.md` | 620 | docs/root | active | — |
-| `NIGHTLY.md` | 395 | docs/root | active | — |
+| `NIGHTLY.md` | 421 | docs/root | active | — |
 | `OL_EXPECTATIONS.md` | 279 | expectations | active | — |
 | `OPP_EXPECTATIONS.md` | 804 | expectations | active | — |
 | `ORF_EXPECTATIONS.md` | 539 | expectations | active | — |
@@ -70,7 +70,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/omni-suite-dev-roadmap-20260902.md` | 172 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 197 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
-| `dev/validation-director-loop.md` | 279 | docs/dev | active | — |
+| `dev/validation-director-loop.md` | 289 | docs/dev | active | — |
 | `dev/validation-loop-log.md` | 279 | docs/dev | active | — |
 | `handoff-2026-09-18.md` | 146 | docs/root | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
