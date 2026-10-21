@@ -188,8 +188,12 @@ jobs:
       AMD_API_KEY: ${{ secrets.AMD_API_KEY || '' }}
       ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY || '' }}
       # Liveness cap (#194): a cli/python step silent this long is classified
-      # `stalled` instead of hanging until the 180-minute job cap.
-      OMNI_VALIDATION_STALL_TIMEOUT_S: "180"
+      # `stalled` instead of hanging until the 180-minute job cap. 180s was the
+      # issue's unverified initial value; the 2026-10-21 nightly showed a
+      # rate-limited translation can be silent >180s while the router retries
+      # (P99 duration 597s), so use 600s. It is below the 900s translation cap
+      # and equal to the tool cap (equal means the wall-clock timeout wins).
+      OMNI_VALIDATION_STALL_TIMEOUT_S: "600"
 
     steps:
       - uses: actions/checkout@v4

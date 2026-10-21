@@ -135,10 +135,10 @@ def resolve_step_timeout(
 #: the step early with ``actual["stalled"] is True``.
 #:
 #: **The default is DISABLED (absent / empty / 0 / unparseable / negative).**
-#: The 180s the nightly workflow will use is an unverified initial value
-#: (issue #194 says so explicitly), so local and hermetic runs must keep the
-#: exact pre-#194 behaviour — including the ``subprocess.run`` path the #184
-#: bytes-decoding tests monkeypatch.
+#: The 600s the nightly workflow uses is a data-driven value: the initial
+#: 180s tripped on rate-limited translations that were silent while retrying.
+#: Local and hermetic runs must keep the exact pre-#194 behaviour — including
+#: the ``subprocess.run`` path the #184 bytes-decoding tests monkeypatch.
 STALL_TIMEOUT_ENV = "OMNI_VALIDATION_STALL_TIMEOUT_S"
 
 
@@ -403,7 +403,10 @@ def _run_cli_step(
     stall_timeout = resolve_stall_timeout(env)
     start = time.monotonic()
     try:
-        if stall_timeout > 0:
+        # A stall window at or above the step cap can never fire before the
+        # wall-clock timeout, so use the plain path: the step is classified
+        # `timeout`, not `stalled` (#194 nightly refinement).
+        if 0 < stall_timeout < timeout:
             returncode, stdout, stderr, timed_out, stalled = (
                 _run_subprocess_streaming(
                     shlex.split(command), timeout, stall_timeout, proc_env
@@ -483,7 +486,8 @@ def _run_python_step(
     stall_timeout = resolve_stall_timeout(env)
     start = time.monotonic()
     try:
-        if stall_timeout > 0:
+        # See _run_cli_step: a window at/above the cap is the wall-clock path.
+        if 0 < stall_timeout < timeout:
             returncode, stdout, stderr, timed_out, stalled = (
                 _run_subprocess_streaming(
                     [interpreter, "-c", snippet], timeout, stall_timeout, proc_env

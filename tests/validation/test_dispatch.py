@@ -493,7 +493,7 @@ def test_step_timeout_option_overrides_env_and_step(monkeypatch):
 @pytest.mark.parametrize("raw", [None, "", "0", "-1", "abc"])
 def test_resolve_stall_timeout_disabled_values(raw):
     """Absent / empty / zero / negative / unparseable all mean DISABLED
-    (0.0) — the nightly 180s is an unverified value, never a default."""
+    (0.0) — the nightly 600s is opt-in, never a default."""
     env = {} if raw is None else {STALL_TIMEOUT_ENV: raw}
 
     assert resolve_stall_timeout(env) == 0.0
@@ -567,6 +567,21 @@ def test_streaming_heartbeat_keeps_talkative_process_alive():
     assert not result.actual.get("stalled")
     assert result.actual["stdout"].count("tick") == 6
     assert result.duration_seconds < 5
+
+
+def test_stall_window_not_below_timeout_uses_wall_clock_timeout():
+    """When the stall window is >= the step cap it cannot fire earlier than
+    the wall-clock timeout, so the plain path classifies the step `timeout`,
+    never `stalled` (#194 nightly refinement)."""
+    command = f'{suite_python()} -S -c "import time; time.sleep(5)"'
+    result = dispatch._run_cli_step(
+        _cli_step(command, timeout_seconds=1),
+        {STALL_TIMEOUT_ENV: "1"},
+    )
+
+    assert result.actual.get("timeout") is True
+    assert "stalled" not in result.actual
+    assert "timed out after 1.0s" in result.actual["error"]
 
 
 def test_stall_detection_default_off_keeps_wall_clock_timeout(monkeypatch):
