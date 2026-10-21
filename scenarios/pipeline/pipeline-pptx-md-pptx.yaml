@@ -109,7 +109,7 @@ steps:
   - name: Translate MD with real LLM (ol translate-md)
     kind: cli
     command: ol translate-md /tmp/omni_val/pipeline-pptx/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-pptx/ol_out -c Omni_Localizer/config/default.yaml
-    timeout_seconds: 900
+    timeout_seconds: 1200
     expect:
       exit_code: 0
       stdout_has: ["Translated"]
@@ -147,7 +147,7 @@ steps:
   - name: Translate XLIFF with real LLM (LQA evidence)
     kind: cli
     command: ol translate-xliff /tmp/omni_val/pipeline-pptx/opp_out/source.xlf -s zh -t en -o /tmp/omni_val/pipeline-pptx/ol_out -c Omni_Localizer/config/default.yaml
-    timeout_seconds: 900
+    timeout_seconds: 1200
     expect:
       exit_code: 0
       stdout_has: ["Translated"]
@@ -330,6 +330,7 @@ steps:
       print("OK: judge_overall %.2f/5 >= 4.0/5 (n=%d)" % (overall5, len(scores)))
     timeout_seconds: 300
     known_gap: true
+    recheck_by: "2026-11-30"
     expect:
       exit_code: 0
       stdout_has: ["OK: judge_overall"]

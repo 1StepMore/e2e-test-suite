@@ -101,8 +101,9 @@ def test_pipeline_without_fake_is_passed(tmp_path):
 # ---------------------------------------------------------------------------
 
 LQA_ANCHOR_SCENARIO = """
-name: tool-lqa-check
-description: "agent-surface prefix but a HUMAN-QUALITY anchor citation"
+name: lqa-check
+description: "quality-anchor citation, declared human-quality level"
+level: human-quality
 steps:
   - name: "read a quality metric"
     kind: cli
