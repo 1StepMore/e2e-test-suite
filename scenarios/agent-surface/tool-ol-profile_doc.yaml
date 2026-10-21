@@ -26,7 +26,7 @@ steps:
       from ol_mcp.tools import ProfileDocInput, profile_doc
       r = asyncio.run(profile_doc(params=ProfileDocInput(content="# Hello World\n\nThis is a test.", source_lang="en", config_path="/tmp/omni-agent-surface/default.yaml")))
       print(r)
-    timeout_seconds: 120
+    timeout_seconds: 600
     expect:
       success: true
       exit_code: 0

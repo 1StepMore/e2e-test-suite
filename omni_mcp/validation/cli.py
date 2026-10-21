@@ -396,6 +396,10 @@ def _print_verdict_table(results: list[Any], verbose: bool) -> None:
                     mark = "recovered"
                 elif s["passed"]:
                     mark = "passed"
+                elif s["status"] == "throttled":
+                    mark = "THROTTLED"
+                elif s["status"] == "stalled":
+                    mark = "STALLED"
                 elif s["status"] == "timeout":
                     mark = "TIMEOUT"
                 else:

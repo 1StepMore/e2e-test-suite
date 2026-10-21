@@ -79,6 +79,12 @@ _FAKE_LLM_ENV = "OMNI_TEST_FAKE_LLM"
 #: not remove ``[xx] ``).
 _FAKE_ECHO_RE = re.compile(r"^\[[A-Za-z][A-Za-z0-9_-]*\] ", re.MULTILINE)
 
+#: The rate-limit-exhaustion signature (issue #194): litellm's
+#: ``RateLimitError`` or a bare HTTP ``429`` in a step's captured output.
+#: Case-insensitive so a ``ratelimiterror`` in a lowercase traceback still
+#: matches; ``\b429\b`` keeps ``14290`` out.
+_RATE_LIMIT_RE = re.compile(r"RateLimitError|\b429\b", re.IGNORECASE)
+
 
 @dataclasses.dataclass
 class ScenarioResult:
@@ -351,21 +357,51 @@ def _step_arguments(step: dict[str, Any]) -> dict[str, Any]:
     return {"command": step["command"]}
 
 
-def _step_status(known_gap: bool, passed: bool, timed_out: bool = False) -> str:
-    """The per-step status: ``passed`` | ``known-gap`` | ``timeout`` |
-    ``failed``.
+def _is_throttled(actual: dict[str, Any]) -> bool:
+    """Whether a step's actual block names rate-limit exhaustion (#194).
+
+    cli/python steps put the router log in ``stderr``; in-process mcp steps
+    carry the exception text in ``error``; ``stdout`` is included because an
+    MCP wrapper may print the exception there.  ``actual["throttled"]`` is
+    honoured as a direct signal too, so a future dispatcher-side classifier
+    needs no engine change.
+    """
+    if actual.get("throttled") is True:
+        return True
+    return any(
+        isinstance(actual.get(field), str) and _RATE_LIMIT_RE.search(actual[field])
+        for field in ("stderr", "error", "stdout")
+    )
+
+
+def _step_status(
+    known_gap: bool,
+    passed: bool,
+    timed_out: bool = False,
+    throttled: bool = False,
+    stalled: bool = False,
+) -> str:
+    """The per-step status: ``passed`` | ``known-gap`` | ``throttled`` |
+    ``stalled`` | ``timeout`` | ``failed``.
 
     A timed-out step keeps ``passed`` False (it still drives the scenario
     verdict exactly as a failure would), but its status is ``timeout`` — a
     distinct presentation from an assertion failure, so the record and the
     report separate "we ran out of wall-clock" from "the output was wrong"
-    (issue #176).  Known-gap wins over timeout so a weakened bar stays
-    excluded from the pass bar.
+    (issue #176).  A 429 that exhausted the retry chain is ``throttled``
+    (the actionable cause), and a subprocess silent past the stall cap is
+    ``stalled`` (issue #194); both still count as failures for the scenario
+    verdict, but are distinct in the record and the report.  Known-gap wins
+    over all of them so a weakened bar stays excluded from the pass bar.
     """
     if passed:
         return "passed"
     if known_gap:
         return "known-gap"
+    if throttled:
+        return "throttled"
+    if stalled:
+        return "stalled"
     return "timeout" if timed_out else "failed"
 
 
@@ -409,6 +445,8 @@ def _execute_step(
     grade = grade_step(step.get("expect"), sr.actual)
     known_gap = bool(step.get("known_gap"))
     timed_out = bool(sr.actual.get("timeout"))
+    throttled = not grade.passed and _is_throttled(sr.actual)
+    stalled = not grade.passed and bool(sr.actual.get("stalled"))
     record: dict[str, Any] = {
         "step_index": index,
         "name": step.get("name") or ("cleanup step" if index == 0 else f"step {index}"),
@@ -425,7 +463,11 @@ def _execute_step(
         "passed": grade.passed,
         "known_gap": known_gap,
         "timed_out": timed_out,
-        "status": _step_status(known_gap, grade.passed, timed_out),
+        "throttled": throttled,
+        "stalled": stalled,
+        "status": _step_status(
+            known_gap, grade.passed, timed_out, throttled, stalled
+        ),
         "grade": dataclasses.asdict(grade),
         "recovery": [],
         "recovery_status": None,
@@ -497,11 +539,15 @@ def _summary(
     passed = sum(1 for r in records if r["passed"])
     gap_steps = sum(1 for r in records if r.get("known_gap"))
     timeout_steps = sum(1 for r in records if r.get("timed_out"))
+    throttled_steps = sum(1 for r in records if r.get("throttled"))
+    stalled_steps = sum(1 for r in records if r.get("stalled"))
     suffix = f", {gap_steps} known-gap step(s)" if gap_steps else ""
     timeout_suffix = f", {timeout_steps} timed out" if timeout_steps else ""
+    throttled_suffix = f", {throttled_steps} throttled" if throttled_steps else ""
+    stalled_suffix = f", {stalled_steps} stalled" if stalled_steps else ""
     return (
         f"{status} — {len(records)} step(s), {passed} passed"
-        f"{timeout_suffix}{suffix}"
+        f"{timeout_suffix}{throttled_suffix}{stalled_suffix}{suffix}"
     )
 
 

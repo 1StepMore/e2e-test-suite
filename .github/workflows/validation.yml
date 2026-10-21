@@ -187,6 +187,9 @@ jobs:
       # never FAKE_LLM — D4).
       AMD_API_KEY: ${{ secrets.AMD_API_KEY || '' }}
       ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY || '' }}
+      # Liveness cap (#194): a cli/python step silent this long is classified
+      # `stalled` instead of hanging until the 180-minute job cap.
+      OMNI_VALIDATION_STALL_TIMEOUT_S: "180"
 
     steps:
       - uses: actions/checkout@v4
@@ -258,6 +261,27 @@ jobs:
         # the job cwd is the suite root, so a relative one would not resolve.
         run: |
           cp Omni_Localizer/config/default.yaml Omni_Localizer/config/local.yaml
+          # e2e-test-suite#194: the free-tier providers throttle on account-wide
+          # in-flight requests (AMD ceiling 16, plus Zhipu congestion). One
+          # validation run at a time is not enough — a single MD/XLIFF document
+          # fans out per-unit calls. Serialize per-document unit concurrency so
+          # the nightly exercises quality, not the upstream rate limiter; the
+          # OL 429 backoff is still the first line of defence.
+          .venv_ol/bin/python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          path = Path("Omni_Localizer/config/local.yaml")
+          cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
+          cfg["max_xliff_concurrent"] = 1
+          cfg["max_md_concurrent"] = 1
+          path.write_text(
+              yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True),
+              encoding="utf-8",
+          )
+          assert cfg["max_xliff_concurrent"] == 1
+          assert cfg["max_md_concurrent"] == 1
+          PY
           echo "OL_CONFIG_PATH=$GITHUB_WORKSPACE/Omni_Localizer/config/local.yaml" >> "$GITHUB_ENV"
 
       # Preflight, not another assertion: `partition_usable_models` silently
