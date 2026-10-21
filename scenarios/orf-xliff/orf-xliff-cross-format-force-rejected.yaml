@@ -16,6 +16,12 @@ description: >-
   format-validity probes have teeth (they accept a real artifact and reject a
   disguised one) rather than passing on mere existence. Tier 1 / hermetic.
 level: agent-user
+family_override: agent-user
+family_override_reason: >-
+  The control step cites #opens-docx as an artifact-opens PROBE (it proves the
+  format-validity check accepts a real DOCX instead of passing on mere
+  existence), not as a published quality bar. This scenario's contract is
+  rejection, so agent-user is the intended verdict family (issue #205).
 category: orf-xliff
 tier: 1
 requires_env: []

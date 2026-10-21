@@ -66,7 +66,6 @@ from omni_mcp.validation.family import (
     HUMAN_QUALITY,
     all_steps_agent_surface,
     family_of,
-    has_human_quality_anchor,
 )
 from omni_mcp.validation.grader import grade_step
 from omni_mcp.validation.loader import load_scenarios
@@ -118,6 +117,17 @@ class ScenarioResult:
     #: cannot yet meet.  Its status is ``known-gap`` and it is excluded
     #: from the pass bar (never drives a nonzero exit, never a blocker).
     known_gap: bool = False
+    #: Issue #205: the scenario's declared ``level`` is the authoritative
+    #: verdict family.  Persisted so the report reads the rule the engine
+    #: enforced instead of re-deriving it from the name.
+    level: str | None = None
+    #: Issue #205: a lint-justified escape hatch for level != derived family.
+    family_override: str | None = None
+    #: Issue #205: why the override exists (the lint requires it).
+    family_override_reason: str | None = None
+    #: Issue #206: waived steps that PASSED this run — the known_gap is
+    #: closed and the waiver should be removed.  Empty when nothing closed.
+    gap_closed: list[str] = dataclasses.field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -324,8 +334,13 @@ def _fake_llm_reason(
     if _effective_env(env).get(_FAKE_LLM_ENV) != "1":
         return None
     steps = scenario.get("steps", [])
-    family, derivation = family_of(scenario["name"], steps)
-    human_quality = family == HUMAN_QUALITY or has_human_quality_anchor(steps)
+    family, derivation = family_of(
+        scenario["name"],
+        steps,
+        level=scenario.get("level"),
+        override=scenario.get("family_override"),
+    )
+    human_quality = family == HUMAN_QUALITY
     if human_quality and not (allow_fake and all_steps_agent_surface(steps)):
         return (
             "OMNI_TEST_FAKE_LLM=1 is active and this scenario is "
@@ -504,10 +519,12 @@ def _aggregate(scenario: dict[str, Any], records: list[dict[str, Any]]) -> str:
     else ``failed``.  ``unconfigured`` is never produced here — it comes
     only from the pre-dispatch gate.
     """
+    graded = [r for r in records if not r.get("known_gap")]
+    if records and not graded:
+        return "invalid"
     failed = [r for r in records if not r["passed"] and not r.get("known_gap")]
     if not failed:
         return "recovered" if any(r["status"] == "recovered" for r in records) else "passed"
-    graded = [r for r in records if not r.get("known_gap")]
     succeeded = len(graded) - len(failed)
     total = len(graded)
     bar_ok = False
@@ -518,6 +535,20 @@ def _aggregate(scenario: dict[str, Any], records: list[dict[str, Any]]) -> str:
     if not bar_ok and pass_ratio is not None and total > 0:
         bar_ok = (succeeded / total) >= pass_ratio
     return "partial-pass" if bar_ok else "failed"
+
+
+def _gap_closed_suffix(records: list[dict[str, Any]]) -> str:
+    closed = [
+        str(r.get("name") or f"step {r.get('step_index')}")
+        for r in records
+        if r.get("known_gap") and r.get("passed")
+    ]
+    if not closed:
+        return ""
+    return (
+        f"; GAP CLOSED: {len(closed)} waived step(s) now pass "
+        f"({', '.join(closed)}) — remove the waiver (issue #206)"
+    )
 
 
 def _summary(
@@ -535,7 +566,7 @@ def _summary(
             message += f" (satisfied by any ONE of: {', '.join(or_group)})"
         return message
     if reason:
-        return f"{status} — {reason}"
+        return f"{status} — {reason}{_gap_closed_suffix(records)}"
     passed = sum(1 for r in records if r["passed"])
     gap_steps = sum(1 for r in records if r.get("known_gap"))
     timeout_steps = sum(1 for r in records if r.get("timed_out"))
@@ -548,6 +579,7 @@ def _summary(
     return (
         f"{status} — {len(records)} step(s), {passed} passed"
         f"{timeout_suffix}{throttled_suffix}{stalled_suffix}{suffix}"
+        f"{_gap_closed_suffix(records)}"
     )
 
 
@@ -577,6 +609,9 @@ def _run_one(
             cleanup=[],
             trace_id=trace_id,
             known_gap=bool(scenario.get("known_gap")),
+            level=scenario.get("level"),
+            family_override=scenario.get("family_override"),
+            family_override_reason=scenario.get("family_override_reason"),
         )
     records = [
         _execute_step(s, env, trace_id, i, step_timeout=step_timeout)
@@ -599,6 +634,17 @@ def _run_one(
             "known gap — published bar not met; excluded from the pass bar "
             "(see ACCEPTED_GAPS.md)"
         )
+    elif status == "invalid":
+        reason = (
+            "every graded step is waived by known_gap — a waiver may not "
+            "cover the whole scenario verdict; add a non-waived step or "
+            "remove the waiver (issue #206)"
+        )
+    gap_closed = [
+        str(r.get("name") or f"step {r.get('step_index')}")
+        for r in records
+        if r.get("known_gap") and r.get("passed")
+    ]
     return ScenarioResult(
         name=scenario["name"],
         status=status,
@@ -608,6 +654,10 @@ def _run_one(
         cleanup=cleanup,
         trace_id=trace_id,
         known_gap=known_gap,
+        gap_closed=gap_closed,
+        level=scenario.get("level"),
+        family_override=scenario.get("family_override"),
+        family_override_reason=scenario.get("family_override_reason"),
     )
 
 

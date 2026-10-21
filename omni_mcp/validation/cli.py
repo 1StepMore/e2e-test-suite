@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import datetime
 import importlib.util
 import re
 import sys
@@ -56,6 +57,7 @@ from typing import Any
 import yaml
 
 from omni_mcp.validation.engine import run_scenarios
+from omni_mcp.validation.family import derived_level
 from omni_mcp.validation.loader import LEVELS, ScenarioError, load_scenarios
 
 #: AutoInfo tier semantics (run-validation-scenarios.py:569-571): 1 = no
@@ -178,6 +180,62 @@ def _lint_step(
             )
 
 
+def _lint_known_gap_steps(
+    yaml_path: Path, steps: list[Any]
+) -> list[LintFinding]:
+    """Issue #206: a waived step must expire, and a waiver must not cover
+    the whole scenario verdict."""
+    findings: list[LintFinding] = []
+    waived = [
+        (i, s)
+        for i, s in enumerate(steps, 1)
+        if isinstance(s, dict) and s.get("known_gap") is True
+    ]
+    if steps and len(waived) == len(steps):
+        findings.append(
+            LintFinding(
+                str(yaml_path), 0, "known-gap-coverage",
+                "every step is waived by known_gap — a waiver must not cover "
+                "the whole scenario verdict; add a non-waived step or remove "
+                "the waivers (issue #206)",
+            )
+        )
+    today = datetime.date.today()
+    for index, step in waived:
+        raw = step.get("recheck_by")
+        if raw is None or str(raw).strip() == "":
+            findings.append(
+                LintFinding(
+                    str(yaml_path), index, "known-gap-recheck",
+                    "step-level known_gap requires 'recheck_by: YYYY-MM-DD' — "
+                    "a waiver without an expiry is a permanent exemption "
+                    "(issue #206)",
+                )
+            )
+            continue
+        try:
+            due = datetime.date.fromisoformat(str(raw).strip())
+        except ValueError:
+            findings.append(
+                LintFinding(
+                    str(yaml_path), index, "known-gap-recheck",
+                    f"recheck_by {raw!r} is not an ISO date (YYYY-MM-DD) "
+                    "(issue #206)",
+                )
+            )
+            continue
+        if due < today:
+            findings.append(
+                LintFinding(
+                    str(yaml_path), index, "known-gap-recheck",
+                    f"recheck_by {due.isoformat()} has passed — re-verify the "
+                    "gap and either remove the waiver or set a new date with "
+                    "fresh evidence (issue #206)",
+                )
+            )
+    return findings
+
+
 def lint_scenarios(
     scenarios_dir: str | Path,
     standards_path: str | Path | None = None,
@@ -204,6 +262,19 @@ def lint_scenarios(
     5. **level** — every scenario declares ``level`` ∈ ``LEVELS``
        (``agent-user`` | ``human-quality``); a missing or unknown level is
        a finding, never silently defaulted (T-19).
+    6. **level-family-consistency** — the declared ``level`` must equal the
+       family derived from the name prefix / step anchors, unless the
+       scenario explicitly justifies the gap with
+       ``family_override: <level>`` plus ``family_override_reason``
+       (issue #205).
+    7. **family-override** — a present ``family_override`` must be a known
+       level and must carry a non-empty ``family_override_reason``
+       (issue #205).
+    8. **known-gap-recheck** — a step-level ``known_gap: true`` must carry a
+       ``recheck_by: YYYY-MM-DD`` that has not passed: a waiver with no
+       expiry is a permanent exemption (issue #206).
+    9. **known-gap-coverage** — a scenario may not waive *every* step; a
+       waiver must not cover the whole verdict (issue #206).
 
     Recovery steps are linted under their primary's step index; cleanup
     steps under index 0.  Findings carry file + step + rule + detail.
@@ -264,6 +335,39 @@ def lint_scenarios(
         steps = data.get("steps")
         if not isinstance(steps, list):
             continue  # schema violation — the loader's job at run time
+        override = data.get("family_override")
+        override_reason = data.get("family_override_reason")
+        if override is not None:
+            if override not in LEVELS:
+                findings.append(
+                    LintFinding(
+                        str(yaml_path), 0, "family-override",
+                        f"unknown 'family_override' {override!r} — must be one "
+                        f"of {sorted(LEVELS)}",
+                    )
+                )
+            if not (isinstance(override_reason, str) and override_reason.strip()):
+                findings.append(
+                    LintFinding(
+                        str(yaml_path), 0, "family-override",
+                        "'family_override' requires a non-empty "
+                        "'family_override_reason' (issue #205)",
+                    )
+                )
+        if level in LEVELS:
+            derived = derived_level(data.get("name") or yaml_path.stem, steps)
+            if level != derived and override != level:
+                findings.append(
+                    LintFinding(
+                        str(yaml_path), 0, "level-family-consistency",
+                        f"declared level {level!r} disagrees with the family "
+                        f"derived from the name prefix / step anchors "
+                        f"({derived!r}); fix the level, change the derivation, "
+                        f"or declare 'family_override: {level}' with a "
+                        "'family_override_reason' (issue #205)",
+                    )
+                )
+        findings.extend(_lint_known_gap_steps(yaml_path, steps))
         for i, step in enumerate(steps, 1):
             _lint_step(step, yaml_path, i, anchors, findings, "")
         for i, step in enumerate(steps, 1):
