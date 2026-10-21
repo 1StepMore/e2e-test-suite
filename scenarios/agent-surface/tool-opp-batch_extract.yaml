@@ -18,7 +18,7 @@ steps:
     command: |
       import asyncio, json, os, sys
       sys.path.insert(0, "Omni_Pre_Processor/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "/tmp/omni-opp-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       from docx import Document
       p = os.path.join(FIXT, "sample.docx")
@@ -41,7 +41,7 @@ steps:
     standard: STANDARDS.md#tool-contract
     instructions: 'Drive the real batch_extract function after _init_server; expect a success payload whose results list carries the extracted markdown.'
     collect_artifacts:
-      - path: '/tmp/omni-agent-surface/sample.docx'
+      - path: '/tmp/omni-opp-agent-surface/sample.docx'
   - name: 'batch_extract denies a path outside the allowlist'
     kind: python
     command: |

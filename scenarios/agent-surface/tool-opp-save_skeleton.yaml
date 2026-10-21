@@ -18,7 +18,7 @@ steps:
     command: |
       import asyncio, json, os, sys
       sys.path.insert(0, "Omni_Pre_Processor/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "/tmp/omni-opp-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       from docx import Document
       p = os.path.join(FIXT, "sample.docx")
@@ -41,7 +41,7 @@ steps:
     standard: STANDARDS.md#tool-contract
     instructions: 'Drive the real save_skeleton after _init_server; expect a success payload naming the written sample.skeleton.zip.'
     collect_artifacts:
-      - path: '/tmp/omni-agent-surface/sample.skeleton.zip'
+      - path: '/tmp/omni-opp-agent-surface/sample.skeleton.zip'
   - name: 'save_skeleton denies a path outside the allowlist'
     kind: python
     command: |
