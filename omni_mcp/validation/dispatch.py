@@ -50,10 +50,12 @@ import asyncio
 import contextlib
 import dataclasses
 import json
+import math
 import os
 import shlex
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -122,6 +124,44 @@ def resolve_step_timeout(
         if candidate is not None and candidate > 0:
             return candidate
     return float(step.get("timeout_seconds") or DEFAULT_TIMEOUT_SECONDS)
+
+
+#: Env var that enables subprocess liveness ("stall") detection for ``cli`` /
+#: ``python`` steps (e2e-test-suite#194, part 3).  A rate-limited step that
+#: retries silently emits no output for minutes, which is indistinguishable
+#: from a hang when the only signal is the wall-clock cap.  When this is set
+#: to a positive number of seconds, the dispatcher streams the child's pipes
+#: and treats "no new line on either pipe for N seconds" as a stall, killing
+#: the step early with ``actual["stalled"] is True``.
+#:
+#: **The default is DISABLED (absent / empty / 0 / unparseable / negative).**
+#: The 180s the nightly workflow will use is an unverified initial value
+#: (issue #194 says so explicitly), so local and hermetic runs must keep the
+#: exact pre-#194 behaviour — including the ``subprocess.run`` path the #184
+#: bytes-decoding tests monkeypatch.
+STALL_TIMEOUT_ENV = "OMNI_VALIDATION_STALL_TIMEOUT_S"
+
+
+def resolve_stall_timeout(env: dict[str, str] | None = None) -> float:
+    """The effective stall-detection window in seconds (0.0 = disabled).
+
+    Reads :data:`STALL_TIMEOUT_ENV` from *env* when given, else from
+    ``os.environ``.  Every unusable value — absent, empty, unparseable,
+    non-finite, zero or negative — resolves to ``0.0`` (detection off).
+    This resolver NEVER raises: a malformed env var must not break a run,
+    it must simply leave the pre-#194 behaviour in place.
+    """
+    effective = env if env is not None else os.environ
+    raw = effective.get(STALL_TIMEOUT_ENV)
+    if not raw:
+        return 0.0
+    try:
+        candidate = float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(candidate) or candidate <= 0:
+        return 0.0
+    return candidate
 
 
 class DispatchError(ValueError):
@@ -272,6 +312,85 @@ def _decode_output(value: Any, limit: int = 160) -> str:
     return text if len(text) <= limit else text[:limit] + "..."
 
 
+def _run_subprocess_streaming(
+    argv: list[str],
+    timeout: float,
+    stall_timeout: float,
+    env: dict[str, str],
+) -> tuple[int | None, str, str, bool, bool]:
+    """Run *argv*, reading both pipes live so silence itself is observable.
+
+    Returns ``(returncode, stdout, stderr, timed_out, stalled)``.  This is the
+    opt-in #194 path: the two pipes are drained by daemon reader threads that
+    refresh ``last_activity`` on EVERY non-empty line, while the main thread
+    polls ``proc.poll()`` every 50ms.  A stall is "no new line on either pipe
+    for *stall_timeout* seconds" — the heartbeat a silently-retrying,
+    rate-limited step does not produce.  Both abort paths kill the child and
+    still join the readers (bounded) so the captured output is partial but
+    real; a reader exception is swallowed so the step record always gets a
+    verdict instead of a traceback.
+    """
+    proc = subprocess.Popen(
+        argv,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        errors="replace",
+        env=env,
+    )
+    last_activity = time.monotonic()
+    out_lines: list[str] = []
+    err_lines: list[str] = []
+
+    def _pump(stream: Any, sink: list[str]) -> None:
+        nonlocal last_activity
+        try:
+            for line in stream:
+                if not line:
+                    continue
+                sink.append(line)
+                last_activity = time.monotonic()
+        except Exception:
+            return
+
+    stdout_thread = threading.Thread(
+        target=_pump, args=(proc.stdout, out_lines), daemon=True
+    )
+    stderr_thread = threading.Thread(
+        target=_pump, args=(proc.stderr, err_lines), daemon=True
+    )
+    stdout_thread.start()
+    stderr_thread.start()
+
+    start = time.monotonic()
+    timed_out = False
+    stalled = False
+    while proc.poll() is None:
+        now = time.monotonic()
+        if stall_timeout > 0 and now - last_activity >= stall_timeout:
+            with contextlib.suppress(OSError):
+                proc.kill()
+            stalled = True
+            break
+        if now - start >= timeout:
+            with contextlib.suppress(OSError):
+                proc.kill()
+            timed_out = True
+            break
+        time.sleep(0.05)
+
+    proc.wait()
+    stdout_thread.join(timeout=1)
+    stderr_thread.join(timeout=1)
+    return (
+        proc.returncode,
+        "".join(out_lines),
+        "".join(err_lines),
+        timed_out,
+        stalled,
+    )
+
+
 def _run_cli_step(
     step: dict[str, Any],
     env: dict[str, str] | None,
@@ -281,21 +400,54 @@ def _run_cli_step(
     command = step["command"]
     timeout = resolve_step_timeout(step, env, step_timeout)
     proc_env = build_cli_env(env)
+    stall_timeout = resolve_stall_timeout(env)
     start = time.monotonic()
     try:
-        proc = subprocess.run(
-            shlex.split(command),
-            capture_output=True,
-            text=True,
-            env=proc_env,
-            timeout=timeout,
-        )
-        actual: dict[str, Any] = {
-            "success": proc.returncode == 0,
-            "exit_code": proc.returncode,
-            "stdout": proc.stdout or "",
-            "stderr": proc.stderr or "",
-        }
+        if stall_timeout > 0:
+            returncode, stdout, stderr, timed_out, stalled = (
+                _run_subprocess_streaming(
+                    shlex.split(command), timeout, stall_timeout, proc_env
+                )
+            )
+            if stalled:
+                actual: dict[str, Any] = {
+                    "success": False,
+                    "stalled": True,
+                    "error": f"no output for {stall_timeout}s (stalled)",
+                    "exit_code": None,
+                    "stdout": _decode_output(stdout),
+                    "stderr": _decode_output(stderr),
+                }
+            elif timed_out:
+                actual = {
+                    "success": False,
+                    "timeout": True,
+                    "error": f"timed out after {timeout}s",
+                    "exit_code": None,
+                    "stdout": _decode_output(stdout),
+                    "stderr": _decode_output(stderr),
+                }
+            else:
+                actual = {
+                    "success": returncode == 0,
+                    "exit_code": returncode,
+                    "stdout": stdout,
+                    "stderr": stderr,
+                }
+        else:
+            proc = subprocess.run(
+                shlex.split(command),
+                capture_output=True,
+                text=True,
+                env=proc_env,
+                timeout=timeout,
+            )
+            actual = {
+                "success": proc.returncode == 0,
+                "exit_code": proc.returncode,
+                "stdout": proc.stdout or "",
+                "stderr": proc.stderr or "",
+            }
     except subprocess.TimeoutExpired as exc:
         actual = {
             "success": False,
@@ -328,22 +480,58 @@ def _run_python_step(
     timeout = resolve_step_timeout(step, env, step_timeout)
     proc_env = build_cli_env(env)
     interpreter = suite_python()
+    stall_timeout = resolve_stall_timeout(env)
     start = time.monotonic()
     try:
-        proc = subprocess.run(
-            [interpreter, "-c", snippet],
-            capture_output=True,
-            text=True,
-            env=proc_env,
-            timeout=timeout,
-        )
-        actual: dict[str, Any] = {
-            "success": proc.returncode == 0,
-            "exit_code": proc.returncode,
-            "stdout": proc.stdout or "",
-            "stderr": proc.stderr or "",
-            "python": interpreter,
-        }
+        if stall_timeout > 0:
+            returncode, stdout, stderr, timed_out, stalled = (
+                _run_subprocess_streaming(
+                    [interpreter, "-c", snippet], timeout, stall_timeout, proc_env
+                )
+            )
+            if stalled:
+                actual: dict[str, Any] = {
+                    "success": False,
+                    "stalled": True,
+                    "error": f"no output for {stall_timeout}s (stalled)",
+                    "exit_code": None,
+                    "stdout": _decode_output(stdout),
+                    "stderr": _decode_output(stderr),
+                    "python": interpreter,
+                }
+            elif timed_out:
+                actual = {
+                    "success": False,
+                    "timeout": True,
+                    "error": f"timed out after {timeout}s",
+                    "exit_code": None,
+                    "stdout": _decode_output(stdout),
+                    "stderr": _decode_output(stderr),
+                    "python": interpreter,
+                }
+            else:
+                actual = {
+                    "success": returncode == 0,
+                    "exit_code": returncode,
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "python": interpreter,
+                }
+        else:
+            proc = subprocess.run(
+                [interpreter, "-c", snippet],
+                capture_output=True,
+                text=True,
+                env=proc_env,
+                timeout=timeout,
+            )
+            actual = {
+                "success": proc.returncode == 0,
+                "exit_code": proc.returncode,
+                "stdout": proc.stdout or "",
+                "stderr": proc.stderr or "",
+                "python": interpreter,
+            }
     except subprocess.TimeoutExpired as exc:
         actual = {
             "success": False,
@@ -352,6 +540,15 @@ def _run_python_step(
             "exit_code": None,
             "stdout": _decode_output(exc.stdout),
             "stderr": _decode_output(exc.stderr),
+            "python": interpreter,
+        }
+    except FileNotFoundError:
+        actual = {
+            "success": False,
+            "error": f"interpreter not found: {interpreter!r}",
+            "exit_code": None,
+            "stdout": "",
+            "stderr": "",
             "python": interpreter,
         }
     return _make_result(

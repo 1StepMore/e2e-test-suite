@@ -29,7 +29,7 @@ steps:
       from ol_mcp.tools import TranslateXliffInput, translate_xliff
       r = asyncio.run(translate_xliff(params=TranslateXliffInput(input_path="/tmp/omni-agent-surface/sample.xlf", output_path="/tmp/omni-agent-surface/out.xlf", source_lang="en", target_lang="zh", config_path="/tmp/omni-agent-surface/default.yaml")))
       print(r)
-    timeout_seconds: 120
+    timeout_seconds: 600
     expect:
       success: true
       exit_code: 0

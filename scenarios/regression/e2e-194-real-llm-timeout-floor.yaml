@@ -1,0 +1,104 @@
+name: e2e-194-real-llm-timeout-floor
+description: >
+  Regression lock for 1StepMore/e2e-test-suite#194: the real-LLM step caps
+  must stay above the measured P99 (597s) so the nightly track fails on
+  product quality, not on a wall-clock cap below the observed distribution.
+  Tool model-calling steps >= 600s; pipeline translation steps >= 900s.
+level: agent-user
+category: regression
+regression: true
+regression_issue: "e2e-test-suite#194"
+tier: 1
+instructions: |
+  What to do: run the python step (hermetic, no keys). It loads the real
+  scenario YAMLs from the repo root and fails loudly if any model-calling
+  tool step is capped below 600s or any `ol translate-md` / `ol translate-xliff`
+  pipeline step below 900s. The issue's measured P99 was 597s; 600s is the
+  floor and 900s is P99 + ~50%. This is a config contract, not an assertion
+  change: do not edit the caps down to make it pass.
+steps:
+  - name: 'Real-LLM step caps stay above the measured P99 (>=600s tools, >=900s pipeline translation)'
+    kind: python
+    command: |
+      import sys
+      from pathlib import Path
+
+      import yaml
+
+      TOOL_FLOOR = 600
+      PIPELINE_FLOOR = 900
+      TOOL_FILES = [
+          "tool-ol-batch_translate_texts.yaml",
+          "tool-ol-judge_text.yaml",
+          "tool-ol-profile_doc.yaml",
+          "tool-ol-translate_file.yaml",
+          "tool-ol-translate_md_text.yaml",
+          "tool-ol-translate_xliff.yaml",
+      ]
+      PIPELINE_PREFIXES = ("ol translate-md ", "ol translate-xliff ")
+
+      ROOT = Path.cwd()
+      while not (ROOT / "scenarios").is_dir() and ROOT.parent != ROOT:
+          ROOT = ROOT.parent
+
+      violations = []
+
+      tool_checked = 0
+      for fname in TOOL_FILES:
+          path = ROOT / "scenarios" / "agent-surface" / fname
+          if not path.is_file():
+              violations.append(f"{fname}: missing scenario file")
+              continue
+          doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+          steps = doc.get("steps") or []
+          if not steps:
+              violations.append(f"{fname}: no steps")
+              continue
+          step = steps[0]
+          timeout = step.get("timeout_seconds")
+          tool_checked += 1
+          if not isinstance(timeout, (int, float)) or timeout < TOOL_FLOOR:
+              violations.append(
+                  f"{fname}:{step.get('name')}: timeout_seconds={timeout!r} < {TOOL_FLOOR}"
+              )
+
+      translation_checked = 0
+      for path in sorted((ROOT / "scenarios" / "pipeline").glob("*.yaml")):
+          doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+          for step in doc.get("steps") or []:
+              if step.get("kind") != "cli":
+                  continue
+              command = str(step.get("command") or "").strip()
+              if not command.startswith(PIPELINE_PREFIXES):
+                  continue
+              translation_checked += 1
+              timeout = step.get("timeout_seconds")
+              if not isinstance(timeout, (int, float)) or timeout < PIPELINE_FLOOR:
+                  violations.append(
+                      f"{path.name}:{step.get('name')}: timeout_seconds={timeout!r} < {PIPELINE_FLOOR}"
+                  )
+
+      if tool_checked != 6:
+          violations.append(f"expected 6 tool model-calling steps, found {tool_checked}")
+      if translation_checked != 9:
+          violations.append(
+              f"expected 9 pipeline translation steps, found {translation_checked}"
+          )
+
+      if violations:
+          for v in violations:
+              print(f"TIMEOUT-FLOOR VIOLATION: {v}")
+          sys.exit(1)
+
+      print("timeout floor held: 6 tool steps >= 600s, 9 translation steps >= 900s")
+    timeout_seconds: 120
+    expect:
+      success: true
+      exit_code: 0
+      stdout_has: ['timeout floor held: 6 tool steps >= 600s, 9 translation steps >= 900s']
+      stderr_not_has: ['AssertionError', 'Traceback (most recent call last)']
+    standard: STANDARDS.md#tool-contract
+    instructions: >-
+      Static config check over the real scenario files. Any sub-floor cap
+      prints the file/step and exits 1; a renamed/missing file or a changed
+      step count also fails, so the lock cannot silently rot.

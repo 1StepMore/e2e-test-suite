@@ -150,6 +150,15 @@ Every step renders the six-field evidence line (D12):
 contract (surface / real call / expect / actual / artifact-to-show) plus the
 `standard` citation.
 
+A step that failed for an infrastructure reason rather than a wrong result
+carries a cause marker before the line. `THROTTLED` means the step's captured
+stderr/error names a `429` / `RateLimitError` — the rate-limit retry chain was
+exhausted upstream. `STALLED` means a cli/python subprocess produced no output
+for `OMNI_VALIDATION_STALL_TIMEOUT_S` seconds (default off; the nightly job sets
+180). Both remain scenario failures — they are not assertion failures, so a
+`THROTTLED`/`STALLED` blocker is routed as an upstream/infrastructure finding,
+not as a product defect.
+
 `unconfigured` renders as a distinct status with its `missing_env` shown —
 never GREEN, never RED-as-failure, never in blockers.
 

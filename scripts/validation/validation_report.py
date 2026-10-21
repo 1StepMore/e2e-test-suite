@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -66,6 +67,12 @@ from omni_mcp.validation.family import (  # noqa: F401
 )
 
 GREEN_STATUSES = {"passed", "recovered"}
+
+#: Mirrors ``omni_mcp.validation.engine._RATE_LIMIT_RE`` so a run persisted
+#: before the ``throttled`` status existed still renders the marker
+#: (issue #194).  scripts/ is not a package; keeping the rule local avoids
+#: importing the whole engine (and its dispatch side) into the reporter.
+_RATE_LIMIT_RE = re.compile(r"RateLimitError|\b429\b", re.IGNORECASE)
 
 #: Repo name → the scenario-name prefixes that route a scenario to that
 #: repo's report-card cell (per-repo validation delivery, OPP#58).  The
@@ -142,14 +149,61 @@ def _step_timed_out(step: dict[str, Any]) -> bool:
     return step.get("status") == "timeout"
 
 
-def _evidence_line(step: dict[str, Any], actual: Any, timed_out: bool) -> str:
-    """The D12 six-field evidence line, prefixed with a TIMEOUT marker when
-    the step ran out of wall-clock — so a timeout is never mistaken for an
-    assertion failure in the trace."""
+def _step_throttled(step: dict[str, Any]) -> bool:
+    """Whether a step exhausted the rate-limit retry chain (issue #194).
+
+    Signals, in order: the engine's explicit ``actual.throttled`` flag, the
+    distinct step ``status: "throttled"``, or — for runs persisted before
+    the status existed — a ``RateLimitError`` / ``429`` signature in the
+    captured ``stderr``/``error``/``stdout``.
+    """
+    if step.get("passed") is True:
+        return False
+    actual = step.get("actual")
+    if isinstance(actual, dict):
+        if actual.get("throttled") is True:
+            return True
+        if any(
+            isinstance(actual.get(field), str)
+            and _RATE_LIMIT_RE.search(actual[field])
+            for field in ("stderr", "error", "stdout")
+        ):
+            return True
+    return step.get("status") == "throttled"
+
+
+def _step_stalled(step: dict[str, Any]) -> bool:
+    """Whether a cli/python subprocess produced no output past the stall
+    cap (issue #194).  The dispatcher records ``actual.stalled: true``; the
+    engine also surfaces a distinct step ``status: "stalled"``."""
+    if step.get("passed") is True:
+        return False
+    actual = step.get("actual")
+    if isinstance(actual, dict) and actual.get("stalled"):
+        return True
+    return step.get("status") == "stalled"
+
+
+def _evidence_line(
+    step: dict[str, Any],
+    actual: Any,
+    timed_out: bool,
+    throttled: bool = False,
+    stalled: bool = False,
+) -> str:
+    """The D12 six-field evidence line, prefixed with the failure-cause
+    marker when one applies — so a throttled/stalled/timeout step is never
+    mistaken for an assertion failure in the trace.
+
+    Precedence: THROTTLED > STALLED > TIMEOUT."""
     body = (
         f"checked `{step.get('surface', '?')}` against "
         f"`{step.get('standard', '?')}` → {_actual_summary(actual)}"
     )
+    if throttled:
+        return f"**THROTTLED** — {body}"
+    if stalled:
+        return f"**STALLED** — {body}"
     return f"**TIMEOUT** — {body}" if timed_out else body
 
 
@@ -243,7 +297,9 @@ def _build_report(
         for st in sc.get("steps", []):
             actual = st.get("actual")
             timed_out = _step_timed_out(st)
-            evidence = _evidence_line(st, actual, timed_out)
+            throttled = _step_throttled(st)
+            stalled = _step_stalled(st)
+            evidence = _evidence_line(st, actual, timed_out, throttled, stalled)
             step_rows.append(
                 {
                     "step_index": st.get("step_index"),
@@ -259,6 +315,8 @@ def _build_report(
                     "passed": st.get("passed"),
                     "status": st.get("status"),
                     "timed_out": timed_out,
+                    "throttled": throttled,
+                    "stalled": stalled,
                     "evidence_line": evidence,
                 }
             )
@@ -275,6 +333,8 @@ def _build_report(
             "trace_id": sc.get("trace_id"),
             "known_gap": bool(sc.get("known_gap", False)),
             "timed_out_steps": sum(1 for s in step_rows if s["timed_out"]),
+            "throttled_steps": sum(1 for s in step_rows if s["throttled"]),
+            "stalled_steps": sum(1 for s in step_rows if s["stalled"]),
         }
 
         if status == "failed":
@@ -293,6 +353,8 @@ def _build_report(
                     "real_call": st.get("real_call"),
                     "actual": _actual_summary(st.get("actual")),
                     "timed_out": blocked_timed_out,
+                    "throttled": _step_throttled(st),
+                    "stalled": _step_stalled(st),
                 }
                 blockers.append(blocker)
                 entry.setdefault("blocked_by", []).append(blocker)
@@ -523,7 +585,14 @@ def _render_markdown(report_data: dict[str, Any]) -> str:
                      "step, and the standard it violated._")
         lines.append("")
         for b in blockers:
-            kind = "timed out on" if b.get("timed_out") else "violated"
+            if b.get("throttled"):
+                kind = "throttled on"
+            elif b.get("stalled"):
+                kind = "stalled on"
+            elif b.get("timed_out"):
+                kind = "timed out on"
+            else:
+                kind = "violated"
             lines.append(f"- `{b['name']}` ({b['family']}) — step {b['step_index']} "
                          f"`{b['step_name']}` {kind} `{b['standard']}`: {b['actual']}")
     lines.append("")

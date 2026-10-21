@@ -22,7 +22,7 @@ steps:
       from ol_mcp.tools import JudgeInput, judge_text
       r = asyncio.run(judge_text(params=JudgeInput(source="Click the button to continue", target="点击按钮继续", source_lang="en", target_lang="zh")))
       print(r)
-    timeout_seconds: 120
+    timeout_seconds: 600
     expect:
       success: true
       exit_code: 0

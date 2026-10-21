@@ -37,7 +37,7 @@ steps:
           source_lang="en", target_lang="zh",
           output_format="docx", pipeline="md")))
       print(r)
-    timeout_seconds: 300
+    timeout_seconds: 600
     expect:
       success: true
       exit_code: 0

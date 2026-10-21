@@ -116,7 +116,7 @@ steps:
   - name: Translate MD with real LLM (ol translate-md)
     kind: cli
     command: ol translate-md /tmp/omni_val/pipeline-md-formats/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-md-formats/ol_out -c Omni_Localizer/config/default.yaml
-    timeout_seconds: 600
+    timeout_seconds: 900
     expect:
       exit_code: 0
       stdout_has: ["Translated"]
@@ -291,7 +291,7 @@ steps:
   - name: Translate JSON-derived MD with real LLM
     kind: cli
     command: ol translate-md /tmp/omni_val/pipeline-md-formats/opp_json/source.md -s zh -t en -o /tmp/omni_val/pipeline-md-formats/ol_json -c Omni_Localizer/config/default.yaml
-    timeout_seconds: 600
+    timeout_seconds: 900
     expect:
       exit_code: 0
       stdout_has: ["Translated"]

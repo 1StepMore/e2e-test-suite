@@ -17,10 +17,13 @@ import uuid
 
 import pytest
 
+from omni_mcp.validation.dispatch import StepResult
 from omni_mcp.validation.engine import (
     RunResult,
     ScenarioResult,
+    _is_throttled,
     _missing_env,
+    _step_status,
     persist_run,
     run_scenarios,
 )
@@ -595,6 +598,226 @@ steps:
         tmp_path, persist=False, step_timeout=5
     ).scenarios[0]
     assert sc.status == "passed"
+
+
+# ---------------------------------------------------------------------------
+# Throttled / stalled cause statuses (issue #194)
+# ---------------------------------------------------------------------------
+
+
+def test_rate_limited_cli_step_status_throttled(tmp_path):
+    """A failed cli step whose stderr names a 429/RateLimitError is
+    ``throttled``, not a bare assertion failure — and the scenario still
+    fails (throttling is never a pass)."""
+    _write(tmp_path, "throttled.yaml", """
+name: throttled
+description: "router exhausted the rate-limit retry chain"
+steps:
+  - name: "translate under rate limit"
+    kind: cli
+    command: |-
+      sh -c "echo 'litellm.RateLimitError: Error code: 429 - rate limited' 1>&2; exit 1"
+    expect:
+      success: true
+""")
+    sc = run_scenarios(tmp_path, persist=False).scenarios[0]
+    rec = sc.steps[0]
+    assert rec["status"] == "throttled"
+    assert rec["throttled"] is True
+    assert rec["passed"] is False
+    assert sc.status == "failed"
+    assert "1 throttled" in sc.summary
+
+
+def test_rate_limited_mcp_record_status_throttled(tmp_path, monkeypatch):
+    """An in-process mcp step carries the exception text in ``error`` — a
+    429 there is throttled too."""
+    import omni_mcp.validation.engine as engine
+
+    _write(tmp_path, "throttled-mcp.yaml", """
+name: throttled-mcp
+description: "mcp tool raised a rate limit"
+steps:
+  - name: "call a tool"
+    kind: mcp
+    tool: ping
+    arguments: {}
+    expect:
+      success: true
+""")
+
+    def fake_dispatch(step, env=None, step_timeout=None):
+        return StepResult(
+            surface="mcp: ping",
+            real_call="ping({})",
+            expect=dict(step.get("expect") or {}),
+            actual={
+                "success": False,
+                "error": "litellm.RateLimitError: Error code: 429",
+            },
+            artifact_to_show=None,
+            standard=step.get("standard"),
+            duration_seconds=0.01,
+        )
+
+    monkeypatch.setattr(engine, "dispatch_step", fake_dispatch)
+    sc = engine.run_scenarios(tmp_path, persist=False).scenarios[0]
+    assert sc.steps[0]["status"] == "throttled"
+    assert sc.steps[0]["throttled"] is True
+    assert sc.status == "failed"
+
+
+def test_passed_step_never_reclassified_as_throttled(tmp_path):
+    """A passing step that merely mentions 429 in its output is still
+    ``passed`` — the cause statuses never override success."""
+    _write(tmp_path, "passing.yaml", """
+name: passing-with-429
+description: "a retry log line on a successful step"
+steps:
+  - name: "retried then succeeded"
+    kind: cli
+    command: |-
+      sh -c "echo 'retrying after 429' 1>&2; exit 0"
+    expect:
+      success: true
+""")
+    sc = run_scenarios(tmp_path, persist=False).scenarios[0]
+    rec = sc.steps[0]
+    assert rec["status"] == "passed"
+    assert rec["passed"] is True
+    assert rec["throttled"] is False
+
+
+def test_throttled_wins_over_timeout(tmp_path):
+    """A step that both timed out and carried a rate-limit signature is
+    reported as throttled — the actionable cause wins."""
+    _write(tmp_path, "both.yaml", """
+name: both
+description: "rate limited and slow"
+steps:
+  - name: "slow and throttled"
+    kind: cli
+    command: |-
+      sh -c "echo 'litellm.RateLimitError: 429' 1>&2; sleep 5"
+    timeout_seconds: 1
+    expect:
+      success: true
+""")
+    sc = run_scenarios(tmp_path, persist=False).scenarios[0]
+    rec = sc.steps[0]
+    assert rec["timed_out"] is True
+    assert rec["status"] == "throttled"
+    assert sc.status == "failed"
+
+
+def test_stalled_step_status(tmp_path, monkeypatch):
+    """``actual.stalled: true`` classifies a failed step as ``stalled``."""
+    import omni_mcp.validation.engine as engine
+
+    _write(tmp_path, "stalled.yaml", """
+name: stalled
+description: "a subprocess went silent"
+steps:
+  - name: "silent subprocess"
+    kind: cli
+    command: "true"
+    expect:
+      success: true
+""")
+
+    def fake_dispatch(step, env=None, step_timeout=None):
+        return StepResult(
+            surface="cli: true",
+            real_call="true",
+            expect=dict(step.get("expect") or {}),
+            actual={
+                "success": False,
+                "exit_code": 1,
+                "stdout": "",
+                "stderr": "",
+                "stalled": True,
+                "error": "no output for 180s (stall cap)",
+            },
+            artifact_to_show=None,
+            standard=step.get("standard"),
+            duration_seconds=180.0,
+        )
+
+    monkeypatch.setattr(engine, "dispatch_step", fake_dispatch)
+    sc = engine.run_scenarios(tmp_path, persist=False).scenarios[0]
+    assert sc.steps[0]["status"] == "stalled"
+    assert sc.steps[0]["stalled"] is True
+    assert sc.status == "failed"
+
+
+def test_step_status_precedence_unit():
+    """The status precedence: passed > known-gap > throttled > stalled >
+    timeout > failed."""
+    assert _step_status(False, True, True, True, True) == "passed"
+    assert _step_status(True, False, True, True, True) == "known-gap"
+    assert _step_status(False, False, True, True, True) == "throttled"
+    assert _step_status(False, False, True, False, True) == "stalled"
+    assert _step_status(False, False, True) == "timeout"
+    assert _step_status(False, False) == "failed"
+
+
+def test_is_throttled_matches_stderr_error_stdout():
+    assert _is_throttled({"stderr": "litellm.RateLimitError: 429"}) is True
+    assert _is_throttled({"error": "Error code: 429"}) is True
+    assert _is_throttled({"stdout": "ratelimiterror raised"}) is True
+    assert _is_throttled({"throttled": True}) is True
+    assert _is_throttled({"stderr": "error code 14290"}) is False
+    assert _is_throttled({"stderr": "assertion mismatch"}) is False
+
+
+def test_summary_counts_throttled_and_stalled(tmp_path, monkeypatch):
+    """A mixed failing scenario calls out both new cause counts without
+    disturbing the existing timed-out / known-gap suffix order."""
+    import omni_mcp.validation.engine as engine
+
+    _write(tmp_path, "mixed-causes.yaml", """
+name: mixed-causes
+description: "throttled + stalled + assertion failure"
+steps:
+  - name: "throttled"
+    kind: cli
+    command: "true"
+    expect:
+      success: true
+  - name: "stalled"
+    kind: cli
+    command: "true"
+    expect:
+      success: true
+  - name: "assert-fail"
+    kind: cli
+    command: "false"
+    expect:
+      success: true
+""")
+
+    actuals = {
+        "throttled": {"success": False, "stderr": "litellm.RateLimitError: Error code: 429"},
+        "stalled": {"success": False, "error": "no output for 180s", "stalled": True},
+        "assert-fail": {"success": False, "exit_code": 1, "stderr": "", "error": "exit 1"},
+    }
+
+    def fake_dispatch(step, env=None, step_timeout=None):
+        return StepResult(
+            surface=f"cli: {step['name']}",
+            real_call="x",
+            expect=dict(step.get("expect") or {}),
+            actual=actuals[step["name"]],
+            artifact_to_show=None,
+            standard=step.get("standard"),
+            duration_seconds=0.01,
+        )
+
+    monkeypatch.setattr(engine, "dispatch_step", fake_dispatch)
+    sc = engine.run_scenarios(tmp_path, persist=False).scenarios[0]
+    assert sc.status == "failed"
+    assert "1 throttled" in sc.summary
+    assert "1 stalled" in sc.summary
 
 
 # ---------------------------------------------------------------------------

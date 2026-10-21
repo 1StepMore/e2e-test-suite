@@ -27,7 +27,7 @@ steps:
       from ol_mcp.tools import TranslateInput, translate_md_text
       r = asyncio.run(translate_md_text(params=TranslateInput(content="# Hello World\n\nThis is a test.", source_lang="en", target_lang="zh", config_path="/tmp/omni-agent-surface/default.yaml")))
       print(r)
-    timeout_seconds: 120
+    timeout_seconds: 600
     expect:
       success: true
       exit_code: 0

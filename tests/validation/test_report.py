@@ -338,6 +338,156 @@ def test_report_timeout_status_without_actual_timeout_flag(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
+# Throttled / stalled cause markers (issue #194)
+# ---------------------------------------------------------------------------
+
+
+def test_report_throttled_step_marker_and_count(tmp_path: Path):
+    """A rate-limit-exhausted step renders a THROTTLED marker and the
+    scenario counts it — never mistaken for an assertion failure."""
+    failing = _scenario(
+        "tool-ol-translate_md_text",
+        "failed",
+        steps=[
+            _step(
+                1,
+                "router exhausted retries",
+                "STANDARDS.md#tool-contract",
+                passed=False,
+                actual={
+                    "success": False,
+                    "stderr": "litellm.RateLimitError: Error code: 429",
+                    "error": "exit 1",
+                },
+            ),
+            _step(
+                2,
+                "output assertion fails",
+                "STANDARDS.md#error-clarity",
+                passed=False,
+                actual={"success": False, "error": "assertion mismatch"},
+            ),
+        ],
+    )
+    md, data = report.generate(_write_run(tmp_path, _run_payload([failing])))
+    steps = data["scenarios"][0]["steps"]
+    assert steps[0]["throttled"] is True
+    assert steps[1]["throttled"] is False
+    assert "**THROTTLED**" in steps[0]["evidence_line"]
+    assert "**THROTTLED**" not in steps[1]["evidence_line"]
+    assert "**THROTTLED**" in md
+    assert data["scenarios"][0]["throttled_steps"] == 1
+
+    by_step = {b["step_index"]: b for b in data["blockers"]}
+    assert by_step[1]["throttled"] is True
+    assert "throttled on" in md
+
+
+def test_report_stalled_step_marker_and_count(tmp_path: Path):
+    """A silent subprocess renders a STALLED marker and count."""
+    failing = _scenario(
+        "tool-ol-translate_md_text",
+        "failed",
+        steps=[
+            {
+                **_step(
+                    1,
+                    "subprocess went silent",
+                    "STANDARDS.md#tool-contract",
+                    passed=False,
+                    actual={
+                        "success": False,
+                        "stalled": True,
+                        "error": "no output for 180s",
+                    },
+                ),
+                "status": "stalled",
+            }
+        ],
+    )
+    md, data = report.generate(_write_run(tmp_path, _run_payload([failing])))
+    steps = data["scenarios"][0]["steps"]
+    assert steps[0]["stalled"] is True
+    assert "**STALLED**" in steps[0]["evidence_line"]
+    assert "**STALLED**" in md
+    assert data["scenarios"][0]["stalled_steps"] == 1
+    assert data["blockers"][0]["stalled"] is True
+    assert "stalled on" in md
+
+
+def test_report_throttled_precedes_timeout_marker(tmp_path: Path):
+    """A step that is both throttled and timed out renders THROTTLED — the
+    actionable cause outranks wall-clock exhaustion."""
+    failing = _scenario(
+        "tool-ol-translate_md_text",
+        "failed",
+        steps=[
+            _step(
+                1,
+                "rate limited then killed",
+                "STANDARDS.md#tool-contract",
+                passed=False,
+                actual={
+                    "success": False,
+                    "timeout": True,
+                    "stderr": "429 rate limited",
+                },
+            )
+        ],
+    )
+    _, data = report.generate(_write_run(tmp_path, _run_payload([failing])))
+    line = data["scenarios"][0]["steps"][0]["evidence_line"]
+    assert "**THROTTLED**" in line
+    assert "**TIMEOUT**" not in line
+
+
+def test_report_throttled_from_status_without_actual_flag(tmp_path: Path):
+    """A step carrying status "throttled" is recognized even when the
+    actual block carries no rate-limit text."""
+    failing = _scenario(
+        "tool-ol-translate_md_text",
+        "failed",
+        steps=[
+            {
+                **_step(
+                    1,
+                    "throttled",
+                    "STANDARDS.md#tool-contract",
+                    passed=False,
+                    actual={"success": False, "error": "exit 1"},
+                ),
+                "status": "throttled",
+            }
+        ],
+    )
+    _, data = report.generate(_write_run(tmp_path, _run_payload([failing])))
+    assert data["scenarios"][0]["steps"][0]["throttled"] is True
+    assert data["scenarios"][0]["throttled_steps"] == 1
+
+
+def test_report_passed_step_with_429_is_not_flagged(tmp_path: Path):
+    """A green step whose stderr happened to mention 429 must stay unflagged:
+    the cause marker describes a failure, not noise from a successful step."""
+    passing = _scenario(
+        "tool-ol-translate_md_text",
+        "passed",
+        steps=[
+            _step(
+                1,
+                "succeeded after retry",
+                "STANDARDS.md#tool-contract",
+                passed=True,
+                actual={"success": True, "stderr": "429 then retry succeeded"},
+            )
+        ],
+    )
+    _, data = report.generate(_write_run(tmp_path, _run_payload([passing])))
+    step = data["scenarios"][0]["steps"][0]
+    assert step["throttled"] is False
+    assert "**THROTTLED**" not in step["evidence_line"]
+
+
+# ---------------------------------------------------------------------------
 # Family derivation — standard anchors when the name has no prefix
 # ---------------------------------------------------------------------------
 

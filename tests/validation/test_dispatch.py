@@ -28,13 +28,16 @@ import json
 
 import pytest
 
+import omni_mcp.validation.dispatch as dispatch
 from omni_mcp.validation.dispatch import (
     DEFAULT_TIMEOUT_SECONDS,
+    STALL_TIMEOUT_ENV,
     STEP_TIMEOUT_ENV,
     DispatchError,
     StepResult,
     build_cli_env,
     dispatch_step,
+    resolve_stall_timeout,
     resolve_step_timeout,
     suite_python,
 )
@@ -479,3 +482,100 @@ def test_step_timeout_option_overrides_env_and_step(monkeypatch):
     assert result.actual["success"] is False
     assert result.actual.get("timeout") is True
     assert "timed out after 1.0s" in result.actual["error"]
+
+
+# ---------------------------------------------------------------------------
+# Opt-in stall detection (e2e-test-suite#194, part 3): stderr/stdout silence
+# is the heartbeat; DEFAULT OFF so local + hermetic runs are unchanged
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("raw", [None, "", "0", "-1", "abc"])
+def test_resolve_stall_timeout_disabled_values(raw):
+    """Absent / empty / zero / negative / unparseable all mean DISABLED
+    (0.0) — the nightly 180s is an unverified value, never a default."""
+    env = {} if raw is None else {STALL_TIMEOUT_ENV: raw}
+
+    assert resolve_stall_timeout(env) == 0.0
+
+
+def test_resolve_stall_timeout_positive_value():
+    assert resolve_stall_timeout({STALL_TIMEOUT_ENV: "1.5"}) == 1.5
+
+
+def test_resolve_stall_timeout_dict_env_beats_os_environ(monkeypatch):
+    """An explicit env dict is authoritative — os.environ is not consulted
+    when the caller passes one."""
+    monkeypatch.setenv(STALL_TIMEOUT_ENV, "5")
+
+    assert resolve_stall_timeout({}) == 0.0
+    assert resolve_stall_timeout({STALL_TIMEOUT_ENV: "2"}) == 2.0
+
+
+def test_cli_stall_detected_and_json_serializable():
+    """A silent cli step is killed at the stall window (not the 10s cap) and
+    records ``stalled`` with a clear error naming the window."""
+    command = f'{suite_python()} -c "import time; time.sleep(5)"'
+    result = dispatch._run_cli_step(
+        _cli_step(command, timeout_seconds=10),
+        {STALL_TIMEOUT_ENV: "1"},
+    )
+
+    assert result.actual["stalled"] is True
+    assert result.actual["success"] is False
+    assert "stalled" in result.actual["error"]
+    assert result.duration_seconds < 5
+    json.dumps(result.actual)  # must not raise
+
+
+def test_python_stall_detected_and_json_serializable():
+    """The python adapter gets the same liveness signal, keeping its
+    ``python`` interpreter key in the stalled actual block."""
+    result = dispatch._run_python_step(
+        _python_step("import time; time.sleep(5)", timeout_seconds=10),
+        {STALL_TIMEOUT_ENV: "1"},
+    )
+
+    assert result.actual["stalled"] is True
+    assert result.actual["success"] is False
+    assert "stalled" in result.actual["error"]
+    assert result.actual["python"] == suite_python()
+    assert result.duration_seconds < 5
+    json.dumps(result.actual)  # must not raise
+
+
+def test_streaming_heartbeat_keeps_talkative_process_alive():
+    """Output IS liveness: a snippet printing every 0.3s never trips a 1s
+    stall window and finishes normally.
+
+    ``-S`` (no ``site``) is deliberate: this venv's ``sitecustomize`` scans
+    site-packages on every interpreter start, which costs several seconds on
+    a mounted filesystem and would itself exceed the 1s window before the
+    first line — the window is the heartbeat, not startup latency.
+    """
+    snippet = (
+        "import time,sys; "
+        "[(print('tick', flush=True), time.sleep(0.3)) for _ in range(6)]"
+    )
+    command = f'{suite_python()} -S -c "{snippet}"'
+    result = dispatch._run_cli_step(
+        _cli_step(command, timeout_seconds=10),
+        {STALL_TIMEOUT_ENV: "1"},
+    )
+
+    assert result.actual["success"] is True
+    assert not result.actual.get("stalled")
+    assert result.actual["stdout"].count("tick") == 6
+    assert result.duration_seconds < 5
+
+
+def test_stall_detection_default_off_keeps_wall_clock_timeout(monkeypatch):
+    """With no stall var set the pre-#194 path runs: silence is bounded by
+    timeout_seconds only, and no ``stalled`` key appears."""
+    monkeypatch.delenv(STALL_TIMEOUT_ENV, raising=False)
+    result = dispatch._run_cli_step(
+        _cli_step("sleep 5", timeout_seconds=1), None
+    )
+
+    assert result.actual.get("timeout") is True
+    assert "stalled" not in result.actual
