@@ -114,7 +114,7 @@ HTML, EPUB, EML, MSG, image, IPYNB, or `.url` for YouTube auto-detect).
 
 | File | Required for MD channel | Required for XLIFF channel | Purpose |
 |------|------------------------|----------------------------|---------|
-| `{base_name}.md` | ✓ | | Markdown with YAML frontmatter (`source_lang`, `target_lang`) |
+| `{base_name}.md` | ✓ | | Markdown body only — **no** YAML frontmatter (OL adds it on output; see `CONTRACT.md` § MD Format Contract) |
 | `{base_name}.xlf` | | ✓ | XLIFF 1.2/2.0 with `<bx>`/`<ex>` inline tags |
 | `{base_name}_manifest.json` | | ✓ | Source info, extraction stats, image metadata |
 | `{base_name}.skeleton.zip` | | ✓ | Original OOXML ZIP structure preserved for backfill |

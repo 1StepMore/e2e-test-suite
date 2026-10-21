@@ -36,25 +36,20 @@ Pydantic model — it is the source of truth for the handoff schema.
 
 ## MD Format Contract (OPP → OL)
 
-OPP produces a Markdown file with YAML frontmatter. Required frontmatter fields:
+OPP produces a Markdown file **without** YAML frontmatter: the extracted body is
+the whole artifact. Frontmatter is an **OL output-side** product, not an OPP
+obligation (verified against `opp/markdown/generator.py` and a live OPP run; see
+issue #204).
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `source_lang` | string (ISO 639-1) | Source language code, e.g., `"en"` |
-| `target_lang` | string (ISO 639-1) | Target language code, e.g., `"zh"` |
-| `format` | string | Source document format (`docx`, `pptx`, `pdf`, etc.) |
+Language codes are supplied to OPP on the command line
+(`--source-lang` / `--target-lang`) and travel forward in the OPP
+`manifest.json`, not in the Markdown.
 
 Body content uses standard Markdown. Image references use `![alt](path)` syntax.
 
-### Example MD output
+### Example OPP MD output
 
 ```markdown
----
-source_lang: en
-target_lang: zh
-format: docx
----
-
 # Document Title
 
 This is a translatable paragraph.
@@ -62,13 +57,33 @@ This is a translatable paragraph.
 ![Image](image_001.png)
 ```
 
+### Example OL MD output
+
+OL prepends its own frontmatter to the translated file:
+
+```markdown
+---
+source_lang: en
+target_lang: zh
+original_file: input.md
+processor: "OL"
+version: "0.7.1"
+translated_at: 2026-01-01T00:00:00Z
+---
+
+# 文档标题
+```
+
 ### MD Handoff Rules
 
-1. OPP MUST produce valid Markdown with YAML frontmatter containing `source_lang`,
-   `target_lang`, and `format`.
-2. OL MUST parse the frontmatter before translation and preserve it in output.
-3. Image paths are relative to the output directory.
-4. Paragraphs are separated by blank lines (`\n\n`), not single newlines.
+1. OPP MUST produce valid Markdown **without requiring** YAML frontmatter.
+2. OL MUST prepend frontmatter (`source_lang`, `target_lang` at minimum) to the
+   translated Markdown it emits, and MUST NOT emit a file whose frontmatter it
+   would itself mis-parse on a re-run.
+3. A consumer MUST treat missing frontmatter as "format unknown / MD", never as
+   an error and never as a reason to reject the document.
+4. Image paths are relative to the output directory.
+5. Paragraphs are separated by blank lines (`\n\n`), not single newlines.
 
 ---
 

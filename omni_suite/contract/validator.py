@@ -58,7 +58,12 @@ def validate_md_output(
     source_lang: str,
     target_lang: str,
 ) -> TranslationDocument | None:
-    """Validate an MD file produced by OPP.
+    """Validate an MD file on the MD channel (OPP body or OL translated output).
+
+    OPP emits no frontmatter (CONTRACT.md § MD Format Contract, issue #204), so
+    an absent ``format`` means "this artifact is Markdown" — ``DocumentFormat.MD``
+    is the correct reading, not a hidden default. Language codes fall back to the
+    caller's (they travel in the OPP manifest / CLI args, not in the Markdown).
 
     Returns a TranslationDocument on success, None on failure.
     """
