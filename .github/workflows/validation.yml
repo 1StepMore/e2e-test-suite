@@ -279,10 +279,10 @@ jobs:
           # (max_md_concurrent=5) and re-tripped the AMD concurrency cap.
           #
           # MD=1: the 8-unit MD fan-out at 5 hit AMD's 16-call ceiling (429).
-          # XLIFF stays at the config default (5): concurrency=1 serialized a
-          # 30-unit fixture past the 900s step cap (the 5-way path did it in
-          # 101s), and per-document scenarios run sequentially, so XLIFF does
-          # not overlap the MD path.
+          # XLIFF=2: 1 serialized a 30-unit fixture past the 900s step cap
+          # (the 5-way path did it in 101s); 5 hit the 16-call ceiling under
+          # the PPTX XLIFF fixture. 2 keeps the burst low while leaving enough
+          # parallelism to finish 30 units inside 900s.
           .venv_ol/bin/python - <<'PY'
           from pathlib import Path
           import yaml
@@ -294,15 +294,14 @@ jobs:
               path = Path(name)
               cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
               cfg["max_md_concurrent"] = 1
+              cfg["max_xliff_concurrent"] = 2
               path.write_text(
                   yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True),
                   encoding="utf-8",
               )
               assert cfg["max_md_concurrent"] == 1
-              print(
-                  f"{name}: max_md_concurrent=1 "
-                  f"max_xliff_concurrent={cfg.get('max_xliff_concurrent')} (unchanged)"
-              )
+              assert cfg["max_xliff_concurrent"] == 2
+              print(f"{name}: max_md_concurrent=1 max_xliff_concurrent=2")
           PY
           echo "OL_CONFIG_PATH=$GITHUB_WORKSPACE/Omni_Localizer/config/local.yaml" >> "$GITHUB_ENV"
 
