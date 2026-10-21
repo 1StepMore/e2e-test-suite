@@ -135,7 +135,7 @@ def resolve_step_timeout(
 #: the step early with ``actual["stalled"] is True``.
 #:
 #: **The default is DISABLED (absent / empty / 0 / unparseable / negative).**
-#: The 600s the nightly workflow uses is a data-driven value: the initial
+#: The 1000s the nightly workflow uses is a data-driven value: the initial
 #: 180s tripped on rate-limited translations that were silent while retrying.
 #: Local and hermetic runs must keep the exact pre-#194 behaviour — including
 #: the ``subprocess.run`` path the #184 bytes-decoding tests monkeypatch.

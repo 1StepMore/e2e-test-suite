@@ -493,7 +493,7 @@ def test_step_timeout_option_overrides_env_and_step(monkeypatch):
 @pytest.mark.parametrize("raw", [None, "", "0", "-1", "abc"])
 def test_resolve_stall_timeout_disabled_values(raw):
     """Absent / empty / zero / negative / unparseable all mean DISABLED
-    (0.0) — the nightly 600s is opt-in, never a default."""
+    (0.0) — the nightly 1000s is opt-in, never a default."""
     env = {} if raw is None else {STALL_TIMEOUT_ENV: raw}
 
     assert resolve_stall_timeout(env) == 0.0
