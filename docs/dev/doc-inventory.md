@@ -13,16 +13,16 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 54 |
-| Total lines | 32373 |
-| Active files | 46 |
+| Total files | 55 |
+| Total lines | 32942 |
+| Active files | 47 |
 | Archived files | 8 |
 | Category — archive | 8 files / 14157 lines |
 | Category — expectations | 4 files / 2514 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 19 files / 3112 lines |
-| Category — docs/root | 20 files / 11250 lines |
+| Category — docs/dev | 19 files / 3113 lines |
+| Category — docs/root | 21 files / 11818 lines |
 
 ## Inventory
 
@@ -70,7 +70,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/omni-suite-dev-roadmap-20260902.md` | 172 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 197 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
-| `dev/validation-director-loop.md` | 289 | docs/dev | active | — |
+| `dev/validation-director-loop.md` | 290 | docs/dev | active | — |
 | `dev/validation-loop-log.md` | 279 | docs/dev | active | — |
 | `handoff-2026-09-18.md` | 146 | docs/root | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
@@ -78,6 +78,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |
 | `observability/README.md` | 136 | docs/observability | active | — |
+| `project-code-aesthetics-review-2026-10-22.md` | 568 | docs/root | active | — |
 | `project-evaluation-pain-points-2026-09-06.md` | 311 | docs/root | active | — |
 | `project-health-report-2026-09-17.md` | 1771 | docs/root | active | — |
 | `venv-migration.md` | 54 | docs/root | active | — |
