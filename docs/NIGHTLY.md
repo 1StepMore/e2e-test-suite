@@ -97,6 +97,39 @@ cd <repo>
 
 ## 【活区】当前差距矩阵（真基线 2026-10-01）
 
+### 2026-10-24 批跑入口与处理预算（#212 / AutoInfo#596）
+
+**事故（#212，已修）**：10-22 02:00 的跑批从 `fix/197-e2e-content-gate` 启动，`preflight()` 的
+`nightly_sync.py --switch-branch` 把工作树切到 main，但 Bash 读的是启动时打开的 inode ——
+checkout 换 inode 后，本进程剩余部分仍按旧副本执行，main 新增的 `ai-process` 被静默跳过
+（exit 0、无报错、`state.json` 少一个 key），AutoInfo 21 域随后被判 `FALSE_FRESH`/`LATE_COLLECT`。
+
+- **修法**（PR #213，merge `3c99058`）：`preflight` 前记录原始 argv + 入口内容哈希；sync 后若
+  内容变化，就 `exec` 磁盘上的新版本（`scripts/lib/nightly_reexec.sh`）。`OMNI_NIGHTLY_TS`
+  复用同一 run_dir，`OMNI_NIGHTLY_REEXECED` 保证只重入一次。入口未变（本来就在 main /
+  脏树 `DIRTY_SKIPPED`）则不重入。
+- **回归锁**：`tests/test_nightly_batch_reexec.py` 用真实双分支 git 仓复现 inode 问题。
+
+**处理预算（issue 评论里的第二个问题 → AutoInfo#596）**：32 条 backlog 实测 1245.3s
+（≈39s/条），21 域约 6,900 条 backlog ⇒ 全量约 75 小时；而 `--timeout` 是**每域** 7200s，
+最坏 21×2h = 42 小时，`nightly-gap.service` 只有 `TimeoutStartSec=10800`（还要留给 Omni）。
+
+- AutoInfo 侧（#596）：`--max-seconds` 总预算、`--batch-size` 透传、`--newest-first`、
+  `--seconds-per-item`（按剩余预算/剩余域公平分份额推导批量）；游标从「位置」改为
+  「已处理 item id 集合」，collect 改变总数不再把游标清零。
+- suite 侧（PR 见下）：`nightly_batch.sh` 新增 `--process-max-seconds`（默认 **1800**，0 = 不限）、
+  `--process-batch-size`（默认 0 = 由 AutoInfo 按预算推导）、`--process-seconds-per-item`
+  （默认 40）。参数按 `nightly_process.py --help` **能力探测**后追加
+  （`scripts/lib/nightly_budget_args.sh`）：旧版 AutoInfo 不认这些 flag 时不传，批次不会因
+  `unrecognized arguments` 失败。探测与装配由 `tests/test_nightly_batch_process_budget.py` 锁定。
+
+**本轮验证边界**：本机没有 `/mnt/d/Hermes-Workspace/01-Projects` 跑批环境，**未做真实夜跑复跑**；
+验证是脚本级回归 + 对真实（#596 之前的）AutoInfo 探测为空。下一次真实夜跑后按本文件既有格式
+补「2026-10-2X 夜间复跑」小节。
+
+**仍待 owner**：夜间新鲜度 lane 与 backlog 追平 lane 是否分两个 timer、各自窗口多大；
+本文件不替 owner 定这个口径。
+
 ### 2026-10-21 夜间复跑（在最新 main `3d1f5a7` 上）
 
 `.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，fail 0）**，与 2026-10-20 / 2026-10-19 / 2026-10-15 / 2026-10-10 复跑逐项一致，**无退步**。
