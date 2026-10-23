@@ -16,11 +16,15 @@
 #   nightly_batch.sh --only ai                         # 只跑一个（验收小样本；ai|am|omni）
 #   nightly_batch.sh --only ai --collect-limit 2       # 前置采集每源条数上限（默认 20）
 #   nightly_batch.sh --only ai --process-min-backlog 10 # 处理积压阈值（默认 20）
+#   nightly_batch.sh --only ai --process-max-seconds 600 # 处理阶段总预算（默认 1800 秒）
 #   nightly_batch.sh --only omni --omni-subset docx,md --omni-expect-total 40
 # 参数：
 #   --only ai|am|omni        只跑一个项目（默认全量）
 #   --collect-limit N        ai 采集步骤每源上限（默认 20；只在 ai 步骤生效）
 #   --process-min-backlog N  ai 处理步骤的缓存积压阈值（默认 20；只在 ai 步骤生效）
+#   --process-max-seconds N  ai 处理步骤的**总**预算（默认 1800；0 = 不限；AutoInfo#596）
+#   --process-batch-size N   每域条目上限（默认 0 = 由 AutoInfo 按预算推导）
+#   --process-seconds-per-item F  推导批量用的单条耗时（默认 40 秒，来自实测）
 #   --omni-subset ...        omni 输入子集
 #   --omni-expect-total N    omni 预期总格数
 #   --omni-json-out P        omni gap.json 输出路径
@@ -58,13 +62,21 @@ fi
 ENTRY="$SELF_DIR/$(basename "${BASH_SOURCE[0]}")"
 ORIG_ARGS=("$@")
 SCRIPT_HASH="$(nightly_file_hash "$ENTRY" || true)"
+if ! . "$SELF_DIR/lib/nightly_budget_args.sh"; then
+  echo "nightly_batch.sh: 无法加载 $SELF_DIR/lib/nightly_budget_args.sh" >&2
+  exit 1
+fi
 
 only=""; omni_subset=""; omni_total=""; collect_limit=20; process_min_backlog=20
+process_max_seconds=1800; process_batch_size=0; process_seconds_per_item=40
 while [ $# -gt 0 ]; do
   case "$1" in
     --only) only="${2:-}"; shift 2;;
     --collect-limit) collect_limit="${2:-}"; shift 2;;
     --process-min-backlog) process_min_backlog="${2:-}"; shift 2;;
+    --process-max-seconds) process_max_seconds="${2:-}"; shift 2;;
+    --process-batch-size) process_batch_size="${2:-}"; shift 2;;
+    --process-seconds-per-item) process_seconds_per_item="${2:-}"; shift 2;;
     --omni-subset) omni_subset="${2:-}"; shift 2;;
     --omni-expect-total) omni_total="${2:-}"; shift 2;;
     --omni-json-out) omni_json="${2:-}"; shift 2;;
@@ -189,8 +201,14 @@ if [ -z "$only" ] || [ "$only" = "ai" ]; then
   if [ "$STEP_CODE" -eq 0 ]; then cst=ok; else cst=error; fi
   state_set ai-collect "$cst" "$STEP_CODE" "$STEP_DUR" "" ""
 
+  # AutoInfo#596：处理步骤的总预算。按 --help 探测能力 ⇒ 旧版 AutoInfo 不传新参数。
+  proc_help="$( cd "$WS/AutoInfo" && .venv/bin/python scripts/nightly_process.py --help 2>&1 || true )"
+  mapfile -t proc_budget < <( nightly_budget_args "$proc_help" \
+    "$process_max_seconds" "$process_batch_size" "$process_seconds_per_item" )
+
   run_step ai-process "$WS/AutoInfo" .venv/bin/python scripts/nightly_process.py \
     --min-backlog "$process_min_backlog" \
+    ${proc_budget[@]+"${proc_budget[@]}"} \
     --json-out nightly/process.json --md-out nightly/process.md
   if [ "$STEP_CODE" -eq 0 ]; then pst=ok; else pst=error; fi
   state_set ai-process "$pst" "$STEP_CODE" "$STEP_DUR" \
