@@ -114,10 +114,16 @@ checkout 换 inode 后，本进程剩余部分仍按旧副本执行，main 新�
 （≈39s/条），21 域约 6,900 条 backlog ⇒ 全量约 75 小时；而 `--timeout` 是**每域** 7200s，
 最坏 21×2h = 42 小时，`nightly-gap.service` 只有 `TimeoutStartSec=10800`（还要留给 Omni）。
 
-- AutoInfo 侧（#596）：`--max-seconds` 总预算、`--batch-size` 透传、`--newest-first`、
+- AutoInfo 侧（#596，**尚未合并**）：`--max-seconds` 总预算、`--batch-size` 透传、`--newest-first`、
   `--seconds-per-item`（按剩余预算/剩余域公平分份额推导批量）；游标从「位置」改为
-  「已处理 item id 集合」，collect 改变总数不再把游标清零。
-- suite 侧（PR 见下）：`nightly_batch.sh` 新增 `--process-max-seconds`（默认 **1800**，0 = 不限）、
+  「已处理 item id 集合」，collect 改变总数不再把游标清零。**状态（2026-10-24）**：实现存在于
+  `fix/nightly-process-budget`（AutoInfo PR #598，OPEN、CI 红）。该分支是在 `#597`（149 个 schema
+  拆进 `mcp/tools/`）之前写的，rebase 时把 `server.py` 整体解析回了 4,204 行的单体版本，
+  `_full_tool_list` 不再委托 `build_all_tools()` ⇒ 声明面与审计面重复，CI 因此红。
+  **不要合并该 PR**；要落地必须先按当前 main 重新应用 schema 改动（只保留
+  `mcp/tools/sources.py` 的 `newest_first` 属性）。在它合并前，下面 suite 侧的能力探测
+  **永远返回空**，也就是说预算参数目前是休眠状态。
+- suite 侧（PR #216，已合并 `e4b9b67`）：`nightly_batch.sh` 新增 `--process-max-seconds`（默认 **1800**，0 = 不限）、
   `--process-batch-size`（默认 0 = 由 AutoInfo 按预算推导）、`--process-seconds-per-item`
   （默认 40）。参数按 `nightly_process.py --help` **能力探测**后追加
   （`scripts/lib/nightly_budget_args.sh`）：旧版 AutoInfo 不认这些 flag 时不传，批次不会因
@@ -126,6 +132,10 @@ checkout 换 inode 后，本进程剩余部分仍按旧副本执行，main 新�
 **本轮验证边界**：本机没有 `/mnt/d/Hermes-Workspace/01-Projects` 跑批环境，**未做真实夜跑复跑**；
 验证是脚本级回归 + 对真实（#596 之前的）AutoInfo 探测为空。下一次真实夜跑后按本文件既有格式
 补「2026-10-2X 夜间复跑」小节。
+
+**范围声明（2026-10-24）**：AutoInfo / AutoMedia 不属于本仓（e2e-test-suite）的服务范围。
+上面对 AutoInfo#596 的记录只是**依赖状态**（suite 侧参数依赖它的能力探测），不是本仓的修复承诺；
+AutoInfo 的 issue / PR / 分支由 AutoInfo 仓自己维护。
 
 **仍待 owner**：夜间新鲜度 lane 与 backlog 追平 lane 是否分两个 timer、各自窗口多大；
 本文件不替 owner 定这个口径。
