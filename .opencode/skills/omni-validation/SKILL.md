@@ -5,9 +5,8 @@ description: Validate the Omni Suite against its 122-scenario library (agent-use
 
 # Omni Suite — Validation Framework
 
-Run the suite's agent-testing validation engine (see
-`docs/agent-tester-validation-guide.md` for the pattern, `scenarios/`
-for the library). Every scenario dispatches through the REAL shipped
+Run the suite's agent-testing validation engine (`scenarios/STANDARDS.md`
+is the citable bar, `scenarios/` holds the library). Every scenario dispatches through the REAL shipped
 surface — no mocks, no FAKE_LLM as evidence (draft D4).
 
 ## How to validate

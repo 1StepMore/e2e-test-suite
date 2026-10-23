@@ -14,15 +14,15 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Metric | Value |
 |--------|-------|
 | Total files | 55 |
-| Total lines | 32975 |
+| Total lines | 31318 |
 | Active files | 47 |
 | Archived files | 8 |
 | Category — archive | 8 files / 14157 lines |
 | Category — expectations | 4 files / 2514 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 19 files / 3113 lines |
-| Category — docs/root | 21 files / 11851 lines |
+| Category — docs/dev | 19 files / 3114 lines |
+| Category — docs/root | 21 files / 10193 lines |
 
 ## Inventory
 
@@ -35,7 +35,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
 | `HANDOVER.md` | 620 | docs/root | active | — |
-| `NIGHTLY.md` | 454 | docs/root | active | — |
+| `NIGHTLY.md` | 272 | docs/root | active | — |
 | `OL_EXPECTATIONS.md` | 279 | expectations | active | — |
 | `OPP_EXPECTATIONS.md` | 804 | expectations | active | — |
 | `ORF_EXPECTATIONS.md` | 539 | expectations | active | — |
@@ -56,7 +56,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `adr/README.md` | 40 | docs/dev | active | — |
 | `adr/TEMPLATE.md` | 36 | docs/dev | active | — |
 | `agent-pipeline-guide.md` | 349 | docs/root | active | — |
-| `agent-tester-validation-guide.md` | 1496 | docs/root | active | — |
+| `agent-tester-validation-guide.md` | 20 | docs/root | active | — |
 | `archive/OL_VALIDATION_MASTER_PLAN.md` | 4489 | archive | archived | — |
 | `archive/OPP_VALIDATION_MASTER_PLAN.md` | 3106 | archive | archived | — |
 | `archive/ORF_VALIDATION_MASTER_PLAN.md` | 2563 | archive | archived | — |
@@ -70,7 +70,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/omni-suite-dev-roadmap-20260902.md` | 172 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 197 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
-| `dev/validation-director-loop.md` | 290 | docs/dev | active | — |
+| `dev/validation-director-loop.md` | 291 | docs/dev | active | — |
 | `dev/validation-loop-log.md` | 279 | docs/dev | active | — |
 | `handoff-2026-09-18.md` | 146 | docs/root | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |

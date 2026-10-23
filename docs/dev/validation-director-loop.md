@@ -7,7 +7,8 @@ per-agent adapters (`.opencode/skills/omni-validation/SKILL.md`,
 `Omni_Localizer/src/.hermes/skills/omni-validation/SKILL.md`, the `CLAUDE.md`
 and `.cursorrules` sections, and the "How to validate" sections of `AGENTS.md`)
 each embed this loop in agent-specific form. The reference contract for every
-mechanism named here is `docs/agent-tester-validation-guide.md`; the single
+mechanism named here is the external methodology guide at workspace
+`99-Tools/methodology/agent-tester-validation-guide.md`; the single
 citable standards bar is `scenarios/STANDARDS.md`.
 
 This file is a human loop, not an engine spec. It says nothing about how the
@@ -282,7 +283,7 @@ fix, pin GREEN.
 
 ---
 
-**References.** Guide: `docs/agent-tester-validation-guide.md` (§1 two-role
+**References.** Guide: workspace `99-Tools/methodology/agent-tester-validation-guide.md` (§1 two-role
 model, §4 honesty rules, §5 coverage/regression, §6 director loop).
 Standards: `scenarios/STANDARDS.md` (the two families and every citable
 anchor). Engine: `omni_mcp/validation/` + `scripts/validation/`. Bug intake:
