@@ -31,7 +31,9 @@ H=/home/renanzai
 WS=/mnt/d/Hermes-Workspace/01-Projects
 E2E="$WS/e2e-test-suite"
 NIGHTLY_DIR="$E2E/test_artifacts/nightly"
-TS="$(date +%Y%m%d-%H%M%S)"
+# issue #212：preflight 可能把入口脚本换成 main 上的版本并 re-exec（见下方），
+# 重入时必须复用同一轮的时间戳 / run_dir，不能新建一个 batch-* 目录。
+TS="${OMNI_NIGHTLY_TS:-$(date +%Y%m%d-%H%M%S)}"
 RUN_DIR="$NIGHTLY_DIR/batch-$TS"
 STATE="$NIGHTLY_DIR/state.json"
 
@@ -42,6 +44,20 @@ export OL_CONFIG_PATH="$WS/Omni_Localizer/config/local.yaml"
 export HTTPS_PROXY="${HTTPS_PROXY:-http://127.0.0.1:7892}"
 export HTTP_PROXY="${HTTP_PROXY:-http://127.0.0.1:7892}"
 export NO_PROXY="127.0.0.1,localhost,::1"
+export OMNI_NIGHTLY_TS="$TS"
+
+# issue #212：preflight 的 --switch-branch 可能把本文件从旧分支切到 main。
+# Bash 读的是启动时打开的 inode；checkout 换 inode ⇒ 本进程剩余部分仍按旧副本
+# 执行，main 上新增的步骤被静默跳过。捕获原始 argv + 起始哈希，preflight 后
+# 若文件内容变了就 re-exec 磁盘上的新版本（实现见 scripts/lib/nightly_reexec.sh）。
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! . "$SELF_DIR/lib/nightly_reexec.sh"; then
+  echo "nightly_batch.sh: 无法加载 $SELF_DIR/lib/nightly_reexec.sh" >&2
+  exit 1
+fi
+ENTRY="$SELF_DIR/$(basename "${BASH_SOURCE[0]}")"
+ORIG_ARGS=("$@")
+SCRIPT_HASH="$(nightly_file_hash "$ENTRY" || true)"
 
 only=""; omni_subset=""; omni_total=""; collect_limit=20; process_min_backlog=20
 while [ $# -gt 0 ]; do
@@ -157,6 +173,13 @@ preflight() {
 }
 
 preflight
+
+# issue #212：sync 若把入口脚本换成了 main 上的版本，就从新版本重新进入，
+# 保证后面的步骤（例如 main 新增的 ai-process）不会被旧 inode 静默跳过。
+if [ -f "$ENTRY" ] && [ "$(nightly_file_hash "$ENTRY" || true)" != "$SCRIPT_HASH" ]; then
+  log "== 入口脚本已被 preflight 同步替换 → 重入新版本（issue #212）"
+fi
+nightly_reexec_if_changed "$ENTRY" "$SCRIPT_HASH" ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}
 
 if [ -z "$only" ] || [ "$only" = "ai" ]; then
   # issue #172：先产语料再算差距。此前只测差距不采集 ⇒ 补新鲜度判据后必然常红。
