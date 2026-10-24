@@ -202,7 +202,7 @@ def load_coverage(run_dir: Path) -> dict[str, Any] | None:
 
 def resolve_run_dir(arg: str, runs_dir: Path) -> Path:
     """Resolve a run argument: an existing dir as given, else a bare run
-    ID joined with *runs_dir* (AutoInfo-style ``20260814-200733``)."""
+    ID joined with *runs_dir* (scenario-per-question ``20260814-200733``)."""
     as_given = Path(arg)
     if as_given.is_dir():
         return as_given

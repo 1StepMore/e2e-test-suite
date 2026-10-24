@@ -301,7 +301,7 @@ def test_missing_run_dir_errors(tmp_path: Path):
 
 def test_bare_run_id_resolved_against_runs_dir(runs):
     """Bare run IDs (dir names) resolve against the runs dir — the
-    AutoInfo-style invocation from the plan's acceptance criterion."""
+    scenario-per-question invocation from the plan's acceptance criterion."""
     tmp_path, older, newer = runs
     assert diff.main([older.name, newer.name, "--runs-dir", str(tmp_path)]) == 0
 

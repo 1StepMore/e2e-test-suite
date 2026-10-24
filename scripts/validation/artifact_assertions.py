@@ -4,7 +4,7 @@ Formalized P0/P1 assertion set that runs DETERMINISTIC checks on ACTUAL
 PRODUCED FILES — the artifacts of the OPP → OL → ORF pipeline (extracted
 markdown, manifests, translated docs, backfilled html/json/srt/xml/csv).
 
-Modeled on AutoInfo's ``validation_matrix.py`` (#331/#351): one readable
+Modeled on the validation-matrix pattern (#331/#351): one readable
 function per assertion, each carrying its source issue + severity; a
 ``run_assertions`` entrypoint that scans an artifacts directory and returns
 per-artifact results.
@@ -61,7 +61,7 @@ class AssertionResult:
 # Regexes shared across assertions
 # ---------------------------------------------------------------------------
 
-# _No ..._ empty-state markers (AutoInfo's _PLACEHOLDER shape: "_No <text>_").
+# _No ..._ empty-state markers (the _PLACEHOLDER shape: "_No <text>_").
 _PLACEHOLDER_EMPTY = re.compile(r"_No [^_]+_")
 
 # Standalone filler tokens as a whole table cell or list item.

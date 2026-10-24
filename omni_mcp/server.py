@@ -167,7 +167,7 @@ async def ping() -> dict[str, Any]:
 
 
 def _validate_tier(tier: Any) -> dict[str, Any] | None:
-    """Validate the shared ``tier`` param (1|2|3, AutoInfo tier model).
+    """Validate the shared ``tier`` param (1|2|3, tier model).
 
     Returns an error response dict when invalid, None when valid.  A bool
     is rejected (``True`` is an int subclass that would silently mean 1 —
@@ -222,7 +222,7 @@ async def run_validation_scenario(
     """Run the real validation engine (orchestrator) on matching scenarios.
 
     Params mirror the validation CLI: ``scenario`` is a case-insensitive
-    substring of the scenario FILENAME (AutoInfo semantics), ``tier``
+    substring of the scenario FILENAME (runner semantics), ``tier``
     restricts by tier, ``module`` restricts to one module's scenarios
     (opp/ol/orf/suite), ``verbose`` adds the full per-step trace.  The
     engine's step records already carry the per-step check text (``name``)

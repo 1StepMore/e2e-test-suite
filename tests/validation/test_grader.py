@@ -6,7 +6,7 @@ against the ``actual`` dict the dispatch phase captured (the StepResult
 field contract — dispatch.py docstring).  Each check type grades
 independently and every check must hold for the step to pass (guide §2.3:
 "All assertions in a block are conjoined").  A step with an empty expect
-block is not falsifiable and fails outright (mirrors AutoInfo contract
+block is not falsifiable and fails outright (mirrors the contract
 lint: run-validation-scenarios.py:506-537 "must be falsifiable").
 
 The grader is pure logic: no I/O, no dispatch — the engine (todo 8)
@@ -21,7 +21,7 @@ import pytest
 from omni_mcp.validation.grader import CheckResult, GradeResult, grade_step
 
 # ---------------------------------------------------------------------------
-# Falsifiability — empty expect never passes (guide §2.3, AutoInfo lint)
+# Falsifiability — empty expect never passes (contract lint)
 # ---------------------------------------------------------------------------
 
 

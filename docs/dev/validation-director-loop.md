@@ -65,7 +65,7 @@ python scripts/validation/run_validation.py --scenario <name> --tier 1
 ```
 
 `--scenario` is a case-insensitive substring match on the scenario **file
-stem** (AutoInfo semantics). Real stems: `tool-`, `opp`, `orf-md`,
+stem** (runner semantics). Real stems: `tool-`, `opp`, `orf-md`,
 `orf-xliff`, `pipeline`, `regression`. The literal word `agent-surface` is NOT
 a stem; running `--scenario agent-surface` matches nothing and exits 0 having
 run zero scenarios. Use `--scenario tool- --tier 1` to select the 41 per-tool
