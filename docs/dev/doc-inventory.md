@@ -13,15 +13,15 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 55 |
-| Total lines | 31318 |
-| Active files | 47 |
+| Total files | 53 |
+| Total lines | 30854 |
+| Active files | 45 |
 | Archived files | 8 |
 | Category — archive | 8 files / 14157 lines |
 | Category — expectations | 4 files / 2514 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 19 files / 3114 lines |
+| Category — docs/dev | 17 files / 2650 lines |
 | Category — docs/root | 21 files / 10193 lines |
 
 ## Inventory
@@ -66,8 +66,6 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `archive/T14_LIMITATION.md` | 222 | archive | archived | — |
 | `archive/e2e-fix-records.md` | 63 | archive | archived | — |
 | `dev/artifact-assertion-matrix.md` | 279 | docs/dev | active | — |
-| `dev/omni-suite-business-validation-20260902.md` | 292 | docs/dev | active | — |
-| `dev/omni-suite-dev-roadmap-20260902.md` | 172 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 197 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 291 | docs/dev | active | — |
