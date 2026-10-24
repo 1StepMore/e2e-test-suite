@@ -1,5 +1,9 @@
 You are working on the Omni Suite — a 3-stage document localization pipeline: OPP (extract) → OL (translate) → ORF (backfill).
 
+## Repository Boundary
+
+This repo owns the three Omni Suite sub-repos (`Omni_Pre_Processor/`, `Omni_Localizer/`, `Omni_Re_Formatter/`) and the suite-level tests/docs. The sibling product repos `AutoInfo` and `AutoMedia` are **separate product lines this repo does not own**: never edit their files, create branches/commits there, run git operations inside them, or open PRs/issues in their trackers. If a defect belongs to them, file an issue in this repo naming the owning repo, and stop.
+
 ## Project Structure
 
 ```

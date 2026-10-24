@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Removed
+
+- **chore(boundary): 跨仓夜跑编排搬出本仓** — `scripts/nightly_batch.sh` / `scripts/nightly_sync.py` / `scripts/lib/nightly_{reexec,budget_args}.sh` 及三个测试文件已移出，新址为 workspace 级 `99-Tools/nightly/`（systemd `nightly-gap.service` 的 `ExecStart` / `WorkingDirectory` 已同步）。原因：这套脚本编排的是**另外两条产品线**，而它挂在本仓的 agent 面孔上 ⇒ agent 把那些仓当成自己的范围（实测发生过）。本仓只保留 `scripts/nightly_gap.py`（自己的 201×2 矩阵），其 base 口径收为本仓 + 三个子库。边界规则写进 `AGENTS.md` → "Repository boundary"，并由 `99-Tools/check_repo_boundary.py` 机械校验。
+- **docs: 通用 agent-tester 验证指南移出本仓** — `docs/agent-tester-validation-guide.md` 现在只是一页指针；指南正本（其 worked example 记录的是另一条产线的内部 file:line）落在 `99-Tools/methodology/agent-tester-validation-guide.md`。可引用的判定基准仍在仓内：`scenarios/STANDARDS.md`。
+
 ### Added
 
 - **docs(review): 代码美学与架构深度审阅报告** — 新增 `docs/project-code-aesthetics-review-2026-10-22.md`（实测审阅，568 行）。以"代码美学 + 氛围编程"视角审阅整个 suite 与三个子仓，每条结论附可复现命令与 `file:line` 证据。核心结论：(1) 项目已越过"验证密度换可信度"的收益拐点 —— `scripts/`(14.4k) 比套件层产品代码(根 `omni_*`，7.9k)还大，顶层测试(49.2k) 是套件层源码的 6.2 倍；(2) **真相债** —— `docs/ARCHITECTURE.md` / `PROJECT_STATUS.md` 的版本表停在 OPP 0.9.1 / ORF 0.4.17 / suite 0.4.0，而 `scripts/sync_version_docs.py` 的 `TARGETS` 只覆盖 README/AGENTS/COMPATIBILITY 三个文件，`ARCHITECTURE.md` / `PROJECT_STATUS.md` 不在其中，故 `sync_version_docs.py --check` 看不见这次漂移；`AGENTS.md` 声称的 "8 quality gates" 实际只实现 7 个（术语审计 `ol_terminology/verifier.py:347` 从未接入 `run_quality_gates`）；"4-layer repair pipeline" 的 L3 因全部 11 个构造点均无参调用 `MDRepairPipeline()` / `XLIFFRepairPipeline()` 而在生产中永不执行；"41 tools" 未被任何 doc gate 覆盖；(3) **生成物沉降** —— `ol_checkpoint` / `ol_routing` 两个 OL 子包生产零引用，`ol_md/repair/level2.py` 与 `ol_xliff/repair/level2.py` 逐字节相同(md5 `57f50601…`)，`PDFExtractor` / ORF `ImageManager` / OPP `contracts.Manifest` 导出但未接线；(4) **框架自指** —— 4 处 `spec_from_file_location`、5 处场景发现 `rglob`、`GREEN_STATUSES` 与 `_PASS_LIKE` 两个"通过"定义不一致；(5) **工程卫生** —— 全树 ruff 262 errors(201 可自动修)、本地 ruff 0.15.15 与 CI/pre-commit 的 0.17.1 不同版本、`.gitignore` 的 `!.omo/plans/` 因父目录被排除而失效(实测 `git check-ignore` 命中 `.gitignore:34:.omo/`)，80+ 份计划因此永远不入库。报告给出 10 项按投入产出比排序的行动清单，**每一项都是删除或收敛，而非新增**。与 `docs/project-health-report-2026-09-17.md` 互补，不重复其健康度评分。`docs/dev/doc-inventory.md` 已重新生成(55 docs)，`doc_inventory --check` exit 0。

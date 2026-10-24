@@ -4,6 +4,10 @@
 
 A 3-stage document localization pipeline. Each module is a standalone sub-repo with its own CLI, MCP server, and test suite.
 
+## Repository boundary (read first)
+
+This repo owns the three Omni Suite sub-repos (`Omni_Pre_Processor/`, `Omni_Localizer/`, `Omni_Re_Formatter/`) and the suite-level tests/docs. It does **not** own, and must not modify, the sibling product repos `AutoInfo` or `AutoMedia` — they are separate product lines (no modules, no fixtures, no shared code). Never edit their files, create branches/commits there, run git operations inside them, or open PRs/issues in their trackers. If a defect belongs to them, file an issue **here** naming the owning repo, and stop.
+
 ```
 OPP (extract) → OL (translate) → ORF (backfill)
 ```

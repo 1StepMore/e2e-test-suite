@@ -1,6 +1,5 @@
 """loader.py — phase 1 of the validation engine: scenario discovery + schema
-validation (guide §2 schema, §3 load phase; AutoInfo reference
-``src/autoinfo/mcp/validation.py:781-872``).
+validation (see `scenarios/STANDARDS.md` for the schema contract).
 
 The loader is the contract (guide §2.4): a scenario that reaches the
 executor was already validated; one that fails validation is rejected at

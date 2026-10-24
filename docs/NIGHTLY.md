@@ -1,5 +1,11 @@
 # NIGHTLY.md — Omni Suite · 「不眠计划」执行面
 
+> ⚠️ **仓库边界（2026-10-24 立）**：本仓只负责 **Omni Suite 三子库（OPP / OL / ORF）+ 套件验证框架**。
+> `AutoInfo` / `AutoMedia` 属**别的产品线**，不是本仓的模块、夹具或依赖。
+> 本文件里出现的 `AutoInfo#xxx` / `AutoMedia` 一律是**跨仓事实引用，不是本仓的作业项**：
+> 不得改对方仓代码、切对方分支、在其仓开 PR / issue。发现那边的问题 → **在本仓提 issue 并点名对仓**，
+> 由对仓的 owner / agent 处理。详见 `AGENTS.md` →「Repository boundary」。
+
 > **两个区，物理分开，权限不同**：
 > - **【冻结区】**（完成定义 + 验收命令）：由 code profile 维护。**coding agent 只读、只跑，不得修改。**
 > - **【活区】**（差距矩阵 / 下一步队列 / 摩擦账本 / 修订请求）：由 **coding agent 维护**。
@@ -98,191 +104,10 @@ cd <repo>
 ## 【活区】当前差距矩阵（真基线 2026-10-01）
 
 ### 2026-10-24 批跑入口与处理预算（#212 / AutoInfo#596）
-
-**事故（#212，已修）**：10-22 02:00 的跑批从 `fix/197-e2e-content-gate` 启动，`preflight()` 的
-`nightly_sync.py --switch-branch` 把工作树切到 main，但 Bash 读的是启动时打开的 inode ——
-checkout 换 inode 后，本进程剩余部分仍按旧副本执行，main 新增的 `ai-process` 被静默跳过
-（exit 0、无报错、`state.json` 少一个 key），AutoInfo 21 域随后被判 `FALSE_FRESH`/`LATE_COLLECT`。
-
-- **修法**（PR #213，merge `3c99058`）：`preflight` 前记录原始 argv + 入口内容哈希；sync 后若
-  内容变化，就 `exec` 磁盘上的新版本（`scripts/lib/nightly_reexec.sh`）。`OMNI_NIGHTLY_TS`
-  复用同一 run_dir，`OMNI_NIGHTLY_REEXECED` 保证只重入一次。入口未变（本来就在 main /
-  脏树 `DIRTY_SKIPPED`）则不重入。
-- **回归锁**：`tests/test_nightly_batch_reexec.py` 用真实双分支 git 仓复现 inode 问题。
-
-**处理预算（issue 评论里的第二个问题 → AutoInfo#596）**：32 条 backlog 实测 1245.3s
-（≈39s/条），21 域约 6,900 条 backlog ⇒ 全量约 75 小时；而 `--timeout` 是**每域** 7200s，
-最坏 21×2h = 42 小时，`nightly-gap.service` 只有 `TimeoutStartSec=10800`（还要留给 Omni）。
-
-- AutoInfo 侧（#596，**尚未合并**）：`--max-seconds` 总预算、`--batch-size` 透传、`--newest-first`、
-  `--seconds-per-item`（按剩余预算/剩余域公平分份额推导批量）；游标从「位置」改为
-  「已处理 item id 集合」，collect 改变总数不再把游标清零。**状态（2026-10-24）**：实现存在于
-  `fix/nightly-process-budget`（AutoInfo PR #598，OPEN、CI 红）。该分支是在 `#597`（149 个 schema
-  拆进 `mcp/tools/`）之前写的，rebase 时把 `server.py` 整体解析回了 4,204 行的单体版本，
-  `_full_tool_list` 不再委托 `build_all_tools()` ⇒ 声明面与审计面重复，CI 因此红。
-  **不要合并该 PR**；要落地必须先按当前 main 重新应用 schema 改动（只保留
-  `mcp/tools/sources.py` 的 `newest_first` 属性）。在它合并前，下面 suite 侧的能力探测
-  **永远返回空**，也就是说预算参数目前是休眠状态。
-- suite 侧（PR #216，已合并 `e4b9b67`）：`nightly_batch.sh` 新增 `--process-max-seconds`（默认 **1800**，0 = 不限）、
-  `--process-batch-size`（默认 0 = 由 AutoInfo 按预算推导）、`--process-seconds-per-item`
-  （默认 40）。参数按 `nightly_process.py --help` **能力探测**后追加
-  （`scripts/lib/nightly_budget_args.sh`）：旧版 AutoInfo 不认这些 flag 时不传，批次不会因
-  `unrecognized arguments` 失败。探测与装配由 `tests/test_nightly_batch_process_budget.py` 锁定。
-
-**本轮验证边界**：本机没有 `/mnt/d/Hermes-Workspace/01-Projects` 跑批环境，**未做真实夜跑复跑**；
-验证是脚本级回归 + 对真实（#596 之前的）AutoInfo 探测为空。下一次真实夜跑后按本文件既有格式
-补「2026-10-2X 夜间复跑」小节。
-
-**范围声明（2026-10-24）**：AutoInfo / AutoMedia 不属于本仓（e2e-test-suite）的服务范围。
-上面对 AutoInfo#596 的记录只是**依赖状态**（suite 侧参数依赖它的能力探测），不是本仓的修复承诺；
-AutoInfo 的 issue / PR / 分支由 AutoInfo 仓自己维护。
-
-**仍待 owner**：夜间新鲜度 lane 与 backlog 追平 lane 是否分两个 timer、各自窗口多大；
-本文件不替 owner 定这个口径。
-
-### 2026-10-21 夜间复跑（在最新 main `3d1f5a7` 上）
-
-`.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，fail 0）**，与 2026-10-20 / 2026-10-19 / 2026-10-15 / 2026-10-10 复跑逐项一致，**无退步**。
-
-- 合计 **402** 格（CLI + MCP）· passed **292** · failed **0** · skipped **110**（豁免 52 + 需清理 58）；每通道 CLI / MCP 各 `201 / 146 / 55 / 0`（逐格一致 → DoD ③ 通道一致成立），`needs_cleanup = 29 / 通道`。
-- 回归护栏：`regression_gap 0`（skipped 55 ≤ 基线 67/通道）；**环境类 skip = 0**（`skip_reasons` 里只有夹具内容依赖 + 两类能力债，无任何 `not installed`）。
-- 余额 58 = **两类已登记能力债**（`ACCEPTED_GAPS.md`：`XLIFF cross-format not supported by ORF converters` 23 格/通道 + `XLIFF: OPP doesn't produce skeleton for EML` 6 格/通道）⇒ **无新增未登记缺口**；owner 2026-10-17 已签字「不投」、作接受终态，**故意留在 `gap_units` 里**，不靠改口径洗白。
-- 同步基点：AutoInfo `abf948fb` · AutoMedia `df483ea` · e2e-test-suite `3d1f5a7` · OPP `74692926` · OL `a1dfe3fb` · ORF `9592268f`（六仓 `base.json` 全 `mode: current`，before == after ⇒ 矩阵确在 main 上测）。
-- 同轮平台：`ai-collect ok(691s) / ai ok(exit 0) / am ok(exit 0) / omni gap(exit 1，4916s)`。
-- 通道时长：CLI 4044.9s · MCP 626.7s（本机 `.venv_ol`）。
-
-**读法**：连续多轮 `gap_units 58` 不变、`regression_gap 0`，余额每一格都能指到 `ACCEPTED_GAPS.md` 的登记行 ⇒ **无新增未登记缺口**；差距仍是那两类能力债，**最终裁决由 owner 保留**。
-
-### 2026-10-20 夜间复跑（在最新 main `c2b1eb4` 上）
-
-`.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，fail 0）**，与 2026-10-19 / 2026-10-15 / 2026-10-10 复跑逐项一致，**无退步**。
-
-- 合计 **402** 格 · passed **292** · failed **0** · skipped **110**（豁免 52 + 需清理 58）；每通道 CLI / MCP 各 `201 / 146 / 55 / 0`（逐格一致 → DoD ③ 通道一致成立），`needs_cleanup = 29 / 通道`。
-- 回归护栏：`regression_gap 0`（skipped 55 ≤ 基线 67/通道）；**环境类 skip = 0**（`pandoc` / `md2pptx` / `aspose` 均未命中）。
-- 余额 58 = **两类已登记能力债**（`ACCEPTED_GAPS.md`：`Cross-format XLIFF not supported by ORF converters` 23 格/通道 + `No skeleton producer for EML` 6 格/通道）⇒ **无新增未登记缺口**；owner 2026-10-17 已签字「不投」、作接受终态，**故意留在 `gap_units` 里**，不靠改口径洗白。
-- 同步基点：AutoInfo `abf948fb` · AutoMedia `df483ea` · e2e-test-suite `c2b1eb4`（由 `chore/ruff-0.17.1` 切回，该分支已随 PR #191 合并）· OPP `75fc6c2c` · OL `bf734da`（由 `fix/intra-role-429-failover` 切回，该分支已随 PR #141 合并）· ORF `9592268f`。
-- 同轮平台：`ai-collect ok(572s) / ai ok(exit 0) / am ok(exit 0) / omni gap(exit 1，4382s)`。
-- 通道时长：CLI 3738.4s · MCP 594.3s（本机 `.venv_ol`）。
-
-**读法**：连续多轮 `gap_units 58` 不变、`regression_gap 0`，余额每一格都能指到 `ACCEPTED_GAPS.md` 的登记行 ⇒ **无新增未登记缺口**；差距仍是那两类能力债，**最终裁决由 owner 保留**。
-
-### 2026-10-19 夜间复跑（在最新 main `0e94de4` 上）
-
-`.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，fail 0）**，与 2026-10-15 / 2026-10-10 复跑逐项一致，**无退步**。
-
-- 合计 **402** 格 · passed **292** · failed **0** · skipped **110**（豁免 52 + 需清理 58）；每通道 CLI / MCP 各 `201 / 146 / 55 / 0`（逐格一致 → DoD ③ 通道一致成立），`needs_cleanup = 29 / 通道`。
-- 回归护栏：`regression_gap 0`（skipped 55 ≤ 基线 67/通道）；**环境类 skip = 0**（`pandoc` / `md2pptx` / `aspose` 均未命中）。
-- 余额 58 = **两类已登记能力债**（逐行与 `ACCEPTED_GAPS.md` 对得上：`Cross-format XLIFF not supported by ORF converters` 23 格/通道 + `No skeleton producer for EML` 6 格/通道；该文件 Count note 同口径），**owner 2026-10-17 已签字「不投」、作接受终态**；**故意留在 `gap_units` 里**，不靠改口径洗白。
-- 同轮平台：`ai-collect ok(533s) / ai ok(exit 0) / am ok(**exit 0**) / omni gap(exit 1，4298s)`；六仓 `base.json` 全部 `mode: current`（before == after == origin/main）⇒ **矩阵确在 main 上测、无同步漂移**。
-- 通道时长：CLI 3587.2s · MCP 558.1s（本机 `.venv_ol`）。
-
-**读法**：连续多轮 `gap_units 58` 不变、`regression_gap 0`，且余额每一格都能指到 `ACCEPTED_GAPS.md` 的登记行 ⇒ **无新增未登记缺口**；差距仍是那两类能力债，**最终裁决由 owner 保留**。
-
-### 2026-10-15 夜间复跑（在最新 main `ace522c` 上）
-
-`.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，fail 0）**，与 2026-10-10 复跑一致，**无退步**。
-
-- 合计 **402** 格（CLI + MCP）· passed **292** · failed **0** · skipped **110**（豁免 52 + 需清理 58）。
-- 每通道：CLI `201 / 146 / 55 / 0` · MCP `201 / 146 / 55 / 0`（逐格一致 → DoD ③ 通道一致成立）；`needs_cleanup = 29 / 通道`。
-- 回归护栏：`regression_gap 0`（skipped 55 ≤ 基线 67/通道）。
-- **环境类 skip 本轮为 0**（`md2pptx not installed` 等未命中）。
-- 剩余 29 skip/通道 = **两类已登记的能力债**（`ACCEPTED_GAPS.md`）：`XLIFF cross-format not supported by ORF converters` 23 格/通道、`XLIFF: OPP doesn't produce skeleton for EML` 6 格/通道。**故意留在 `gap_units` 里**，不靠改口径洗白；要清掉需要 owner 裁定是否投研究级工作量。
-- 通道时长：CLI 3356.3s · MCP 553.0s（本机 `.venv_ol`）。
-
-**读法**：连续两轮 `gap_units 58` 不变、`regression_gap 0` → 本轮既无进展也无退步；差距仍是那两类能力债。**最终裁决由 owner 保留**。
-
-### 2026-10-10 夜间复跑（在最新 main `c0c951e` 上）
-
-`.venv_ol/bin/python scripts/nightly_gap.py` **exit 1 —— 仍有差距（`gap_units 58`，0 fail）**，与 2026-10-09 复跑一致，无退步。
-
-- 合计 **402** 格（CLI + MCP）· passed **292** · failed **0** · skipped **110**（豁免 52 + 需清理 58）。
-- 每通道：CLI `201 / 146 / 55 / 0` · MCP `201 / 146 / 55 / 0`（逐格一致 → DoD ③ 通道一致成立）；`needs_cleanup = 29 / 通道`。
-- 回归护栏：`regression_gap 0`（skipped 55 ≤ 基线 67/通道）。
-- **环境类 skip 本轮为 0**（`md2pptx not installed` 等已不再命中）。
-- 剩余 29 skip/通道 = **两类已登记的能力债**：
-  - `XLIFF cross-format not supported by ORF converters` —— 23 格/通道（跨格式回填 = 研究级工作，见 `ACCEPTED_GAPS.md`）。
-  - `XLIFF: OPP doesn't produce skeleton for EML` —— 6 格/通道（**按决定延期**，非遗漏；见 `ACCEPTED_GAPS.md`）。
-
-**读法**：余下 58 是**成对的两类能力债**，已在 `ACCEPTED_GAPS.md` 明面登记，且**故意留在 `gap_units` 里**（不靠改口径洗白）。它不会靠装二进制或补夹具消失，需要 owner 裁定是否投研究级工作量。**最终裁决由 owner 保留**。
-
-### 2026-10-02 夜间复跑（在最新 main 上）
-
-| 通道 | Cells | Pass | Skip | Fail | 时长 |
-|:---|---:|---:|---:|---:|---:|
-| **CLI** | 195 | **141** | 54 | **0** | 4021.3s |
-| **MCP** | 195 | **141** | 54 | **0** | 613.0s |
-| **合计** | 390 | **282** | 108 | **0** | — |
-
-`nightly_gap.py`：`gap_units 88 → 41`、`passing_units 256 → 282`、`skipped 134 → 108`、`failed 0 → 0`。
-两个通道**逐格一致**（同样的 skip_reasons 计数）→ DoD ③ 通道一致继续成立。
-
-剩余 skip/通道（**下表为 2026-10-04 在 main `6eb6f42` 上的重测值**，非 10-02 原始值）：
-
-| skip 理由 | 每通道格数 | 10-02 原值 | 变化原因 |
-|:---|---:|---:|:---|
-| `md2pptx` CLI 未安装 | 17 | — | **环境类**，见下方口径更正 |
-| MD→SRT 需要时间戳（夹具无） | 11 | 11 | — |
-| MD→JSON 需要 JSON 代码块或 OPP key=value | 11 | 11 | — |
-| XLIFF 跨格式 ORF 不支持 | 10 | 10 | — |
-| XLIFF：OPP 不产 XLSX 骨架 | 4 | 4 | — |
-| XLIFF：OPP 不产 HTML 骨架 | 4 | 5 | `md2pptx` 缺失先命中，格数少1 |
-| XLIFF：OPP 不产 EML 骨架 | 4 | 5 | 同上 |
-| ~~XLIFF：OPP 不产 EPUB 骨架~~ | **0** | 5 | **规则已回收**，见 #140 |
-| PPTX→XLSX（夹具无对应内容） | 1 | 3 | `md2pptx` 缺失先命中 |
-
-**合计 62 skip/通道**（10-02 记录为 54）。
-
-> **口径更正（重要）**：10-02 那版称「剩余 54 skip 全部是内容/能力类，
-> **已无 `X not installed` 的环境类条目**」。**该断言不成立**——在main `6eb6f42` 上
-> 重测，`md2pptx CLI not installed` 命中 **17 格/通道**，是最大的单一 skip 理由，
-> 且明确属于环境类。10-02 的表格把它漏掉了，因此 54 这个总数与「无环境类」的结论
-> 都不成立。差异来源：`html→pptx` / `xlsx→pptx` / `epub→pptx` / `docx→pptx` 等格在
-> `md2pptx` 缺失时**先命中输出可用性规则**，不再走到骨架规则，故 EPUB 的 5 格变 0
-> （规则回收，见 e2e-test-suite#140）、HTML/EML 各少 1 格。
-
-> **另一处口径提醒**：`max_skip` 从 200（旧基线）变为 67（当前 main 的 `nightly_gap.py` 默认），
-> 因此「gap_units 由 88 → 41」是同口径下的真实下降；`regression_gap` 仍为护栏，不跨通道累加。
-
-### 2026-10-01 基线（历史）
-
-**CLI 通道：跑通了。** 真基线（`.venv_ol`，三件套齐全，`--json --out-dir`）：
-
-| 通道 | Cells | Pass | Skip | Fail | 时长 |
-|:---|---:|---:|---:|---:|---:|
-| **CLI** | 195 | **128** | 67 | **0** | 809.8s |
-| MCP | — | — | — | — | 起不来，见下 |
-
-> CLI 通道 **非跳过的 128 格 100% 通过**，0 失败。
-> 产物是真的：例 `md_html_to_docx/result.docx` 10,661 字节、
-> `md_eml_to_eml/result.eml` 等，每格都有独立产出目录。
-
-**MCP 通道：一格都没跑过**，两个缺陷（都已提 issue）：
-
-1. **起不来** —— 验证器漏设 OL 白名单变量（`OPP_MCP_ALLOWED_DIRS` /
-   `ORF_MCP_ALLOWED_DIRS` 都设了，**唯独漏 OL**），而 OL 的 MCP 服务是 fail-CLOSED，
-   没白名单就拒绝启动 → `McpError: Connection closed`，整条通道死在启动阶段。
-   **issue #109**。实测补上 `OL_MCP_ALLOWED_DIRS` 后三个服务全起。
-2. **起来也全红** —— 验证器读 `opp_resp["md_content"]`，但 OPP 实际返回标准
-   envelope `{success, content}`，md 文本在 `content.content`，顶层没有 `md_content`
-   → 每个非跳过格子恒判 fail。**issue #110**。
-   小样实测：`--subset docx --path-filter md` → `pass 0 / fail 2 / skip 13`，
-   2 个非跳过格子全部因这条判红，而同格 CLI 通道是 PASS。
-
-**旧口径的 67 个 skip（已于 2026-10-02 作废，勿再引用）**：来自 `SKIP_RULES` —— 缺 `pandoc` /
-`md2pptx` / `aspose` 等外部二进制，以及若干"通用 MD 承载不了该结构"的输入×输出组合
-（JSON / XLSX / SRT 等）。当时的说法是「**这 67 个是当前冻结基线**（`--max-skip`，回归护栏用），
-其中豁免 23 + 需清理 44」。
-
-**这段数字的问题不是"偏了"，而是"几乎没有信息量"**：它测于 MCP 验证器仍持静态跳过表时，
-该表对 `pandoc` / `md2pptx` / `aspose` 类规则**无条件跳过**（不看依赖是否真的缺失），
-于是 MCP 通道 195 格里只有 **20 格**真的跑过 —— 也就是下面那句
-「MCP 通道的数字目前一个都不能信——不是"全红"，是"没跑"」的字面含义。
-`#129` 让 MCP 通道改用 CLI 的动态判定后，**跳过 175 → 64，111 格从 dead 变为实跑**。
-**冻结区（DoD 定义与验收判据）以上面那段「跳过数由环境决定」的环境标注表为准。**
-
-**读法**：CLI 通道已经是一条**真的、能出产物的链路**（这是本计划第一个真基线）。
-MCP 通道的数字在 `#129` 之前**一个都不能信**——不是"全红"，是"没跑"；`#129` 之后
-两通道对每一格给出同一判定（见下表 `CLI vs MCP` 列），才第一次可比。
+> 📦 **本节内容已迁出（2026-10-24 边界整改）**：跨仓批跑记录（AutoInfo / AutoMedia / Omni 三条产线 +
+> 六仓同步基点）归属 workspace 级运维，不再放在本仓。
+> 现址：`/mnt/d/Hermes-Workspace/99-Tools/nightly/history-from-NIGHTLY.md`（历史）+ 同目录 `README.md`（现行执行面）。
+> 本仓只保留 **Omni Suite 三子库**的矩阵 DoD 与差距。
 
 ### 差距计算器用法：口径与参数（活区补充 2026-10-01）
 
@@ -384,27 +209,10 @@ markdown 里写成「skip 67 = 豁免 23 + 需清理 44」，**豁免 = 夹具�
 
 ---
 
-## 【活区】跑批采集步骤（2026-10-17 增补，issue #172）
-
-`scripts/nightly_batch.sh` 此前**只测差距不采语料**（全机无采集 timer）：AutoInfo 21 域语料
-停在 2026-10-01/02，`last_run` 15 天前、143 源 `healthy = 0`、`items_today` 合计 0。
-因此在 **ai 差距步骤之前**加一步采集（复用现有 `run_step` / `state_set`，`state.json` 里落
-`steps["ai-collect"]`）：
-
-```bash
-# ai 步骤内、gap 之前（--only ai 或全量时执行；--only am / --only omni 时不跑）
-.venv/bin/autoinfo collect --all --limit "$collect_limit"
-```
-
-| 参数 | 默认 | 含义 |
-|:---|:---|:---|
-| `--collect-limit` | `20` | ai 采集步骤每源条数上限（只在 ai 步骤生效；不影响 gap 步骤） |
-
-**退出码语义与 gap 不同**：采集非零 = **采集失败**（不是「有差距」），记
-`state_set ai-collect error …` 后**继续**跑后面的 `ai` gap 步骤（与 `nightly_sync.py`
-「记账不把关」一致：单步失败不拖垮整批）。gap 步骤的 `0/1/≥2` 语义不变。
-
----
+> 📦 **本节内容已迁出（2026-10-24 边界整改）**：跨仓批跑记录（AutoInfo / AutoMedia / Omni 三条产线 +
+> 六仓同步基点）归属 workspace 级运维，不再放在本仓。
+> 现址：`/mnt/d/Hermes-Workspace/99-Tools/nightly/history-from-NIGHTLY.md`（历史）+ 同目录 `README.md`（现行执行面）。
+> 本仓只保留 **Omni Suite 三子库**的矩阵 DoD 与差距。
 
 ## 【活区】下一步队列
 

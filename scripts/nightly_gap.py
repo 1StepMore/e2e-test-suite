@@ -51,7 +51,6 @@ DoD：**201 个格子 × 2 条通道（CLI / MCP）= 402 次格子运行**全部
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import shutil
 import subprocess
@@ -84,14 +83,17 @@ _NIGHTLY_BASE = REPO / "test_artifacts" / "nightly" / "base.json"
 
 
 def _load_default_repos() -> list[str]:
-    """从同目录 nightly_sync.py 取默认仓列表，避免两处硬编码漂移。"""
-    path = Path(__file__).resolve().parent / "nightly_sync.py"
-    spec = importlib.util.spec_from_file_location("_nightly_sync_for_gap", path)
-    if spec is None or spec.loader is None:
-        return []
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return list(getattr(module, "DEFAULT_REPOS", []))
+    """本仓 + 三个子库 —— 套件自己的 base 口径。
+
+    跨仓编排的 6 仓基点由 workspace 级 `99-Tools/nightly/nightly_sync.py` 负责，
+    不在这里（2026-10-24 边界整改：本仓不再引用别的产品线）。
+    """
+    return [
+        str(REPO),
+        str(REPO / "Omni_Pre_Processor"),
+        str(REPO / "Omni_Localizer"),
+        str(REPO / "Omni_Re_Formatter"),
+    ]
 
 
 DEFAULT_REPOS = _load_default_repos()

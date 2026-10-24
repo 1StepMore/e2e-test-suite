@@ -3,7 +3,7 @@
 This is the centralized, citable standards reference for the Omni Suite
 validation framework. Every scenario step that enforces a quality bar cites
 the exact standard it checks as `standard: STANDARDS.md#<anchor-id>` (see
-`docs/agent-tester-validation-guide.md` §2-§3 — the `standard` field rides
+the anchor convention in this file — the `standard` field rides
 alongside the five-part evidence contract: surface / real call / expect /
 actual / artifact-to-show).
 

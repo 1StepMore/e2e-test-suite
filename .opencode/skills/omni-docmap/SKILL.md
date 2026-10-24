@@ -29,7 +29,7 @@ All paths are relative to the project root `/mnt/d/贯维/Omni_Suite`. Each entr
 |------|-------|----------|---------|---------------|
 | `CONTEXT.md` | 292 | All agents | Shared glossary / Ubiquitous Language of pipeline terms (OPP/OL/ORF, MD/XLIFF channels, shield/unshield, FAKE_LLM, Foreman/Specialist, etc.) | New pipeline/domain term added or renamed |
 | `README.md` | ~382 | All users | Project overview, pipeline selection strategy, format support matrix, Git submodule notes, environment | Version bumps, pipeline changes, new formats, env changes |
-| `AGENTS.md` | ~218 | AI Agents | Per-module cheat sheet, MCP configuration for Claude/Cursor/OpenCode, MCP server/tool inventory pointers, env vars, pre-commit hooks, MCP local testing | MCP tool changes, CLI changes, version bumps, env var changes, new formats |
+| `AGENTS.md` | ~261 | AI Agents | Per-module cheat sheet, MCP configuration for Claude/Cursor/OpenCode, MCP server/tool inventory pointers, env vars, pre-commit hooks, MCP local testing | MCP tool changes, CLI changes, version bumps, env var changes, new formats |
 | `CHANGELOG.md` | ~272 | All devs | Suite-level changelog (Unreleased + released versions) | Every change — always add an entry |
 | `COMPATIBILITY.md` | ~31 | All devs | Suite↔submodule version compatibility matrix | Version bumps of any module |
 | `CONTRIBUTING.md` | ~172 | Contributors | PR workflow, branch naming, test expectations, doc update requirements | Process changes, CI changes |
