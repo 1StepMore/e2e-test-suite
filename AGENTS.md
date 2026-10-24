@@ -8,9 +8,9 @@ A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translat
 
 ## Repository boundary (scope invariants — read before anything else)
 
-**This repo owns:** the three Omni Suite sub-repos (`Omni_Pre_Processor/`, `Omni_Localizer/`, `Omni_Re_Formatter/` — in-tree symlinks to sibling checkouts), plus the suite-level validation framework, E2E tests, and every doc in this tree.
+**This repo owns:** the three Omni Suite sub-repos (`Omni_Pre_Processor/`, `Omni_Localizer/`, `Omni_Re_Formatter/` — regular top-level directories, each carrying its own `.git/` for its upstream repo), plus the suite-level validation framework, E2E tests, and every doc in this tree.
 
-**This repo does NOT own** the following sibling checkouts under `01-Projects/`. They are **separate product lines** — different repos, different policies, different agents:
+**This repo does NOT own** the following sibling checkouts (siblings of this repo's directory, *not* inside this tree). They are **separate product lines** — different repos, different policies, different agents:
 
 | Repo | What it is | Relationship to this repo |
 |---|---|---|
@@ -23,7 +23,7 @@ Hard constraints for any agent working here:
 2. **Do not open PRs or issues in their trackers**, and do not treat their issues, PRs, or backlogs as work items for this repo — **even when a file here mentions them.**
 3. **Do not "fix it in passing"** because a script here calls their CLI. A defect observed there belongs to them.
 4. If work here surfaces a defect that belongs to another repo: file an issue **in this repo**, name the owning repo plus the evidence (file:line, command, output), and stop there.
-5. A mention of another repo in this tree is **a reference, never scope**. `docs/agent-tester-validation-guide.md` §8 (worked example) and `CHANGELOG.md` history are citations, not assignments.
+5. A mention of another repo in this tree is **a reference, never scope**. `CHANGELOG.md` history and `docs/NIGHTLY.md`'s cross-repo citations are references, not assignments. (`docs/agent-tester-validation-guide.md` is now only a pointer — the worked example that used to live there has moved out of this repo.)
 
 ## Current Versions
 
