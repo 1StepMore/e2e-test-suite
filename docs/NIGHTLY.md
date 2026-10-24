@@ -103,7 +103,7 @@ cd <repo>
 
 ## 【活区】当前差距矩阵（真基线 2026-10-01）
 
-### 2026-10-24 批跑入口与处理预算（#212 / AutoInfo#596）
+### 2026-10-24 批跑入口与处理预算（#212）
 > 📦 **本节内容已迁出（2026-10-24 边界整改）**：跨仓批跑记录（AutoInfo / AutoMedia / Omni 三条产线 +
 > 六仓同步基点）归属 workspace 级运维，不再放在本仓。
 > 现址：`/mnt/d/Hermes-Workspace/99-Tools/nightly/history-from-NIGHTLY.md`（历史）+ 同目录 `README.md`（现行执行面）。

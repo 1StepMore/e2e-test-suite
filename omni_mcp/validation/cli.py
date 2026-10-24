@@ -7,16 +7,16 @@ A thin consumer over the engine: argparse flags mapped onto
 ``scripts/validation/run_validation.py`` both land here; ``main`` is a
 pure function (argv -> exit code) so tests drive it in-process.
 
-Flags (mirror AutoInfo ``run-validation-scenarios.py`` semantics):
+Flags (mirror the suite's runner semantics):
 
 - ``--list`` — enumerate scenarios (name, tier, requires_env, step
   count); no execution; exit 0 even for an empty library (guide §7.1
   "lists zero scenarios cleanly").
 - ``--scenario <substr>`` — case-insensitive substring match on the
-  scenario FILENAME stem (AutoInfo semantics); the matched scenarios run
+  scenario FILENAME stem; the matched scenarios run
   by their exact ``name`` via the engine filter.
 - ``--tier <1|2|3>`` — run only scenarios whose ``tier`` field matches
-  (AutoInfo tier model: 1 = no keys hermetic, 2 = LLM key, 3 =
+  (tier model: 1 = no keys hermetic, 2 = LLM key, 3 =
   paid/external/network; loader default 1).
 - ``--dry-run`` — load + validate + print the plan (name, tier,
   requires_env, step count); dispatch nothing; exit 0 (even when a real
@@ -60,11 +60,11 @@ from omni_mcp.validation.engine import run_scenarios
 from omni_mcp.validation.family import derived_level
 from omni_mcp.validation.loader import LEVELS, ScenarioError, load_scenarios
 
-#: AutoInfo tier semantics (run-validation-scenarios.py:569-571): 1 = no
+#: tier semantics (see scenarios/STANDARDS.md): 1 = no
 #: keys hermetic, 2 = LLM key, 3 = paid/external/network.
 TIER_HELP = "run only scenarios at this tier (1=no keys hermetic, 2=LLM key, 3=paid/external/network)"
 
-#: The self-echo anti-pattern (AutoInfo contract lint :515): a command
+#: The self-echo anti-pattern (contract lint): a command
 #: must not print PASS/FAIL itself — the assertion belongs in ``expect``.
 #: Bare, double-quoted, and single-quoted forms, ``print(...)`` forms,
 #: and the ✅/❌ emoji shortcuts are all rejected; word boundaries keep
@@ -242,7 +242,7 @@ def lint_scenarios(
 ) -> list[LintFinding]:
     """Contract-lint every scenario WITHOUT executing (``--check``).
 
-    Three rules (plan todo 9, mirroring AutoInfo contract lint
+    Three rules (plan todo 9, mirroring the contract lint
     ``run-validation-scenarios.py:506-537`` plus the D12 citation rule):
 
     1. **falsifiable** — every step carries a non-empty ``expect`` block
@@ -385,7 +385,7 @@ def lint_scenarios(
 
 def _name_of(path: Path) -> str:
     """The scenario's ``name`` field (fallback: filename stem, mirroring
-    AutoInfo ``data.get("name", fpath.stem)``)."""
+    the ``data.get("name", fpath.stem)`` fallback)."""
     try:
         with open(path, encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
@@ -412,7 +412,7 @@ def _select_names(
 
     Returns ``(names, empty_filters)`` so the caller can warn which filter
     emptied the selection.  ``--scenario`` is a case-insensitive substring
-    on the FILENAME stem (AutoInfo semantics); ``--tier`` pre-filters by
+    on the FILENAME stem; ``--tier`` pre-filters by
     the ``tier`` field; ``--category`` matches the scenario ``category:``
     field exactly; ``--module`` is the per-module convenience selector
     (``opp``/``ol``/``orf``/``suite``) that expands to the module's

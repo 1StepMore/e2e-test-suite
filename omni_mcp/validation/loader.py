@@ -43,7 +43,7 @@ _SCENARIO_FIELDS = frozenset(
         "regression_issue",  # optional — bug reference pinned (required with regression)
         "instructions",      # optional (D12) — human-readable "what to do"
         "cleanup_steps",     # optional — steps run best-effort after the main steps
-        "tier",              # optional (plan todo 9) — AutoInfo tier model:
+        "tier",              # optional (plan todo 9) — tier model:
                              # 1 = no keys hermetic, 2 = LLM key,
                              # 3 = paid/external/network (default 1)
         "level",             # optional (C-01) — user level the scenario
@@ -162,7 +162,7 @@ def _validate_step(step: Any, path: str | Path, where: str) -> None:
 
     # expect: the mandatory heart of every step (guide §2.2).  A missing or
     # empty block cannot be graded — the step is not falsifiable, so it is
-    # invalid at load time (mirrors AutoInfo contract lint).
+    # invalid at load time (mirrors the contract lint).
     expect = step.get("expect")
     if not isinstance(expect, dict) or not expect:
         raise ScenarioError(path, f"{where} missing 'expect' (every step must be falsifiable)")
@@ -321,7 +321,7 @@ def validate_scenario(scenario: dict[str, Any], path: str | Path) -> dict[str, A
     if instructions is not None and not isinstance(instructions, str):
         raise ScenarioError(path, f"'instructions' must be a string, got {instructions!r}")
 
-    # AutoInfo tier model (plan todo 9): 1 = no keys hermetic, 2 = LLM
+    # tier model (plan todo 9): 1 = no keys hermetic, 2 = LLM
     # key, 3 = paid/external/network.  Optional with default 1 — the CLI
     # ``--tier`` filter runs only scenarios whose tier matches.
     tier = scenario.get("tier")
