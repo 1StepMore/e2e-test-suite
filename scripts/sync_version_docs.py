@@ -7,6 +7,8 @@ own `pyproject.toml`. This script rewrites the version numbers in:
 - README.md (env table + Pinned combo line)
 - AGENTS.md (Current Versions table + Pinned combo line)
 - COMPATIBILITY.md ("How to check installed versions" example commands)
+- docs/ARCHITECTURE.md (Current version table)
+- PROJECT_STATUS.md (Current versions table)
 
 Run directly: `python scripts/sync_version_docs.py`
 Pre-commit: see `.pre-commit-config.yaml` `omni-version-docs-sync` hook.
@@ -36,6 +38,11 @@ TARGETS: list[Path] = [
     SUITE_ROOT / "README.md",
     SUITE_ROOT / "AGENTS.md",
     SUITE_ROOT / "COMPATIBILITY.md",
+    # #215 P0.1: both files advertised versions two releases stale because
+    # they were outside this gate. Keep them inside it (rather than deleting
+    # the tables) so the quick-context views stay truthful.
+    SUITE_ROOT / "docs" / "ARCHITECTURE.md",
+    SUITE_ROOT / "PROJECT_STATUS.md",
 ]
 
 
@@ -157,6 +164,36 @@ def _replacements(v: dict[str, str]) -> list[tuple[re.Pattern[str], str]]:
         (re.compile(
             r"(\| ORF \| v)\d+\.\d+\.\d+( \|)"
         ), rf"\g<1>{v['orf']}\g<2>"),
+
+        # docs/ARCHITECTURE.md "Current version" table.
+        # | OPP | 0.10.0 | `1StepMore/Omni_Pre_Processor` | ...
+        (re.compile(
+            r"(\| OPP \| )\d+\.\d+\.\d+( \| `1StepMore/Omni_Pre_Processor` \|)"
+        ), rf"\g<1>{v['opp']}\g<2>"),
+        (re.compile(
+            r"(\| OL \| )\d+\.\d+\.\d+( \| `1StepMore/Omni_Localizer` \|)"
+        ), rf"\g<1>{v['ol']}\g<2>"),
+        (re.compile(
+            r"(\| ORF \| )\d+\.\d+\.\d+( \| `1StepMore/Omni_Re_Formatter` \|)"
+        ), rf"\g<1>{v['orf']}\g<2>"),
+        (re.compile(
+            r"(\| omni-suite \| )\d+\.\d+\.\d+( \|)"
+        ), rf"\g<1>{v['suite']}\g<2>"),
+
+        # PROJECT_STATUS.md "Current versions" table.
+        # | OPP | **0.10.0** | Active | ...
+        (re.compile(
+            r"(\| OPP \| \*\*)\d+\.\d+\.\d+(\*\* \| Active \|)"
+        ), rf"\g<1>{v['opp']}\g<2>"),
+        (re.compile(
+            r"(\| OL \| \*\*)\d+\.\d+\.\d+(\*\* \| Active \|)"
+        ), rf"\g<1>{v['ol']}\g<2>"),
+        (re.compile(
+            r"(\| ORF \| \*\*)\d+\.\d+\.\d+(\*\* \| Active \|)"
+        ), rf"\g<1>{v['orf']}\g<2>"),
+        (re.compile(
+            r"(\| Suite \| \*\*)\d+\.\d+\.\d+(\*\* \| Active \|)"
+        ), rf"\g<1>{v['suite']}\g<2>"),
 
         # Summary lines: "v0.9.1 · v0.7.1 · v0.4.17 · v0.4.0" (OPP · OL · ORF · Suite)
         (re.compile(

@@ -3,14 +3,14 @@
 > **First file to read in any new agent conversation.** Provides instant context on where the project is RIGHT NOW.
 > For deep context, see the canonical docs table below (absolute paths) or the local `references/` symlinks under `.opencode/skills/omni-suite/references/` (if present in your checkout).
 
-## Current versions (2026-09-17)
+## Current versions (2026-10-26)
 
 | Component | Version | Status | Path | Git State |
 |---|---|---|---|---|---|
-| OPP | **0.9.1** | Active | `Omni_Pre_Processor/` | own `.git/`, branch `main` |
+| OPP | **0.10.0** | Active | `Omni_Pre_Processor/` | own `.git/`, branch `main` |
 | OL | **0.7.1** | Active | `Omni_Localizer/` | own `.git/`, branch `main` |
-| ORF | **0.4.17** | Active | `Omni_Re_Formatter/` | own `.git/`, branch `main` |
-| Suite | **0.4.0** | Active | `./` | branch `main` |
+| ORF | **0.5.0** | Active | `Omni_Re_Formatter/` | own `.git/`, branch `main` |
+| Suite | **0.5.0** | Active | `./` | branch `main` |
 
 Sub-repos were demoted from git submodules to regular directories on 2026-06-24.
 Update sub-repos with: `cd <sub-repo> && git pull origin main`.

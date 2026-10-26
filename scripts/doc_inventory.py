@@ -46,6 +46,7 @@ SKILL = ROOT / ".opencode" / "skills" / "omni-docmap" / "SKILL.md"
 OPP_SERVER = ROOT / "Omni_Pre_Processor" / "src" / "opp" / "mcp" / "server.py"
 OL_TOOLS = ROOT / "Omni_Localizer" / "src" / "ol_mcp" / "tools.py"
 ORF_SERVER = ROOT / "Omni_Re_Formatter" / "src" / "orf" / "mcp" / "server.py"
+SUITE_SERVER = ROOT / "omni_mcp" / "server.py"
 SYNC = ROOT / "scripts" / "sync_version_docs.py"
 
 #: Exact first line of the generated report; ``--check`` requires the prefix.
@@ -107,8 +108,19 @@ def read_text(path: Path) -> str:
 
 
 def count_tool_schemas(path: Path) -> int:
-    """Count ``"name": ...`` entries in an OPP ``_TOOL_SCHEMAS`` block."""
-    return len(re.findall(r'"name"\s*:', read_text(path)))
+    """Count ``"name": ...`` entries inside a ``_TOOL_SCHEMAS`` block.
+
+    Scoped to the block because ``"name":`` also appears in response
+    payloads (omni_mcp/server.py) outside the schema list.
+    """
+    text = read_text(path)
+    start = text.find("_TOOL_SCHEMAS")
+    if start == -1:
+        return 0
+    tail = text[start:]
+    end = re.search(r"\n\]\s*\n", tail)
+    block = tail[: end.start()] if end else tail
+    return len(re.findall(r'"name"\s*:', block))
 
 
 def count_tool_registry(path: Path) -> int:
@@ -289,11 +301,19 @@ _SEVEN_EIGHT_SIX_RE = re.compile(r"7\s*\+\s*8\s*\+\s*6\s*=\s*(\d+)\s+tools?")
 #: "(N tools total: ...)" in SECURITY_AUDIT.
 _TOTAL_PAREN_RE = re.compile(r"\((\d+)\s+tools?\s+total")
 #: Per-module AGENTS.md "MCP tools (N total)".
-_MODULE_AGENTS_ANY_RE = re.compile(r"MCP tools\s*\((\d+)\s+total\)")
-#: ARCHITECTURE source tree rows: "mcp/server.py ← MCP server (N tools)".
+_MODULE_AGENTS_ANY_RE = re.compile(r"MCP tools\s*\((\d+)\s+total\)")#: ARCHITECTURE source tree rows: "mcp/server.py ← MCP server (N tools)".
 _TREE_SERVER_RE = re.compile(r"MCP server\s*\((\d+)\s+tools?\)")
 #: ARCHITECTURE source tree row for OL: "src/ol_mcp/ ← MCP server (N tools)".
 _TREE_OL_RE = re.compile(r"src/ol_mcp/.*MCP server\s*\((\d+)\s+tools?\)")
+#: AGENTS.md suite-total shape: "all 41 tools: 37 module + 4 suite" (#215 P0.4).
+_SUITE_TOTAL_RE = re.compile(
+    r"all\s+(\d+)\s+tools:\s*(\d+)\s+module\s*\+\s*(\d+)\s+suite"
+)
+#: agent-pipeline-guide "| Omni MCP | 4 (suite) |".
+_GUIDE_SUITE_ROW_RE = re.compile(r"\|\s*Omni MCP\s*\|\s*(\d+)\s*\(suite\)")
+#: agent-pipeline-guide "Module MCP tools: **37**" / "= **41 total**".
+_GUIDE_MODULE_TOTAL_RE = re.compile(r"Module MCP tools:\s*\*\*(\d+)\*\*")
+_GUIDE_ALL_TOTAL_RE = re.compile(r"=\s*\*\*(\d+)\s+total\*\*")
 
 # --- Module-doc claim shapes (issue #10) -----------------------------------
 # These scan ``Omni_*/docs/**/*.md`` (and the module READMEs for the two
@@ -381,12 +401,22 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
         for m in _SEVEN_EIGHT_SIX_RE.finditer(text):
             _fail(failures, "docs/ARCHITECTURE.md", "total", int(m.group(1)), total)
         lines = text.splitlines()
-        for i, ln in enumerate(lines):
+        current_module: str | None = None
+        for ln in lines:
+            for token, mod in (
+                ("Omni_Pre_Processor/", "opp"),
+                ("Omni_Localizer/", "ol"),
+                ("Omni_Re_Formatter/", "orf"),
+            ):
+                if token in ln:
+                    current_module = mod
             if "mcp/server.py" in ln and _TREE_SERVER_RE.search(ln):
                 claimed = int(_TREE_SERVER_RE.search(ln).group(1))
-                ctx = "\n".join(lines[max(0, i - 1):i + 3])
-                mod = "opp" if "0.9" in ctx else "orf"
-                _fail(failures, "docs/ARCHITECTURE.md", mod, claimed, source[mod])
+                if current_module:
+                    _fail(
+                        failures, "docs/ARCHITECTURE.md", current_module,
+                        claimed, source[current_module],
+                    )
         for m in _TREE_OL_RE.finditer(text):
             _fail(failures, "docs/ARCHITECTURE.md", "ol", int(m.group(1)), source["ol"])
 
@@ -438,6 +468,26 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
     if path.exists():
         for m in _PRD_LIST_RE.finditer(read_text(path)):
             _fail(failures, "docs/PRD.md", m.group(1).lower(), int(m.group(2)), source[m.group(1).lower()])
+
+    # Suite aggregator counts (#215 P0.4): AGENTS.md "all N tools: M module + K suite".
+    path = root / "AGENTS.md"
+    if path.exists():
+        for m in _SUITE_TOTAL_RE.finditer(read_text(path)):
+            all_c, module_c, suite_c = (int(g) for g in m.groups())
+            _fail(failures, "AGENTS.md", "module", module_c, total)
+            _fail(failures, "AGENTS.md", "suite", suite_c, source["suite"])
+            _fail(failures, "AGENTS.md", "total", all_c, total + source["suite"])
+
+    # docs/agent-pipeline-guide.md: suite row + module/all totals.
+    path = root / "docs" / "agent-pipeline-guide.md"
+    if path.exists():
+        text = read_text(path)
+        for m in _GUIDE_SUITE_ROW_RE.finditer(text):
+            _fail(failures, "docs/agent-pipeline-guide.md", "suite", int(m.group(1)), source["suite"])
+        for m in _GUIDE_MODULE_TOTAL_RE.finditer(text):
+            _fail(failures, "docs/agent-pipeline-guide.md", "module", int(m.group(1)), total)
+        for m in _GUIDE_ALL_TOTAL_RE.finditer(text):
+            _fail(failures, "docs/agent-pipeline-guide.md", "total", int(m.group(1)), total + source["suite"])
 
     # docs/SUITE_EXPECTATIONS.md: "7 + 21 + 6 = 34 tools" sum form.
     path = root / "docs" / "SUITE_EXPECTATIONS.md"
@@ -1081,8 +1131,17 @@ def run_check(root: Path) -> list[str]:
         else:
             source[key] = 0
             print(f"  source {key}: {path.relative_to(root)} missing -> 0")
+    suite_path = root / "omni_mcp" / "server.py"
+    if suite_path.exists():
+        source["suite"] = count_tool_schemas(suite_path)
+    else:
+        source["suite"] = 0
+        print(f"  source suite: {suite_path.relative_to(root)} missing -> 0")
     total = source["opp"] + source["ol"] + source["orf"]
-    print(f"SOURCE: OPP={source['opp']} OL={source['ol']} ORF={source['orf']} total={total}")
+    print(
+        f"SOURCE: OPP={source['opp']} OL={source['ol']} ORF={source['orf']} "
+        f"module={total} suite={source['suite']} all={total + source['suite']}"
+    )
 
     # 2. Claim sites vs source truth.
     check_claim_sites(root, source, failures)

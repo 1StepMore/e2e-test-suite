@@ -1,7 +1,7 @@
 # OL (Omni Localizer) — Founder's Expectations & Agent Validation Master Plan
 
-> **Version:** v0.7.1 · **Stage:** 2 of 3 (OPP → **OL** → ORF) · **Pipeline:** shield→translate→repair→unshield + postproc + 8 quality gates
-> **Design:** Agent-native (21 MCP tools), LLM model pool failover, BYOK, FAKE_LLM seam, 4-layer repair
+> **Version:** v0.7.1 · **Stage:** 2 of 3 (OPP → **OL** → ORF) · **Pipeline:** shield→translate→repair→unshield + postproc + 7 quality gates
+> **Design:** Agent-native (21 MCP tools), LLM model pool failover, BYOK, FAKE_LLM seam, 3-stage repair (L3 LLM restore opt-in)
 
 ---
 
@@ -20,7 +20,7 @@ OL translates MD + XLIFF between languages via a pool of LLM models. It accepts 
 | **BYOK** | `${ENV_VAR}` in config for API keys. Two-layer: warning at startup, error at runtime. `OMNI_TEST_FAKE_LLM=1` bypasses all |
 | **8 Quality Gates** | Pure functions (no LLM, no I/O). Advisory only — never block/discard output. Produce `OL_WARN` annotations |
 | **Agent-native** | 21 MCP tools as primary surface. CLI secondary |
-| **4-layer Repair** | Regex → span alignment → LLM restorer → safe fallback. Content never silently lost |
+| **3-stage Repair** | Regex → span alignment → safe fallback. Content never silently lost. L3 LLM restoration exists but is opt-in (not wired into the default pipeline) |
 | **FAKE_LLM seam** | Zero-cost mock translation for CI/dev. `translate()` echoes `[{target_lang}] {source}`; `judge()` returns fixed 9.0 scores |
 
 ### 3. Expectation Catalog
@@ -29,7 +29,7 @@ OL translates MD + XLIFF between languages via a pool of LLM models. It accepts 
 6-stage pipeline: `input.md → SHIELD → TRANSLATE → REPAIR → UNSHIELD → POSTPROC → QUALITY GATES → output.md`
 - Shield: `[OL:TYPE:NNNN]` markers for code, `$..$` math (LaTeX-guarded), links, images, HTML, autolinks
 - Translate: litellm Router with model pool, retry (2x), circuit breaker, rate limit
-- Repair (4-layer): regex → span alignment → LLM restorer (`LiteLLMRestorer`) → safe fallback (append with `OL_WARN:missing_shields`)
+- Repair (3-stage): regex → span alignment → safe fallback (append with `OL_WARN:missing_shields`). L3 LLM restoration (`LiteLLMRestorer`) is available but not wired into the default pipeline
 - Unshield: restore from shield_map; missing markers → `<!-- OL_WARN:missing_shields -->` comment
 - Postproc: zh↔en punctuation normalization (`str.maketrans`, O(1)) + YAML frontmatter injection
 
@@ -102,9 +102,9 @@ Level 1 repair normalizes LLM-emitted `<x/>`, `<bx/>`, `<ex/>` back to placehold
 ### 4. Value Proposition
 
 > **OL's value = translation quality + reliability.**
-> - Content fidelity: shield preserves code/math/links; 4-layer repair recovers mangled markers; unshield never silently drops content
+> - Content fidelity: shield preserves code/math/links; 3-stage repair recovers mangled markers; unshield never silently drops content
 > - Failover resilience: model pool + circuit breaker + retry means translation completes even when a provider fails
-> - Quality assurance: LQA self-corrects low-scoring translations; 8 quality gates catch issues without blocking
+> - Quality assurance: LQA self-corrects low-scoring translations; 7 quality gates catch issues without blocking
 > - Agent-native: 21 MCP tools let agents orchestrate the full pipeline without CLI or file I/O
 > - Deterministic post-processing: punctuation normalization O(1), zero API cost
 
@@ -168,7 +168,7 @@ export OMNI_TEST_FAKE_LLM=1
 
 ---
 
-### Q5-OL: All 8 quality gates?
+### Q5-OL: All 7 quality gates?
 
 | # | Scenario | Command | Expected |
 |---|----------|---------|----------|
@@ -267,7 +267,7 @@ export OMNI_TEST_FAKE_LLM=1
 | Q2 | XLIFF translation | ⬜ |
 | Q3 | FAKE_LLM seam (zero-cost) | ⬜ |
 | Q4 | Model Pool failover + circuit breaker | ⬜ |
-| Q5 | 8 quality gates (advisory, non-blocking) | ⬜ |
+| Q5 | 7 quality gates (advisory, non-blocking) | ⬜ |
 | Q6 | LQA scoring (JudgeService) | ⬜ |
 | Q7 | Glossary/TM/TB injection | ⬜ |
 | Q8 | Prompt injection strip (E2E-65) | ⬜ |
