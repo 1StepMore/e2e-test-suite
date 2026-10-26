@@ -171,12 +171,15 @@ basename** and writes it into the run dir (or the `--out` path).
 
 | Command | Exit 0 | Exit 1 | Exit 2 |
 |---------|--------|--------|--------|
-| `run_validation.py --matrix --artifacts` | no P0/P1 assertion failures | any P0 or P1 assertion failed (the artifact matrix, not the scenario verdicts, decides the exit code) | n/a |
+| `run_validation.py --matrix --artifacts` | no P0/P1 assertion failures and no scenario failures | any P0 or P1 assertion failed | artifact matrix passed but at least one scenario failed |
 | `artifact_matrix.py` (standalone) | no P0/P1 failures | any P0 or P1 assertion failed | n/a |
 | `artifact_diff.py <base> <head>` | no regressions, no existing-failings | `regressed > 0` OR `existing-failing > 0` | usage/input error (missing file, unparseable JSON, not an artifact-report shape) |
 
-The artifact matrix runs even when the scenarios themselves pass; with `--artifacts`
-the artifact verdict **overrides** the scenario exit code (any P0/P1 failure → 1).
+The artifact matrix runs even when the scenarios themselves pass. With `--artifacts`,
+any P0/P1 artifact failure exits 1 and takes precedence over scenario failures; when
+the artifact matrix passes but a scenario failed, the run exits 2 so artifact-only and
+scenario-only failures stay distinguishable. Without `--artifacts`, scenario failures
+exit 1 as before.
 
 ---
 

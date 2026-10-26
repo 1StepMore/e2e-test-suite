@@ -29,8 +29,10 @@ Flags (mirror the suite's runner semantics):
 
 Exit codes: 0 = no failures (``unconfigured`` / ``partial-pass`` /
 ``recovered`` / ``passed`` are NOT failures), 1 = any ``failed`` or
-``invalid`` scenario, lint finding, or load error.  ``invalid`` is R-07's
-fake-LLM inadmissible-evidence verdict and is never a pass.
+``invalid`` scenario, lint finding, load error, or P0/P1 artifact failure.
+With ``--matrix --artifacts``, an artifact pass plus a scenario failure
+exits 2 so the two failure sources stay distinguishable.  ``invalid`` is
+R-07's fake-LLM inadmissible-evidence verdict and is never a pass.
 
 - ``--repo {opp,ol,orf,suite,all}`` — select scenario source directory(ies)
   by component.  ``all`` merges from all four dirs.
@@ -571,6 +573,13 @@ def _load_script(name: str, rel_path: str) -> Any:
     return module
 
 
+def _exit_code(matrix_exit_code: int | None, scenario_failures: bool) -> int:
+    """Map the artifact and scenario outcomes onto the CLI exit contract."""
+    if matrix_exit_code is not None:
+        return matrix_exit_code or (2 if scenario_failures else 0)
+    return 1 if scenario_failures else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """The validation CLI.  Returns the exit code (0 = no failures)."""
     parser = argparse.ArgumentParser(
@@ -828,8 +837,4 @@ def main(argv: list[str] | None = None) -> int:
         r.status in ("failed", "invalid") and not getattr(r, "known_gap", False)
         for r in run.scenarios
     )
-    # With --artifacts the ARTIFACT matrix drives the exit code (any P0/P1
-    # failure -> 1); the scenario verdicts still print but do not override it.
-    if matrix_exit_code is not None:
-        return matrix_exit_code
-    return 1 if scenario_failures else 0
+    return _exit_code(matrix_exit_code, scenario_failures)
