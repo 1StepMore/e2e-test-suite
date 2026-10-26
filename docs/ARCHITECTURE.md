@@ -427,10 +427,10 @@ opp ──── MD / XLIFF ────▶ ol ──── MD / XLIFF ───
 
 | Module | Current version | Repo | Package name |
 |--------|-----------------|------|--------------|
-| OPP | 0.9.1 | `1StepMore/Omni_Pre_Processor` | `omni-pre-processor` (imports as `opp`) |
+| OPP | 0.10.0 | `1StepMore/Omni_Pre_Processor` | `omni-pre-processor` (imports as `opp`) |
 | OL | 0.7.1 | `1StepMore/Omni_Localizer` | `omni-localizer` |
-| ORF | 0.4.17 | `1StepMore/Omni_Re_Formatter` | `omni-re-formatter` |
-| omni-suite | 0.4.0 | `1StepMore/e2e-test-suite` (this repo) | meta-package, print-only CLI |
+| ORF | 0.5.0 | `1StepMore/Omni_Re_Formatter` | `omni-re-formatter` |
+| omni-suite | 0.5.0 | `1StepMore/e2e-test-suite` (this repo) | meta-package, print-only CLI |
 
 **Version policy** is documented in `docs/API_STABILITY.md` (companion
 document in this directory). Cross-module coordination is recorded in
@@ -449,18 +449,18 @@ Omni_Suite/                              ← this repo (parent / test suite)
 │   │   ├── channels/                    ← MD / XLIFF formatters
 │   │   ├── cli.py                       ← CLI (generates manifest + skeleton)
 │   │   └── mcp/server.py                ← MCP server (9 tools)
-│   ├── pyproject.toml                   ← version 0.9.1
+│   ├── pyproject.toml                   ← version (see pyproject.toml)
 │   └── README.md
 ├── Omni_Localizer/                      ← OL standalone git repo
 │   ├── src/ol_mcp/                      ← MCP server (21 tools)
 │   ├── src/ol/                          ← package source
-│   ├── pyproject.toml                   ← version 0.7.1
+│   ├── pyproject.toml                   ← version (see pyproject.toml)
 │   └── README.md
 ├── Omni_Re_Formatter/                   ← ORF standalone git repo
 │   ├── src/orf/                         ← package source
 │   │   ├── cli.py                       ← CLI (apply-md / apply-xliff)
 │   │   └── mcp/server.py                ← MCP server (7 tools)
-│   ├── pyproject.toml                   ← version 0.4.17
+│   ├── pyproject.toml                   ← version (see pyproject.toml)
 │   └── README.md
 ├── tests/                               ← parent suite tests (30+ files)
 │   ├── integration/test_version_compat.py
