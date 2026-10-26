@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-26). Reason: Phase artifact; the executable scenario library replaced the prose plan. Superseded by: `tests/` + `scenarios/`.**
+
 # 真实 LLM E2E 测试方案 — 两层级
 
 ## 守则

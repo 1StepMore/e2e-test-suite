@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-26). Reason: Phase artifact; feature/QA state is maintained in README.md and the module docs. Superseded by: `README.md`.**
+
 # Feature & QA Inventory — Omni Localization Suite
 
 Built from: CLI --help, --capabilities, CHANGELOG.md, AGENTS.md, README.md, pyproject.toml, Makefile, source tree

@@ -31,9 +31,10 @@ api_key.*
 .sisyphus/
 
 # .omo is mostly runtime state, but plans are source — whitelist plans/
-.omo/
-!.omo/plans/
-!.omo/plans/*.md
+/.omo/*
+!/.omo/plans/
+/.omo/plans/*
+!/.omo/plans/*.md
 
 # ---- Real config overrides (templates are tracked, real values are not) ----
 config/local.yaml

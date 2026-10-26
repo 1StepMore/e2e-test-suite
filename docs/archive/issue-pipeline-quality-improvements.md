@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-26). Reason: Phase artifact; improvements landed and are recorded in CHANGELOG.md. Superseded by: `CHANGELOG.md`.**
+
 # 体系内质量改进：三个维度的管线增强
 
 ## 背景
