@@ -554,7 +554,7 @@ A well-designed agent-oriented system:
 
 ## 9. Reference Implementation
 
-The AutoInfo project (`github.com/1StepMore/AutoInfo`) exemplifies these patterns:
+A project that follows this methodology shows these traits (check any candidate against them):
 
 - **MCP Server**: 40+ tools for information tracking
 - **Quality Gates**: G1-G5 for content validation

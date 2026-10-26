@@ -13,7 +13,7 @@ def test_bench_line_reads_base_json_with_after_sha(tmp_path):
     base = tmp_path / "base.json"
     base.write_text(json.dumps({
         "repos": [
-            {"name": "AutoInfo", "branch": "main", "before": "aaa",
+            {"name": "proj-a", "branch": "main", "before": "aaa",
              "after": "bbb", "mode": "ff"},
             {"name": "e2e-test-suite", "branch": "main", "before": "ccc",
              "after": "ccc", "mode": "current"},
@@ -23,7 +23,7 @@ def test_bench_line_reads_base_json_with_after_sha(tmp_path):
     line = ng.bench_line(base)
 
     assert line.startswith("- bench：")
-    assert "AutoInfo=main@bbb" in line          # `after` (被测的树) 优先于 before
+    assert "proj-a=main@bbb" in line          # `after` (被测的树) 优先于 before
     assert "e2e-test-suite=main@ccc" in line
     assert " · " in line
 
@@ -31,13 +31,13 @@ def test_bench_line_reads_base_json_with_after_sha(tmp_path):
 def test_bench_line_writes_unknown_for_missing_values(tmp_path):
     base = tmp_path / "base.json"
     base.write_text(json.dumps({"repos": [
-        {"name": "AutoInfo", "branch": None, "before": None, "after": None,
+        {"name": "proj-a", "branch": None, "before": None, "after": None,
          "mode": "WRONG_BRANCH"},
     ]}), encoding="utf-8")
 
     line = ng.bench_line(base)
 
-    assert "AutoInfo=<unknown>@<unknown>" in line
+    assert "proj-a=<unknown>@<unknown>" in line
 
 
 def test_bench_line_falls_back_to_live_git(tmp_path, monkeypatch):

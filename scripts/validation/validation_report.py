@@ -25,7 +25,7 @@ family has zero scenarios in the run.
 
 Other report rules:
 
-- The report also carries a per-repo **report card** (AutoInfo matrix
+- The report also carries a per-repo **report card** (per-repo matrix
   style): a matrix keyed by ``run_meta.repos`` plus always ``suite``,
   each cell holding version + sha + per-scenario verdicts.  Scenario
   names map to a repo by prefix (``tool-opp-*`` → opp, …); anything
@@ -423,7 +423,7 @@ def _render_report_card_md(report_card: dict[str, Any]) -> str:
 def _build_report_card(
     payload: dict[str, Any], rendered_scenarios: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """The per-repo report card (AutoInfo matrix style): one cell per repo
+    """The per-repo report card (per-repo matrix style): one cell per repo
     in ``run_meta.repos`` plus ALWAYS ``suite``.
 
     Each cell carries ``version``/``sha`` (from run_meta —
