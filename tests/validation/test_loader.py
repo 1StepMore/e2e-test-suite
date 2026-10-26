@@ -748,7 +748,7 @@ def test_smoke_valid_three_step_scenario_loads_at_least_one(tmp_path):
 
 
 def test_tier_field_accepted_with_default_1(tmp_path):
-    """AutoInfo tier model: 1 = no keys hermetic, 2 = LLM key,
+    """tier model: 1 = no keys hermetic, 2 = LLM key,
     3 = paid/external/network; the field is optional, default 1."""
     _write(tmp_path, "tiered.yaml", """
     name: tiered

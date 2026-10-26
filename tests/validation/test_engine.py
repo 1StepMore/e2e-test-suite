@@ -7,7 +7,7 @@ surface that needs no component imports) and assert the guide's verdict
 semantics (passed | failed | unconfigured | recovered | partial-pass),
 the per-step trace fields (step_index / duration_seconds / arguments /
 trace_id), and the ``validation-runs/<ts>/scenarios.json`` + ``latest.txt``
-persistence (guide §3.1 phase 6, AutoInfo reference :54-89).
+persistence (guide §3.1 phase 6, phase-6 persistence).
 """
 
 import json
@@ -129,7 +129,7 @@ def test_unconfigured_steps_do_not_run(tmp_path, monkeypatch):
 
 
 def test_unconfigured_empty_string_env_is_missing(tmp_path):
-    # A var present but empty counts as missing (AutoInfo :1356-1367).
+    # A var present but empty counts as missing (empty counts as missing).
     _write(tmp_path, "gated.yaml",
            _scenario("gated", requires_env="[OMNI_EMPTY_VAR]", steps=_cli_steps("true")))
     run = run_scenarios(tmp_path, env={"OMNI_EMPTY_VAR": ""}, persist=False)
@@ -821,7 +821,7 @@ steps:
 
 
 # ---------------------------------------------------------------------------
-# Persistence (guide §3.1 phase 6, AutoInfo :54-89)
+# Persistence (phase 6)
 # ---------------------------------------------------------------------------
 
 

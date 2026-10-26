@@ -21,7 +21,7 @@ Adopted defaults (draft ``.omo/drafts/validation-framework.md``, task 8):
 - **env gate checks the EFFECTIVE environment**: the explicit ``env``
   parameter when given (exactly what dispatch will run the steps with —
   ``build_cli_env`` semantics in dispatch.py), else ``os.environ``.  A var
-  present but empty counts as missing (AutoInfo :1356-1367 semantics).
+  present but empty counts as missing (empty counts as missing).
   The gate is two-layered: ``requires_env`` is **AND** (every var must
   resolve); ``requires_env_any``, when declared, is an **OR** group that
   overrides the AND list the moment ONE of its vars resolves.  An OR group
@@ -33,7 +33,7 @@ Adopted defaults (draft ``.omo/drafts/validation-framework.md``, task 8):
 - **verdict derivation order** (guide §3.3 aggregate): env gate ->
   all primary steps green (``recovered`` if any step was recovered, else
   ``passed``) -> partial-pass policy (``min_passing`` OR ``pass_ratio``,
-  AutoInfo :1441-1462) -> ``failed``.  ``unconfigured`` comes ONLY from
+  the partial-pass bar) -> ``failed``.  ``unconfigured`` comes ONLY from
   the gate, never from an output check.  The R-07 fake guard then overrides
   to ``invalid`` when ``OMNI_TEST_FAKE_LLM=1`` is active and the scenario is
   human-quality evidence (or a produced artifact carries the fake echo).
@@ -274,7 +274,7 @@ def _missing_env(scenario: dict[str, Any], env: dict[str, str] | None) -> list[s
     "missing env var(s)" line renders them without a sentinel.
 
     A var present but empty counts as missing for both layers
-    (AutoInfo :1356-1367: a prerequisite that exists but is unusable is
+    (a prerequisite that exists but is unusable is
     still a missing prerequisite).  An absent or empty
     ``requires_env_any`` returns exactly the AND-only list (unchanged
     behaviour).
@@ -515,7 +515,7 @@ def _aggregate(scenario: dict[str, Any], records: list[dict[str, Any]]) -> str:
     Order (module docstring): all green -> ``recovered`` if any step was
     recovered else ``passed``; otherwise the partial-pass policy
     (``min_passing`` count or ``pass_ratio`` fraction of succeeded steps,
-    OR — AutoInfo :1441-1462) -> ``partial-pass`` when the bar is met,
+    OR — the partial-pass bar) -> ``partial-pass`` when the bar is met,
     else ``failed``.  ``unconfigured`` is never produced here — it comes
     only from the pre-dispatch gate.
     """
@@ -720,7 +720,7 @@ def _sanitize_for_json(
 
 def persist_run(run: RunResult, runs_dir: str | Path = "validation-runs") -> Path:
     """Write the run record and refresh the latest pointer (guide §3.1
-    phase 6, AutoInfo :54-89).
+    phase 6).
 
     Writes ``<runs_dir>/<ts>/scenarios.json`` (ts = ``%Y%m%d-%H%M%S``,
     sortable) containing the full run record — per-scenario verdict,

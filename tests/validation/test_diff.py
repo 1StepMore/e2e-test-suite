@@ -301,7 +301,7 @@ def test_missing_run_dir_errors(tmp_path: Path):
 
 def test_bare_run_id_resolved_against_runs_dir(runs):
     """Bare run IDs (dir names) resolve against the runs dir — the
-    AutoInfo-style invocation from the plan's acceptance criterion."""
+    scenario-per-question invocation from the plan's acceptance criterion."""
     tmp_path, older, newer = runs
     assert diff.main([older.name, newer.name, "--runs-dir", str(tmp_path)]) == 0
 
@@ -410,7 +410,7 @@ def test_against_version_no_match_exits_2(tmp_path: Path):
 def test_base_sha_selects_by_sha_prefix(tmp_path: Path):
     """--base-sha matches any run_meta sha value by prefix — the newest
     older run whose suite/component sha startswith the given prefix."""
-    base = _write_run(
+    _write_run(
         tmp_path, "20260814-100000", {"a": "passed"},
         run_meta={"suite_version": "0.4.0", "suite_sha": "abcd1234", "repos": ["suite"]},
     )

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Artifact-assertion version diff: four-class regression across runs
-(e2e-test-suite#44, AutoInfo #340 semantics).
+(e2e-test-suite#44 semantics).
 
 Compare two persisted ``artifact-report.json`` files (produced by the
 artifact matrix — ``artifact_matrix.py``) and classify the per-artifact

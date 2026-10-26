@@ -42,7 +42,7 @@
 - [ ] **CLI `--help` 契约 fixture 锁的是 typer 的渲染，而 typer 版本随锁漂**——`uv.lock` 钉 typer 0.24.2 渲染 `[OPTIONS] [COMMAND] [ARGS]`，本机 `.venv_ol` 漂到 0.26.2 渲染 `[OPTIONS] COMMAND [ARGS]`。fixture 红先查 `pip show typer click` vs `uv.lock`，再怀疑 CLI 改版；本地验证 fixture 类 PR 前先把 venv 对齐锁。
 - [ ] **pytest 步骤写 `2>&1 | tail -N` 必须配 `set -o pipefail`**（默认 shell `bash -e {0}` 不含）——否则步骤退出码 = tail 的 0，71 failed/61 errors 全部报 success；tail 还把失败清单截出日志。已 gate 化于 `e2e-tests.yml`（PR #57）；新 workflow 步骤照抄 `set -o pipefail` + `tee` + `upload-artifact` 模式。
 - [ ] **整组 pytest 在共享 venv 里全量跑之前，先识别「测试间污染」家族**——rate-limiter（token bucket）、进程级 env、MCP server 状态会让 security/observability/stdio 家族在全量跑里假红（单跑 5/5 passed）。全量清单里的失败必须先单跑复现再定性，不能直接当回归修（本 runway：6 个 path-traversal 失败全是污染）。
-- [ ] **`git push` 前先看 push URL 的协议**——suite 仓 origin 的 push URL 是 https（GnuTLS 偶发 -110），fetch URL 是 ssh；ssh 键是 `1StepMore/AutoInfo` 的 deploy key（对其它仓无写权限）。可用的两条路：重试 https（gh token 有 repo+workflow scope），或 `git push git@github.com:1StepMore/<repo>.git <branch>` 显式 URL——但 deploy-key 会拒，别浪费在这条路上。
+- [ ] **`git push` 前先看 push URL 的协议**——suite 仓 origin 的 push URL 是 https（GnuTLS 偶发 -110），fetch URL 是 ssh；ssh 键是另一条产线仓的 deploy key（对其它仓无写权限）。可用的两条路：重试 https（gh token 有 repo+workflow scope），或 `git push git@github.com:1StepMore/<repo>.git <branch>` 显式 URL——但 deploy-key 会拒，别浪费在这条路上。
 
 ### 2026-09-21（第二轮，validate 首跑新增）
 
@@ -174,7 +174,7 @@
 - 前置：同步 main 到 9085aed（PR #41 场景可移植性 + PR #42 hardening CI）；launcher 用 `run_with_env.py`（99-Tools/validation-scratch/omni-suite/）注入 env。
 - 首跑 67/6/10：6 个 failed 全为 tool-opp-*（`Path not in allowed directories: /tmp/omni-agent-surface`），4 个新增 unconfigured（tool-ol-translate_file + 3 pipeline）。
 - **根因 1（failed 类）**：Hermes 会话预注入 `OPP_MCP_ALLOWED_DIRS=/mnt/d/Hermes-Workspace:/home/renanzai`（**缺 /tmp fixture 目录**），launcher 用 `setdefault` 不会覆盖已存在的值 → OPP 拒绝 /tmp → tool-opp-* 第一步全 failed、第二步（allowlist 拒绝）passed。修法：launcher 对三个 allowlist 变量用**强制赋值**（`os.environ[...] =`），不用 setdefault。坑清单原有条目只说"Hermes 环境注入值只有 /mnt/d/Hermes-Workspace:/home/renanzai"，但没点明**注入的是 OPP_MCP_ALLOWED_DIRS 这个变量本身**且 setdefault 覆盖不掉。
-- **根因 2（unconfigured 类）**：launcher 漏注入 `OPENCODE_GO_KEY`/`OPENCODE_GO_BASE_URL`（pipeline 场景 requires_env 用这两个**独立变量名**，与 AutoInfo 用的 OPENCODE_GO_API_KEY 不同）+ `OPP_CONFIG_PATH`/`OPP_ALLOWED_DIRECTORIES`（tool-ol-translate_file requires_env）。补注入后转绿。
+- **根因 2（unconfigured 类）**：launcher 漏注入 `OPENCODE_GO_KEY`/`OPENCODE_GO_BASE_URL`（pipeline 场景 requires_env 用这两个**独立变量名**，与另一条产线用的 OPENCODE_GO_API_KEY 不同）+ `OPP_CONFIG_PATH`/`OPP_ALLOWED_DIRECTORIES`（tool-ol-translate_file requires_env）。补注入后转绿。
 - **单跑验证**：6 tool-opp-* + tool-ol-translate_file + 3 pipeline 全部单跑 passed。注意 pipeline 场景是 tier 2——`--scenario X --tier 1` 会"no scenarios found"（被 tier 过滤掉），单跑 pipeline 必须不带 --tier 或带 --tier 2。
 - 全量重跑（修正 launcher）后台执行中。
 

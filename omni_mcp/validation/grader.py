@@ -28,7 +28,7 @@ JSONPath-ish dot-path form:
                                    truthy value, or ``{"path": "a.b",
                                    "value": X}`` asserting equality
 
-Falsifiable discipline (mirrors AutoInfo contract lint,
+Falsifiable discipline (mirrors the contract lint,
 ``run-validation-scenarios.py:506-537``): an empty / None / non-dict
 ``expect`` block fails with "step must be falsifiable" — the grader never
 auto-passes an ungraded step.  Unknown expect keys fail their check with a
@@ -380,7 +380,7 @@ def grade_step(step_expect: Any, actual: dict[str, Any]) -> GradeResult:
         0, actual 1"``.
     """
     if not isinstance(step_expect, dict) or not step_expect:
-        # Not falsifiable — mirrors AutoInfo contract lint
+        # Not falsifiable — mirrors the contract lint
         # ("missing expected block (must be falsifiable)").
         return GradeResult(passed=False, checks=[], reason="step must be falsifiable")
 
