@@ -13,15 +13,15 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 53 |
-| Total lines | 30854 |
+| Total files | 61 |
+| Total lines | 34374 |
 | Active files | 45 |
-| Archived files | 8 |
-| Category — archive | 8 files / 14157 lines |
+| Archived files | 16 |
+| Category — archive | 16 files / 17674 lines |
 | Category — expectations | 4 files / 2514 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 17 files / 2650 lines |
+| Category — docs/dev | 17 files / 2653 lines |
 | Category — docs/root | 21 files / 10193 lines |
 
 ## Inventory
@@ -57,15 +57,23 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `adr/TEMPLATE.md` | 36 | docs/dev | active | — |
 | `agent-pipeline-guide.md` | 349 | docs/root | active | — |
 | `agent-tester-validation-guide.md` | 20 | docs/root | active | — |
+| `archive/INTEGRATED_TEST_PLAN.md` | 1272 | archive | archived | — |
 | `archive/OL_VALIDATION_MASTER_PLAN.md` | 4489 | archive | archived | — |
 | `archive/OPP_VALIDATION_MASTER_PLAN.md` | 3106 | archive | archived | — |
 | `archive/ORF_VALIDATION_MASTER_PLAN.md` | 2563 | archive | archived | — |
-| `archive/README.md` | 45 | archive | archived | — |
+| `archive/README.md` | 53 | archive | archived | — |
 | `archive/SECURITY_FINDINGS.md` | 80 | archive | archived | — |
 | `archive/SUITE_VALIDATION_MASTER_PLAN.md` | 3589 | archive | archived | — |
 | `archive/T14_LIMITATION.md` | 222 | archive | archived | — |
+| `archive/agent-qa-workflow.md` | 348 | archive | archived | — |
 | `archive/e2e-fix-records.md` | 63 | archive | archived | — |
-| `dev/artifact-assertion-matrix.md` | 279 | docs/dev | active | — |
+| `archive/e2e-test-plan.md` | 201 | archive | archived | — |
+| `archive/feature_inventory.md` | 529 | archive | archived | — |
+| `archive/issue-pipeline-quality-improvements.md` | 183 | archive | archived | — |
+| `archive/lqa-pipeline-integration.md` | 203 | archive | archived | — |
+| `archive/lqa-workflow.md` | 270 | archive | archived | — |
+| `archive/system_improvements_v2.md` | 503 | archive | archived | — |
+| `dev/artifact-assertion-matrix.md` | 282 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 197 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 291 | docs/dev | active | — |

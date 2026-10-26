@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-26). Reason: Phase artifact; improvements landed and are recorded in CHANGELOG.md. Superseded by: `CHANGELOG.md`.**
+
 # 体系改进方案：当前架构内的翻译质量提升
 
 > 不改变 OPP→OL→ORF 三阶段拓扑，不引入新组件，不重构现有模块。

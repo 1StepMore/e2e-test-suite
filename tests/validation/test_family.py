@@ -50,8 +50,18 @@ def test_human_quality_anchor_wins_over_default():
     assert family_of("some-unknown-name", steps) == (HUMAN_QUALITY, "standard")
 
 
+def test_fallbacks_never_evidence_is_human_quality_anchor():
+    steps = [{"standard": "STANDARDS.md#fallbacks-never-evidence"}]
+    assert family_of("some-unknown-name", steps) == (HUMAN_QUALITY, "standard")
+
+
 def test_agent_surface_anchor_derives_agent_user():
     steps = [{"standard": "STANDARDS.md#exit-codes"}]
+    assert family_of("some-unknown-name", steps) == (AGENT_USER, "standard")
+
+
+def test_env_gate_semantics_is_agent_surface_anchor():
+    steps = [{"standard": "STANDARDS.md#env-gate-semantics"}]
     assert family_of("some-unknown-name", steps) == (AGENT_USER, "standard")
 
 
@@ -105,8 +115,10 @@ def test_anchor_sets_are_disjoint_and_complete():
         "error-clarity",
         "path-security",
         "exit-codes",
+        "env-gate-semantics",
     }
     assert HUMAN_QUALITY_ANCHORS == {
+        "fallbacks-never-evidence",
         "lqa-threshold",
         "para-ratio",
         "cjk-density",

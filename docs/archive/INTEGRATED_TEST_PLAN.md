@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-26). Reason: Phase artifact; the executable scenario library replaced the prose plan. Superseded by: `tests/` + `scenarios/`.**
+
 # Omni Suite Comprehensive E2E Test Plan (Integrated)
 
 **Version:** 0.4.0

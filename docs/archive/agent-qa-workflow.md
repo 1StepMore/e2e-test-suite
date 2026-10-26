@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-26). Reason: Phase artifact; the director loop supersedes the standalone workflow. Superseded by: `docs/dev/validation-director-loop.md`.**
+
 # Agent 协作质检工作流
 ## — 体系外维度的质量控制
 

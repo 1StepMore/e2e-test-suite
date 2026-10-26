@@ -8,6 +8,8 @@ description: >
   the shipped `cli.cache` functions against an isolated `OMNI_CACHE_DIR`;
   no LLM keys, no network, no FAKE_LLM in the runner environment.
 level: agent-user
+family_override: agent-user
+family_override_reason: "cites #fallbacks-never-evidence as an instrument for cache-mode isolation, not as a human-quality output contract (issue #205)"
 category: regression
 regression: true
 regression_issue: "1StepMore/e2e-test-suite#177 item 5 — OL #135 cache-key LLM-mode separation"

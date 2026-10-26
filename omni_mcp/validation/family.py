@@ -54,8 +54,14 @@ AGENT_SURFACE_ANCHORS = {
     "error-clarity",
     "path-security",
     "exit-codes",
+    # Process-gating anchor: describes how a scenario is configured/run,
+    # not what output quality it proves (STANDARDS.md §Scenario gating).
+    "env-gate-semantics",
 }
 HUMAN_QUALITY_ANCHORS = {
+    # Evidence-admissibility anchor: it governs whether a human-quality
+    # verdict is admissible at all (STANDARDS.md §Evidence admissibility).
+    "fallbacks-never-evidence",
     "lqa-threshold",
     "para-ratio",
     "cjk-density",

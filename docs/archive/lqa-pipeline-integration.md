@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-26). Reason: Phase artifact; LQA expectations are maintained in docs/OL_EXPECTATIONS.md. Superseded by: `docs/OL_EXPECTATIONS.md`.**
+
 # MQM 7 维接入分析：体系内 vs 体系外
 
 > 体系内 = 在 OPP→OL(SG+Glossary+Polish)→ORF 管线内做（预防性）

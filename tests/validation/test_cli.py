@@ -17,6 +17,7 @@ import textwrap
 import pytest
 
 from omni_mcp.validation.cli import (
+    _exit_code,
     lint_scenarios,
     main,
     parse_standard_anchors,
@@ -718,3 +719,20 @@ def test_main_repo_merge_then_run_persists(tmp_path, capsys, monkeypatch):
     names = {s["name"] for s in payload["scenarios"]}
     assert names == {"suite-a", "opp-a", "ol-a", "orf-a"}
     assert set(payload["run_meta"]["repos"]) == {"opp", "ol", "orf"}
+
+
+@pytest.mark.parametrize(
+    ("matrix_exit_code", "scenario_failures", "expected"),
+    [
+        (None, False, 0),
+        (None, True, 1),
+        (0, False, 0),
+        (0, True, 2),
+        (1, False, 1),
+        (1, True, 1),
+    ],
+)
+def test_exit_code_distinguishes_artifact_and_scenario_failures(
+    matrix_exit_code, scenario_failures, expected
+):
+    assert _exit_code(matrix_exit_code, scenario_failures) == expected
