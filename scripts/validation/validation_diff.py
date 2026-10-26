@@ -72,6 +72,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from omni_mcp.validation.statuses import PASS_LIKE_STATUSES
+
 #: Suite root: this module lives at <root>/scripts/validation/validation_diff.py.
 SUITE_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -81,8 +83,9 @@ RUNS_DIR = SUITE_ROOT / "validation-runs"
 
 #: Verdicts that count as "passed-like" for regression detection (guide
 #: §3.3: ``recovered`` is passed for verdict purposes; ``partial-pass``
-#: met its min_passing/pass_ratio bar).
-_PASS_LIKE = frozenset({"passed", "recovered", "partial-pass"})
+#: met its min_passing/pass_ratio bar). Shared with the report card via
+#: ``statuses.PASS_LIKE_STATUSES`` (issue #215 P3.1).
+_PASS_LIKE = PASS_LIKE_STATUSES
 
 #: Verdict-change kinds, in render order.
 _KINDS = ("REGRESSION", "improvement", "new", "missing", "changed")

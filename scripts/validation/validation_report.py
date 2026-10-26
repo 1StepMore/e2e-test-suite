@@ -65,8 +65,9 @@ from omni_mcp.validation.family import (  # noqa: F401
     HUMAN_QUALITY_ANCHORS,
     family_of,
 )
+from omni_mcp.validation.statuses import PASS_LIKE_STATUSES
 
-GREEN_STATUSES = {"passed", "recovered"}
+GREEN_STATUSES = PASS_LIKE_STATUSES
 
 #: Mirrors ``omni_mcp.validation.engine._RATE_LIMIT_RE`` so a run persisted
 #: before the ``throttled`` status existed still renders the marker
