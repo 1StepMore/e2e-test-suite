@@ -27,7 +27,7 @@ OPP (extract) → OL (translate) → ORF (backfill)
 - **CLI**: `ol translate-md <file> -s <src> -t <tgt> -o <dir>`
 - **MCP**: `ol-mcp` (stdio transport)
 - **Tests**: `Omni_Localizer/tests/` (90+ test files)
-- **Features**: Model pool failover, 4-layer repair (regex→span→LLM→fallback), LQA judging, TM/glossary injection, translation memory
+- **Features**: Model pool failover, 3-stage repair (regex→span→fallback; L3 LLM restore is opt-in), LQA judging, TM/glossary injection, translation memory
 
 ### Module 3: ORF (Omni Re-Formatter)
 - **Source**: `Omni_Re_Formatter/src/orf/`

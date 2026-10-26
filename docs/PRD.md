@@ -22,7 +22,7 @@ This document is the retrospective baseline. It records what is actually built, 
 - **16 output formats** from `orf apply-md`: DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON (README.md; ORF validation plan Q1).
 - **Two pipeline channels**: the MD channel (layout-tolerant, 16 output formats) and the XLIFF channel (format-preserving backfill using skeleton.zip + manifest.json).
 - **Three MCP servers**: OPP (9 tools), OL (21 tools), ORF (7 tools) — 37 module tools, plus 4 suite tools (`omni_mcp`) = 41 total.
-- **Quality machinery**: OL's 4-layer repair pipeline, StyleGuide injection, and 8 post-translation quality gates.
+- **Quality machinery**: OL's 3-stage repair pipeline, StyleGuide injection, and 7 post-translation quality gates.
 - **Zero-cost testing seam**: `OMNI_TEST_FAKE_LLM` and `OMNI_TEST_FAKE_PANDOC` for offline, key-free runs.
 
 **Out of scope (explicit non-goals)**
