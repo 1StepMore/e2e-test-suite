@@ -113,7 +113,7 @@ ORF is the last mile. OPP extracts, OL translates — but if ORF can't produce a
 |--------|------|
 | **pandoc** | DOCX, ODT, EPUB, RTF, ICML via `pypandoc-binary` |
 | **Pure Python** | HTML (`markdown`), PDF (weasyprint), CSV (pandas), XLSX (openpyxl), JSON (stdlib), IPYNB (nbformat), EML (stdlib), SRT (`srt`), XML (`lxml`) |
-| **md2pptx** | .NET CLI. Pre-flight `shutil.which('md2pptx')`. Falls back to pandoc. Both missing → install hint. |
+| **md2pptx** | Python 3 script (MartinPacker/md2pptx, needs `python-pptx>=1.0`). Pre-flight `shutil.which('md2pptx')`. Falls back to pandoc. Both missing → install hint. |
 | **FAKE_PANDOC** | `OMNI_TEST_FAKE_PANDOC=1` bypasses pandoc → `python-docx` fallback. |
 | **Expected** | `OMNI_TEST_FAKE_PANDOC=1 orf apply-md test.md --target-format docx` produces valid DOCX without pandoc. |
 
@@ -457,7 +457,7 @@ h = HITLApproval()
 **User:** "I don't have everything installed. What happens?" · **Why:** Graceful degradation is a principle.
 
 #### 11.1 Missing md2pptx `orf apply-md hello.md --target-format pptx -o fallback.pptx`
-**Expected:** ✅ If pandoc available: success. If both missing: "Install: dotnet tool install --global md2pptx".
+**Expected:** ✅ If pandoc available: success. If both missing: an install hint saying md2pptx is a Python 3 script (`git clone https://github.com/MartinPacker/md2pptx.git`, `chmod +x md2pptx`, requires `python-pptx>=1.0`).
 
 #### 11.2 Missing pandoc `OMNI_TEST_FAKE_PANDOC=1 orf apply-md hello.md --target-format docx -o nopandoc.docx`
 **Expected:** ✅ Exit 0. `python-docx` fallback. No traceback.

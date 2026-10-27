@@ -264,7 +264,7 @@ README.md:12 — AGENTS.md's "13 inputs" is stale).
 | HTML | `markdown` lib (pure Python) | No pandoc needed. |
 | RTF | pandoc | Same. |
 | PDF | `weasyprint` (`[weasyprint]` extra) | Falls back to pandoc if available. |
-| PPTX | `md2pptx` CLI (E2E-79) | .NET tool; falls back to pandoc when missing. |
+| PPTX | `md2pptx` CLI (E2E-79) | Python 3 script + `python-pptx>=1.0`; falls back to pandoc when missing. |
 | ICML | pandoc | Same. |
 | SRT | `srt` lib | Subtitle format. |
 | CSV | pandas | Pure Python. |
