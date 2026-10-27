@@ -105,19 +105,19 @@ class TestEPUBXLIFFSkeletonRuleReclaimed:
         monkeypatch.setitem(fmv.AVAILABILITY, "pandoc", True)
         assert fmv._check_skip("epub", "epub", "xliff") is None
 
-    def test_gap_formats_keep_their_rules(self):
-        """Only EML remains a genuine skeleton gap.
+    def test_no_xliff_gap_formats_remain(self):
+        """No format is left without an XLIFF backfill path.
 
         HTML was reclaimed at OPP#92 (``1ac5357``) and XLSX at OPP#94
-        (``6c2a5d8``). EML stays: OPP's email extractor yields ONE trans-unit
-        for the whole body and mail has no layout to preserve, so it was
-        deferred by decision rather than by omission.
+        (``6c2a5d8``). EML was the last gap: OPP's email extractor now emits
+        an EML skeleton (``message.eml`` + ``eml_map.json``) and ORF backfills
+        it through ``xliff2eml``, so its skip rule was reclaimed too.
 
         Asserting the exact set, not a subset, is deliberate: it is what
         catches the next stale rule being quietly added back.
         """
         kept = {r[1] for r in fmv.SKIP_RULES if r[0] == "xliff"}
-        assert kept == {"eml"}
+        assert kept == set()
 
     def test_xlsx_rule_is_reclaimed(self, monkeypatch):
         """XLSX emits a skeleton (OPP#94) and ORF backfills it (ORF#66).
