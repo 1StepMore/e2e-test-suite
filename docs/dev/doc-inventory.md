@@ -14,14 +14,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Metric | Value |
 |--------|-------|
 | Total files | 61 |
-| Total lines | 34374 |
+| Total lines | 34391 |
 | Active files | 45 |
 | Archived files | 16 |
 | Category — archive | 16 files / 17674 lines |
 | Category — expectations | 4 files / 2514 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 17 files / 2653 lines |
+| Category — docs/dev | 17 files / 2670 lines |
 | Category — docs/root | 21 files / 10193 lines |
 
 ## Inventory
@@ -77,7 +77,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/per-repo-validation-delivery.md` | 197 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 291 | docs/dev | active | — |
-| `dev/validation-loop-log.md` | 279 | docs/dev | active | — |
+| `dev/validation-loop-log.md` | 296 | docs/dev | active | — |
 | `handoff-2026-09-18.md` | 146 | docs/root | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
 | `master-validation-template.md` | 4153 | docs/root | active | — |

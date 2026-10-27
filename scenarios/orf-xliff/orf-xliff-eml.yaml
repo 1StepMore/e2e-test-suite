@@ -1,0 +1,133 @@
+name: orf-xliff-eml
+description: >-
+  EML round trip through the real OPP then ORF CLIs: build a deterministic
+  multipart message (base64 plain + quoted-printable html + one attachment,
+  CRLF, folded Subject), extract it with `opp --target-format both`, translate
+  every trans-unit, backfill with `orf apply-xliff --format eml`, and verify
+  the header block keeps its bytes while only the selected body part changes.
+  This is the only automated check of the `eml -> eml` XLIFF path (the matrix
+  treats EML as a cross-format input). Hermetic: no LLM, no FAKE_LLM.
+level: agent-user
+category: orf-xliff
+tier: 1
+requires_env: []
+instructions: |-
+  Prove the EML XLIFF round trip survives real CLIs end to end. 1) a python step writes a deterministic multipart EML (multipart/alternative inside multipart/mixed, base64 text/plain, quoted-printable text/html, one binary attachment, CRLF, Subject long enough to fold) to /tmp/omni_val/orf-xliff-eml/in.eml; 2) `opp in.eml --target-format both` must exit 0 and write in.skeleton.zip (message.eml + eml_map.json); 3) a python step copies every <source> into <target> with a 译: prefix; 4) `orf apply-xliff <skeleton> --xliff translated.xlf --format eml` must exit 0 and announce Created; 5) a python step asserts the top-level header block is byte-identical, the selected text/plain part carries the translated paragraphs, and the unselected text/html alternative plus the attachment are unchanged. The alternative part is deliberately NOT translated — only the part named by eml_map.json is rewritten.
+steps:
+  - name: Build deterministic multipart EML fixture
+    kind: python
+    command: |-
+      import pathlib
+      from email import policy
+      from email.message import EmailMessage
+      d = pathlib.Path("/tmp/omni_val/orf-xliff-eml")
+      d.mkdir(parents=True, exist_ok=True)
+      m = EmailMessage()
+      m["From"] = "Alice Example <alice@example.com>"
+      m["To"] = "Bob Example <bob@example.com>"
+      m["Subject"] = "Quarterly localization review for the international rollout programme"
+      m.set_content("Hello team.\n\nSecond paragraph.", subtype="plain", charset="utf-8", cte="base64")
+      m.add_alternative("<html><body><p>Hello team.</p><p>Second paragraph.</p></body></html>", subtype="html", charset="utf-8", cte="quoted-printable")
+      m.add_attachment(b"attachment-bytes-\x00\x01", maintype="application", subtype="octet-stream", filename="data.bin")
+      raw = m.as_bytes(policy=policy.default.clone(linesep="\r\n"))
+      assert b"\r\n\r\n" in raw, "fixture has no header/body separator"
+      (d / "in.eml").write_bytes(raw)
+      print("WROTE %d bytes" % len(raw))
+    expect:
+      exit_code: 0
+      stdout_has: ["WROTE"]
+    standard: STANDARDS.md#exit-codes
+    instructions: |-
+      Write /tmp/omni_val/orf-xliff-eml/in.eml with a folded Subject, a base64 text/plain body of two paragraphs, a quoted-printable text/html alternative and one base64 attachment, all CRLF. Check: exit 0 and a WROTE line; the separator assertion proves the header block is splittable.
+
+  - name: Extract the EML with OPP
+    kind: cli
+    command: opp /tmp/omni_val/orf-xliff-eml/in.eml --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/orf-xliff-eml -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-xliff-eml/in.skeleton.zip
+    instructions: |-
+      Run the real OPP CLI on the fixture (`-v` so the run is auditable). Check: exit 0 (STANDARDS.md#exit-codes). The presence of in.skeleton.zip with message.eml plus eml_map.json is asserted by the next step, which is stronger evidence than a log line.
+
+  - name: Copy every source into a translated target
+    kind: python
+    command: |-
+      import pathlib
+      from lxml import etree
+      import zipfile
+      d = pathlib.Path("/tmp/omni_val/orf-xliff-eml")
+      skeleton = d / "in.skeleton.zip"
+      assert skeleton.is_file(), "OPP wrote no skeleton at %s" % skeleton
+      with zipfile.ZipFile(skeleton) as zf:
+          assert sorted(zf.namelist()) == ["eml_map.json", "message.eml"], zf.namelist()
+      tree = etree.parse(str(d / "in.xlf"))
+      units = 0
+      for el in tree.getroot().iter():
+          if not isinstance(el.tag, str) or etree.QName(el).localname != "trans-unit":
+              continue
+          source = next((c for c in el if isinstance(c.tag, str) and etree.QName(c).localname == "source"), None)
+          if source is None:
+              continue
+          target = next((c for c in el if isinstance(c.tag, str) and etree.QName(c).localname == "target"), None)
+          if target is None:
+              target = etree.SubElement(el, "target")
+          target.text = "译:" + "".join(source.itertext())
+          units += 1
+      assert units >= 2, "expected at least two trans-units, got %d" % units
+      tree.write(str(d / "translated.xlf"), encoding="utf-8", xml_declaration=True)
+      print("UNITS %d" % units)
+    expect:
+      exit_code: 0
+      stdout_has: ["UNITS "]
+    standard: STANDARDS.md#tool-contract
+    instructions: |-
+      Namespace-agnostic XLIFF edit: for every trans-unit copy the source text into a target prefixed 译:. Check: exit 0 and UNITS n with n >= 2 — proof the EML body was split into multiple trans-units rather than one blob.
+
+  - name: Backfill translated XLIFF into the EML skeleton
+    kind: cli
+    command: orf apply-xliff /tmp/omni_val/orf-xliff-eml/in.skeleton.zip --xliff /tmp/omni_val/orf-xliff-eml/translated.xlf --output /tmp/omni_val/orf-xliff-eml/out.eml --format eml
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni_val/orf-xliff-eml/out.eml"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni_val/orf-xliff-eml/out.eml
+    instructions: |-
+      Run the real ORF CLI: `orf apply-xliff <skeleton.zip> --xliff translated.xlf --output out.eml --format eml`. Check: exit 0 (STANDARDS.md#exit-codes) and stdout announces Created <path>.
+
+  - name: Assert header bytes, translated body, untouched alternative and attachment
+    kind: python
+    command: |-
+      import pathlib, sys
+      from email import policy
+      from email.parser import BytesParser
+      try:
+          d = pathlib.Path("/tmp/omni_val/orf-xliff-eml")
+          raw_in = (d / "in.eml").read_bytes()
+          raw_out = (d / "out.eml").read_bytes()
+          sep = b"\r\n\r\n"
+          head = raw_in[: raw_in.find(sep) + len(sep)]
+          assert raw_out.startswith(head), "top-level header block is not byte-identical"
+          mi = BytesParser(policy=policy.default).parsebytes(raw_in)
+          mo = BytesParser(policy=policy.default).parsebytes(raw_out)
+          def part(msg, ctype):
+              return next(p for p in msg.walk() if p.get_content_type() == ctype)
+          plain = part(mo, "text/plain").get_content()
+          assert plain.count("译:") >= 2, "selected body does not carry both translations: %r" % plain
+          assert part(mo, "text/html").get_content() == part(mi, "text/html").get_content(), "unselected html alternative changed"
+          assert part(mo, "application/octet-stream").get_payload(decode=True) == part(mi, "application/octet-stream").get_payload(decode=True), "attachment bytes changed"
+          assert mo.get_boundary() == mi.get_boundary(), "multipart boundary changed"
+          print("OK: headers byte-identical, %d translated paragraphs, html alternative and attachment unchanged" % plain.count("译:"))
+      except Exception as e:
+          print("ERROR: %s" % e)
+          sys.exit(1)
+    expect:
+      exit_code: 0
+      stdout_has: ["OK:"]
+    standard: STANDARDS.md#tool-contract
+    instructions: |-
+      Read in.eml and out.eml and verify the format-preserving contract: the top-level header block (up to and including the first CRLFCRLF) is byte-identical, the selected text/plain part contains 译: for every trans-unit, and the unselected text/html alternative, the attachment bytes and the multipart boundary are unchanged. Exits 0 with an OK: line, or 1 naming the broken invariant.

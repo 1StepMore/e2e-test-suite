@@ -226,10 +226,6 @@ SKIP_RULES: list[tuple[str, str, str]] = [
     # bytes verbatim plus an `xliff_map.json` sidecar; ORF's xliff2xlsx consumes
     # it). The map is a sidecar rather than injected data-trans-unit-id
     # attributes because SpreadsheetML is strict OOXML and would reject them.
-    # EML measured skeleton=None — rule stays, deferred by decision (see
-    # ACCEPTED_GAPS.md: OPP's email extractor yields ONE trans-unit for the whole
-    # body, and mail has no layout to preserve, so XLIFF adds nothing there).
-    ("xliff", "eml", "XLIFF: OPP doesn't produce skeleton for EML"),
     # XLIFF cross-format: ORF converters assume same-format skeleton+output.
     # Only same-format XLIFF cells are supported.
     ("xliff_xfmt", "*", "XLIFF cross-format not supported by ORF converters"),

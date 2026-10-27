@@ -99,7 +99,7 @@
           "type": "boolean"
         },
         "format": {
-          "description": "Output format (docx, pptx, epub, html, odf, json, ...).",
+          "description": "Output format (docx, pptx, epub, html, odf, json, xlsx, eml, ...).",
           "type": "string"
         },
         "images": {
