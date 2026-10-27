@@ -21,7 +21,7 @@
 
 - **格子 201 个** = md 路径 11 输入 × 15 输出（**165**）+ xliff 路径 6 输入 × 6 输出（**36**）
 - **通道 2 条** = CLI（`scripts/format_matrix_verifier.py`）× MCP（`scripts/mcp_matrix_verifier.py`），**同一个 201 格矩阵**，一条走子进程 CLI、一条走 MCP 工具调用
-- **合计 402 次格子运行**，全部通过才算达标
+- **合计 402 次格子运行**；达标口径是 `gap_units == 0`（0 failed 且无「需清理」skip），不是 402 格全过
 
 > 说明：L1 §2.3 写的「16 输入 × 2 通道 = 32」是**粗估，不准**。真实定义以验证器里的
 > `FULL_MATRIX` 为准（`ALL_INPUTS` / `ALL_OUTPUTS` / `XLIFF_INPUTS` / `XLIFF_OUTPUTS`）。
@@ -67,9 +67,12 @@ docstring 明确写着 *"exits 0 if all non-skipped cells pass"*。
 
 | 判据 | 谁判 |
 |:---|:---|
-| 402 格归零且 skip 未超基线（`nightly_gap.py` exit 0） | **机器**（agent 跑） |
+| `gap_units == 0`（fail 0 且无「需清理」skip；`nightly_gap.py` exit 0） | **机器**（agent 跑） |
 | 连续 2 轮不新增「挡住 DoD」的项 | **机器**（agent 跑） |
 | **「本计划完成 / Omni 产出没问题」总裁决** | **owner（人工保留）** |
+
+> **口径源**：`scripts/nightly_gap.py:40-49`、`:366` —— `gap_units = failed + needs_cleanup_total`；`gap_units == 0 -> exit 0`。
+> **402/402 在算术上不可达**：29×2 个 XLIFF 跨格式格是按决定保留的能力债（见 `ACCEPTED_GAPS.md` / issue #227），不是待清零项；DoD 的正确口径是 0 failed + 无「需清理」skip，`skip ≤ 基线` 只是回归护栏（`DEFAULT_MAX_SKIP=67`/通道），不是达标条件。
 
 **硬规矩**：coding agent **不得**在任何报告、提交信息、PR 描述或文档里宣布
 「矩阵全绿」「Omni 产出没问题」之类的**总裁决**。它只能说「差距矩阵归零，证据在此」。
@@ -85,7 +88,7 @@ cd <repo>
 .venv_ol/bin/python scripts/nightly_gap.py \
     --json-out test_artifacts/nightly/gap.json \
     --md-out  test_artifacts/nightly/gap.md
-# exit 0 = 402 格全过且 skip 未超基线 / 1 = 仍有差距 / 2 = 环境或用法错误（需人介入）
+# exit 0 = gap_units 归零（0 failed 且 0 需清理 skip）/ 1 = 仍有差距 / 2 = 环境或用法错误（需人介入）
 
 # —— 单通道直跑（定位用；注意必须用 .venv_ol 且三件套齐全）——
 .venv_ol/bin/python scripts/format_matrix_verifier.py --json --out-dir /tmp/fm
