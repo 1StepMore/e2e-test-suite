@@ -339,9 +339,9 @@ Four gates keep the documentation consistent with source truth. Run them after a
 
 ### D3 — Canonical numbers (P1)
 
-**Criterion**: canonical numbers are test matrix **131 PASS / 64 SKIP / 0 FAIL**, nightly **14**, scenario library **122** = **108 tier-1 / 13 tier-2 / 1 tier-3**. Historical measurements must carry explicit markers (e.g. `(--collect-only; canonical: 14)`).
+**Criterion**: canonical numbers are test matrix **131 PASS / 64 SKIP / 0 FAIL**, nightly **14**, scenario library **123** = **109 tier-1 / 13 tier-2 / 1 tier-3**. Historical measurements must carry explicit markers (e.g. `(--collect-only; canonical: 14)`).
 
-**Verify**: `python3 scripts/doc_inventory.py --check` → prints `scenarios/: 122 yaml files; tiers={'1': 108, '2': 13, '3': 1}` and verifies the canonical test matrix + nightly-test claims.
+**Verify**: `python3 scripts/doc_inventory.py --check` → prints `scenarios/: 123 yaml files; tiers={'1': 109, '2': 13, '3': 1}` and verifies the canonical test matrix + nightly-test claims.
 
 ### D4 — No stale artifacts (P1)
 
