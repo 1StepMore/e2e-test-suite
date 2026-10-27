@@ -68,7 +68,24 @@
 - [ ] **集合类断言用「超集 + required 计数」，不要 pin 精确计数**——上游产品仓的合法扩面（OL#139 把 roles 3→4 对齐 config）会击穿 `len(...)==N` 型断言，且红在与你无改动关联的地方（suite main run `39084375604`）。精确计数只用于契约本身即计数的地方；成员集合一律「required 成员逐一存在 + `required_*_missing=0`」。
 - [ ] **`uv lock --check` 本机失败先看 index registry**——`uv.lock` 记录解析所用 index（当前 293 处全为 `pypi.org`）；本机镜像（阿里云/Tsinghua）下会对 pypi.org 解析的 lock 报假阳性，`UV_DEFAULT_INDEX=https://pypi.org/simple` 复显 rc=0 即为镜像现象，判准以 CI（默认 pypi）`uv sync --locked` 为准。与上方「`uv lock --check` 必须在仓库自身语境里跑」条互补：那条管 workspace/仓锁混淆，本条管 index 不一致。
 
+### 2026-10-27（EML 轮新增）
+
+- [ ] **LQA 绿 ≠ 无夹带**——真模型 V1 译文出现 `manufacturingGovorun`，而长度比（3.58）、CJK 密度（0.00%）、中文标点（0）、`judge_overall`（4.85/5）四项门禁全部通过。LQA 判「整体质量」，不判「是否有源文与目标语言之外的孤立词」。要自动抓住这类缺陷，需要独立的「孤立词 / 非目标语言 token」断言；报告类证据必须保留人工通读摘录，不能只贴门禁分数。
+- [ ] **文件格式检测优先看后缀，再看内容嗅探**——`.eml` 里只要出现 `<html`，基于内容的嗅探就会把它判成 HTML（OPP `detect_format`），后续 extractor 校验直接拒收。凡「容器格式 + 内部载荷类型可能冲突」的输入（EML/MSG、HTML、EPUB），后缀守卫必须排在内容嗅探之前。
+
 ## 循环事件（major events，newest on top）
+
+### 2026-10-27：EML 生产就绪（OPP 多段抽取 + ORF `xliff2eml`）+ 矩阵 skip 收口 + 真模型抽样 V1/V2
+
+- Date: 2026-10-27；触发：`.omo/plans/2026-10-27-eml-production-readiness.md`（把 EML 从「设计性缺口」改成可交付通道）
+- Scope: OPP `feat/eml-multipart-extraction`（`40dd483` + `37b5551`）、ORF `feat/xliff2eml-channel`（`aed99cd`）、suite `feat/eml-matrix-and-scenarios`（`a07c0de` + `b94bf8e`）
+- Result:
+  - **OPP**：multipart 选体（plain 优先 / html 回退）+ 正文切段 + `message.eml` & `eml_map.json` 骨架。顺带修出真实缺陷：含 `<html` alternative 的 multipart EML 被**内容嗅探**判成 HTML → `HTMLExtractor.validate_file` → `不支持的文件格式: .eml`；修法是把 `.eml`/`.msg` 后缀守卫前置到 PK/内容嗅探之前（`src/opp/detector.py`），并补回归用例 `test_eml_with_html_alternative_detected_as_email`。单测 `25 passed, 3 skipped`；真 CLI 出 4 个 `<trans-unit>`。
+  - **ORF**：新增 `xliff2eml` 通道（8 用例绿），capabilities 回到 9 种回填格式；真 CLI 往返实测 header 逐字节相同、boundary 不变、base64 可解、附件字节不变。
+  - **suite**：新场景 `orf-xliff-eml` 5/5 passed；矩阵 XLIFF 通道 `36 total / 4 passed / 32 skipped / 0 failed`，EML 的 6 格从「缺骨架」移入跨格式桶（桶 23→**29**，双通道 58）；`doc_inventory --check` 绿（123 场景 / tier-1 109）。
+  - **T4（真模型）**：`check_llm_pool` → pass；`pipeline-docx-md-docx` 14/14 passed（LQA 4.85，drawings 2→2，para ratio 1.000），`pipeline-pptx-md-pptx` 11/11 passed（LQA 4.12，pandoc 回退），两处 `known_gap` 本轮均 `GAP CLOSED`。
+- 坑（新增，已入上方坑清单）：**LQA 绿 ≠ 无夹带**——V1 译文出现 `manufacturingGovorun`，长度比 / CJK 密度 / 中文标点 / LQA 4.85 四项全都没报警；自动门禁需要「译文不得含源文与目标语言之外的孤立词」类断言。
+- Conclusion: 3 个 PR（OPP#110 / ORF#70 / suite#224）与 4 条记账 issue（ORF#71、suite#225–#227）就绪、**未合并**；矩阵 DoD 必须写成「0 failed + skip ≤ 66/132 + 每格有据」，「402 格归零」结构性不可达。
 
 ### 2026-10-18：套件 main 红（`ol-capabilities-contract`）→ 定性=断言漂移 + 超集断言修复
 
