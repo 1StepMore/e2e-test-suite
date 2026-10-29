@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-30). Reason: dated one-off audit; action items landed or tracked via CHANGELOG/issues. Superseded by: `CHANGELOG.md` + git history.**
+
 # Omni Suite 代码美学与架构深度审阅
 
 > **审阅日期**：2026-10-22

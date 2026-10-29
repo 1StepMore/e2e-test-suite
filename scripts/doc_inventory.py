@@ -461,6 +461,13 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
         for m in _TOTAL_PAREN_RE.finditer(read_text(path)):
             _fail(failures, "docs/SECURITY_AUDIT.md", "total", int(m.group(1)), total)
 
+    # scenarios/STANDARDS.md: "suite `omni_mcp` N at baseline" — the Tool
+    # contract anchor's live-registry counts (plan 2026-10-30 §3.1 optional).
+    path = root / "scenarios" / "STANDARDS.md"
+    if path.exists():
+        for m in re.finditer(r"suite `omni_mcp` (\d+) at baseline", read_text(path)):
+            _fail(failures, "scenarios/STANDARDS.md", "suite", int(m.group(1)), source["suite"])
+
     # Per-module AGENTS.md: "## MCP tools (N total)".
     for rel, mod in (
         ("Omni_Pre_Processor/AGENTS.md", "opp"),
@@ -511,10 +518,12 @@ def check_claim_sites(root: Path, source: dict[str, int], failures: list[str]) -
         for m in _GUIDE_ALL_TOTAL_RE.finditer(text):
             _fail(failures, "docs/agent-pipeline-guide.md", "total", int(m.group(1)), total + source["suite"])
 
-    # docs/SUITE_EXPECTATIONS.md: "7 + 21 + 6 = 34 tools" sum form.
-    path = root / "docs" / "SUITE_EXPECTATIONS.md"
+    # docs/archive/SUITE_EXPECTATIONS.md: "7 + 21 + 6 = 34 tools" sum form
+    # (frozen snapshot, archived 2026-10-30 — check retained so the archive
+    # cannot be silently edited back to stale sums).
+    path = root / "docs" / "archive" / "SUITE_EXPECTATIONS.md"
     if path.exists():
-        _check_module_sum(failures, "docs/SUITE_EXPECTATIONS.md", read_text(path), source)
+        _check_module_sum(failures, "docs/archive/SUITE_EXPECTATIONS.md", read_text(path), source)
 
     # reports/SELF_DRIVEN_LOOP_V2_REPORT.md: "opp-mcp-server (7 tools) | ol-mcp (8 tools) | ...".
     path = root / "reports" / "SELF_DRIVEN_LOOP_V2_REPORT.md"
@@ -701,8 +710,8 @@ _INPUT_FORMAT_CLAIM_SITES: tuple[str, ...] = (
     "Omni_Pre_Processor/AGENTS.md",
     "Omni_Pre_Processor/README.md",
     "docs/PRD.md",
-    "docs/OPP_EXPECTATIONS.md",
-    "docs/master-validation-template.md",
+    # docs/OPP_EXPECTATIONS.md + docs/master-validation-template.md removed
+    # 2026-10-30: both archived (frozen history, not live claim sites).
     ".opencode/skills/omni-suite/SKILL.md",
 )
 _INPUT_FORMAT_CLAIM_RE = re.compile(r"(\d+)\s+input formats")
@@ -951,6 +960,17 @@ _HISTORICAL_PATH_TOKENS = {
     "scripts/mcp_bridge.py",
     ".cursor/mcp.json",
     "validation-runs/latest.txt",
+    "validation-runs/latest-full.txt",
+    # Archived 2026-10-30 (docs/archive/ batch) — the old locations live on
+    # in historical references (CHANGELOG entries, dated audit reports).
+    "docs/OPP_EXPECTATIONS.md",
+    "docs/OL_EXPECTATIONS.md",
+    "docs/ORF_EXPECTATIONS.md",
+    "docs/SUITE_EXPECTATIONS.md",
+    "docs/master-validation-template.md",
+    "docs/handoff-2026-09-18.md",
+    "docs/project-code-aesthetics-review-2026-10-22.md",
+    "docs/project-evaluation-pain-points-2026-09-06.md",
     "Omni_Localizer/config/local.yaml",
     "Omni_Localizer/.env",
 }

@@ -1,3 +1,7 @@
+# Error-boundary probe (validation guide §5.1): this scenario pins the
+# --json failure EXIT-CODE contract, not a live tool — coverage_audit
+# therefore reports it as PHANTOM(1) by design (contributes zero tool
+# coverage; informational only).
 name: tool-orf-json-failure-exit
 description: >
   Regression seed locking plan gap T-01 (agent-oriented-gap-register.md

@@ -31,10 +31,18 @@
 | `feature_inventory.md` | 2026-10-26 | Phase artifact; feature/QA state maintained in `README.md` + module docs | `README.md` |
 | `system_improvements_v2.md` | 2026-10-26 | Phase artifact; improvements landed | `CHANGELOG.md` |
 | `e2e-test-plan.md` | 2026-10-26 | Phase artifact; superseded by the executable scenario library | `tests/` + `scenarios/` |
-| `lqa-pipeline-integration.md` | 2026-10-26 | Phase artifact; LQA expectations moved to maintained docs | `docs/OL_EXPECTATIONS.md` |
+| `lqa-pipeline-integration.md` | 2026-10-26 | Phase artifact; LQA expectations moved to maintained docs | `docs/archive/OL_EXPECTATIONS.md` (archived 2026-10-30) |
 | `lqa-workflow.md` | 2026-10-26 | Phase artifact; superseded by the director loop | `docs/dev/validation-director-loop.md` |
 | `agent-qa-workflow.md` | 2026-10-26 | Phase artifact; superseded by the director loop | `docs/dev/validation-director-loop.md` |
 | `issue-pipeline-quality-improvements.md` | 2026-10-26 | Phase artifact; improvements landed | `CHANGELOG.md` |
+| `OPP_EXPECTATIONS.md` | 2026-10-30 | Stale Founder's-expectations snapshot (header v0.9.1); function replaced by the scenario library | `scenarios/` + `Omni_Pre_Processor/AGENTS.md` |
+| `OL_EXPECTATIONS.md` | 2026-10-30 | Stale expectations snapshot; function replaced by the scenario library | `scenarios/` + `Omni_Localizer/AGENTS.md` |
+| `ORF_EXPECTATIONS.md` | 2026-10-30 | Stale expectations snapshot (header v0.4.17); function replaced by the scenario library | `scenarios/` + `Omni_Re_Formatter/AGENTS.md` |
+| `SUITE_EXPECTATIONS.md` | 2026-10-30 | Stale expectations snapshot (header v0.4.0 / 2026-07-22); function replaced by the scenario library | `scenarios/` + `AGENTS.md` |
+| `master-validation-template.md` | 2026-10-30 | Orphaned validation master template (2026-07-16) | `scenarios/` + `docs/dev/validation-director-loop.md` |
+| `handoff-2026-09-18.md` | 2026-10-30 | Point-in-time handoff notes, zero live references | `PROJECT_STATUS.md` + `docs/dev/validation-loop-log.md` |
+| `project-code-aesthetics-review-2026-10-22.md` | 2026-10-30 | Dated one-off audit; action items landed or tracked | `CHANGELOG.md` + git history |
+| `project-evaluation-pain-points-2026-09-06.md` | 2026-10-30 | Dated one-off pain-point review, zero live references | `docs/project-infrastructure-audit-2026-10-30.md` |
 
 ## How to archive something
 

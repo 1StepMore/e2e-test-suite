@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-30). Reason: stale expectations snapshot, function replaced by the executable scenario library. Superseded by: `scenarios/` + `Omni_Localizer/AGENTS.md`.**
+
 # OL (Omni Localizer) — Founder's Expectations & Agent Validation Master Plan
 
 > **Version:** v0.7.1 · **Stage:** 2 of 3 (OPP → **OL** → ORF) · **Pipeline:** shield→translate→repair→unshield + postproc + 8 quality gates

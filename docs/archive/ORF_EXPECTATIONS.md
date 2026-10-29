@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-30). Reason: stale expectations snapshot (header v0.4.17), function replaced by the executable scenario library. Superseded by: `scenarios/` + `Omni_Re_Formatter/AGENTS.md`.**
+
 # Founder's Expectations + Agent Validation Master Plan — ORF
 
 > **Omni Re-Formatter** · v0.4.17 — Stage 3 (final): backfill translated content into production-ready documents.

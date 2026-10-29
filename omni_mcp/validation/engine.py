@@ -725,7 +725,9 @@ def persist_run(run: RunResult, runs_dir: str | Path = "validation-runs") -> Pat
     Writes ``<runs_dir>/<ts>/scenarios.json`` (ts = ``%Y%m%d-%H%M%S``,
     sortable) containing the full run record — per-scenario verdict,
     per-step trace + GradeResult, and env status (``missing_env``) — then
-    refreshes ``<runs_dir>/latest.txt`` with the run directory name.
+    refreshes ``<runs_dir>/latest.txt`` with the run directory name (and,
+    when ``run_meta["run_kind"] == "full-library"``, also
+    ``<runs_dir>/latest-full.txt``).
     Creates *runs_dir* when missing.  A same-second collision gets a short
     random suffix instead of overwriting: runs are immutable, written
     once.
@@ -765,6 +767,12 @@ def persist_run(run: RunResult, runs_dir: str | Path = "validation-runs") -> Pat
         text, encoding="utf-8", errors="replace"
     )
     (base / "latest.txt").write_text(run_dir.name, encoding="utf-8")
+    if run.run_meta.get("run_kind") == "full-library":
+        # Full-library runs additionally refresh the full-library baseline
+        # pointer. Single-scenario MCP spot checks (the majority of runs)
+        # refresh latest.txt but must never overwrite this baseline
+        # (plan 2026-10-30 §3.3).
+        (base / "latest-full.txt").write_text(run_dir.name, encoding="utf-8")
     return run_dir
 
 

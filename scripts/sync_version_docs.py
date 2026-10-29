@@ -6,9 +6,11 @@ own `pyproject.toml`. This script rewrites the version numbers in:
 
 - README.md (env table + Pinned combo line)
 - AGENTS.md (Current Versions table + Pinned combo line)
-- COMPATIBILITY.md ("How to check installed versions" example commands)
 - docs/ARCHITECTURE.md (Current version table)
 - PROJECT_STATUS.md (Current versions table)
+
+(COMPATIBILITY.md was dropped 2026-10-30 — append-only history matrix,
+no syncable shape; see the comment on TARGETS.)
 
 Run directly: `python scripts/sync_version_docs.py`
 Pre-commit: see `.pre-commit-config.yaml` `omni-version-docs-sync` hook.
@@ -37,7 +39,12 @@ VERSION_SOURCES = {
 TARGETS: list[Path] = [
     SUITE_ROOT / "README.md",
     SUITE_ROOT / "AGENTS.md",
-    SUITE_ROOT / "COMPATIBILITY.md",
+    # COMPATIBILITY.md removed from TARGETS 2026-10-30 (plan PR3 #5): its
+    # syncable shape (the `# X.Y.Z` example commands) no longer exists — the
+    # file is now an append-only compatibility MATRIX whose rows are
+    # historical records that must NOT be rewritten by a version sync. With
+    # no pattern matching it, the old TARGETS entry was a permanent vacuous
+    # pass; the new zero-match guard in main() would have failed on it.
     # #215 P0.1: both files advertised versions two releases stale because
     # they were outside this gate. Keep them inside it (rather than deleting
     # the tables) so the quick-context views stay truthful.
@@ -202,23 +209,32 @@ def _replacements(v: dict[str, str]) -> list[tuple[re.Pattern[str], str]]:
     ]
 
 
-def _apply(path: Path, replacements: list[tuple[re.Pattern[str], str]], *, dry_run: bool = False) -> int:
-    """Return the number of substitutions that actually changed text.
+def _apply(
+    path: Path, replacements: list[tuple[re.Pattern[str], str]], *, dry_run: bool = False
+) -> tuple[int, int]:
+    """Return ``(real_changes, pattern_matches)`` for one target file.
 
-    `subn` reports matches even when the replacement string equals the
-    matched substring (a no-op write). For the --check mode we need
-    only the count of substitutions that produce a real diff.
+    ``real_changes`` counts substitutions that produce a real diff (a
+    pattern matching an already-current value is a no-op write, not a
+    change).  ``pattern_matches`` counts every regex hit regardless of
+    whether it changed anything — the vacuous-pass guard in ``main``
+    needs this: when a doc's shape drifts so far that ZERO patterns
+    match, ``--check`` used to report "in sync" while the tables
+    advertised whatever they contained (the 2026-06 v0.9 incident
+    described in ``_replacements``).
 
     If *dry_run* is True the file is never written to.
     """
     content = path.read_text(encoding="utf-8")
     new = content
     real_changes = 0
+    matched = 0
     for pattern, replacement in replacements:
         # Compare per-pattern so we only credit substitutions where the
         # replacement differs from the matched text.
         def _count(m: re.Match[str]) -> str:
-            nonlocal real_changes
+            nonlocal real_changes, matched
+            matched += 1
             expanded = m.expand(replacement)
             if m.group(0) != expanded:
                 real_changes += 1
@@ -227,7 +243,7 @@ def _apply(path: Path, replacements: list[tuple[re.Pattern[str], str]], *, dry_r
         new = pattern.sub(_count, new)
     if new != content and not dry_run:
         path.write_text(new, encoding="utf-8")
-    return real_changes
+    return real_changes, matched
 
 
 def main() -> int:
@@ -252,14 +268,30 @@ def main() -> int:
     replacements = _replacements(versions)
     total_subs = 0
     changed_files: list[str] = []
+    vacuous: list[str] = []
     for target in TARGETS:
         if not target.exists():
             print(f"WARNING: {target} does not exist, skipping", file=sys.stderr)
             continue
-        n = _apply(target, replacements, dry_run=args.dry_run)
+        n, matched = _apply(target, replacements, dry_run=args.dry_run)
+        if matched == 0:
+            vacuous.append(str(target.relative_to(SUITE_ROOT)))
         if n > 0:
             changed_files.append(f"{target.relative_to(SUITE_ROOT)} ({n} substitutions)")
             total_subs += n
+
+    if vacuous:
+        # Vacuous-pass guard (plan 2026-10-30): a target whose shape drifted
+        # so far that NO version pattern matches must fail loudly instead of
+        # reporting "in sync". Update _replacements() when this fires.
+        print(
+            "ERROR: no version pattern matched the following target(s) — "
+            "doc shape drifted past this gate; update _replacements():",
+            file=sys.stderr,
+        )
+        for line in vacuous:
+            print(f"  - {line}", file=sys.stderr)
+        return 1
 
     if args.dry_run:
         if changed_files:

@@ -246,7 +246,9 @@ repos:
       # pytest runs only when it succeeds, otherwise a visible SKIP names the
       # missing module. Never a silent pass — the CI half of this invariant
       # keeps running regardless (lint.yml "Blocking: path-security parity"
-      # and the validation.yml Structural job, which has the full install).
+      # and the e2e ci-suite full pytest run; validation.yml Gate 4 runs only
+      # tests/contract + tests/validation and never ran this parity test —
+      # comment corrected 2026-10-30, the Structural-job claim was false).
       - id: omni-path-policy-parity
         name: Omni Suite path-security parity (one policy, every copy)
         entry: |
@@ -256,7 +258,7 @@ repos:
               bash scripts/pre_commit_python.sh -m pytest tests/security/test_path_policy_parity.py --tb=short -q --no-header 2>&1 | tail -15
               exit $?
             fi
-            echo "SKIP: omni_mcp.orchestrator is not importable under the project interpreter — the authoritative execution is the CI path-security parity gate (lint.yml) and the Validation Framework workflow Structural job (CI validation.yml, full install). Probe said:"
+            echo "SKIP: omni_mcp.orchestrator is not importable under the project interpreter — the authoritative execution is the CI path-security parity gate (lint.yml) and the e2e ci-suite full pytest run. Probe said:"
             echo "$err"
             exit 0
           '

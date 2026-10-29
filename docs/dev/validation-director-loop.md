@@ -86,11 +86,15 @@ Exit codes: 0 = no failures (`unconfigured`, `partial-pass`, `recovered`,
 `passed` are not failures); 1 = any failed scenario, lint finding, or load
 error.
 
-**Read the latest run — `latest.txt` points at the newest run dir, the
-director report turns it into decisions:**
+**Read the latest run — `latest.txt` points at the newest run dir of ANY
+kind (89% of runs are single-scenario MCP spot checks), `latest-full.txt`
+at the newest FULL-LIBRARY run (written only when the selection covered
+every loaded scenario; may not exist on a fresh checkout), and the
+director report turns either into decisions:**
 
 ```bash
 cat validation-runs/latest.txt          # newest run dir, e.g. 20260814-200733
+cat validation-runs/latest-full.txt     # newest full-library run — the suite-level baseline
 python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json
 ```
 

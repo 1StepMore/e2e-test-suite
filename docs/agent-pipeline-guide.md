@@ -112,10 +112,15 @@ per-module `AGENTS.md` files or `docs/API.md`.
 
 | Server | Tool Count | CLI Start Command | MCP Name |
 |--------|-----------|-------------------|----------|
-| OPP MCP | 9 | `opp mcp` or `uvx opp-mcp` | `opp-mcp-server` |
+| OPP MCP | 9 | `opp mcp` or `uvx opp-mcp` | `opp-mcp` |
 | OL MCP | 21 | `ol mcp` or `uvx ol-mcp` | `ol-mcp` (alias `ol-mcp-server`) |
-| ORF MCP | 7 | `orf mcp` or `uvx orf-mcp` | `orf-mcp-server` |
+| ORF MCP | 7 | `orf mcp` or `uvx orf-mcp` | `orf-mcp` |
 | Omni MCP | 4 (suite) | `omni-mcp` | `omni-mcp` |
+
+> The **MCP Name** is the `Server()` handshake name an agent sees in the
+> initialize response. The `-server` spellings (`opp-mcp-server`,
+> `orf-mcp-server`) are console-script launch commands only; OL exposes both
+> `ol-mcp` and `ol-mcp-server` console scripts pointing at the same entry point.
 
 Module MCP tools: **37** (9 OPP + 21 OL + 7 ORF); plus 4 suite tools
 (`omni_mcp`: `translate_file`, `ping`, `list_validation_scenarios`,
@@ -265,7 +270,7 @@ compares their default behavior and security posture.
 | OPP MCP | `OPP_MCP_ALLOWED_DIRS` | None | Raises `ValueError`, server refuses to start | Fail-closed |
 | OL MCP | `MCP_ALLOWED_DIRECTORIES` (or `OL_MCP_ALLOWED_DIRS`) | None | Raises `ValueError`, server refuses to start | Fail-closed |
 | ORF MCP | `MCP_ALLOWED_DIRECTORIES` (or `ORF_MCP_ALLOWED_DIRS`) | None | Raises `ValueError`, server refuses to start | Fail-closed |
-| Omni MCP | N/A | N/A | Relies on underlying server config | N/A |
+| Omni MCP | `MCP_ALLOWED_DIRECTORIES` (or `OMNI_MCP_ALLOWED_DIRS`, then the per-module vars) | None | Denies every path-taking call via its **own** validator | Fail-closed |
 
 ### OPP MCP (Fail Closed)
 
@@ -285,8 +290,10 @@ whitelist, and file size limits. See
 
 ORF reads a directory allowlist from `MCP_ALLOWED_DIRECTORIES` (unified
 cross-module name) or its ORF-specific fallback `ORF_MCP_ALLOWED_DIRS`.
-If neither is set, server startup raises `ValueError` — there is no
-`[Path.cwd()]` fallback:
+If neither is set, the **first path-taking tool call** raises
+`ValueError` — there is no `[Path.cwd()]` fallback. (Unlike OPP/OL, the
+check is applied lazily by `get_path_validator()`, not at server startup:
+the server starts, then refuses the call.)
 
 ```bash
 export ORF_MCP_ALLOWED_DIRS="/data/documents:/data/output"
@@ -315,11 +322,17 @@ colons). Path denials are reported with the stable `OL_PATH_DENIED`
 error code. See `Omni_Localizer/AGENTS.md` (Env vars section) for
 details.
 
-### Omni MCP
+### Omni MCP (Fail Closed — its own validator)
 
-The suite-level aggregator does not implement its own path validation.
-It delegates all file operations to the underlying per-module servers.
-Configure those individually using the variables above.
+The suite-level aggregator does **not** delegate to the per-module
+PathValidators: `translate_file` drives the module CLIs directly, so
+`omni_mcp/orchestrator.py` enforces its **own** fail-closed allowlist
+before any subprocess. Env chain: `MCP_ALLOWED_DIRECTORIES` →
+`OMNI_MCP_ALLOWED_DIRS` → the per-module variables
+(`OPP_`/`OL_`/`ORF_MCP_ALLOWED_DIRS`). With no resolvable allowlist it
+denies every path-taking call; an out-of-allowlist path returns
+`OMNI_PATH_DENIED`. It also honours `MCP_SHARED_SECRET` and the shared
+system-dirs / blocked-extension policy.
 
 ### Recommended Setup
 
@@ -329,7 +342,7 @@ colon-separated; OL is comma-separated):
 ```bash
 export OPP_MCP_ALLOWED_DIRS="/data/documents"
 export MCP_ALLOWED_DIRECTORIES="/data/documents"
-export ORF_ALLOWED_DIRECTORIES="/data/documents"
+export ORF_MCP_ALLOWED_DIRS="/data/documents"
 ```
 
 For CI/CD environments:
@@ -337,7 +350,7 @@ For CI/CD environments:
 ```bash
 export OPP_MCP_ALLOWED_DIRS="${GITHUB_WORKSPACE}/test_fixtures"
 export MCP_ALLOWED_DIRECTORIES="${GITHUB_WORKSPACE}/test_fixtures"
-export ORF_ALLOWED_DIRECTORIES="${GITHUB_WORKSPACE}/test_fixtures"
+export ORF_MCP_ALLOWED_DIRS="${GITHUB_WORKSPACE}/test_fixtures"
 ```
 
 ### Per-Module Documentation

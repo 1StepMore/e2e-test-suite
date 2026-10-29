@@ -94,7 +94,7 @@ expected keys — no dead tools, no shape drift between the live registry and
 the shipped behavior. A step enforces this with an `expect` block of
 `success: true` plus `data_has: [...]` naming the keys the tool's live
 schema declares (from the live registries, NOT the stale AGENTS.md tables —
-OPP 9, OL 21, ORF 7, suite `omni_mcp` 2 at baseline).
+OPP 9, OL 21, ORF 7, suite `omni_mcp` 4 at baseline).
 
 **How to check:** in-process call of the real module tool function (e.g.
 `from ol_mcp.tools import ping` per the AGENTS.md in-process pattern), then
@@ -251,8 +251,9 @@ len(doc.paragraphs) > 0`. Citable as `standard: STANDARDS.md#opens-docx`.
 
 Not bars — the structural-invariant facts scenario steps cite per format,
 copied from `Omni_Re_Formatter/AGENTS.md:101-120` (16 outputs) and
-`Omni_Pre_Processor/AGENTS.md:87` (inputs; count is 14 per OPP
-README.md:12 — AGENTS.md's "13 inputs" is stale).
+`Omni_Pre_Processor/AGENTS.md:87` (inputs; count is 16 per the live
+`opp/mcp/tools/get_capabilities.py` registry — the earlier "13"/"14"
+notes were themselves stale).
 
 **ORF apply-md output formats (16) and their engines:**
 
@@ -275,8 +276,8 @@ README.md:12 — AGENTS.md's "13 inputs" is stale).
 | MSG | `aspose-email-foss` (`[email-output]` extra, GPLv3) | Commercial library; ORF recommends `.eml` instead. |
 | XML | `lxml` | Custom XML serialization. |
 
-**OPP input formats (14):** DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML,
-EPUB, EML, MSG, images (OCR), IPYNB, `.url` (YouTube).
+**OPP input formats (16):** DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML,
+EPUB, EML, MSG, image (OCR), audio, video, youtube (`.url`), IPYNB.
 
 **Backfill formats (XLIFF path, 7 LIVE):** DOCX, PPTX, EPUB, HTML, ODT,
 PDF, JSON — per the CLI Choice at `orf/commands/apply_xliff.py:26-31`

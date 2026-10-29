@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-30). Reason: stale expectations snapshot (header v0.4.0 / 2026-07-22), function replaced by the executable scenario library. Superseded by: `scenarios/` + `AGENTS.md`.**
+
 # Omni Suite — Founder's Expectations + Agent Validation Master Plan
 
 > **版本**: v0.4.0 · **日期**: 2026-07-22

@@ -5,6 +5,12 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  schedule:
+    # Monday 03:00 UTC — real-LLM e2e nightly (plan 2026-10-30, decision C1).
+    # Weekly to bound real-LLM spend: validation.yml's nightly (02:00 UTC,
+    # daily) already covers tier-2 scenarios; staggered 1h after it and after
+    # fidelity.yml's Monday 02:00 cron.
+    - cron: '0 3 * * 1'
   workflow_dispatch:
 
 # Cancel in-progress runs for the same branch when a new commit is pushed.

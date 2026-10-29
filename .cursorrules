@@ -4,61 +4,30 @@ You are working on the Omni Suite — a 3-stage document localization pipeline: 
 
 This repo owns the three Omni Suite sub-repos (`Omni_Pre_Processor/`, `Omni_Localizer/`, `Omni_Re_Formatter/`) and the suite-level tests/docs. The sibling product repos `AutoInfo` and `AutoMedia` are **separate product lines this repo does not own**: never edit their files, create branches/commits there, run git operations inside them, or open PRs/issues in their trackers. If a defect belongs to them, file an issue in this repo naming the owning repo, and stop.
 
-## Project Structure
+## Authoritative context — this file is a thin pointer
 
-```
-Omni_Suite/
-├── Omni_Pre_Processor/      # OPP — Document extraction (MD + XLIFF + skeleton)
-│   └── src/opp/             # Source: detectors, extractors, pipeline
-├── Omni_Localizer/          # OL — Translation (MD / XLIFF)
-│   └── src/ol/              # Source: MD bus, XLIFF bus, repair layers
-├── Omni_Re_Formatter/       # ORF — Backfill to target format
-│   └── src/orf/             # Source: channels, converters, agents
-├── tests/                   # Suite-level E2E tests (30+ files)
-├── scripts/                 # setup_dev.sh, sync_shallow.sh, install_md2pptx.sh
-├── .venv_ol/                # Unified venv (Python 3.13)
-├── pyproject.toml           # Root workspace
-├── .pre-commit-config.yaml  # Pre-commit hooks
-├── Makefile                 # Dev targets (test, lint, clean, setup)
-├── AGENTS.md                # Agent guidance (this file)
-├── CLAUDE.md                # Claude Code architecture context
-└── .cursorrules             # Cursor agent context (this file)
-```
+This file deliberately carries **no counts, no behavioral claims, and no
+script inventories** — numbers drift; the gated sources below do not
+(their claims are checked by `scripts/doc_inventory.py --check`). Read:
 
-## Module Details
+- `AGENTS.md` — index + invariants (versions, tool counts, env vars, hooks, tips)
+- `.opencode/skills/omni-suite/SKILL.md` — pipeline orchestration SOP
+- `.opencode/skills/omni-validation/SKILL.md` — validation SOP (its scenario count is gate-enforced)
+- `.opencode/skills/omni-docmap/SKILL.md` — change-impact map for docs
+- `docs/agent-pipeline-guide.md` — MCP inventory, response envelope, path security
+- `ACCEPTED_GAPS.md` — known gaps with dated corrections
 
-| Module | Path | CLI | MCP Server | Test Dir |
-|--------|------|-----|------------|----------|
-| OPP | `Omni_Pre_Processor/` | `opp` | `opp-mcp-server` | `Omni_Pre_Processor/tests/` |
-| OL | `Omni_Localizer/` | `ol` | `ol-mcp` | `Omni_Localizer/tests/` |
-| ORF | `Omni_Re_Formatter/` | `orf` | `orf-mcp-server` | `Omni_Re_Formatter/tests/` |
+## Module map
 
-## MCP Server Names
+| Module | Path | CLI |
+|--------|------|-----|
+| OPP | `Omni_Pre_Processor/` | `opp` |
+| OL | `Omni_Localizer/` | `ol` |
+| ORF | `Omni_Re_Formatter/` | `orf` |
 
-Configure in your tool's MCP settings. **Note:** naming is not uniform —
-`opp-mcp-server` and `orf-mcp-server` use the `-server` suffix, but `ol-mcp`
-does NOT.
-
-- `opp-mcp-server` — **9 tools**: `extract_document`, `batch_extract`, `detect_format_tool`, `generate_xliff`, `generate_markdown`, `save_skeleton`, `validate_xliff`, `ping`, `get_capabilities`
-- `ol-mcp` (no `-server` suffix) — **21 tools**: `translate_md_text`, `translate_xliff`, `translate_file`, `batch_translate_texts`, `judge_text`, `load_glossary`, `get_relevant_terms`, `search_tm`, `add_tm_entries`, `verify_terms`, `extract_terms`, `shield_md_text`, `unshield_md_text`, `disambiguate`, `profile_doc`, `extract_warnings`, `generate_report`, `inspect_config`, `get_translation_status`, `ping`, `get_capabilities`
-- `orf-mcp-server` — **7 tools**: `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`, `info`, `ping`, `get_capabilities`
-
-## MCP Path Allowlists
-
-**Preferred**: Set `MCP_ALLOWED_DIRECTORIES` once — it is read by all 3 MCP servers (OPP, OL, ORF).
-
-Per-module overrides (checked first, fall back to `MCP_ALLOWED_DIRECTORIES`):
-- OPP: `OPP_MCP_ALLOWED_DIRS` (e.g. `/docs:/tmp/out`). **NOT** `OPP_ALLOWED_DIRECTORIES` (CLI-only).
-- OL: `OL_ALLOWED_DIRECTORIES` (or configured in `ol_mcp/config.py`).
-- ORF: `ORF_MCP_ALLOWED_DIRS` (defaults to `[Path.cwd()]` if unset — **production should always set it explicitly**).
-
-OPP is fail-closed (`ValueError: allowed_directories cannot be empty` if unset).
-ORF is fail-open (defaults to CWD). OL configures via file, not env.
-
-## MCP stdio workaround (FastMCP 3.4.2 bug)
-
-If MCP servers fail to respond to stdio JSON-RPC, use `scripts/mcp_bridge.py`
-(raw JSON-RPC over stdin/stdout, no `mcp` library). See `../ACCEPTED_GAPS.md` line 18.
+MCP servers connect over stdio (no bridge exists). Server names, tool
+inventory, response envelope, and the per-module allowlist env chains
+live in `docs/agent-pipeline-guide.md` — do not copy them here.
 
 ## CLI frameworks differ
 
@@ -66,65 +35,27 @@ If MCP servers fail to respond to stdio JSON-RPC, use `scripts/mcp_bridge.py`
 - OL: typer (`ol`)
 - ORF: click (`orf`)
 
-Flag names are uniform (`--kebab-case`). Help-text styles differ. See `../docs/DECISIONS.md` ADR 0001.
+Flag names are uniform (`--kebab-case`). Help-text styles differ (ADR 0001).
 
-## Testing Conventions
+## Testing conventions
 
-- Always set `OMNI_TEST_FAKE_LLM=1` and `OMNI_TEST_FAKE_PANDOC=1` for offline test runs
-- Python 3.13 via `.venv_ol/bin/python`
-- Test markers: `nightly` (real LLM, skipped by default), `slow`, `e2e`, `requires_opp`, `requires_ol`, `requires_orf`
-- Run `pytest tests/ -m "not nightly"` for quick suite checks
-- Pre-commit hooks: `gitleaks`, `check-added-large-files`, `check-merge-conflict`, `detect-private-key`, `end-of-file-fixer`, `trailing-whitespace`, `omni-contract-smoke`
+- Offline runs: `OMNI_TEST_FAKE_LLM=1`, plus `OMNI_TEST_FAKE_PANDOC=1` for DOCX/PPTX/EPUB outputs (FAKE_LLM is contract/smoke evidence only — never human-quality evidence)
+- Python 3.13. Interpreter resolution goes through `scripts/pre_commit_python.sh` (`.venv_ol/` is a WSL/Linux venv; on Windows it resolves to `.venv_win/`); execution-backed evidence requires WSL
+- Test markers: `nightly` (real LLM, skipped by default), `slow`, `e2e`
+- `pytest tests/ -m "not nightly"` for quick suite checks
 
-## Key Commands
+## Validation
 
-```bash
-source .venv_ol/bin/activate
-make test-quick      # Quick suite check
-make test            # Full CI-mode test run
-make smoke           # Contract smoke test
-make lint            # Pre-commit on all files
-make clean           # Clean artifacts
-```
-
-## How to validate
-
-Run the agent-testing validation engine (119 scenarios; no mocks, no
-FAKE_LLM as evidence — tier-1 runs are hermetic). All commands from the
-suite root with `.venv_ol`:
+Follow `.opencode/skills/omni-validation/SKILL.md` — do not restate its
+counts here. Shape:
 
 ```bash
-source .venv_ol/bin/activate
-
-# Enumerate the library — no execution
-python scripts/validation/run_validation.py --list
-
-# Run one hermetic scenario (tier 1 = no LLM keys needed)
+python scripts/validation/run_validation.py --list                  # enumerate
 python scripts/validation/run_validation.py --scenario <name> --tier 1
-
-# Contract-lint the library itself
-python scripts/validation/run_validation.py --check
+python scripts/validation/run_validation.py --check                 # contract-lint the library
+python scripts/validation/coverage_audit.py                         # every live MCP tool exercised
 ```
 
-Only these scripts exist — do not invent other commands:
-`scripts/validation/{run_validation.py, coverage_audit.py, validation_report.py, validation_diff.py, artifact_matrix.py, artifact_diff.py}`.
-
-**Reading results**: `validation-runs/latest.txt` points at the newest
-run (`validation-runs/<ts>/scenarios.json`). Generate the director
-report with
-`python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json`
-→ `report.md` in the same dir, with TWO verdict families side by side:
-**agent-user conformance** (tool-* scenarios + AGENT-SURFACE standards:
-contract, JSON shape, error clarity, path security, exit codes) and
-**human-quality conformance** (pipeline-* scenarios + HUMAN-QUALITY
-standards: LQA ≥ 4.0/5, paragraph ratio ±5%, CJK density < 5%, zero
-foreign punctuation, drawing count, opens in python-docx). `unconfigured`
-(missing env, e.g. no LLM keys) is never a pass and never a silent skip.
-
-**Standards**: `scenarios/STANDARDS.md` — the single citable bar, two
-families, exact anchors per step (`standard: STANDARDS.md#<anchor>`).
-Read it before judging a verdict.
-
-**Director checklist**: a human director completes the 10-minute loop
-per run — see `docs/dev/validation-director-loop.md` (agent validator +
-human director roles, per-run standards conformance pass).
+`unconfigured` (missing env) is never a pass and never a silent skip.
+Standards bar: `scenarios/STANDARDS.md`. Director loop:
+`docs/dev/validation-director-loop.md`.

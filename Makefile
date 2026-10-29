@@ -216,6 +216,7 @@ matrix-subset:
 validate:
 	OMNI_RATE_LIMIT_RPM=0 $(PYTHON) scripts/validation/run_validation.py --tier 1
 	$(PYTHON) scripts/validation/coverage_audit.py
+	@bash scripts/pre_commit_python.sh scripts/validation/validation_report.py
 
 validate-nightly:
 	@echo "validate-nightly: full library (all tiers) — requires real LLM keys;"
@@ -225,6 +226,13 @@ validate-nightly:
 
 validate-coverage:
 	$(PYTHON) scripts/validation/coverage_audit.py
+
+# Four-class regression diff: newest run vs the previous run (one-arg form
+# anchors the base on latest.txt with next-older fallback). Exit 1 when any
+# passed-like -> failed regression exists. Resolver interpreter so the target
+# also runs on Windows hosts ($(PYTHON) is the WSL-side .venv_ol).
+validate-diff:
+	@bash scripts/pre_commit_python.sh scripts/validation/validation_diff.py "validation-runs/$$(cat validation-runs/latest.txt)"
 
 doc-inventory:
 	@bash scripts/pre_commit_python.sh scripts/doc_inventory.py

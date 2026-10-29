@@ -75,6 +75,15 @@
 
 ## 循环事件（major events，newest on top）
 
+> 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
+
+### 2026-10-30：基础设施整改轮（plan `.omo/plans/2026-10-30-infrastructure-remediation-plan.md`）
+
+- Date: 2026-10-30；触发：审计报告 `docs/project-infrastructure-audit-2026-10-30.md` 的整改落地
+- Scope: `scenarios/pipeline/pipeline-docx-md-docx.yaml`（两处 known_gap 摘除）；adapter 副本收敛（`.cursorrules` / `CLAUDE.md` / 两份 `.hermes` skill → 薄指针，数字只留被门禁的源）；engine `run_kind` + `latest-full.txt` 基线指针；Makefile `validate` 补报告生成 + 新增 `validate-diff`
+- Result: `pipeline-docx-md-docx` 两处 known_gap（T13-01/T13-02，`recheck_by: 2026-11-30`）按其自身复验条件摘除——2026-10-27 真模型轮已 GAP CLOSED（LQA 4.85、drawings 2→2、14/14 passed，见下方 10-27 事件）。字面阈值自此直接生效（收紧，非放松）；本地字面复验待下一次 tier-2（nightly 或有 key 轮）确认仍绿，届时按本节模板跑 `validate-diff` 记结果
+- Conclusion: 门禁保持全绿（`doc_inventory --check` / `run_validation --check` / coverage 41/41）；`latest.txt` 语义不变（任意 run），`latest-full.txt` 只由全库 run 写入——"最新 run" 与 "最新全库基线" 从此可区分
+
 ### 2026-10-27：EML 生产就绪（OPP 多段抽取 + ORF `xliff2eml`）+ 矩阵 skip 收口 + 真模型抽样 V1/V2
 
 - Date: 2026-10-27；触发：`.omo/plans/2026-10-27-eml-production-readiness.md`（把 EML 从「设计性缺口」改成可交付通道）

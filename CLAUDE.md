@@ -110,9 +110,11 @@ The `omni-contract-smoke` hook runs in both the `commit` and `manual` stages (`s
 
 ## How to validate
 
-Run the agent-testing validation engine (120 scenarios: tier-1=106 /
-tier-2=13 / tier-3=1; no mocks, no FAKE_LLM as evidence). All commands from
-the suite root with the venv:
+Run the agent-testing validation engine (scenario library — the current
+count is gated by `scripts/doc_inventory.py` and printed by
+`run_validation.py --list`; see `.opencode/skills/omni-validation/SKILL.md`.
+No mocks, no FAKE_LLM as evidence). All commands from the suite root with
+the venv:
 
 ```bash
 source .venv_ol/bin/activate
@@ -128,7 +130,7 @@ python scripts/validation/run_validation.py --check
 ```
 
 Only these scripts exist — do not invent other commands:
-`scripts/validation/{run_validation.py, coverage_audit.py, validation_report.py, validation_diff.py, artifact_matrix.py, artifact_assertions.py, artifact_diff.py, check_llm_pool.py, make_delivery_package.py, run_with_env.py}`.
+`scripts/validation/{run_validation.py, coverage_audit.py, validation_report.py, validation_diff.py, artifact_matrix.py, artifact_assertions.py, artifact_diff.py, check_llm_pool.py, make_delivery_package.py}`.
 
 **Reading results**: `validation-runs/latest.txt` points at the newest
 run (`validation-runs/<ts>/scenarios.json`). Generate the director

@@ -13,16 +13,15 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 62 |
-| Total lines | 34489 |
-| Active files | 46 |
-| Archived files | 16 |
-| Category — archive | 16 files / 17674 lines |
-| Category — expectations | 4 files / 2515 lines |
+| Total files | 63 |
+| Total lines | 34793 |
+| Active files | 39 |
+| Archived files | 24 |
+| Category — archive | 24 files / 25391 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 18 files / 2756 lines |
-| Category — docs/root | 21 files / 10204 lines |
+| Category — docs/dev | 18 files / 2769 lines |
+| Category — docs/root | 18 files / 5293 lines |
 
 ## Inventory
 
@@ -36,15 +35,11 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
 | `HANDOVER.md` | 620 | docs/root | active | — |
 | `NIGHTLY.md` | 275 | docs/root | active | — |
-| `OL_EXPECTATIONS.md` | 280 | expectations | active | — |
-| `OPP_EXPECTATIONS.md` | 804 | expectations | active | — |
-| `ORF_EXPECTATIONS.md` | 539 | expectations | active | — |
 | `PRD.md` | 61 | docs/root | active | — |
 | `RELEASE_NOTES.md` | 23 | docs/root | active | — |
 | `SECURITY.md` | 250 | security | active | — |
 | `SECURITY_AUDIT.md` | 954 | security | active | — |
 | `SLA.md` | 128 | docs/root | active | — |
-| `SUITE_EXPECTATIONS.md` | 892 | expectations | active | — |
 | `SUITE_VERDICT.md` | 173 | docs/root | active | — |
 | `adr/0001-cli-framework-defer-unification.md` | 70 | docs/dev | active | — |
 | `adr/0002-three-independent-modules.md` | 56 | docs/dev | active | — |
@@ -56,37 +51,42 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `adr/0008-cross-repo-copy-review.md` | 85 | docs/dev | active | — |
 | `adr/README.md` | 41 | docs/dev | active | — |
 | `adr/TEMPLATE.md` | 36 | docs/dev | active | — |
-| `agent-pipeline-guide.md` | 351 | docs/root | active | — |
+| `agent-pipeline-guide.md` | 364 | docs/root | active | — |
 | `agent-tester-validation-guide.md` | 20 | docs/root | active | — |
 | `archive/INTEGRATED_TEST_PLAN.md` | 1272 | archive | archived | — |
+| `archive/OL_EXPECTATIONS.md` | 282 | archive | archived | — |
 | `archive/OL_VALIDATION_MASTER_PLAN.md` | 4489 | archive | archived | — |
+| `archive/OPP_EXPECTATIONS.md` | 806 | archive | archived | — |
 | `archive/OPP_VALIDATION_MASTER_PLAN.md` | 3106 | archive | archived | — |
+| `archive/ORF_EXPECTATIONS.md` | 541 | archive | archived | — |
 | `archive/ORF_VALIDATION_MASTER_PLAN.md` | 2563 | archive | archived | — |
-| `archive/README.md` | 53 | archive | archived | — |
+| `archive/README.md` | 61 | archive | archived | — |
 | `archive/SECURITY_FINDINGS.md` | 80 | archive | archived | — |
+| `archive/SUITE_EXPECTATIONS.md` | 894 | archive | archived | — |
 | `archive/SUITE_VALIDATION_MASTER_PLAN.md` | 3589 | archive | archived | — |
 | `archive/T14_LIMITATION.md` | 222 | archive | archived | — |
 | `archive/agent-qa-workflow.md` | 348 | archive | archived | — |
 | `archive/e2e-fix-records.md` | 63 | archive | archived | — |
 | `archive/e2e-test-plan.md` | 201 | archive | archived | — |
 | `archive/feature_inventory.md` | 529 | archive | archived | — |
+| `archive/handoff-2026-09-18.md` | 148 | archive | archived | — |
 | `archive/issue-pipeline-quality-improvements.md` | 183 | archive | archived | — |
 | `archive/lqa-pipeline-integration.md` | 203 | archive | archived | — |
 | `archive/lqa-workflow.md` | 270 | archive | archived | — |
+| `archive/master-validation-template.md` | 4155 | archive | archived | — |
+| `archive/project-code-aesthetics-review-2026-10-22.md` | 570 | archive | archived | — |
+| `archive/project-evaluation-pain-points-2026-09-06.md` | 313 | archive | archived | — |
 | `archive/system_improvements_v2.md` | 503 | archive | archived | — |
 | `dev/artifact-assertion-matrix.md` | 282 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 197 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
-| `dev/validation-director-loop.md` | 291 | docs/dev | active | — |
-| `dev/validation-loop-log.md` | 296 | docs/dev | active | — |
-| `handoff-2026-09-18.md` | 146 | docs/root | active | — |
+| `dev/validation-director-loop.md` | 295 | docs/dev | active | — |
+| `dev/validation-loop-log.md` | 305 | docs/dev | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
-| `master-validation-template.md` | 4153 | docs/root | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |
 | `observability/README.md` | 136 | docs/observability | active | — |
-| `project-code-aesthetics-review-2026-10-22.md` | 568 | docs/root | active | — |
-| `project-evaluation-pain-points-2026-09-06.md` | 311 | docs/root | active | — |
 | `project-health-report-2026-09-17.md` | 1771 | docs/root | active | — |
+| `project-infrastructure-audit-2026-10-30.md` | 254 | docs/root | active | — |
 | `venv-migration.md` | 54 | docs/root | active | — |
 | `七阶段AI开发流程-用CodingAgent交付成品的方法论.md` | 230 | docs/root | active | — |

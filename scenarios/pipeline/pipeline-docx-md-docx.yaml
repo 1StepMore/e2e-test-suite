@@ -303,8 +303,6 @@ steps:
           sys.exit(1)
       print("OK: drawings src=%d out=%d (match)" % (src, out))
     timeout_seconds: 180
-    known_gap: true
-    recheck_by: "2026-11-30"
     expect:
       exit_code: 0
       stdout_has: ["OK: drawings src="]
@@ -313,18 +311,17 @@ steps:
       Q4 drawing-count, the LITERAL published bar (scripts/omo_loop.py:208-227):
       count <w:drawing in word/document.xml of source vs output; source must
       have > 0 drawings and the counts must be EQUAL (STANDARDS.md#drawing-count).
-      This step is flagged ``known_gap: true``: ol translate-md duplicated every
+      Historical known_gap (T13-02): ol translate-md duplicated every
       ![..](..) image reference (level4_safe_fallback re-inserted content that
       unshield_markdown had already restored, because is_complete()/missing
       keyed on the shield_map key instead of its value — verified 2->4 and
-      12->24, finding T13-02). FIXED IN CODE 2026-09-17
+      12->24). FIXED IN CODE 2026-09-17
       (Omni_Localizer/src/ol_md/pipeline.py; regression
       tests/test_md_repair_pipeline.py::TestShieldValueAwareCompleteness).
-      The marker is KEPT until a tier-2 real-key run re-verifies this literal
-      bar — dropping it on hermetic/unit evidence alone would be a false
-      green. The failure (if any) is recorded here but excluded from this
-      scenario's verdict; the shipped weakened observation (out >= src) lives
-      in scenarios/pipeline/known-gaps/.
+      The waiver was REMOVED 2026-10-30: the 2026-10-27 tier-2 real-key
+      round re-verified this literal bar (drawings 2->2; LOOP-LOG GAP
+      CLOSED) — the marker's own re-verification condition — so the step
+      now enforces the published bar directly.
   - name: Assert paragraph ratio within +-5% (Q6)
     kind: python
     command: |-
@@ -443,8 +440,6 @@ steps:
           sys.exit(1)
       print("OK: judge_overall %.2f/5 >= 4.0/5 (n=%d)" % (overall5, len(scores)))
     timeout_seconds: 300
-    known_gap: true
-    recheck_by: "2026-11-30"
     expect:
       exit_code: 0
       stdout_has: ["OK: judge_overall"]
@@ -455,16 +450,14 @@ steps:
       trans-unit pairs from the translated XLIFF, judge each via OL
       JudgeService with the real model pool, and require the average of
       ``judge_overall_score`` (0-1, rescored to /5) >= 4.0/5
-      (STANDARDS.md#lqa-threshold). This step is flagged
-      ``known_gap: true``: the T13-01 mismatch (OL's judge prompt never
-      asked for terminology_consistency / format_preservation while
-      RUBRIC_WEIGHTS gives them 0.35 combined weight, and _remap_llm_fields
-      padded the absent dimensions with 0, mathematically capping
-      judge_overall_score at 3.25/5 on perfect scores) is FIXED IN CODE as
-      of 2026-09-17 (Omni_Localizer src/ol_lqa/judge.py and
-      src/ol_pool/router.py; regression tests/test_lqa_judge.py). The
-      marker is KEPT until a tier-2 real-key run re-verifies this literal
-      bar — dropping it on hermetic/unit evidence alone would be a false
-      green. The failure (if any) is recorded here but excluded from this
-      scenario's verdict; the shipped weakened observation (the
-      four-dimension average) lives in scenarios/pipeline/known-gaps/.
+      (STANDARDS.md#lqa-threshold). Historical known_gap (T13-01): OL's
+      judge prompt never asked for terminology_consistency /
+      format_preservation while RUBRIC_WEIGHTS gives them 0.35 combined
+      weight, and _remap_llm_fields padded the absent dimensions with 0,
+      mathematically capping judge_overall_score at 3.25/5 on perfect
+      scores — FIXED IN CODE 2026-09-17 (Omni_Localizer src/ol_lqa/judge.py
+      and src/ol_pool/router.py; regression tests/test_lqa_judge.py). The
+      waiver was REMOVED 2026-10-30: the 2026-10-27 tier-2 real-key round
+      re-verified this literal bar (LQA 4.85/5 >= 4.0; LOOP-LOG GAP
+      CLOSED) — the marker's own re-verification condition — so the step
+      now enforces the published bar directly.

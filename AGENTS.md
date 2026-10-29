@@ -39,6 +39,8 @@ v0.10.0 · v0.7.1 · v0.5.0 · v0.5.0.
 Changelog: `CHANGELOG.md`; compatibility matrix: `COMPATIBILITY.md`.
 
 > **Prerequisite:** Python >= 3.13. Verify with `python3 --version`.
+>
+> **Windows hosts:** `.venv_ol/` is a Linux venv created under WSL — `source .venv_ol/bin/activate` does not work from PowerShell/Git Bash. Either work inside WSL, or route interpreter-dependent commands through `bash scripts/pre_commit_python.sh` (resolves to `.venv_win/`). Execution-backed validation evidence requires WSL (see `docs/dev/validation-loop-log.md`; background in `docs/venv-migration.md`).
 
 ## Quick Start
 
@@ -120,7 +122,8 @@ python scripts/validation/run_validation.py --check
 python scripts/validation/coverage_audit.py
 
 # Read the newest run and generate the director report (two verdict families)
-cat validation-runs/latest.txt
+cat validation-runs/latest.txt          # newest run of ANY kind (single-scenario spot checks included)
+cat validation-runs/latest-full.txt     # newest FULL-LIBRARY run (written only by full-library runs)
 python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json
 
 # Per-repo scenario libraries (OPP#58): --repo opp|ol|orf|suite|all
@@ -155,9 +158,9 @@ Tier semantics: 1 = hermetic (no keys), 2 = real LLM keys, 3 = paid/external/net
 
 #### Validation 循环治理规范（2026-08-15）
 
-跨项目通用规范见全局 skill `validation-framework-execution` → `references/validation-run-governance.md`。
+跨项目通用规范的本仓权威版本即本节 + `docs/dev/validation-director-loop.md`（director 循环）+ `docs/dev/validation-loop-log.md`（坑清单/循环事件）——不依赖任何仓库外文件。
 
-**开始前必读**：STANDARDS.md（判定基准）、坑清单（`docs/` 下 LOOP-LOG，如无则本循环创建）、上次 run（`validation-runs/latest.txt`）。
+**开始前必读**：STANDARDS.md（判定基准）、坑清单（`docs/` 下 LOOP-LOG，如无则本循环创建）、上次 run（`validation-runs/latest.txt`；全库基线看 `validation-runs/latest-full.txt`，仅全库 run 写入）。
 
 **结束后必形成**：run 记录（`validation-runs/<ts>/`）、坑清单更新（新坑当天追加）、issue + PR（代码层 bug）、validation 报告、交付包（→ `04-Output/artifacts/deliverables/omni-suite/`）。
 每轮 validation 无论是否有新失败，都要在 LOOP-LOG 循环事件记一行结果（日期 + 范围 + 结果 + 结论），保持基线连续（关闭 issue #2）；
@@ -177,7 +180,7 @@ Each module exposes its own MCP server. Server/tool inventory, response envelope
 `translate_file`, `ping`, `list_validation_scenarios`, `run_validation_scenario`
 (the last two are validation-specific). Runs as `omni-mcp` from `omni_mcp/server.py`.
 
-> **Note**: Server names add a `-server` suffix — OPP (`opp-mcp-server`), ORF (`orf-mcp-server`), and since v0.7.1 OL too (`ol-mcp` plus the `ol-mcp-server` alias); the suite server is `omni-mcp`. Both OL spellings work; four servers, same protocol.
+> **Note**: Two name layers. The MCP `Server()` handshake name (what an agent sees in the initialize response) is `opp-mcp`, `ol-mcp`, `orf-mcp`, `omni-mcp`. The `-server` spellings (`opp-mcp-server`, `orf-mcp-server`) are only console-script launch commands; OL exposes both `ol-mcp` and `ol-mcp-server` console scripts pointing at the same entry point. Four servers, same protocol.
 
 ## Format Support Matrix
 
@@ -198,7 +201,7 @@ See `README.md` → "Cross-Format Production-Readiness" for the verified-path su
 
 - **FAKE_LLM scope**: use `OMNI_TEST_FAKE_LLM=1` for CLI smoke/contract runs only — it is forbidden as human-quality validation evidence and forces an `invalid` verdict (see Critical Notes #1; [`scenarios/STANDARDS.md#fallbacks-never-evidence`](scenarios/STANDARDS.md#fallbacks-never-evidence)).
 - **Glossary**: see [CONTEXT.md](CONTEXT.md) — shared pipeline terminology (Ubiquitous Language).
-- `omni_suite/cli.py` is print-only — use per-module CLIs for real work.
+- `omni-suite pipeline` really executes the OPP→OL→ORF subprocesses — only `--dry-run` prints without executing. It also supports `--gates-only`, `--keep-intermediate`, and a `--json` machine envelope; for step-level control use the per-module CLIs.
 - Per-sub-repo `AGENTS.md` files (in each sub-repo root) cover dev/agent context: architecture, CLI, MCP tools, env vars, test patterns, known gotchas.
 - **OL E2E-65 (prompt injection strip)**: `translate_md_text` output is post-processed to strip `CRITICAL/IMPORTANT/NOTE: Output ONLY...` echoes. Don't strip these patterns yourself; OL handles it.
 - **OL quality gates**: configurable via `quality_gates:` in OL config. Tune with `OL_LENGTH_RATIO_MIN` / `OL_LENGTH_RATIO_MAX`; `OL_TARGET_LOCALE` enforces locale checks.

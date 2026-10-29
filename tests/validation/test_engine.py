@@ -878,6 +878,26 @@ def test_latest_points_to_newest_run(tmp_path):
     assert r1.run_id != r2.run_id
 
 
+def test_latest_full_only_written_for_full_library(tmp_path):
+    """latest-full.txt is written only when run_meta["run_kind"] is
+    "full-library" — single-scenario MCP spot checks refresh latest.txt
+    but must never overwrite the full-library baseline pointer
+    (plan 2026-10-30 §3.3)."""
+    runs = tmp_path / "runs"
+    _write(tmp_path, "a.yaml", _scenario("a", steps=_cli_steps("true")))
+    run_scenarios(tmp_path, runs_dir=runs, persist=True,
+                  run_meta={"run_kind": "spot-check"})
+    assert not (runs / "latest-full.txt").exists()
+    full = run_scenarios(tmp_path, runs_dir=runs, persist=True,
+                         run_meta={"run_kind": "full-library"})
+    assert (runs / "latest.txt").read_text(encoding="utf-8").strip() == full.run_id
+    assert (runs / "latest-full.txt").read_text(encoding="utf-8").strip() == full.run_id
+    spot2 = run_scenarios(tmp_path, runs_dir=runs, persist=True,
+                          run_meta={"run_kind": "spot-check"})
+    assert (runs / "latest.txt").read_text(encoding="utf-8").strip() == spot2.run_id
+    assert (runs / "latest-full.txt").read_text(encoding="utf-8").strip() == full.run_id
+
+
 def test_persist_default_runs_dir(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _write(tmp_path, "a.yaml", _scenario("a", steps=_cli_steps("true")))

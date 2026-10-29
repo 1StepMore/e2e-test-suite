@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-30). Reason: stale Founder's-expectations snapshot (header v0.9.1), function replaced by the executable scenario library. Superseded by: `scenarios/` + `Omni_Pre_Processor/AGENTS.md`.**
+
 # OPP Founder's Expectations + Agent Validation Master Plan
 
 > **Version:** v0.9.1 · **Role:** Stage 1 — Document Extraction

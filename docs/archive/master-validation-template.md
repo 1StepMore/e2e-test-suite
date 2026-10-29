@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-30). Reason: orphaned validation master template (2026-07-16), superseded by the scenario library and the director loop. Superseded by: `scenarios/` + `docs/dev/validation-director-loop.md`.**
+
 # Omni Suite Master Validation Plan
 
 ## Result-Oriented · User-Centric · All Scenarios & Boundaries

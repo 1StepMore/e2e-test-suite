@@ -128,7 +128,7 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 
 **MCP tool counts**: OPP 9 / OL 21 / ORF 7 (37 total). Names + signatures in "MCP tool quick reference" below.
 
-> **⚠️ FastMCP stdio bug**: If MCP servers fail to respond to stdio (silent, no JSON-RPC handshake), use the `scripts/mcp_bridge.py` workaround (raw JSON-RPC over stdin/stdout, no `mcp` library needed). See `../ACCEPTED_GAPS.md` line 18.
+> **MCP connectivity**: servers connect directly over stdio — there is no bridge (`scripts/mcp_bridge.py` was removed on 2026-06-22; see `../ACCEPTED_GAPS.md` MCP row). If a server will not respond, first check the fail-closed allowlist env vars in the cheatsheet below.
 
 ## Environment variables cheatsheet
 
@@ -158,7 +158,7 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 - **Always set `OMNI_TEST_FAKE_LLM=1`** unless real LLM API keys are configured.
 - **For DOCX/PPTX ORF tests, also set `OMNI_TEST_FAKE_PANDOC=1`** — without this, pandoc is invoked as a subprocess and tests fail.
 - **For MSG output, use `.eml`** — MSG requires commercial Aspose.Email.
-- **For cross-format XLIFF** (e.g., DOCX → PPTX), use `orf apply-xliff --force`.
+- **For cross-format XLIFF** (e.g., DOCX → PPTX): not supported via `apply-xliff` (it is format-preserving and `--force` is inert). Use `orf apply-md --target-format <fmt>` — see `../AGENTS.md` Critical Notes #4.
 - **PDF → XLIFF is intentionally blocked** by OPP. Use the MD path.
 - **PDF text+image positions**: OPP#28 fixed 552pt offset. Use OPP v0.9.0+ for PDF translation.
 - **CLI framework divergence**: OPP uses argparse, OL uses typer, ORF uses click. Flag names are consistent but help styles differ (see ADR 0001).
@@ -169,11 +169,11 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 2. **"ValueError: allowed_directories cannot be empty"** → Set `OPP_MCP_ALLOWED_DIRS` (NOT `OPP_ALLOWED_DIRECTORIES`). OPP is fail-closed.
 3. **"PDF → XLIFF blocked"** → Use MD path. PDF→XLIFF is intentionally not supported.
 4. **OL real LLM timeout** → Set `OMNI_TEST_FAKE_LLM=1` for testing, or set API keys in `.env`.
-5. **"MCP server not responding to stdio"** → Use `scripts/mcp_bridge.py` (FastMCP 3.4.2 stdio bug). See `../ACCEPTED_GAPS.md`.
+5. **"MCP server not responding to stdio"** → No bridge exists (`mcp_bridge.py` was removed 2026-06-22). Check the fail-closed allowlist env vars are set (see cheatsheet) and that the launch command is the console script (`opp-mcp-server` / `ol-mcp` / `orf-mcp-server` / `omni-mcp`).
 
 ## MCP tool quick reference (37 total across modules)
 
-### OPP — `opp-mcp-server` (9 tools)
+### OPP — `opp-mcp` (9 tools)
 - `extract_document` — Extract single file (16 input formats)
 - `batch_extract` — Process multiple files
 - `detect_format_tool` — Magic-bytes detection
@@ -196,7 +196,7 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 
 > Full 21-tool registry: see the OL MCP tool table in `Omni_Localizer/AGENTS.md` (21 tools total).
 
-### ORF — `orf-mcp-server` (7 tools)
+### ORF — `orf-mcp` (7 tools)
 - `apply_md` — MD → 16 formats (accepts inline `content` OR path `input_md`)
 - `apply_xliff` — Backfill XLIFF into source (needs skeleton.zip)
 - `batch_convert` — Batch convert directory
@@ -223,7 +223,7 @@ For per-tool parameter signatures, see each module's `docs/API.md` (e.g. `../Omn
 | 2026-06-22 | ORF | **E2E-79** — `md2pptx` pre-flight check + actionable install hint. |
 | 2026-06-22 | ORF | **E2E-80** — PathValidator adds csv/tsv/xlsx/json/ipynb/eml/msg/srt/icml/rtf/pdf. |
 | 2026-06-21 | OL | **E2E-74** — `ModelPool.translate(context=...)` supports dict/str. |
-| 2026-06-21 | Suite | **`scripts/mcp_bridge.py`** — FastMCP 3.4.2 stdio bug workaround. **Required for MCP to work.** |
+| 2026-06-21 | Suite | **`scripts/mcp_bridge.py`** — FastMCP 3.4.2 stdio bug workaround (removed 2026-06-22; direct stdio needs no bridge). |
 | 2026-06-20 | Suite | v0.2.0 — initial agent-onboarding docs, `omni-suite` CLI, 36-path matrix (W4). |
 
 Full changelog: `../CHANGELOG.md`. Compatibility matrix: `../COMPATIBILITY.md`.

@@ -1,3 +1,5 @@
+> **Status: ARCHIVED (2026-10-30). Reason: dated one-off pain-point review, zero live references. Superseded by: `docs/project-infrastructure-audit-2026-10-30.md`.**
+
 # Project Evaluation: Main Pain Points to Improve
 
 **Date**: 2026-09-06

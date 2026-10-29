@@ -843,6 +843,12 @@ def main(argv: list[str] | None = None) -> int:
     # it just receives this env and forwards it to the dispatched steps.
     validation_env = build_validation_env()
     run_meta = _collect_run_meta_with_env(dirs)
+    # Full-library = the selection covers every loaded scenario (no
+    # --scenario/--tier/--category/--module narrowing). Drives the
+    # latest-full.txt baseline pointer (plan 2026-10-30 §3.3).
+    run_meta["run_kind"] = (
+        "full-library" if len(names) == len(loaded) else "spot-check"
+    )
     try:
         run = run_scenarios(
             dirs,
