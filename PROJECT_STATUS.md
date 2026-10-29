@@ -23,6 +23,10 @@ suite root also carries a `VERSION` file. The suite↔sub-repo pinning lives in
 
 **131 PASS, 64 SKIP, 0 FAIL** across 195 cells (last full matrix run 2026-06-29).
 
+These figures measure conversion plumbing, not translation quality: the fixtures are
+single-sentence text and the run uses a fake-LLM echo, so PASS means the path produced
+a non-empty artifact — it does not assert translation quality or artifact usability.
+
 | Path | Cells | Pass | Skip | Fail |
 |---|---|---|---|---|
 | MD path | 11 inputs × 15 outputs = 165 | ~110 | ~55 | 0 |
