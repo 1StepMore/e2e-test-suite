@@ -1,5 +1,5 @@
 name: tool-ol-search_tm
-description: "OL search_tm searches the TMX fixture for similar translations (needs the hypomnema model stack online) and denies bad paths cleanly."
+description: "OL search_tm returns an exact TMX fixture hit without loading embeddings (semantic path still needs the hypomnema model stack online) and denies bad paths cleanly."
 level: agent-user
 category: agent-surface
 tier: 1
@@ -16,18 +16,26 @@ steps:
   - name: 'search_tm searches the TMX fixture'
     kind: python
     command: |
+      import os, sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      FIXT = "/tmp/omni-agent-surface"
+      os.makedirs(FIXT, exist_ok=True)
+      if not os.path.exists(os.path.join(FIXT, "memory.tmx")):
+          open(os.path.join(FIXT, "memory.tmx"), "w").write('<?xml version="1.0"?><tmx version="1.4"><body><tu><tuv xml:lang="en"><seg>Click the button</seg></tuv><tuv xml:lang="zh"><seg>点击按钮</seg></tuv></tu></body></tmx>')
       import asyncio, json, sys
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import SearchTMInput, search_tm
       r = asyncio.run(search_tm(params=SearchTMInput(source_text="Click the button", tmx_path="/tmp/omni-agent-surface/memory.tmx")))
       print(r)
-    timeout_seconds: 120
+    timeout_seconds: 300
     expect:
       success: true
       exit_code: 0
       stdout_has: ['"success": true', '"matches"', '"count"']
     standard: STANDARDS.md#tool-contract
-    instructions: 'search_tm loads embedding models through hypomnema on first use (HuggingFace download), so it only runs with network access — declared via requires_env OMNI_TM_NETWORK. With network, expect success with matches and count.'
+    instructions: 'Provision the TMX fixture under /tmp (mirrors tool-ol-add_tm_entries, so this scenario runs alone on a clean machine), then call the REAL search_tm with the fixture source text. The query is an exact TM hit, so TMService.search() returns it with similarity 1.0 before the embedding model is loaded — this step is fast and hermetic (no sentence-transformers import, no HuggingFace download; requires_env OMNI_TM_NETWORK stays declared because a non-exact query would still take the semantic path and need the model). Expect success with matches and count.'
+    collect_artifacts:
+      - path: '/tmp/omni-agent-surface/memory.tmx'
   - name: 'search_tm returns a clean path denial for a bad TMX path'
     kind: python
     command: |
