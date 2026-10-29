@@ -1,6 +1,6 @@
 # OL (Omni Localizer) — Founder's Expectations & Agent Validation Master Plan
 
-> **Version:** v0.7.1 · **Stage:** 2 of 3 (OPP → **OL** → ORF) · **Pipeline:** shield→translate→repair→unshield + postproc + 7 quality gates
+> **Version:** v0.7.1 · **Stage:** 2 of 3 (OPP → **OL** → ORF) · **Pipeline:** shield→translate→repair→unshield + postproc + 8 quality gates
 > **Design:** Agent-native (21 MCP tools), LLM model pool failover, BYOK, FAKE_LLM seam, 3-stage repair (L3 LLM restore opt-in)
 
 ---
@@ -104,7 +104,7 @@ Level 1 repair normalizes LLM-emitted `<x/>`, `<bx/>`, `<ex/>` back to placehold
 > **OL's value = translation quality + reliability.**
 > - Content fidelity: shield preserves code/math/links; 3-stage repair recovers mangled markers; unshield never silently drops content
 > - Failover resilience: model pool + circuit breaker + retry means translation completes even when a provider fails
-> - Quality assurance: LQA self-corrects low-scoring translations; 7 quality gates catch issues without blocking
+> - Quality assurance: LQA self-corrects low-scoring translations; 8 quality gates catch issues without blocking
 > - Agent-native: 21 MCP tools let agents orchestrate the full pipeline without CLI or file I/O
 > - Deterministic post-processing: punctuation normalization O(1), zero API cost
 
@@ -168,7 +168,7 @@ export OMNI_TEST_FAKE_LLM=1
 
 ---
 
-### Q5-OL: All 7 quality gates?
+### Q5-OL: All 8 quality gates?
 
 | # | Scenario | Command | Expected |
 |---|----------|---------|----------|
@@ -177,6 +177,7 @@ export OMNI_TEST_FAKE_LLM=1
 | 5.3 | Source copy | `check_source_copy('X', 'X', 'en', 'zh')` | `SOURCE_COPY` warning |
 | 5.4 | Protocol artifacts | `check_protocol_artifacts('text [INST]...[/INST]')` | `PROTOCOL_ARTIFACT` warning |
 | 5.5 | Advisory only | `run_quality_gates()` with failing inputs | Returns warnings list, never raises exception |
+| 5.6 | Invented tokens | `check_invented_tokens('全球智造...', '... manufacturingGovorun ...')` | `INVENTED_TOKEN` warning (OL#158) |
 
 **Verdict:** ⬜
 
@@ -267,7 +268,7 @@ export OMNI_TEST_FAKE_LLM=1
 | Q2 | XLIFF translation | ⬜ |
 | Q3 | FAKE_LLM seam (zero-cost) | ⬜ |
 | Q4 | Model Pool failover + circuit breaker | ⬜ |
-| Q5 | 7 quality gates (advisory, non-blocking) | ⬜ |
+| Q5 | 8 quality gates (advisory, non-blocking) | ⬜ |
 | Q6 | LQA scoring (JudgeService) | ⬜ |
 | Q7 | Glossary/TM/TB injection | ⬜ |
 | Q8 | Prompt injection strip (E2E-65) | ⬜ |

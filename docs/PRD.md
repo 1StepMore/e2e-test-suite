@@ -22,7 +22,7 @@ This document is the retrospective baseline. It records what is actually built, 
 - **16 output formats** from `orf apply-md`: DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON (README.md; ORF validation plan Q1).
 - **Two pipeline channels**: the MD channel (layout-tolerant, 16 output formats) and the XLIFF channel (format-preserving backfill using skeleton.zip + manifest.json).
 - **Three MCP servers**: OPP (9 tools), OL (21 tools), ORF (7 tools) — 37 module tools, plus 4 suite tools (`omni_mcp`) = 41 total.
-- **Quality machinery**: OL's 3-stage repair pipeline, StyleGuide injection, and 7 post-translation quality gates.
+- **Quality machinery**: OL's 3-stage repair pipeline, StyleGuide injection, and 8 post-translation quality gates (the terms audit is a separate tool).
 - **Zero-cost testing seam**: `OMNI_TEST_FAKE_LLM` and `OMNI_TEST_FAKE_PANDOC` for offline, key-free runs.
 
 **Out of scope (explicit non-goals)**
@@ -42,7 +42,7 @@ Each threshold below is transcribed from the cited source and verified against i
 4. **Format surface**: 13+ input formats accepted by OPP and 16 output formats from ORF `apply-md`. Sources: ARCHITECTURE.md §3.1 and README.md format matrix.
 5. **PDF→XLIFF guard**: OPP blocks PDF→XLIFF generation with a clear error and no crash. Sources: README.md (W3.2 case-insensitive guard), OPP_VALIDATION_MASTER_PLAN Q4, ACCEPTED_GAPS.md.
 6. **FAKE_LLM seam**: the pipeline runs end to end without API keys when `OMNI_TEST_FAKE_LLM=1` is set, producing deterministic mock translations. Sources: OL_VALIDATION_MASTER_PLAN Q3, SUITE_VALIDATION_MASTER_PLAN Q11.
-7. **OL quality gates**: 8 post-translation quality gates (inline tags, terminology, length ratio, locale, source copy, script check, protocol artifacts, terms audit), advisory and non-blocking. Source: OL_VALIDATION_MASTER_PLAN Q5.
+7. **OL quality gates**: 8 post-translation quality gates (inline tags, terminology, length ratio, locale, source copy, script check, protocol artifacts, invented tokens), advisory and non-blocking; the terms audit is a separate `verify-terms` tool. Source: OL_VALIDATION_MASTER_PLAN Q5, OL#158.
 8. **Performance thresholds** (from `docs/ACCEPTANCE.md`): P95 latency < 5 min for a 50MB file (Phase E1), sustained throughput >= 100 docs/hour (Phase E2), 8-hour throughput 100/100 complete (Phase E3), memory growth < 500MB over 1 hour (no leak), and 0 crashes over a 1-hour load (Phase E2).
 
 Additional thresholds from `docs/ACCEPTANCE.md`: multi-judge LQA pass rate >= 85% (avg >= 4.0/5); Spearman rank correlation >= 0.7; inter-judge exact-match agreement >= 60%; security tests 63/63; observability tests 42/42; fresh checkout install (`git clone && uv sync && bash setup_dev.sh`) < 10 min; 0 hardcoded secrets in tracked configs; circuit breaker opens after 5 consecutive failures.

@@ -31,7 +31,7 @@ Hard constraints for any agent working here:
 |---|---|---|
 | Omni_Suite | v0.5.0 | Suite-level orchestration + E2E tests |
 | OPP | v0.10.0 | 14 input formats, MCP with path security |
-| OL | v0.7.1 | 21 MCP tools, 3-stage repair pipeline, StyleGuide injection, --polish pass, 7 quality gates |
+| OL | v0.7.1 | 21 MCP tools, 3-stage repair pipeline, StyleGuide injection, --polish pass, 8 quality gates |
 | ORF | v0.5.0 | 16 backfill formats, Foreman/Specialist |
 
 v0.10.0 · v0.7.1 · v0.5.0 · v0.5.0.
@@ -94,7 +94,7 @@ Three flags (see `omni-suite pipeline --help`):
 
 ```bash
 omni-suite pipeline document.docx --dry-run            # print the OPP→OL→ORF commands without executing (no LLM keys)
-omni-suite pipeline document.docx --gates-only         # OPP + OL (7 quality gates) + `ol extract-warnings`; skip ORF backfill
+omni-suite pipeline document.docx --gates-only         # OPP + OL (8 quality gates) + `ol extract-warnings`; skip ORF backfill
 omni-suite pipeline document.docx --keep-intermediate  # keep /tmp/omni-suite-pipeline/<stem>/ after the run
 ```
 
