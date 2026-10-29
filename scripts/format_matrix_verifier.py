@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -312,6 +313,72 @@ def _check_skip(inp: str, outp: str, path: str) -> str | None:
     return None
 
 
+#: Formats whose artifacts are text, so a whitespace-only file is as empty as
+#: a 0-byte one. Binary formats (docx, pdf, xlsx, ...) are only checked for
+#: size 0 — a non-empty binary blob is a legitimate artifact.
+TEXT_ARTIFACT_FORMATS: frozenset[str] = frozenset({
+    "csv", "json", "srt", "xml", "html", "md", "txt", "ipynb", "eml",
+})
+
+
+def _artifact_defect(path: Path, outp: str) -> str | None:
+    """Return a defect reason when the produced artifact is unusable, else None.
+
+    A PASS cell must have produced *content*. Before e2e#228 the matrix only
+    asserted ``orf_out.exists()``, so ten ``MD→CSV`` cells whose intermediate
+    Markdown carried no table were scored PASS on a 0-byte ``result.csv``.
+    Size 0 is a defect for every format; for text formats whitespace-only
+    content is the same nothing under a different byte count.
+
+    Deliberately no size floors beyond that: a legitimate tiny output (an
+    empty HTML fragment body, a one-row CSV) must still PASS.
+    """
+    if not path.exists():
+        return f"produced no output at {path}"
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        return f"produced unreadable output: {type(exc).__name__}: {exc}"
+    if size == 0:
+        return "produced empty output (0 bytes)"
+    if outp in TEXT_ARTIFACT_FORMATS:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            return f"produced unreadable output: {type(exc).__name__}: {exc}"
+        if text.strip() == "":
+            return "produced empty output (whitespace only)"
+    return None
+
+
+_SEPARATOR_CELL_RE = re.compile(r":?-{3,}:?")
+
+
+def _is_markdown_table_separator(line: str) -> bool:
+    """True for a ``|---|:---:|---|`` separator row (GFM table syntax)."""
+    stripped = line.strip()
+    if not stripped or "|" not in stripped:
+        return False
+    cells = [c.strip() for c in stripped.strip("|").split("|")]
+    return bool(cells) and all(_SEPARATOR_CELL_RE.fullmatch(c) for c in cells)
+
+
+def _has_markdown_table(md_text: str) -> bool:
+    """True when the Markdown carries a real table (GFM pipe table or HTML).
+
+    Used by the MD→CSV branch: ORF's md2csv needs a table to emit anything.
+    A header row immediately followed by a separator row is required so
+    prose that merely contains a ``|`` is not mistaken for a table.
+    """
+    if re.search(r"<table[\s>]", md_text, re.IGNORECASE):
+        return True
+    lines = md_text.splitlines()
+    for i in range(len(lines) - 1):
+        if "|" in lines[i] and _is_markdown_table_separator(lines[i + 1]):
+            return True
+    return False
+
+
 def _resolve_fixture(inp: str, dest: Path, corpus_mode: str, suite_root: Path) -> bool:
     """Write or copy the input fixture. Returns True on success."""
     if corpus_mode == "real":
@@ -395,6 +462,18 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
             return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
                               detail=f"OPP: no .md at {md_out}")
 
+        if outp == "csv":
+            try:
+                md_text = md_out.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
+                                  detail=f"OPP: unreadable md: {exc}")
+            if not _has_markdown_table(md_text):
+                return CellResult(
+                    inp, outp, "md", "skip", time.monotonic() - t0,
+                    skip_reason="MD→CSV requires a table; intermediate MD has none",
+                )
+
         ol_dir = cell_dir / "ol"
         ol_dir.mkdir(exist_ok=True)
         r2 = subprocess.run(
@@ -427,6 +506,10 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
         if not orf_out.exists():
             return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
                               detail=f"ORF: no output at {orf_out}")
+        defect = _artifact_defect(orf_out, outp)
+        if defect:
+            return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
+                              detail=f"ORF: {defect}")
 
     except subprocess.TimeoutExpired:
         return CellResult(inp, outp, "md", "fail", time.monotonic() - t0, detail="timeout")
@@ -496,6 +579,10 @@ def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellRe
         if not orf_out.exists():
             return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
                               detail=f"ORF: no output at {orf_out}")
+        defect = _artifact_defect(orf_out, outp)
+        if defect:
+            return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
+                              detail=f"ORF: {defect}")
 
     except subprocess.TimeoutExpired:
         return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0, detail="timeout")

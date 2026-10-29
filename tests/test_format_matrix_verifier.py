@@ -8,6 +8,7 @@ Locks in:
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -311,3 +312,142 @@ class TestXLIFF2DOCXCrossFormat:
         expected_msg_fragment = "Cross-format XLIFF"
         # In the real fix we build a message that includes this fragment
         assert "Cross-format" in expected_msg_fragment
+
+
+# --- e2e#228: empty artifacts must FAIL, table-less MD→CSV must SKIP -----
+# Runners are driven with monkeypatched subprocess.run so no real
+# OPP/OL/ORF process starts.
+
+def _completed_process(cmd):
+    return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+
+def _fake_md_subprocess(cell_dir: Path, src: Path, md_text: str,
+                        artifact_bytes: bytes = b""):
+    def run(cmd, **kwargs):
+        module = cmd[2]
+        if module == "opp.cli":
+            (cell_dir / f"{src.stem}.md").write_text(md_text, encoding="utf-8")
+        elif module == "ol_cli":
+            md_path = Path(cmd[cmd.index("translate-md") + 1])
+            out_dir = Path(cmd[cmd.index("-o") + 1])
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / md_path.name).write_text(md_text, encoding="utf-8")
+        elif module == "orf.cli":
+            Path(cmd[cmd.index("--output") + 1]).write_bytes(artifact_bytes)
+        else:
+            raise AssertionError(f"unexpected subprocess: {cmd}")
+        return _completed_process(cmd)
+    return run
+
+
+def _fake_xliff_subprocess(cell_dir: Path, src: Path, artifact_bytes: bytes = b""):
+    def run(cmd, **kwargs):
+        module = cmd[2]
+        if module == "opp.cli":
+            (cell_dir / f"{src.stem}.xlf").write_text("<xliff/>", encoding="utf-8")
+            (cell_dir / f"{src.stem}.skeleton.zip").write_bytes(b"PK")
+        elif module == "ol_cli":
+            xlf_path = Path(cmd[cmd.index("translate-xliff") + 1])
+            out_dir = Path(cmd[cmd.index("-o") + 1])
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / xlf_path.name).write_text("<xliff/>", encoding="utf-8")
+        elif module == "orf.cli":
+            Path(cmd[cmd.index("--output") + 1]).write_bytes(artifact_bytes)
+        else:
+            raise AssertionError(f"unexpected subprocess: {cmd}")
+        return _completed_process(cmd)
+    return run
+
+
+class TestArtifactDefect:
+    def test_zero_byte_file_is_defect(self, tmp_path):
+        artifact = tmp_path / "result.csv"
+        artifact.write_bytes(b"")
+        assert fmv._artifact_defect(artifact, "csv") == "produced empty output (0 bytes)"
+
+    def test_zero_byte_binary_is_defect(self, tmp_path):
+        artifact = tmp_path / "result.docx"
+        artifact.write_bytes(b"")
+        assert fmv._artifact_defect(artifact, "docx") == "produced empty output (0 bytes)"
+
+    def test_whitespace_only_text_is_defect(self, tmp_path):
+        artifact = tmp_path / "result.csv"
+        artifact.write_text("  \n\t\n", encoding="utf-8")
+        assert fmv._artifact_defect(artifact, "csv") == (
+            "produced empty output (whitespace only)"
+        )
+
+    def test_non_empty_csv_has_no_defect(self, tmp_path):
+        artifact = tmp_path / "result.csv"
+        artifact.write_text("col1,col2\na,b\n", encoding="utf-8")
+        assert fmv._artifact_defect(artifact, "csv") is None
+
+    def test_missing_file_is_defect(self, tmp_path):
+        defect = fmv._artifact_defect(tmp_path / "absent.html", "html")
+        assert defect is not None
+        assert "no output" in defect
+
+
+class TestMarkdownTableDetector:
+    def test_pipe_table_detected(self):
+        md = "Intro\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n"
+        assert fmv._has_markdown_table(md) is True
+
+    def test_table_without_separator_not_detected(self):
+        assert fmv._has_markdown_table("| a | b |\n| 1 | 2 |\n") is False
+
+    def test_plain_prose_not_detected(self):
+        assert fmv._has_markdown_table("# Test\n\nHello, world.\n") is False
+
+    def test_html_table_detected(self):
+        assert fmv._has_markdown_table("<table><tr><td>a</td></tr></table>") is True
+
+
+class TestMDPathArtifactAssertion:
+    def _run(self, tmp_path, monkeypatch, outp, md_text, artifact_bytes):
+        cell_dir = tmp_path / f"md_docx_to_{outp}"
+        cell_dir.mkdir()
+        src = cell_dir / "sample.docx"
+        src.write_bytes(b"fixture")
+        monkeypatch.setattr(
+            fmv.subprocess, "run",
+            _fake_md_subprocess(cell_dir, src, md_text, artifact_bytes),
+        )
+        return fmv._run_md_path(
+            Path("python"), {}, tmp_path, src, cell_dir, "docx", outp, 0.0,
+        )
+
+    def test_zero_byte_artifact_is_fail(self, tmp_path, monkeypatch):
+        result = self._run(tmp_path, monkeypatch, "html",
+                           "# Test\n\nHello, world.\n", b"")
+        assert result.status == "fail"
+        assert "produced empty output (0 bytes)" in result.detail
+
+    def test_csv_without_table_is_skip(self, tmp_path, monkeypatch):
+        result = self._run(tmp_path, monkeypatch, "csv",
+                           "# Test\n\nHello, world.\n", b"")
+        assert result.status == "skip"
+        assert result.skip_reason == (
+            "MD→CSV requires a table; intermediate MD has none"
+        )
+
+    def test_csv_with_table_passes(self, tmp_path, monkeypatch):
+        md = "| a | b |\n| --- | --- |\n| 1 | 2 |\n"
+        result = self._run(tmp_path, monkeypatch, "csv", md, b"a,b\n1,2\n")
+        assert result.status == "pass"
+
+    def test_xliff_path_zero_byte_artifact_is_fail(self, tmp_path, monkeypatch):
+        cell_dir = tmp_path / "xliff_docx_to_docx"
+        cell_dir.mkdir()
+        src = cell_dir / "sample.docx"
+        src.write_bytes(b"fixture")
+        monkeypatch.setattr(
+            fmv.subprocess, "run",
+            _fake_xliff_subprocess(cell_dir, src, b""),
+        )
+        result = fmv._run_xliff_path(
+            Path("python"), {}, tmp_path, src, cell_dir, "docx", "docx", 0.0,
+        )
+        assert result.status == "fail"
+        assert "produced empty output (0 bytes)" in result.detail
