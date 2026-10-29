@@ -98,8 +98,9 @@ There are two parallel channels through the pipeline:
 | **XLIFF channel** | XLIFF 1.2/2.0 | Format-preserving backfill (DOCX, PPTX) with inline-formatting tags | `document.xlf` + `document.skeleton.zip` + `document_manifest.json` |
 
 The same DOCX can go through either channel; the choice trades layout fidelity
-for simplicity. The 36-path matrix in the parent `README.md` documents which
-combinations are production-verified.
+for simplicity. The verified-path summary in the parent `README.md` documents
+which combinations are production-verified, and its per-format table covers
+every input format against both channels.
 
 ---
 
@@ -108,7 +109,8 @@ combinations are production-verified.
 ### 3.1 OPP — `Omni_Pre_Processor`
 
 **Input**: a single document (one of DOCX, PPTX, PDF, XLSX, CSV, JSON, XML,
-HTML, EPUB, EML, MSG, image, IPYNB, or `.url` for YouTube auto-detect).
+HTML, EPUB, EML, MSG, image, audio, video, IPYNB, or `.url` for YouTube
+auto-detect) — 16 formats, per `opp/mcp/tools/get_capabilities.py`.
 
 **Output** (in `--output-dir`):
 
@@ -129,8 +131,9 @@ HTML, EPUB, EML, MSG, image, IPYNB, or `.url` for YouTube auto-detect).
 - **PDF → MD is allowed** but limited to text-only extraction.
 
 **Public surface**: see `Omni_Pre_Processor/README.md` for CLI flags and the
-seven MCP tools (`extract_document`, `batch_extract`, `detect_format_tool`,
-`generate_markdown`, `generate_xliff`, `save_skeleton`, `ping`).
+nine MCP tools (`extract_document`, `batch_extract`, `detect_format_tool`,
+`generate_markdown`, `generate_xliff`, `save_skeleton`, `validate_xliff`,
+`get_capabilities`, `ping`).
 
 ### 3.2 OL — `Omni_Localizer`
 
@@ -150,7 +153,7 @@ test environment — real API keys must never be required for a green CI.
 
 **Glossary & TM**: optional. `load_glossary(path)` reads a JSON glossary;
 `search_tm(source_text, tmx_path, threshold)` queries a TMX translation
-memory. The eight MCP tools cover the full surface.
+memory. The 21 MCP tools cover the full surface.
 
 ### 3.3 ORF — `Omni_Re_Formatter`
 
@@ -164,13 +167,15 @@ memory. The eight MCP tools cover the full surface.
   `--force` does not override it. Cross-format goes through `apply_md`.
 - Optional `images=[{path, position, ...}]` for image injection.
 
-**Output**: a single file at the requested `output_path`. ORF validates the
-extension against a whitelist (DOCX/ODT/EPUB/HTML/RTF/PDF/PPTX/ICML/SRT) and
-rejects `apply_md` outputs for `.xlsx`/`.csv`/`.json`/`.ipynb`/`.eml` — those
-formats need `batch_convert` instead.
+**Output**: a single file at the requested `output_path`. `apply-md` writes all
+16 formats (DOCX/ODT/EPUB/HTML/RTF/PDF/PPTX/ICML/SRT/CSV/XLSX/XML/JSON/IPYNB/
+EML/MSG); `convert-batch` applies the same set to every matching file in a
+directory. Per-format limits are content, not policy: MD → JSON needs a JSON
+code block or OPP `json_field:` pairs, and MD → SRT needs timestamped cues (see
+`ACCEPTED_GAPS.md`).
 
-**Six MCP tools**: `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`,
-`info`, `ping`.
+**Seven MCP tools**: `apply_md`, `apply_xliff`, `batch_convert`, `detect_format`,
+`info`, `get_capabilities`, `ping`.
 
 ### 3.4 Handoff contract: `manifest.json` + `skeleton.zip`
 

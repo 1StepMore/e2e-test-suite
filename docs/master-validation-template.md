@@ -692,7 +692,7 @@ In either case, the system must:
 
 **User says:** "I have documents in various formats — DOCX, PPTX, PDF, HTML, CSV, JSON, XML, EPUB, EML, images, YouTube URLs. Can OPP handle all of them?"
 
-**Why this matters:** OPP supports 13+ input formats. Each has unique extraction characteristics. Missing format support = lost documents.
+**Why this matters:** OPP supports 16 input formats. Each has unique extraction characteristics. Missing format support = lost documents.
 
 ### Input Format Matrix
 

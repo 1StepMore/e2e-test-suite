@@ -12,7 +12,7 @@ This document defines what OPP must deliver from the founder's perspective and h
 
 ## 1. Introduction
 
-OPP is the **first step** of the Omni Suite pipeline. It ingests documents in 13+ input formats and extracts them into three standardized artifacts:
+OPP is the **first step** of the Omni Suite pipeline. It ingests documents in 16 input formats and extracts them into three standardized artifacts:
 
 | Artifact | Purpose | Consumed By |
 |----------|---------|-------------|
@@ -36,7 +36,7 @@ If OPP produces bad output, everything downstream fails. This is the foundation.
 
 ## 3. Expectation Catalog
 
-### F01 — Support all 13+ input formats
+### F01 — Support all 16 input formats
 
 | Aspect | Specification |
 |--------|---------------|

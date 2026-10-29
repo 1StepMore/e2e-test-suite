@@ -18,7 +18,7 @@ This document is the retrospective baseline. It records what is actually built, 
 
 **In scope**
 
-- **13+ input formats**: DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML, EPUB, EML, MSG, images (OCR), IPYNB, and `.url` for YouTube auto-detect (ARCHITECTURE.md §3.1).
+- **16 input formats**: DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML, EPUB, EML, MSG, images (OCR), Audio, Video, IPYNB, and `.url` for YouTube auto-detect (OPP `get_capabilities.py`).
 - **16 output formats** from `orf apply-md`: DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON (README.md; ORF validation plan Q1).
 - **Two pipeline channels**: the MD channel (layout-tolerant, 16 output formats) and the XLIFF channel (format-preserving backfill using skeleton.zip + manifest.json).
 - **Three MCP servers**: OPP (9 tools), OL (21 tools), ORF (7 tools) — 37 module tools, plus 4 suite tools (`omni_mcp`) = 41 total.
@@ -39,7 +39,7 @@ Each threshold below is transcribed from the cited source and verified against i
 1. **OPP extract fidelity**: `char_cosine >= 0.9` against the reference corpus. Source: `tests/fidelity/run_fidelity.py:22` (`CHAR_COSINE_THRESHOLD = 0.9`), corroborated by OPP_VALIDATION_MASTER_PLAN.
 2. **Test-coverage floor**: `>= 80%` combined across the three module `src/` trees. Source: `Makefile:93` (`--cov-fail-under=80` on the `test-coverage` target).
 3. **OL MCP surface**: 21 tools registered. Source: `Omni_Localizer/src/ol_mcp/tools.py` (`TOOL_REGISTRY` / `__all__`), enumerated in OL_VALIDATION_MASTER_PLAN Q7.
-4. **Format surface**: 13+ input formats accepted by OPP and 16 output formats from ORF `apply-md`. Sources: ARCHITECTURE.md §3.1 and README.md format matrix.
+4. **Format surface**: 16 input formats accepted by OPP and 16 output formats from ORF `apply-md`. Sources: OPP `get_capabilities.py` `_INPUT_FORMATS` and README.md format matrix.
 5. **PDF→XLIFF guard**: OPP blocks PDF→XLIFF generation with a clear error and no crash. Sources: README.md (W3.2 case-insensitive guard), OPP_VALIDATION_MASTER_PLAN Q4, ACCEPTED_GAPS.md.
 6. **FAKE_LLM seam**: the pipeline runs end to end without API keys when `OMNI_TEST_FAKE_LLM=1` is set, producing deterministic mock translations. Sources: OL_VALIDATION_MASTER_PLAN Q3, SUITE_VALIDATION_MASTER_PLAN Q11.
 7. **OL quality gates**: 8 post-translation quality gates (inline tags, terminology, length ratio, locale, source copy, script check, protocol artifacts, invented tokens), advisory and non-blocking; the terms audit is a separate `verify-terms` tool. Source: OL_VALIDATION_MASTER_PLAN Q5, OL#158.
@@ -49,9 +49,9 @@ Additional thresholds from `docs/ACCEPTANCE.md`: multi-judge LQA pass rate >= 85
 
 **Executable verification set** (the four validation master plans, archived at `docs/archive/`; superseded by `scripts/validation/run_validation.py` + `scenarios/`):
 
-- `docs/archive/OPP_VALIDATION_MASTER_PLAN.md`: 17 questions over 13 input formats and 7 MCP tools.
+- `docs/archive/OPP_VALIDATION_MASTER_PLAN.md`: 15 questions over 16 extractors and 9 MCP tools.
 - `docs/archive/OL_VALIDATION_MASTER_PLAN.md`: 17 questions over 21 MCP tools, 8 quality gates, and real-LLM scenarios.
-- `docs/archive/ORF_VALIDATION_MASTER_PLAN.md`: 14 questions over 16 output formats and 6 MCP tools.
+- `docs/archive/ORF_VALIDATION_MASTER_PLAN.md`: 11 questions over 16 output formats and 7 MCP tools.
 - `docs/archive/SUITE_VALIDATION_MASTER_PLAN.md`: 15 questions over 2 pipeline paths (MD + XLIFF) and 3 MCP servers.
 
 Each plan is executable by any agent: pick a user question, run the scenario, compare actual vs expected, and report a binary verdict.

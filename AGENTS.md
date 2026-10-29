@@ -30,7 +30,7 @@ Hard constraints for any agent working here:
 | Component | Version | Status |
 |---|---|---|
 | Omni_Suite | v0.5.0 | Suite-level orchestration + E2E tests |
-| OPP | v0.10.0 | 14 input formats, MCP with path security |
+| OPP | v0.10.0 | 16 input formats, MCP with path security |
 | OL | v0.7.1 | 21 MCP tools, 3-stage repair pipeline, StyleGuide injection, --polish pass, 8 quality gates |
 | ORF | v0.5.0 | 16 backfill formats, Foreman/Specialist |
 
@@ -177,13 +177,13 @@ Each module exposes its own MCP server. Server/tool inventory, response envelope
 `translate_file`, `ping`, `list_validation_scenarios`, `run_validation_scenario`
 (the last two are validation-specific). Runs as `omni-mcp` from `omni_mcp/server.py`.
 
-> **Note**: Server names are not uniform — OPP/ORF use `-server` suffix (`opp-mcp-server`, `orf-mcp-server`), OL omits it (`ol-mcp`), and the suite server is `omni-mcp`. Historical inconsistency; all four follow the same protocol.
+> **Note**: Server names add a `-server` suffix — OPP (`opp-mcp-server`), ORF (`orf-mcp-server`), and since v0.7.1 OL too (`ol-mcp` plus the `ol-mcp-server` alias); the suite server is `omni-mcp`. Both OL spellings work; four servers, same protocol.
 
 ## Format Support Matrix
 
 ORF `apply-md` supports 16 output formats: DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON.
 
-See `README.md` → "Cross-Format Production-Readiness" for the full 36-path verified matrix.
+See `README.md` → "Cross-Format Production-Readiness" for the verified-path summary table and per-format support matrix.
 
 ## Critical Notes
 
@@ -219,7 +219,7 @@ Configured in `.pre-commit-config.yaml` at the project root. Install: `pip insta
 | Architecture / data flow | `docs/ARCHITECTURE.md` |
 | OPP→OL→ORF handoff contract | `CONTRACT.md` |
 | Shared glossary | `CONTEXT.md` |
-| Decision records (ADR 0001–0007) | `docs/DECISIONS.md` |
+| Decision records (ADR 0001–0008) | `docs/DECISIONS.md` |
 | Setup (real LLM keys) | `SETUP.md` |
 | Test instructions | `TESTS.md` |
 | Retired docs (archive) | `docs/archive/` |

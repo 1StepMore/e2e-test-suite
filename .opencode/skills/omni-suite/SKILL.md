@@ -174,7 +174,7 @@ DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MS
 ## MCP tool quick reference (37 total across modules)
 
 ### OPP — `opp-mcp-server` (9 tools)
-- `extract_document` — Extract single file (13 input formats)
+- `extract_document` — Extract single file (16 input formats)
 - `batch_extract` — Process multiple files
 - `detect_format_tool` — Magic-bytes detection
 - `generate_markdown` — MD only

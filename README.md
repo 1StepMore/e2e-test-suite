@@ -99,7 +99,7 @@ bash scripts/setup_dev.sh
 # 3. 跑测试（pytest）
 source .venv_ol/bin/activate
 pytest tests/observability/ -q   # 61 observability tests
-pytest tests/security/ -q        # 138 security tests（含 path-policy parity 一致性不变量）
+pytest tests/security/ -q        # 173 security tests（含 path-policy parity 一致性不变量）
 pytest tests/ -q                 # all suite-level tests
 
 # 4. 查看版本
@@ -130,9 +130,10 @@ omni-suite pipeline document.docx --keep-intermediate # 保留 /tmp/omni-suite-p
 
 ## Cross-Format Production-Readiness
 
-OPP accepts 14 input formats (DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML,
-EPUB, EML, MSG, images/OCR, IPYNB, plus `.url` auto-detect); ORF `apply-md`
-writes 16 output formats. Verified OPP→OL→ORF paths as of 2026-06-23:
+OPP accepts 16 input formats (DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML,
+EPUB, EML, MSG, images/OCR, Audio, Video, IPYNB, plus `.url` auto-detect
+for YouTube); ORF `apply-md` writes 16 output formats. Verified OPP→OL→ORF
+paths (W1–W3 verified 2026-06-23; the EML XLIFF row re-verified 2026-10-27):
 
 | From | Via | To | Engine / Note |
 |------|-----|----|---------------|
@@ -140,6 +141,7 @@ writes 16 output formats. Verified OPP→OL→ORF paths as of 2026-06-23:
 | (any MD) | ORF pure-Python | HTML, PDF | W1.3 — `markdown` + WeasyPrint, no pandoc |
 | (any MD) | ORF pandoc | DOCX, ODT, EPUB, RTF, ICML | W1.1 — `pypandoc-binary` (auto-installed) |
 | EML (email) | OPP → MD → OL → ORF | MSG | W2.1 — graceful fallback on missing headers |
+| EML (email) | OPP → XLIFF → OL → ORF | EML | W2.3 — skeleton round trip, header block byte-identical (verified 2026-10-27) |
 | (any XLIFF) | ORF `apply-xliff` | cross-format | W2.2 — refused, not converted (format-preserving; `--force` is inert) |
 | `.url` (YouTube) | OPP auto-detect | MD | W3.1 — `markitdown[youtube-transcription]` |
 | PDF → XLIFF | OPP guard | (blocked) | W3.2 — correctly blocked (case-insensitive guard) |
@@ -204,8 +206,10 @@ OL translation tool, and which ORF backfill tool you should use.
 | PDF | ✅ | ❌ | PDF→XLIFF intentionally blocked |
 | HTML | ✅ | ✅ | Skeleton = synthesized `index.html` with `data-trans-unit-id` |
 | CSV / JSON / XML | ✅ | ❌ | Data formats, no layout |
-| EML / MSG | ✅ | ❌ | Email formats |
+| EML | ✅ | ✅ | XLIFF preserves the original message + header block (skeleton = `message.eml` + `eml_map.json`) |
+| MSG | ✅ | ❌ | No MSG XLIFF skeleton producer |
 | Images (OCR) | ✅ | ❌ | Text extraction only |
+| Audio / Video | ✅ | ❌ | Transcription only |
 | YouTube URL | ✅ | ❌ | Transcription only |
 
 **When to use `--target-format both`**: If you're unsure, extract both.

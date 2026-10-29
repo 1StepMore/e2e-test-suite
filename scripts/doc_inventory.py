@@ -44,6 +44,9 @@ README = ROOT / "README.md"
 AGENTS = ROOT / "AGENTS.md"
 SKILL = ROOT / ".opencode" / "skills" / "omni-docmap" / "SKILL.md"
 OPP_SERVER = ROOT / "Omni_Pre_Processor" / "src" / "opp" / "mcp" / "server.py"
+OPP_CAPABILITIES = (
+    ROOT / "Omni_Pre_Processor" / "src" / "opp" / "mcp" / "tools" / "get_capabilities.py"
+)
 OL_TOOLS = ROOT / "Omni_Localizer" / "src" / "ol_mcp" / "tools.py"
 ORF_SERVER = ROOT / "Omni_Re_Formatter" / "src" / "orf" / "mcp" / "server.py"
 SUITE_SERVER = ROOT / "omni_mcp" / "server.py"
@@ -154,6 +157,25 @@ def count_tool_registry(path: Path) -> int:
 def count_listed_tools(path: Path) -> int:
     """Count ``types.Tool(name=...)`` entries in an ORF ``_list_tools`` return."""
     return len(re.findall(r'name\s*=\s*"', read_text(path)))
+
+
+_INPUT_FORMATS_BLOCK_RE = re.compile(r"_INPUT_FORMATS\s*=\s*\[(.*?)\]", re.DOTALL)
+_INPUT_FORMAT_TOKEN_RE = re.compile(r'"([a-z0-9_]+)"')
+
+
+def count_input_formats(path: Path) -> int:
+    """Count the formats listed in ``get_capabilities.py``'s ``_INPUT_FORMATS``.
+
+    That list is what the server advertises to MCP clients, so it is the count
+    a doc claim must match.
+    """
+    if not path.exists():
+        return 0
+    text = read_text(path)
+    block = _INPUT_FORMATS_BLOCK_RE.search(text)
+    if block is None:
+        return 0
+    return len(set(_INPUT_FORMAT_TOKEN_RE.findall(block.group(1))))
 
 
 # ---------------------------------------------------------------------------
@@ -641,7 +663,7 @@ def _check_scenario_claim_sites(
 def check_scenarios(root: Path, failures: list[str]) -> None:
     """Scenario count DERIVED from the ``scenarios/**/*.yaml`` glob (never a
     pinned number); claim-site docs stating a count/tier-split must match it.
-    Input formats >= 14; '14' claims.
+    OPP input-format claims are DERIVED from ``get_capabilities.py``.
 
     Skipped (report-only, not a failure) when ``scenarios/`` is absent. The
     library glob is the source of truth — a legitimate scenario addition or
@@ -671,10 +693,42 @@ def check_scenarios(root: Path, failures: list[str]) -> None:
         print(f"  scenarios/opp: {opp_count} input-format scenarios")
         if opp_count < 14:
             failures.append(f"scenarios/opp: {opp_count} input formats, expected >= 14")
-        for rel in ("AGENTS.md", "README.md"):
-            path = root / rel
-            if path.exists() and "14 input formats" not in read_text(path):
-                failures.append(f"{rel} must claim '14 input formats'")
+
+
+_INPUT_FORMAT_CLAIM_SITES: tuple[str, ...] = (
+    "AGENTS.md",
+    "README.md",
+    "Omni_Pre_Processor/AGENTS.md",
+    "Omni_Pre_Processor/README.md",
+    "docs/PRD.md",
+    "docs/OPP_EXPECTATIONS.md",
+    "docs/master-validation-template.md",
+    ".opencode/skills/omni-suite/SKILL.md",
+)
+_INPUT_FORMAT_CLAIM_RE = re.compile(r"(\d+)\s+input formats")
+
+
+def check_input_formats(root: Path, failures: list[str]) -> None:
+    """Gate ``<N> input formats`` claims against ``get_capabilities.py``.
+
+    Skipped (report-only) when the authority file is absent — a suite checkout
+    with sub-repos missing must not fail on a number it cannot derive.
+    """
+    source = count_input_formats(root / OPP_CAPABILITIES.relative_to(ROOT))
+    if source == 0:
+        print("  OPP input formats: authority absent -> skip (report-only)")
+        return
+    print(f"  OPP input formats: {source} (from get_capabilities.py)")
+    for rel in _INPUT_FORMAT_CLAIM_SITES:
+        path = root / rel
+        if not path.exists():
+            continue
+        for m in _INPUT_FORMAT_CLAIM_RE.finditer(read_text(path)):
+            if int(m.group(1)) != source:
+                failures.append(
+                    f"{rel}: claims {m.group(1)} input formats, actual is "
+                    f"{source} — OPP's get_capabilities.py is the authority"
+                )
 
 
 def check_test_matrix(root: Path, failures: list[str]) -> None:
@@ -1148,6 +1202,8 @@ def run_check(root: Path) -> list[str]:
 
     # 2b. Module-doc claim sites (tool counts + self-declared version, issue #10).
     check_module_docs(root, source, failures)
+
+    check_input_formats(root, failures)
 
     # 3. Scenario count + input formats (skipped when scenarios/ absent).
     check_scenarios(root, failures)

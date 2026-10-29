@@ -177,7 +177,7 @@ Omni Suite 是一个三阶段文档本地化流水线，将源文档从一种语
 
 | 方面 | 状态 |
 |------|------|
-| **输入格式** | 13+（DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML, EPUB, EML, MSG, images, IPYNB, YouTube URL） |
+| **输入格式** | 16（DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML, EPUB, EML, MSG, images, IPYNB, Audio, Video, YouTube URL） |
 | **回写格式** | 16（DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON） |
 | **MCP 工具总数** | 37 模块工具（9 + 21 + 7）；加 suite 4 个 = 41 |
 | **兼容性** | Suite v0.4.0 / OPP v0.9.1 / OL v0.7.1 / ORF v0.4.17 |

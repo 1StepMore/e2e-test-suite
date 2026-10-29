@@ -823,3 +823,63 @@ def test_real_repo_root_has_no_sample_files():
         f"suite root contains document sample(s): {stray} — move them into "
         "scenarios/_fixtures/ (tracked) or test_fixtures/ (gitignored)"
     )
+
+
+# ---------------------------------------------------------------------------
+# 16. OPP input-format count — derived from get_capabilities.py, not a literal.
+#     The old check hardcoded "14 input formats", so 13/14/16 could coexist
+#     across five docs with the gate green (2026-10-29 drift audit).
+# ---------------------------------------------------------------------------
+
+CAPABILITIES_PY = '''"""get_capabilities tool for OPP."""
+
+_INPUT_FORMATS = [
+    "docx", "pptx", "pdf", "xlsx", "csv", "json", "xml", "html",
+    "epub", "eml", "msg", "image", "audio", "video", "youtube", "ipynb",
+]
+'''
+
+
+def _write_capabilities(root: Path, body: str = CAPABILITIES_PY) -> None:
+    path = root / "Omni_Pre_Processor/src/opp/mcp/tools/get_capabilities.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+
+
+def test_input_format_count_is_derived_from_source(tmp_path):
+    """The counter reads _INPUT_FORMATS; it is not a pinned number."""
+    _write_capabilities(tmp_path)
+    path = tmp_path / "Omni_Pre_Processor/src/opp/mcp/tools/get_capabilities.py"
+    assert di.count_input_formats(path) == 16
+    _write_capabilities(tmp_path, '_INPUT_FORMATS = ["docx", "pptx"]\n')
+    assert di.count_input_formats(path) == 2
+
+
+def test_input_format_count_absent_authority_is_zero(tmp_path):
+    """A missing authority returns 0 so the gate skips instead of failing."""
+    assert di.count_input_formats(tmp_path / "nope" / "get_capabilities.py") == 0
+
+
+def test_check_rejects_stale_input_format_claim(consistent_tree, capsys):
+    """A doc claiming 14 input formats fails when the source lists 16."""
+    _write_capabilities(consistent_tree)
+    (consistent_tree / "AGENTS.md").write_text(
+        AGENTS_MD + "\n| OPP | v0.10.0 | 14 input formats |\n", encoding="utf-8"
+    )
+    _generate(consistent_tree)
+    rc = di.main(["--check", "--root", str(consistent_tree)])
+    combined = capsys.readouterr().out + capsys.readouterr().err
+    assert rc == 1, "a stale input-format claim must fail the check"
+    assert "AGENTS.md" in combined and "16" in combined, (
+        f"failure must name the doc and the derived count, got: {combined!r}"
+    )
+
+
+def test_check_accepts_matching_input_format_claim(consistent_tree):
+    """The claim matching the derived count passes."""
+    _write_capabilities(consistent_tree)
+    (consistent_tree / "AGENTS.md").write_text(
+        AGENTS_MD + "\n| OPP | v0.10.0 | 16 input formats |\n", encoding="utf-8"
+    )
+    _generate(consistent_tree)
+    assert di.main(["--check", "--root", str(consistent_tree)]) == 0

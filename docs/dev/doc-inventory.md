@@ -14,7 +14,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Metric | Value |
 |--------|-------|
 | Total files | 62 |
-| Total lines | 34481 |
+| Total lines | 34489 |
 | Active files | 46 |
 | Archived files | 16 |
 | Category — archive | 16 files / 17674 lines |
@@ -22,7 +22,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
 | Category — docs/dev | 18 files / 2756 lines |
-| Category — docs/root | 21 files / 10196 lines |
+| Category — docs/root | 21 files / 10204 lines |
 
 ## Inventory
 
@@ -30,8 +30,8 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 |---------------|------:|----------|--------|----------|
 | `ACCEPTANCE.md` | 84 | docs/root | active | — |
 | `API_STABILITY.md` | 307 | docs/root | active | — |
-| `ARCHITECTURE.md` | 515 | docs/root | active | — |
-| `DECISIONS.md` | 21 | docs/root | active | — |
+| `ARCHITECTURE.md` | 520 | docs/root | active | — |
+| `DECISIONS.md` | 22 | docs/root | active | — |
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
 | `HANDOVER.md` | 620 | docs/root | active | — |
@@ -56,7 +56,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `adr/0008-cross-repo-copy-review.md` | 85 | docs/dev | active | — |
 | `adr/README.md` | 41 | docs/dev | active | — |
 | `adr/TEMPLATE.md` | 36 | docs/dev | active | — |
-| `agent-pipeline-guide.md` | 349 | docs/root | active | — |
+| `agent-pipeline-guide.md` | 351 | docs/root | active | — |
 | `agent-tester-validation-guide.md` | 20 | docs/root | active | — |
 | `archive/INTEGRATED_TEST_PLAN.md` | 1272 | archive | archived | — |
 | `archive/OL_VALIDATION_MASTER_PLAN.md` | 4489 | archive | archived | — |

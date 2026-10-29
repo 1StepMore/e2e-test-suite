@@ -15,6 +15,7 @@
 | [0005](adr/0005-pdf-xliff-blocked.md) | PDF → XLIFF Blocked by Design | Accepted | 2026-08-13 |
 | [0006](adr/0006-fake-llm-hermetic-seam.md) | FAKE_LLM / FAKE_PANDOC Hermetic Test Seam | Accepted | 2026-08-13 |
 | [0007](adr/0007-path-security-convergence.md) | Path-Security Validation: Converge the Three Copies Now, Defer the Shared Package | Accepted | 2026-09-17 |
+| [0008](adr/0008-cross-repo-copy-review.md) | Cross-Repo Copy Review: What Stays Duplicated, What Converges, and Why | Accepted | 2026-10-29 |
 
 ---
 

@@ -90,8 +90,10 @@ See `README.md` for the full matrix with notes.
 | HTML | Yes | **Yes** | Skeleton = synthesized `index.html` with `data-trans-unit-id` (resolved 2026-10-05) |
 | ODT | No | No | ORF output format only — OPP has no ODT extractor |
 | CSV / JSON / XML | Yes | No | Data formats, no layout |
-| EML / MSG | Yes | No | Email formats (MSG limited) |
+| EML | Yes | **Yes** | Skeleton = original `message.eml` + `eml_map.json` sidecar; header block preserved byte-for-byte (resolved 2026-10-27) |
+| MSG | Yes | No | No MSG skeleton producer |
 | Images (OCR) | Yes | No | Text extraction only |
+| Audio / Video | Yes | No | Transcription only |
 | YouTube URL | Yes | No | Transcription only |
 
 When unsure, use `--target-format both` in OPP. This produces MD, XLIFF,
@@ -111,7 +113,7 @@ per-module `AGENTS.md` files or `docs/API.md`.
 | Server | Tool Count | CLI Start Command | MCP Name |
 |--------|-----------|-------------------|----------|
 | OPP MCP | 9 | `opp mcp` or `uvx opp-mcp` | `opp-mcp-server` |
-| OL MCP | 21 | `ol mcp` or `uvx ol-mcp` | `ol-mcp` |
+| OL MCP | 21 | `ol mcp` or `uvx ol-mcp` | `ol-mcp` (alias `ol-mcp-server`) |
 | ORF MCP | 7 | `orf mcp` or `uvx orf-mcp` | `orf-mcp-server` |
 | Omni MCP | 4 (suite) | `omni-mcp` | `omni-mcp` |
 
