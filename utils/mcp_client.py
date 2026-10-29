@@ -53,7 +53,9 @@ SERVERS = {
         "command": "/home/renanzai/.hermes/venvs/omni-localizer/bin/python",
         "args": ["-m", "ol_mcp"],
         "env": {
-            "MCP_ALLOWED_DIRECTORIES": "/mnt/d/Hermes-Workspace,/tmp,/home/renanzai",
+            "MCP_ALLOWED_DIRECTORIES": os.pathsep.join(
+                ["/mnt/d/Hermes-Workspace", "/tmp", "/home/renanzai"]
+            ),
             "PYTHONPATH": "/mnt/d/Hermes-Workspace/01-Projects/e2e-test-suite/Omni_Localizer/src",
             "OL_CONFIG_PATH": "/mnt/d/Hermes-Workspace/01-Projects/e2e-test-suite/Omni_Localizer/config/default.yaml",
         },

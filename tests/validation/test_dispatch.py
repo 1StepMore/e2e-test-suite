@@ -25,6 +25,7 @@ at the subprocess boundary.
 """
 
 import json
+import os
 
 import pytest
 
@@ -329,6 +330,32 @@ def test_mcp_orf_ping_in_process():
     data = result.actual.get("data")
     assert isinstance(data, dict)
     assert data["content"].get("module") == "orf"
+
+
+def test_mcp_step_applies_env_before_tool_resolution(monkeypatch):
+    """The module import itself can be fail-CLOSED on the allowlist (ORF's
+    ``orf.mcp.server``), so the caller-supplied env must be active BEFORE
+    ``_resolve_tool`` imports it (e2e-test-suite#229)."""
+    seen: dict[str, str | None] = {}
+    previous = os.environ.get("MCP_ALLOWED_DIRECTORIES")
+
+    def _fake_resolve(tool):
+        seen["MCP_ALLOWED_DIRECTORIES"] = os.environ.get("MCP_ALLOWED_DIRECTORIES")
+
+        def _fn():
+            return {"success": True}
+
+        return _fn
+
+    monkeypatch.setattr(dispatch, "_resolve_tool", _fake_resolve)
+    result = dispatch_step(
+        _mcp_step("orf.mcp.server.apply_md"),
+        env={"MCP_ALLOWED_DIRECTORIES": "/tmp"},
+    )
+
+    assert seen["MCP_ALLOWED_DIRECTORIES"] == "/tmp"
+    assert result.actual["success"] is True
+    assert os.environ.get("MCP_ALLOWED_DIRECTORIES") == previous
 
 
 def test_mcp_nonexistent_tool_raises_clear_error():

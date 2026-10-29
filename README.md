@@ -333,6 +333,14 @@ no FAKE_LLM as evidence), with the two families of standards defined in
 `scenarios/STANDARDS.md` (AGENT-SURFACE + HUMAN-QUALITY). Tier-1 scenarios
 are hermetic — no LLM keys needed.
 
+Tier-1 also needs **no manual path-allowlist exports**: when
+`MCP_ALLOWED_DIRECTORIES`, `OPP_MCP_ALLOWED_DIRS`, `ORF_MCP_ALLOWED_DIRS`,
+`OL_MCP_ALLOWED_DIRS`, or `OPP_ALLOWED_DIRECTORIES` are unset, the runner
+supplies a default sandbox of the suite root plus the system temp directory
+(`os.pathsep`-joined). An explicitly exported value always wins and is never
+overwritten. Both `os.pathsep` (`:` on POSIX, `;` on Windows) and comma are
+accepted as list separators by the module servers.
+
 ```bash
 source .venv_ol/bin/activate
 python scripts/validation/run_validation.py --scenario tool- --tier 1   # 41 per-tool agent-surface scenarios
