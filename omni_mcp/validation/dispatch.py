@@ -658,12 +658,18 @@ def _run_mcp_step(step: dict[str, Any], env: dict[str, str] | None) -> StepResul
     tool = step["tool"]
     arguments = dict(step.get("arguments") or {})
     timeout = float(step.get("timeout_seconds") or DEFAULT_TIMEOUT_SECONDS)
-    fn = _resolve_tool(tool)
     start = time.monotonic()
     try:
         with _patched_environ(env):
+            # Resolve INSIDE the patched env: a module server can enforce the
+            # fail-CLOSED path allowlist while it is being imported (ORF's
+            # ``orf.mcp.server`` does), so resolving first would raise before
+            # the caller-supplied env (e2e-test-suite#229) is applied.
+            fn = _resolve_tool(tool)
             raw = _call_tool(fn, arguments, timeout)
         actual = _normalize_tool_output(raw)
+    except DispatchError:
+        raise
     except TimeoutError:
         actual = {"success": False, "timeout": True, "error": f"timed out after {timeout}s"}
     except Exception as exc:

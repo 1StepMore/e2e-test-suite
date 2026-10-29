@@ -17,7 +17,9 @@ Flags (mirror the suite's runner semantics):
   by their exact ``name`` via the engine filter.
 - ``--tier <1|2|3>`` — run only scenarios whose ``tier`` field matches
   (tier model: 1 = no keys hermetic, 2 = LLM key, 3 =
-  paid/external/network; loader default 1).
+  paid/external/network; loader default 1).  Tier-1 needs no manual
+  exports: the runner supplies a default sandbox allowlist (see
+  :func:`build_validation_env`) when the operator has not set one.
 - ``--dry-run`` — load + validate + print the plan (name, tier,
   requires_env, step count); dispatch nothing; exit 0 (even when a real
   run would fail — it is a dry run).
@@ -49,22 +51,100 @@ import argparse
 import dataclasses
 import datetime
 import importlib.util
+import os
 import re
 import sys
+import tempfile
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from omni_mcp.validation.engine import run_scenarios
+from omni_mcp.validation.dispatch import SUITE_ROOT
+from omni_mcp.validation.engine import (
+    _dirs_to_repo_keys,
+    collect_run_meta,
+    run_scenarios,
+)
 from omni_mcp.validation.family import derived_level
 from omni_mcp.validation.loader import LEVELS, ScenarioError, load_scenarios
 
 #: tier semantics (see scenarios/STANDARDS.md): 1 = no
 #: keys hermetic, 2 = LLM key, 3 = paid/external/network.
 TIER_HELP = "run only scenarios at this tier (1=no keys hermetic, 2=LLM key, 3=paid/external/network)"
+
+#: The path-allowlist variables the module MCP servers are fail-CLOSED on.
+#: A tier-1 scenario may declare any of them via ``requires_env``; the
+#: runner defaults them to a sandbox (issue e2e-test-suite#229) so tier-1
+#: stays runnable without manual exports.  Every module accepts both
+#: ``os.pathsep`` (the native separator) and comma as list separators.
+ALLOWLIST_ENV_VARS: tuple[str, ...] = (
+    "MCP_ALLOWED_DIRECTORIES",
+    "OPP_MCP_ALLOWED_DIRS",
+    "ORF_MCP_ALLOWED_DIRS",
+    "OL_MCP_ALLOWED_DIRS",
+    "OPP_ALLOWED_DIRECTORIES",
+)
+
+
+def allowed_dirs_default() -> str:
+    """The default sandbox allowlist value: suite root + system tempdir.
+
+    Built with :data:`os.pathsep` (``:`` on POSIX, ``;`` on Windows).  It
+    covers both fixture locations the tier-1 library uses: fixtures under
+    the tempdir (``/tmp/omni-agent-surface``, ``/tmp/omni-opp-agent-surface``)
+    and traceability scenarios that hardcode the suite root path.
+    """
+    return f"{SUITE_ROOT}{os.pathsep}{tempfile.gettempdir()}"
+
+
+def build_validation_env(
+    base: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """The effective env for a validation run, with sandbox defaults filled in.
+
+    Copies *base* (``os.environ`` when omitted) and defaults every name in
+    :data:`ALLOWLIST_ENV_VARS` that is unset (or empty — the engine's env gate
+    treats empty as missing) to :func:`allowed_dirs_default`.  A non-empty
+    operator value is never overwritten.  ``OMNI_TEST_FAKE_LLM`` is
+    deliberately NOT touched — injecting it would violate D4 no-mocks
+    hygiene.
+    """
+    out = dict(os.environ if base is None else base)
+    value = allowed_dirs_default()
+    for name in ALLOWLIST_ENV_VARS:
+        if not out.get(name):
+            out[name] = value
+    return out
+
+
+def _allowed_dirs_run_meta(base: Mapping[str, str]) -> dict[str, Any]:
+    """The ``validation_env`` run_meta block: which names were defaulted, value."""
+    defaulted = [name for name in ALLOWLIST_ENV_VARS if not base.get(name)]
+    return {
+        "allowed_dirs_defaulted": defaulted,
+        "allowed_dirs_value": allowed_dirs_default(),
+    }
+
+
+def _collect_run_meta_with_env(
+    dirs: Sequence[str | Path],
+) -> dict[str, Any]:
+    """The engine's default run metadata plus the allowlist-defaulting record.
+
+    Mirrors ``run_scenarios``' fallback (``collect_run_meta`` over the repo
+    keys derived from *dirs*; ``{}`` when collection fails) so passing an
+    explicit ``run_meta`` does not lose the component versions / git SHAs.
+    """
+    try:
+        meta = collect_run_meta(_dirs_to_repo_keys(list(dirs)))
+    except Exception:
+        meta = {}
+    meta["validation_env"] = _allowed_dirs_run_meta(os.environ)
+    return meta
+
 
 #: The self-echo anti-pattern (contract lint): a command
 #: must not print PASS/FAIL itself — the assertion belongs in ``expect``.
@@ -758,11 +838,18 @@ def main(argv: list[str] | None = None) -> int:
         if (args.scenario is None and args.tier is None and args.category is None and args.module is None)
         else names
     )
+    # The runner is the caller layer: it MAY pass an explicit env.  The
+    # dispatcher (dispatch.build_cli_env) still adds nothing itself (D4) —
+    # it just receives this env and forwards it to the dispatched steps.
+    validation_env = build_validation_env()
+    run_meta = _collect_run_meta_with_env(dirs)
     try:
         run = run_scenarios(
             dirs,
             filters=filters,
+            env=validation_env,
             runs_dir=args.runs_dir,
+            run_meta=run_meta,
             allow_fake=args.allow_fake,
             step_timeout=args.step_timeout,
         )
