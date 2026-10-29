@@ -13,16 +13,16 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 61 |
-| Total lines | 34391 |
-| Active files | 45 |
+| Total files | 62 |
+| Total lines | 34481 |
+| Active files | 46 |
 | Archived files | 16 |
 | Category — archive | 16 files / 17674 lines |
-| Category — expectations | 4 files / 2514 lines |
+| Category — expectations | 4 files / 2515 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 17 files / 2670 lines |
-| Category — docs/root | 21 files / 10193 lines |
+| Category — docs/dev | 18 files / 2756 lines |
+| Category — docs/root | 21 files / 10196 lines |
 
 ## Inventory
 
@@ -35,8 +35,8 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
 | `HANDOVER.md` | 620 | docs/root | active | — |
-| `NIGHTLY.md` | 272 | docs/root | active | — |
-| `OL_EXPECTATIONS.md` | 279 | expectations | active | — |
+| `NIGHTLY.md` | 275 | docs/root | active | — |
+| `OL_EXPECTATIONS.md` | 280 | expectations | active | — |
 | `OPP_EXPECTATIONS.md` | 804 | expectations | active | — |
 | `ORF_EXPECTATIONS.md` | 539 | expectations | active | — |
 | `PRD.md` | 61 | docs/root | active | — |
@@ -53,7 +53,8 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `adr/0005-pdf-xliff-blocked.md` | 54 | docs/dev | active | — |
 | `adr/0006-fake-llm-hermetic-seam.md` | 53 | docs/dev | active | — |
 | `adr/0007-path-security-convergence.md` | 297 | docs/dev | active | — |
-| `adr/README.md` | 40 | docs/dev | active | — |
+| `adr/0008-cross-repo-copy-review.md` | 85 | docs/dev | active | — |
+| `adr/README.md` | 41 | docs/dev | active | — |
 | `adr/TEMPLATE.md` | 36 | docs/dev | active | — |
 | `agent-pipeline-guide.md` | 349 | docs/root | active | — |
 | `agent-tester-validation-guide.md` | 20 | docs/root | active | — |

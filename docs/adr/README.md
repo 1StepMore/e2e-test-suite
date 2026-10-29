@@ -15,6 +15,7 @@ considered, and rationale.
 | [0005](0005-pdf-xliff-blocked.md) | PDF → XLIFF Blocked by Design | Accepted | 2026-08-13 |
 | [0006](0006-fake-llm-hermetic-seam.md) | FAKE_LLM / FAKE_PANDOC Hermetic Test Seam | Accepted | 2026-08-13 |
 | [0007](0007-path-security-convergence.md) | Path-Security Validation: Converge the Three Copies Now, Defer the Shared Package | Accepted (Phase 1 + Phase 2A implemented; Phase 2B deferred pending release) | 2026-09-17 |
+| [0008](0008-cross-repo-copy-review.md) | Cross-Repo Copy Review: What Stays Duplicated, What Converges, and Why | Accepted | 2026-10-29 |
 
 ## Rules
 
