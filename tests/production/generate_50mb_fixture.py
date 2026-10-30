@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import struct
 import sys
-import zlib
 import zipfile
+import zlib
 from pathlib import Path
 
 TARGET_SIZE_MB = 50

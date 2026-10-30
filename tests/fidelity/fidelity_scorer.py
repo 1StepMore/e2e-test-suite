@@ -36,7 +36,7 @@ class FidelityScorer:
         return bleu.score / 100.0
 
     @staticmethod
-    def semantic_cosine(source: str, target: str, model: "SentenceTransformer") -> float:
+    def semantic_cosine(source: str, target: str, model: SentenceTransformer) -> float:
         """Cross-lingual cosine similarity via sentence-transformers. Returns 0-1.
 
         `source` and `target` should be in different languages (e.g. en/zh).
@@ -50,7 +50,7 @@ class FidelityScorer:
     def score_file_pair(
         candidate_path: Path,
         reference_path: Path,
-        model: "SentenceTransformer | None" = None,
+        model: SentenceTransformer | None = None,
     ) -> dict[str, float]:
         """Score a candidate translation against a reference. Both files are stripped
         of YAML frontmatter and markdown headers before scoring."""
@@ -83,8 +83,8 @@ class FidelityScorer:
     @staticmethod
     def char_cosine(a: str, b: str) -> float:
         """Character-level cosine similarity (bag-of-chars)."""
-        from collections import Counter
         import math
+        from collections import Counter
         ca = Counter(c for c in a if c.strip())
         cb = Counter(c for c in b if c.strip())
         if not ca or not cb:

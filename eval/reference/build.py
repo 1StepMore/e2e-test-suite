@@ -9,10 +9,7 @@ Run: python -m eval.reference.build
 
 from __future__ import annotations
 
-import asyncio
 import json
-import os
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 

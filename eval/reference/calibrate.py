@@ -25,7 +25,7 @@ sys.path.insert(0, str(REFERENCE_DIR.parent.parent / "Omni_Localizer" / "src"))
 
 def main():
     from ol_lqa.calibration import calibrate
-    from ol_lqa.multi_judge import DIMENSIONS, JudgeScore, MultiJudgeResult, aggregate
+    from ol_lqa.multi_judge import DIMENSIONS, JudgeScore, aggregate
 
     results_path = REFERENCE_DIR / "judge_results.json"
     if not results_path.exists():

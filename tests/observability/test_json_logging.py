@@ -10,8 +10,6 @@ import io
 import json
 import logging
 
-
-
 # Expected field names per the plan.
 EXPECTED_FIELDS = {"timestamp", "level", "module", "message"}
 REQUEST_ID_FIELD = "request_id"
@@ -136,7 +134,7 @@ STRUCTLOG_EXPECTED_FIELDS = {"timestamp", "level", "module", "request_id", "even
 
 def _read_last_log_line(log_path) -> dict:
     """Read the last non-empty line of ``log_path`` and parse as JSON."""
-    with open(log_path, "r", encoding="utf-8") as f:
+    with open(log_path, encoding="utf-8") as f:
         lines = [line.strip() for line in f if line.strip()]
     assert lines, f"no log lines in {log_path}"
     return json.loads(lines[-1])
@@ -147,9 +145,10 @@ class TestStructlogJsonPath:
 
     def test_opp_structlog_emits_standard_shape(self, monkeypatch):
         monkeypatch.setenv("OMNI_LOG_FORMAT", "json")
-        from opp.logger import _build_processors, _build_final_renderer, _NamedPrintLoggerFactory
-        import structlog
         import io
+
+        import structlog
+        from opp.logger import _build_final_renderer, _build_processors, _NamedPrintLoggerFactory
 
         sink = io.StringIO()
         structlog.configure(
@@ -175,10 +174,11 @@ class TestStructlogJsonPath:
 
     def test_ol_structlog_emits_standard_shape(self, monkeypatch):
         monkeypatch.setenv("OMNI_LOG_FORMAT", "json")
-        from ol_logging.formatters import _build_processors, _build_final_renderer
-        from ol_logging.core import _NamedPrintLoggerFactory
-        import structlog
         import io
+
+        import structlog
+        from ol_logging.core import _NamedPrintLoggerFactory
+        from ol_logging.formatters import _build_final_renderer, _build_processors
 
         sink = io.StringIO()
         structlog.configure(
@@ -205,9 +205,10 @@ class TestStructlogJsonPath:
 
     def test_orf_structlog_emits_standard_shape(self, monkeypatch):
         monkeypatch.setenv("OMNI_LOG_FORMAT", "json")
-        from orf.logging import _build_processors, _build_final_renderer, _NamedPrintLoggerFactory
-        import structlog
         import io
+
+        import structlog
+        from orf.logging import _build_final_renderer, _build_processors, _NamedPrintLoggerFactory
 
         sink = io.StringIO()
         structlog.configure(

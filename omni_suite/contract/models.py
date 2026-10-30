@@ -7,7 +7,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-class DocumentFormat(str, Enum):
+# UP042 triaged 2026-10-31: str-mixin (not StrEnum) is deliberate —
+# StrEnum would change str(member) from 'DocumentFormat.DOCX' to 'docx'
+# and this enum crosses a pydantic contract boundary.
+class DocumentFormat(str, Enum):  # noqa: UP042
     """Supported document formats across the pipeline."""
 
     DOCX = "docx"

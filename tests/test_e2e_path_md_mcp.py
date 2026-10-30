@@ -8,7 +8,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 pytestmark = [pytest.mark.e2e, pytest.mark.real_chain]
 
 
@@ -43,7 +42,7 @@ class TestPathMdMCP:
             mock_pool_cls.get_instance.return_value = mock_instance
             mock_pool_cls.return_value = mock_instance
 
-            from ol_mcp.tools import translate_md_text, TranslateInput
+            from ol_mcp.tools import TranslateInput, translate_md_text
             params = TranslateInput(
                 content=original_md_content,
                 source_lang="en",

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Comprehensive DOCX quality verification."""
-from zipfile import ZipFile, BadZipFile
-import re
 import hashlib
-from collections import Counter
+import re
 import sys
+from collections import Counter
+from zipfile import BadZipFile, ZipFile
 
 SRC = "/tmp/e2e-level2/爱上海尔_第二章_全球创牌.docx"
 TGT = "/tmp/e2e-level2/output/xliff/爱上海尔_第二章_全球创牌_EN.docx"
@@ -144,7 +144,7 @@ else:
     # Check if it's just the total count
     if len(src_order) != len(tgt_order):
         print(f"  Count: src={len(src_order)}, tgt={len(tgt_order)}")
-    for i, (s, t) in enumerate(zip(src_order, tgt_order)):
+    for i, (s, t) in enumerate(zip(src_order, tgt_order, strict=False)):
         if s != t:
             print(f"  Position {i+1}: src={s} → tgt={t}")
 
@@ -290,12 +290,12 @@ else:
 
 # Show first/last image paragraphs
 print("\nFirst 5 image paragraphs (target):")
-for i, (pidx, rid, txt) in enumerate(tgt_img_paras[:5]):
+for _i, (pidx, rid, txt) in enumerate(tgt_img_paras[:5]):
     img_name = tgt_rid_to_img.get(rid, rid)
     print(f"  Para {pidx}: [{img_name}] \"{txt}\"")
 
 print("\nLast 5 image paragraphs (target):")
-for i, (pidx, rid, txt) in enumerate(tgt_img_paras[-5:]):
+for _i, (pidx, rid, txt) in enumerate(tgt_img_paras[-5:]):
     img_name = tgt_rid_to_img.get(rid, rid)
     print(f"  Para {pidx}: [{img_name}] \"{txt}\"")
 
@@ -318,9 +318,12 @@ if all_match:
     checks.append(("Image content", f"✓ All {len(common)} identical (MD5)", True))
 else:
     issues = []
-    if hash_mismatches: issues.append(f"{len(hash_mismatches)} hash mismatch")
-    if missing_from_tgt: issues.append(f"{len(missing_from_tgt)} missing")
-    if extra_in_tgt: issues.append(f"{len(extra_in_tgt)} extra")
+    if hash_mismatches:
+        issues.append(f"{len(hash_mismatches)} hash mismatch")
+    if missing_from_tgt:
+        issues.append(f"{len(missing_from_tgt)} missing")
+    if extra_in_tgt:
+        issues.append(f"{len(extra_in_tgt)} extra")
     checks.append(("Image content", f"⚠ {', '.join(issues)}", False))
 
 # Image order

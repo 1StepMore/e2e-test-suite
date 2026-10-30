@@ -57,6 +57,7 @@ def _cli(cmd: list[str], **extra_env) -> subprocess.CompletedProcess:
 def _count_drawings(docx_path: Path) -> int:
     """Count <w:drawing> elements in a DOCX."""
     import zipfile
+
     from lxml import etree
     with zipfile.ZipFile(docx_path) as zf:
         doc_xml = zf.read("word/document.xml")
@@ -78,7 +79,8 @@ class TestMDPathZeroImages:
         assert src_count >= 1, "Haier DOCX should have at least 1 drawing"
 
         # Step 1: OPP extract to MD
-        opp_dir = tmp_path / "opp"; opp_dir.mkdir()
+        opp_dir = tmp_path / "opp"
+        opp_dir.mkdir()
         r = _cli(["opp", "--target-format", "md",
                    "--source-lang", "zh", "--target-lang", "en",
                    "--output-dir", str(opp_dir), str(HAIER_DOCX)])
@@ -87,7 +89,8 @@ class TestMDPathZeroImages:
         assert len(md_files) >= 1, f"No MD files in {opp_dir}"
 
         # Step 2: OL translate MD
-        ol_dir = tmp_path / "ol"; ol_dir.mkdir()
+        ol_dir = tmp_path / "ol"
+        ol_dir.mkdir()
         r = _cli(["ol_cli", "translate-md", str(md_files[0]),
                    "-o", str(ol_dir), "-c", str(OL_CONFIG),
                    "-s", "zh", "-t", "en", "--no-cache"])
@@ -96,7 +99,8 @@ class TestMDPathZeroImages:
         assert translated.exists()
 
         # Step 3: ORF apply MD → DOCX
-        orf_dir = tmp_path / "orf"; orf_dir.mkdir()
+        orf_dir = tmp_path / "orf"
+        orf_dir.mkdir()
         result_docx = orf_dir / "result.docx"
         r = _cli(["orf", "apply-md", str(translated),
                    "--target-format", "docx", "--output", str(result_docx)])

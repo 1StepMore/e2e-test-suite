@@ -6,7 +6,6 @@ parameter, not a field on an input model.
 """
 
 import pytest
-
 from opp.mcp.auth import auth_failure_response, check_auth
 
 

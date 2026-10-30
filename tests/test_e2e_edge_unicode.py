@@ -17,7 +17,6 @@ from pathlib import Path
 
 import pytest
 
-
 pytestmark = [pytest.mark.e2e, pytest.mark.real_chain]
 
 SUITE_ROOT = Path(__file__).resolve().parent
@@ -65,6 +64,7 @@ class TestUnicodeEndToEnd:
         translate via OL CLI, verify characters are preserved.
         """
         import zipfile
+
         from lxml import etree
 
         # Create a minimal DOCX with our special text

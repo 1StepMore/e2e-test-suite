@@ -468,7 +468,7 @@ class TestOPPYouTubeFormat:
         url_file = tmp_path / "youtube.txt"
         url_file.write_text("https://www.youtube.com/watch?v=abc12345")
 
-        result = opp_pipeline.process_file(url_file)
+        opp_pipeline.process_file(url_file)
         # May succeed or have specific error depending on network/format support
 
 
@@ -482,7 +482,7 @@ class TestOPPAudioFormat:
         audio_path = tmp_path / "test.mp3"
         audio_path.write_bytes(b"ID3\x04\x00\x00\x00\x00\x00\x00")
 
-        result = opp_pipeline.process_file(audio_path)
+        opp_pipeline.process_file(audio_path)
         # Audio may not be fully processed without proper setup
 
 
@@ -593,7 +593,8 @@ class TestOPPManifestGeneration:
 
 def _create_minimal_png(width=100, height=100) -> bytes:
     """Create minimal PNG image."""
-    import zlib, struct
+    import struct
+    import zlib
 
     def png_chunk(chunk_type, data):
         chunk = chunk_type + data

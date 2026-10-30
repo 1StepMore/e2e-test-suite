@@ -329,9 +329,9 @@ def _gate_q2_lqa(art: CycleArtifacts, source_docx: Path, target_lang: str,
         return GateResult("Q2_lqa", False, 0.0, "no scorable unit pairs in OL XLIFF")
 
     try:
+        from ol_config.loader import load_config
         from ol_lqa.judge import JudgeService
         from ol_pool.router import ModelPool
-        from ol_config.loader import load_config
     except ImportError as e:
         return GateResult("Q2_lqa", False, 0.0, f"judge import failed: {e}")
 
@@ -350,7 +350,8 @@ def _gate_q2_lqa(art: CycleArtifacts, source_docx: Path, target_lang: str,
     except Exception as e:
         return GateResult("Q2_lqa", False, 0.0, f"JudgeService init failed: {e}")
 
-    import asyncio, time
+    import asyncio
+    import time
     async def _judge_all() -> list:
         tasks = [
             judge.judge(src, tgt, unit_id, source_lang="zh", target_lang=target_lang)
@@ -545,7 +546,7 @@ def diagnose(art: CycleArtifacts, gates: list[GateResult]) -> str:
         return "TIMEOUT: pipeline exceeded 1200s. Likely cause: real LLM slow or hung. Suggested fix: try mock LLM to isolate."
     if art.exit_code != 0:
         tail = art.stderr_tail.splitlines()[-10:]
-        return f"NON-ZERO EXIT (code={art.exit_code}). Last stderr lines:\n" + "\n".join("  " + l for l in tail)
+        return f"NON-ZERO EXIT (code={art.exit_code}). Last stderr lines:\n" + "\n".join("  " + line for line in tail)
     failed = [g for g in gates if not g.passed]
     if not failed:
         return "All checked gates GREEN; no diagnosis needed."

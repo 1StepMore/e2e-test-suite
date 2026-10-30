@@ -19,7 +19,6 @@ from pathlib import Path
 
 import pytest
 
-
 pytestmark = [pytest.mark.e2e, pytest.mark.real_chain]
 
 SUITE_ROOT = Path(__file__).resolve().parent
@@ -119,8 +118,9 @@ class TestSpecialFilenamesORF:
         md_file = tmp_path / filename
         md_file.write_text("# Test")
 
-        from orf.mcp.server import detect_format
         import json
+
+        from orf.mcp.server import detect_format
 
         result = json.loads(detect_format(str(md_file)))
         # May fail (file not a real format) but should not crash with encoding error

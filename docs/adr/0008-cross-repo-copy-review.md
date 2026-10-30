@@ -37,7 +37,7 @@ alike.
 | `opp/detector.py` vs `orf/commands/detect_format.py` | OPP detects an **input** format to choose an extractor; ORF reports a format over the CLI. Different inputs, outputs and failure modes. |
 | `opp/utils/cache.py` vs `ol/cli/cache.py` vs `ol_style/cache.py` | The first is a cache-**root** helper (`OMNI_CACHE_DIR`, 0o700); the second caches translated files by content hash; the third caches StyleGuide profiles. Only the root convention is shared, and it already lives in the OPP helper. |
 | `opp/contracts/manifest.py` vs `orf/parsers/manifest.py` | Two sides of one handoff (ADR 0004), not two copies of one schema: OPP **emits** the manifest, ORF **consumes** it. They must be versioned together, which is a contract test, not a shared module. |
-| `images.json` writers (OPP, ORF `apply_md`, ORF `apply_xliff`) | Superficially one schema, actually three: OPP writes `{"images": [...]}`, ORF `apply_md` writes `{"images": images}`, ORF `apply_xliff` writes a bare list with different placement fields. This is the real defect (issue #223 P2.2), tracked separately; it needs a versioned cross-repo release. |
+| `images.json` writers (OPP, ORF `apply_md`, ORF `apply_xliff`) | ~~Superficially one schema, actually three~~ → **RESOLVED 2026-10-31 (ORF#72).** All three writers now emit the canonical `{"images": [...]}` shape; the `apply_xliff` MCP tool's bare list was the outlier. Both ORF CLI readers were already dual-read (wrapped + legacy bare list), so the writer convergence needed no coordinated release. Locked by `Omni_Re_Formatter/tests/test_mcp_images_json_canonical_shape.py`. |
 
 ## Rationale
 
@@ -71,8 +71,9 @@ alike.
 - `.env` parsing stays duplicated until a sub-repo touches it.
 - `ol/cli/load_glossary.py` remains comma-only and fail-open until that CLI
   surface is next modified.
-- `images.json` still has three shapes (issue #223 P2.2) until a coordinated
-  release lands.
+- ~~`images.json` still has three shapes (issue #223 P2.2)~~ — resolved by
+  ORF#72 (2026-10-31): one canonical shape, dual-read consumers, no release
+  coordination needed.
 
 ## Related
 

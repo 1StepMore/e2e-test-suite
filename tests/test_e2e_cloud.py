@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tests.conftest import setup_component_paths
+
 setup_component_paths()
 
 pytest.skip("opp.cloud_utils module was removed; cloud tests migrated to "
@@ -139,7 +140,7 @@ class TestS3Operations:
             assert output_path.exists()
             assert output_path.read_bytes() == sample_content
 
-        print(f"\n✓ S3 download (mocked) completed")
+        print("\n✓ S3 download (mocked) completed")
 
     @pytest.mark.requires_opp
     def test_s3_upload_real_if_credentials(self, sample_docx_path, s3_bucket_name, s3_object_key):
@@ -153,7 +154,7 @@ class TestS3Operations:
         import boto3
         from opp.cloud_utils import upload_to_s3
 
-        s3_client = boto3.client("s3")
+        boto3.client("s3")
 
         result = upload_to_s3(
             file_path=sample_docx_path,
@@ -186,7 +187,7 @@ class TestS3Operations:
             assert url is not None
             assert "s3.amazonaws.com" in url
 
-        print(f"\n✓ S3 presigned URL generated")
+        print("\n✓ S3 presigned URL generated")
 
     def test_s3_batch_upload(self, tmp_path: Path, s3_bucket_name, s3_object_key):
         """Test batch upload of multiple files to S3."""
@@ -307,7 +308,7 @@ class TestAzureBlobOperations:
             assert output_path.exists()
             assert output_path.read_bytes() == sample_content
 
-        print(f"\n✓ Azure Blob download (mocked) completed")
+        print("\n✓ Azure Blob download (mocked) completed")
 
     @pytest.mark.requires_azure
     def test_azure_blob_upload_real_if_credentials(self, sample_docx_path, azure_container_name, azure_blob_name):
@@ -352,7 +353,7 @@ class TestAzureBlobOperations:
 
             assert token is not None
 
-        print(f"\n✓ Azure Blob SAS token generated")
+        print("\n✓ Azure Blob SAS token generated")
 
     def test_azure_blob_batch_upload(self, tmp_path: Path, azure_container_name, azure_blob_name):
         """Test batch upload of multiple files to Azure Blob."""
@@ -427,7 +428,7 @@ class TestCrossCloudOperations:
 
             assert result is True
 
-        print(f"\n✓ Fallback cloud upload completed")
+        print("\n✓ Fallback cloud upload completed")
 
 
 # =============================================================================
@@ -475,7 +476,7 @@ class TestCloudPipelineIntegration:
 
             assert result is True
 
-        print(f"\n✓ Pipeline output uploaded to S3 (mocked)")
+        print("\n✓ Pipeline output uploaded to S3 (mocked)")
 
     def test_download_and_process_from_cloud(self, tmp_path: Path):
         """Test downloading from cloud and processing through pipeline."""
@@ -504,4 +505,4 @@ class TestCloudPipelineIntegration:
             assert result is True
             assert output_path.exists()
 
-        print(f"\n✓ Downloaded and ready for pipeline processing")
+        print("\n✓ Downloaded and ready for pipeline processing")

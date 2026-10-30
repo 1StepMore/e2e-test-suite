@@ -27,8 +27,8 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent
 
@@ -281,7 +281,7 @@ def main() -> int:
         versions.append(new_ver)
         print(f"  ✅ {name}: {new_ver}")
 
-    print(f"\nDone. To update VERSION_COMPATIBILITY.md:")
+    print("\nDone. To update VERSION_COMPATIBILITY.md:")
     print(f"  Add row: | {' | '.join(v for v in versions)} | ✅ Tested | {__import__('datetime').date.today().isoformat()} |")
     return 0
 

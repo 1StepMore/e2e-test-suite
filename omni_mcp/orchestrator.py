@@ -41,8 +41,10 @@ from omni_mcp._errors import error_response as _build_error_response
 from omni_mcp._manifest import written_files
 from omni_security import (
     BLOCKED_EXTENSIONS,
-    SYSTEM_DIRS as SYSTEM_DIRS,
     system_dir_denial,
+)
+from omni_security import (
+    SYSTEM_DIRS as SYSTEM_DIRS,
 )
 from omni_security import (
     parse_allowed_dirs as _parse_allowed_dirs,

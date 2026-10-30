@@ -318,7 +318,7 @@ class TestMCPServerTools:
 
     def test_dispatch_table_matches_schemas(self):
         """Every schema name must have a dispatch entry and vice versa."""
-        from omni_mcp.server import _TOOL_SCHEMAS, _TOOL_DISPATCH
+        from omni_mcp.server import _TOOL_DISPATCH, _TOOL_SCHEMAS
 
         schema_names = {s["name"] for s in _TOOL_SCHEMAS}
         dispatch_names = set(_TOOL_DISPATCH.keys())

@@ -10,7 +10,6 @@ It asserts that documented versions match the actual source versions.
 """
 
 import re
-import sys
 from pathlib import Path
 
 import pytest
@@ -155,7 +154,7 @@ def test_readme_version_table():
 def test_agents_version_tagline():
     """AGENTS.md tagline (vX · vY · vZ) matches actual versions."""
     agents_text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    doc_versions = _parse_agents_version_table(agents_text)
+    _parse_agents_version_table(agents_text)
 
     # Build expected tagline pattern from pyproject toml
     suite_ver = _read_pyproject_version(MODULE_PYPROJECT["Omni_Suite"])
@@ -185,7 +184,7 @@ def test_agents_version_tagline():
 def test_readme_version_tagline():
     """README.md version tagline matches actual versions."""
     readme_text = (ROOT / "README.md").read_text(encoding="utf-8")
-    doc_versions = _parse_readme_version_table(readme_text)
+    _parse_readme_version_table(readme_text)
 
     suite_ver = _read_pyproject_version(MODULE_PYPROJECT["Omni_Suite"])
     opp_ver = _read_pyproject_version(MODULE_PYPROJECT["OPP"])

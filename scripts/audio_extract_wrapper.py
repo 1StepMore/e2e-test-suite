@@ -9,14 +9,16 @@ Usage:
     python3 audio_extract.py <input_path> <output_dir>
 """
 
-import sys, json, subprocess
+import json
+import subprocess
+import sys
 
 HERMES_PYTHON = "/home/renanzai/.hermes/hermes-agent/venv/bin/python3"
 OPP_SRC = "/mnt/d/Hermes-Workspace/01-Projects/Omni_Pre_Processor/src"
 
-WRAPPER_SCRIPT = """
+WRAPPER_SCRIPT = f"""
 import sys, os, json
-sys.path.insert(0, "{opp_src}")
+sys.path.insert(0, "{OPP_SRC}")
 os.environ.setdefault("HOME", "/home/renanzai")
 
 input_path = sys.argv[1]
@@ -45,7 +47,7 @@ manifest = {{
 }}
 json.dump(manifest, open(Path(output_dir) / "manifest.json", "w"), indent=2)
 print(json.dumps(manifest))
-""".format(opp_src=OPP_SRC)
+"""
 
 def main():
     if len(sys.argv) < 3:

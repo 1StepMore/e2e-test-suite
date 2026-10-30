@@ -28,7 +28,6 @@ import threading
 import time
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 OL_SRC = REPO_ROOT / "Omni_Localizer" / "src"
 
@@ -53,7 +52,7 @@ def read_line_with_timeout(stream, timeout: float) -> str:
     try:
         result = q.get(timeout=timeout)
         if isinstance(result, Exception):
-            raise IOError(f"read error: {result}") from result
+            raise OSError(f"read error: {result}") from result
         return result
     except queue.Empty:
         raise TimeoutError(f"timed out after {timeout}s")

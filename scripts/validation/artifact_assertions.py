@@ -30,10 +30,11 @@ import csv
 import dataclasses
 import json
 import re
-import zipfile
 import xml.etree.ElementTree as ET
+import zipfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Results
@@ -206,11 +207,11 @@ def _no_broken_reference(
         bad.append("empty link target " + repr(m.group(0)[:30]))
     for m in re.finditer(r"\]\(\s+\)", text):
         bad.append("whitespace-only link target " + repr(m.group(0)[:30]))
-    for m in re.finditer(r"\[View Source\]\(\s*\)", text):
+    for _m in re.finditer(r"\[View Source\]\(\s*\)", text):
         bad.append("empty [View Source]()")
-    for m in re.finditer(r'<img\s+src\s*=\s*["\']\s*["\']', text, re.IGNORECASE):
+    for _m in re.finditer(r'<img\s+src\s*=\s*["\']\s*["\']', text, re.IGNORECASE):
         bad.append("empty <img src>")
-    for m in re.finditer(r'<a\s+href\s*=\s*["\']\s*["\']', text, re.IGNORECASE):
+    for _m in re.finditer(r'<a\s+href\s*=\s*["\']\s*["\']', text, re.IGNORECASE):
         bad.append("empty <a href>")
     for m in re.finditer(r"!?\[[^\]]*\]\(([^)]*)\)", text):
         target = m.group(1).strip()

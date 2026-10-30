@@ -15,16 +15,15 @@ This test validates the stdio transport at TWO levels:
   2. Full ClientSession via stdio_client (library-level validation)
 """
 
-import sys
 import json
-import subprocess
-import time
 import os
-import threading
 import queue
 import select
+import subprocess
+import sys
 import textwrap
-
+import threading
+import time
 
 # ─── Minimal MCP Server Code (spawned as subprocess) ───────────────────
 
@@ -98,7 +97,7 @@ def read_line_with_timeout(stream, timeout: float = 10.0) -> str:
     try:
         result = result_queue.get(timeout=timeout)
         if isinstance(result, Exception):
-            raise IOError(f"Error reading from stream: {result}") from result
+            raise OSError(f"Error reading from stream: {result}") from result
         return result
     except queue.Empty:
         raise TimeoutError(
@@ -189,7 +188,7 @@ def test_raw_jsonrpc_stdio() -> dict:
         })
         # Notifications don't get responses; wait briefly
         time.sleep(0.3)
-        print(f"  OK: notification sent (no response expected)")
+        print("  OK: notification sent (no response expected)")
         results["steps"]["initialized"] = {"status": "pass"}
 
         # ── Step 3: List Tools ──
@@ -238,8 +237,7 @@ def test_raw_jsonrpc_stdio() -> dict:
         print("-" * 50)
         results["overall"] = "pass"
 
-    except (AssertionError, TimeoutError, ConnectionError, json.JSONDecodeError,
-            IOError) as e:
+    except (OSError, AssertionError, TimeoutError, ConnectionError, json.JSONDecodeError) as e:
         stderr_output = ""
         try:
             r, w, x = select.select([proc.stderr], [], [], 1.0)
@@ -273,7 +271,6 @@ def test_raw_jsonrpc_stdio() -> dict:
 
 async def _client_session_stdio() -> dict:
     """Library-level validation using mcp's stdio_client + ClientSession."""
-    import anyio
     from mcp import StdioServerParameters, stdio_client
     from mcp.client.session import ClientSession
 

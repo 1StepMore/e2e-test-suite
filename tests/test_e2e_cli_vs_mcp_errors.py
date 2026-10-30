@@ -20,7 +20,6 @@ from pathlib import Path
 
 import pytest
 
-
 pytestmark = [pytest.mark.e2e, pytest.mark.real_chain]
 
 SUITE_ROOT = Path(__file__).resolve().parent
@@ -77,6 +76,7 @@ class TestOPPErrorConsistency:
 
         # MCP
         import asyncio
+
         from opp.mcp.server import detect_format_tool
         mcp = asyncio.run(detect_format_tool("/nonexistent/doc.docx"))
         assert mcp["success"] is False
@@ -94,6 +94,7 @@ class TestOPPErrorConsistency:
 
         # MCP
         import asyncio
+
         from opp.mcp.server import detect_format_tool
         mcp = asyncio.run(detect_format_tool(traversal))
         assert mcp["success"] is False

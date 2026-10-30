@@ -24,7 +24,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ============================================================================
 # Module-level constants and environment setup
 # ============================================================================
@@ -412,7 +411,7 @@ def _assert_valid_pptx(pptx_path: Path) -> None:
 def _assert_csv_parseable(csv_path: Path, min_rows: int = 1) -> int:
     """Assert CSV file is parseable. Returns row count."""
     assert csv_path.exists(), f"CSV file not found: {csv_path}"
-    with open(csv_path, "r", encoding="utf-8", newline="") as f:
+    with open(csv_path, encoding="utf-8", newline="") as f:
         reader = csv_module.reader(f)
         rows = list(reader)
     assert len(rows) >= min_rows, (

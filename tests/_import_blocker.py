@@ -21,7 +21,6 @@ import sys
 import types
 from importlib.machinery import ModuleSpec
 
-
 _BLOCKED = frozenset({
     "litellm", "torch", "transformers",
     "sentence_transformers", "keybert", "yake",

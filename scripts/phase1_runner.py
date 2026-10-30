@@ -216,6 +216,7 @@ def _mcp_call(tool_name: str, arguments: dict, config: Path | None,
     duration of the call and is terminated on return.
     """
     import asyncio
+
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
@@ -453,7 +454,8 @@ def run_test_combo(case: TestCase, run_dir: Path) -> TestResult:
             if not translated:
                 for f in ol_out.iterdir():
                     if f.suffix in (".md", ".markdown"):
-                        translated = f; break
+                        translated = f
+                        break
             if not translated:
                 errors.append("OL MD output not found")
                 return TestResult(case, False, time.time() - start, errors=errors)

@@ -92,7 +92,8 @@ class TestOmoLoopTierDispatch:
         def mock_run(cmd, env=None, **kwargs):
             captured["cmd"] = cmd
             captured["env"] = env
-            class R: returncode = 0
+            class R:
+                returncode = 0
             return R()
         monkeypatch.setattr("subprocess.run", mock_run)
 
@@ -121,7 +122,8 @@ class TestOmoLoopTierDispatch:
         captured = {}
         def mock_run(cmd, env=None, **kwargs):
             captured["cmd"] = cmd
-            class R: returncode = 0
+            class R:
+                returncode = 0
             return R()
         monkeypatch.setattr("subprocess.run", mock_run)
 
@@ -143,7 +145,8 @@ class TestOmoLoopTierDispatch:
         captured = {}
         def mock_run(cmd, env=None, **kwargs):
             captured["cmd"] = cmd
-            class R: returncode = 0
+            class R:
+                returncode = 0
             return R()
         monkeypatch.setattr("subprocess.run", mock_run)
 
@@ -165,7 +168,8 @@ class TestOmoLoopTierDispatch:
         calls = []
         def mock_run(cmd, env=None, **kwargs):
             calls.append(cmd)
-            class R: returncode = 0
+            class R:
+                returncode = 0
             return R()
         monkeypatch.setattr("subprocess.run", mock_run)
 

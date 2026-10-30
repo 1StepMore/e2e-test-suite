@@ -117,22 +117,22 @@ def _import_module_tools(module_key: str) -> list[str]:
     - ol             : ``ol_mcp.tools.TOOL_REGISTRY`` dict name -> entry
     """
     if module_key == "opp":
-        from opp.mcp.server import _TOOL_SCHEMAS as schemas
-        return sorted(s["name"] for s in schemas)
+        from opp.mcp.server import _TOOL_SCHEMAS
+        return sorted(s["name"] for s in _TOOL_SCHEMAS)
     if module_key == "ol":
-        from ol_mcp.tools import TOOL_REGISTRY as registry
-        return sorted(registry)
+        from ol_mcp.tools import TOOL_REGISTRY
+        return sorted(TOOL_REGISTRY)
     if module_key == "orf":
         # ORF's MCP config is fail-CLOSED at import (orf/mcp/config.py
         # raises without MCP_ALLOWED_DIRECTORIES / ORF_MCP_ALLOWED_DIRS —
         # same pattern as tests/validation/test_dispatch.py).  The audit
         # only reads the registry; the allowlist value itself is inert.
         os.environ.setdefault("MCP_ALLOWED_DIRECTORIES", "/tmp")
-        from orf.mcp.server import _TOOL_DISPATCH as dispatch
-        return sorted(dispatch)
+        from orf.mcp.server import _TOOL_DISPATCH
+        return sorted(_TOOL_DISPATCH)
     if module_key == "omni_mcp":
-        from omni_mcp.server import _TOOL_SCHEMAS as schemas
-        return sorted(s["name"] for s in schemas)
+        from omni_mcp.server import _TOOL_SCHEMAS
+        return sorted(s["name"] for s in _TOOL_SCHEMAS)
     raise ValueError(f"unknown module key: {module_key!r}")
 
 

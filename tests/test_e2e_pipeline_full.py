@@ -50,7 +50,7 @@ import sys
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import pytest
 from lxml import etree
@@ -252,7 +252,7 @@ async def _run_opp(
     out_dir: Path,
     src_lang: str,
     tgt_lang: str,
-) -> "OppOutputs":
+) -> OppOutputs:
     """Run OPP on input_path via the chosen transport.
 
     OPP needs no LLM, so no FAKE_LLM seam is required. Returns paths to
@@ -290,7 +290,7 @@ async def _run_opp(
             f"opp.cli failed (rc={result.returncode}): {result.stderr}"
         )
     else:
-        from opp.mcp.server import generate_xliff, generate_markdown, save_skeleton
+        from opp.mcp.server import generate_markdown, generate_xliff, save_skeleton
 
         xliff_result = await generate_xliff(
             str(input_path), src_lang, tgt_lang, output_path=str(xliff_path),
@@ -508,14 +508,14 @@ class _FakeModelPool:
     (`[en]` / `[zh]`) per call gives stable test assertions.
     """
 
-    def __init__(self, config_path: Optional[str] = None, target_lang: str = "en"):
+    def __init__(self, config_path: str | None = None, target_lang: str = "en"):
         self.target_lang = target_lang
 
     async def translate(self, text, src_lang, tgt_lang, context=None, **kwargs):
         return f"[{str(tgt_lang).upper()}]"
 
     @classmethod
-    def get_instance(cls, config_path: Optional[str] = None) -> "_FakeModelPool":
+    def get_instance(cls, config_path: str | None = None) -> _FakeModelPool:
         return cls(config_path=config_path)
 
 

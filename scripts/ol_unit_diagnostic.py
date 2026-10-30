@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Diagnostic: Test why Units 2 and 7 get empty targets in OL batch translation."""
-import asyncio, sys, os, json, tempfile
+import asyncio
+import json
+import os
+import sys
+import tempfile
 from pathlib import Path
 
 E2E_ROOT = Path("/mnt/d/Hermes-Workspace/01-Projects/e2e-test-suite")

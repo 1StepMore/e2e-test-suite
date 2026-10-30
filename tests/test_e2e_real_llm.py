@@ -54,11 +54,10 @@ import sys
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import pytest
 from lxml import etree
-
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -77,7 +76,7 @@ REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 @dataclass
 class ImagePosition:
     filename: str
-    paragraph_index: Optional[int]
+    paragraph_index: int | None
     image_data: bytes = field(repr=False, compare=False, default=b"")
 
 
@@ -264,7 +263,7 @@ async def _run_opp(
     out_dir: Path,
     source_lang: str = "zh",
     target_lang: str = "en",
-    style_mapping: Optional[dict[str, int]] = None,
+    style_mapping: dict[str, int] | None = None,
     embed_images: bool = True,
 ) -> OppOutputs:
     """Run OPP on docx_path via the chosen transport.
@@ -311,7 +310,7 @@ async def _run_opp(
             f"opp.cli failed (rc={subprocess_result.returncode}): {subprocess_result.stderr}"
         )
     elif transport == "mcp":
-        from opp.mcp.server import generate_xliff, generate_markdown
+        from opp.mcp.server import generate_markdown, generate_xliff
 
         xliff_result = await generate_xliff(
             str(docx_path), source_lang, target_lang,
@@ -421,8 +420,10 @@ async def _run_ol(
 
     if transport == "mcp":
         from ol_mcp.tools import (
-            TranslateInput, TranslateXliffInput,
-            translate_md_text, translate_xliff,
+            TranslateInput,
+            TranslateXliffInput,
+            translate_md_text,
+            translate_xliff,
         )
 
         if is_xliff:
@@ -468,7 +469,7 @@ def _run_orf(
     output_path: Path,
     intermediate_format: Literal["xliff", "md"],
     target_format: Literal["docx", "epub", "html"] = "docx",
-    images_json: Optional[Path] = None,
+    images_json: Path | None = None,
     separate_images: bool = True,
 ) -> Path:
     """Apply translated intermediate to skeleton via the chosen transport.
@@ -513,7 +514,7 @@ def _run_orf(
     if transport == "mcp":
         from orf.mcp.server import apply_md, apply_xliff
 
-        images_list: Optional[list[dict]] = None
+        images_list: list[dict] | None = None
         if images_json is not None:
             images_payload = json.loads(images_json.read_text(encoding="utf-8"))
             images_list = images_payload.get("images")

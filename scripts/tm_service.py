@@ -10,22 +10,24 @@ Usage:
 Returns JSON on stdout.
 """
 
-import sys, os, json
+import json
+import os
+import sys
 
 HERMES_PYTHON = "/home/renanzai/.hermes/hermes-agent/venv/bin/python3"
 OL_SRC = "/mnt/d/Hermes-Workspace/01-Projects/Omni_Localizer/src"
 OL_SP = "/mnt/d/Hermes-Workspace/01-Projects/Omni_Localizer/.venv/lib/python3.13/site-packages"
 
-TM_SCRIPT = r"""
+TM_SCRIPT = rf"""
 import sys, os, json
 
 # Critical: Hermes Python 3.11 packages first, THEN OL Python 3.13 packages
 # This ensures numpy loaded from Python 3.11, not 3.13
 hermes_sp = "/home/renanzai/.hermes/hermes-agent/venv/lib/python3.11/site-packages"
-ol_sp = "{ol_sp}"
+ol_sp = "{OL_SP}"
 
 # OL source path
-sys.path.insert(0, "{ol_src}")
+sys.path.insert(0, "{OL_SRC}")
 
 # Add packages in correct order: Hermes first (3.11), then specific OL ones
 # We need hypomnema/lxml from OL venv, but numpy/sentence-transformers from Hermes venv
@@ -86,7 +88,7 @@ if __name__ == "__main__":
 
     result = search(tmx_path, source_text, src_lang, tgt_lang, threshold)
     print(json.dumps(result, ensure_ascii=False))
-""".format(ol_src=OL_SRC, ol_sp=OL_SP)
+"""
 
 def main():
     if len(sys.argv) < 3:

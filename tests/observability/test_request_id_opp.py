@@ -8,7 +8,6 @@ OL/ORF propagation is deferred to a follow-up round.
 import uuid
 
 
-
 class TestXLIFFFileAttributes:
     def test_request_id_field_exists(self):
         from opp.xliff.xliff_dataclasses import XLIFFFileAttributes
@@ -35,8 +34,8 @@ class TestManifestSchema:
 
 class TestXLIFFHeaderNote:
     def test_write_to_file_adds_request_id_note(self, tmp_path):
-        from opp.xliff.xliff_dataclasses import XLIFFFileAttributes
         from opp.xliff.generator import XLIFFFileGenerator
+        from opp.xliff.xliff_dataclasses import XLIFFFileAttributes
         rid = str(uuid.uuid4())
         attrs = XLIFFFileAttributes(
             source_language="en", target_language="zh", request_id=rid,

@@ -71,20 +71,19 @@ os.environ.setdefault(
 # ── Now import component modules (logging already configured) ───────
 
 # Test helpers
-from test_e2e_real_llm import (
-    _run_opp,
-    _run_ol,
-    _run_orf,
-    _assert_non_empty_file,
+from test_e2e_real_llm import (  # noqa: E402  (config/env setup above must run first)
+    OppOutputs,
     _assert_image_positioning,
+    _assert_non_empty_file,
     _assert_translated_to_target_lang,
     _extract_docx_text,
     _judge_docx_text,
+    _run_ol,
+    _run_opp,
+    _run_orf,
     ensure_md_block_separation,
     extract_image_positions,
-    OppOutputs,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════
 # Issue Tracking
@@ -160,7 +159,7 @@ def _extract_md_para_count(md_path: Path) -> int:
     """Count non-empty lines in markdown file."""
     try:
         text = md_path.read_text(encoding="utf-8")
-        return len([l for l in text.split("\n") if l.strip()])
+        return len([line for line in text.split("\n") if line.strip()])
     except Exception as e:
         print(f"  [WARN] Failed to count MD paragraphs: {e}")
         return -1

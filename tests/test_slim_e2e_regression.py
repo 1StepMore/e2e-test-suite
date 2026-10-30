@@ -90,6 +90,7 @@ class TestSlimE2ERegression:
         out = tmp_path / "out.docx"
         # Run ORF (mocked skeleton to avoid real DOCX load)
         from unittest.mock import MagicMock, patch
+
         from orf.channels.xliff2docx import XLIFF2DOCXConverter
         with zipfile.ZipFile(small_docx_with_scenarios) as zf:
             with zf.open("word/document.xml") as f:
@@ -124,6 +125,7 @@ class TestSlimE2ERegression:
         OPP source paragraph keeps its original text.
         """
         from unittest.mock import MagicMock, patch
+
         from orf.channels.xliff2docx import XLIFF2DOCXConverter
         xliff = tmp_path / "t.xlf"
         xliff.write_text(_build_xliff_with_resname([

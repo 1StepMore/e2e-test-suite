@@ -10,14 +10,12 @@ import os
 from pathlib import Path
 
 import pytest
-
 from ol_mcp.security import (
     BLOCKED_EXTENSIONS,
     SYSTEM_DIRS,
     PathValidator,
     get_default_validator,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

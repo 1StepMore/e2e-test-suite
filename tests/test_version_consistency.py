@@ -156,4 +156,4 @@ def test_orf_pyproject_version_matches_init():
     # ORF uses importlib.metadata at runtime — the version comes from
     # the installed package. We verify the pyproject.toml version is
     # consistent with the source tree (no drift between them).
-    assert pyproject_ver, f"ORF pyproject.toml has empty version"
+    assert pyproject_ver, "ORF pyproject.toml has empty version"

@@ -8,7 +8,6 @@ env var is not set, auth is disabled (dev / stdio mode).
 import json
 
 import pytest
-
 from ol_mcp.auth import auth_failure_response, check_auth
 
 
