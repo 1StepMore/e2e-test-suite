@@ -564,13 +564,27 @@ CANONICAL_ORF_README = """# ORF
 
 def _write_claim_docs(root: Path, guide: str, prd: str, api: str, suite: str,
                       opp_readme: str, orf_readme: str) -> None:
-    """Write the T-11 claim-site docs (and the per-repo OPP/ORF READMEs)."""
+    """Write the T-11 claim-site docs (and the per-repo OPP/ORF READMEs).
+
+    SUITE_EXPECTATIONS.md lives under ``docs/archive/`` since the 2026-10-30
+    drift audit archived it; ``scripts/doc_inventory.py`` checks the sum form
+    at that path so the frozen snapshot cannot be silently edited stale.
+    """
     docs = root / "docs"
     docs.mkdir(parents=True, exist_ok=True)
     (docs / "agent-pipeline-guide.md").write_text(guide, encoding="utf-8")
     (docs / "PRD.md").write_text(prd, encoding="utf-8")
     (docs / "API_STABILITY.md").write_text(api, encoding="utf-8")
-    (docs / "SUITE_EXPECTATIONS.md").write_text(suite, encoding="utf-8")
+    archive = docs / "archive"
+    archive.mkdir(parents=True, exist_ok=True)
+    # Archive discipline: the first line must carry the Status: ARCHIVED
+    # marker or check_archive fails the whole run (same contract the real
+    # docs/archive/SUITE_EXPECTATIONS.md satisfies).
+    (archive / "SUITE_EXPECTATIONS.md").write_text(
+        "> **Status: ARCHIVED (frozen snapshot). Reason: superseded.**\n\n"
+        + suite,
+        encoding="utf-8",
+    )
     for mod, content in (("Omni_Pre_Processor", opp_readme), ("Omni_Re_Formatter", orf_readme)):
         (root / mod).mkdir(parents=True, exist_ok=True)
         (root / mod / "README.md").write_text(content, encoding="utf-8")
@@ -604,7 +618,7 @@ def test_check_rejects_stale_tool_claims(consistent_tree, capsys):
         "agent-pipeline-guide.md",
         "PRD.md",
         "API_STABILITY.md",
-        "SUITE_EXPECTATIONS.md",
+        "docs/archive/SUITE_EXPECTATIONS.md",
         "Omni_Pre_Processor/README.md",
         "Omni_Re_Formatter/README.md",
     ):
