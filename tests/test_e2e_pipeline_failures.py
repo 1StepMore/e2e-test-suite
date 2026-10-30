@@ -15,11 +15,9 @@ import time
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 
 pytestmark = [pytest.mark.e2e, pytest.mark.real_chain, pytest.mark.failure]
 
@@ -51,11 +49,11 @@ class PathResult:
     exit_code: int = 0
     stdout: str = ""
     stderr: str = ""
-    docx_path: Optional[Path] = None
+    docx_path: Path | None = None
     details: dict = field(default_factory=dict)
 
 
-def _make_subprocess_env(extra: Optional[dict] = None) -> dict:
+def _make_subprocess_env(extra: dict | None = None) -> dict:
     env = os.environ.copy()
     pp_parts = [str(TESTS_DIR)]
     pp_parts.extend(str(d) for d in SRC_DIRS if d.exists())
@@ -276,7 +274,7 @@ def _run_xliff_mcp(
         MockPool.get_instance.return_value = mock_instance
         MockPool.return_value = mock_instance
 
-        from ol_mcp.tools import translate_xliff, TranslateXliffInput
+        from ol_mcp.tools import TranslateXliffInput, translate_xliff
 
         params = TranslateXliffInput(
             input_path=str(xliff_path),
@@ -317,7 +315,7 @@ def _run_xliff_cli(
     input_docx: Path,
     output_dir: Path,
     tmp_path: Path,
-    raise_spec: Optional[str] = None,
+    raise_spec: str | None = None,
 ) -> PathResult:
     try:
         pipeline, result = _run_opp(input_docx, output_dir)
@@ -423,7 +421,7 @@ def _run_md_mcp(
         MockPool.get_instance.return_value = mock_instance
         MockPool.return_value = mock_instance
 
-        from ol_mcp.tools import translate_md_text, TranslateInput
+        from ol_mcp.tools import TranslateInput, translate_md_text
 
         original_md_content = md_path.read_text(encoding="utf-8")
         params = TranslateInput(
@@ -464,7 +462,7 @@ def _run_md_cli(
     input_docx: Path,
     output_dir: Path,
     tmp_path: Path,
-    raise_spec: Optional[str] = None,
+    raise_spec: str | None = None,
 ) -> PathResult:
     try:
         pipeline, result = _run_opp(input_docx, output_dir)
@@ -546,7 +544,7 @@ def _run_path(
     output_dir: Path,
     tmp_path: Path,
     failure_pool=None,
-    raise_spec: Optional[str] = None,
+    raise_spec: str | None = None,
 ) -> PathResult:
     if path == "xliff_mcp":
         return _run_xliff_mcp(input_docx, output_dir, failure_pool=failure_pool)

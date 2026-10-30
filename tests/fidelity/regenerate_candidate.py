@@ -40,7 +40,7 @@ def main() -> int:
         return 0
 
     sys.path.insert(0, str(REPO_ROOT / "Omni_Localizer" / "src"))
-    from ol_mcp.tools import translate_md_text, TranslateInput
+    from ol_mcp.tools import TranslateInput, translate_md_text
 
     if not SOURCE.exists():
         print(f"FAIL: source not found: {SOURCE}", file=sys.stderr)

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import pytest
 
-
 _ALL_ALLOWLIST_VARS = (
     "MCP_ALLOWED_DIRECTORIES",
     "OMNI_MCP_ALLOWED_DIRS",

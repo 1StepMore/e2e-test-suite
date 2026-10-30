@@ -7,7 +7,6 @@ Uses Python AST (not grep) for reliable structural detection.
 from __future__ import annotations
 
 import ast
-import sys
 from pathlib import Path
 
 import pytest

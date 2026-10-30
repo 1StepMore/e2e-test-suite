@@ -11,6 +11,7 @@ import pytest
 
 # Ensure component paths are set up
 from tests.conftest import setup_component_paths
+
 setup_component_paths()
 
 # Path to the real large DOCX file (~14MB, 7,681 paragraphs) in test_fixtures/zh/

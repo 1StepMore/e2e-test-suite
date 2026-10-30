@@ -1,6 +1,7 @@
 """Test P3-T1: TranslationDocument Pydantic model contract."""
 import pytest
-from omni_suite.contract.models import TranslationDocument, DocumentFormat, TranslationSegment
+
+from omni_suite.contract.models import DocumentFormat, TranslationDocument, TranslationSegment
 
 
 def test_translation_document_basic_construction():

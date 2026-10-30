@@ -14,7 +14,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Unit test — security warning on every translate_file call
 # ---------------------------------------------------------------------------
@@ -151,9 +150,9 @@ class TestServerStartupWarning:
 
     def test_danger_flag_accepted(self):
         """The --danger-disable-security flag is accepted by argparse."""
-        from omni_mcp.server import main
-
         import sys
+
+        from omni_mcp.server import main
 
         original_argv = sys.argv
         try:

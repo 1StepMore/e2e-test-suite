@@ -8,7 +8,6 @@ import asyncio
 import json
 
 
-
 class TestOLHealthEndpoint:
     def test_ping_returns_success_no_auth_env(self, monkeypatch):
         monkeypatch.delenv("MCP_SHARED_SECRET", raising=False)

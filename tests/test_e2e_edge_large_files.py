@@ -17,7 +17,6 @@ from pathlib import Path
 
 import pytest
 
-
 pytestmark = [pytest.mark.e2e, pytest.mark.real_chain]
 
 SUITE_ROOT = Path(__file__).resolve().parent

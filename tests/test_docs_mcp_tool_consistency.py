@@ -17,11 +17,12 @@ Levels verified:
 """
 
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Final
+from typing import Final
 
-from opp.mcp.server import _TOOL_SCHEMAS
 from ol_mcp.tools import TOOL_REGISTRY
+from opp.mcp.server import _TOOL_SCHEMAS
 from orf.mcp.server import _TOOL_DISPATCH
 
 SUITE_ROOT: Final[Path] = Path(__file__).resolve().parent.parent

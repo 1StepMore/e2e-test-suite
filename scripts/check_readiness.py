@@ -428,7 +428,7 @@ def check_v4(r: CheckResult) -> None:
     skip_without_reason = 0
     for f in list((SUITE_ROOT / "tests").rglob("*.py")):
         content = _read(f)
-        for m in re.finditer(r"@pytest\.mark\.xfail(?!\s*\([^)]*reason\s*=)", content):
+        for _m in re.finditer(r"@pytest\.mark\.xfail(?!\s*\([^)]*reason\s*=)", content):
             skip_without_reason += 1
     if skip_without_reason == 0:
         r.ok("4.5", "No xfail markers without reason")
@@ -636,7 +636,7 @@ def check_v10(r: CheckResult) -> None:
         if full_path.exists():
             for py_file in full_path.rglob("*.py"):
                 content = _read(py_file)
-                for m in re.finditer(r"^\s*except\s*:", content, re.MULTILINE):
+                for _m in re.finditer(r"^\s*except\s*:", content, re.MULTILINE):
                     bare_excepts += 1
     if bare_excepts == 0:
         r.ok("10.5", "No bare except: blocks found")

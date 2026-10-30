@@ -45,16 +45,15 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-from omni_mcp import orchestrator as omni_orchestrator
+from ol_mcp.security import PathValidator as OlPathValidator
+from ol_mcp.security import _parse_allowed_dirs as ol_parse_allowed_dirs
 from opp.mcp.config import _parse_allowed_dirs as opp_parse_allowed_dirs
 from opp.mcp.security import PathValidationError
 from opp.mcp.security import PathValidator as OppPathValidator
-from ol_mcp.security import PathValidator as OlPathValidator
-from ol_mcp.security import _parse_allowed_dirs as ol_parse_allowed_dirs
 from orf.mcp.config import _parse_allowed_dirs as orf_parse_allowed_dirs
 from orf.mcp.security import PathValidator as OrfPathValidator
 
+from omni_mcp import orchestrator as omni_orchestrator
 
 # ---------------------------------------------------------------------------
 # 冻结的预期消息 / 元组（改动策略必须显式改这些字面量）

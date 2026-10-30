@@ -11,10 +11,9 @@ import zipfile
 from pathlib import Path
 
 import pytest
-
+from opp.detector import FormatType, detect_format
 from orf.detection.format_detector import FormatDetector
 from orf.detection.magic_bytes import _disambiguate_zip_format
-from opp.detector import detect_format, FormatType
 
 
 def _make_zip(path: Path, entries: dict[str, bytes]) -> Path:

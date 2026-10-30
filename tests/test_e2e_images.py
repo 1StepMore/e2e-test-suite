@@ -497,7 +497,8 @@ def _create_docx_with_large_image(path: Path) -> None:
 
 def _add_inline_image_to_run(run, part, filename: str) -> None:
     """Add inline image to a run using python-docx add_picture API."""
-    import tempfile, os
+    import os
+    import tempfile
 
     png_data = _create_minimal_png()
 
@@ -514,7 +515,8 @@ def _add_inline_image_to_run(run, part, filename: str) -> None:
 
 def _create_minimal_png(width: int = 100, height: int = 100) -> bytes:
     """Create minimal PNG image bytes."""
-    import zlib, struct
+    import struct
+    import zlib
 
     def png_chunk(chunk_type, data):
         chunk = chunk_type + data
@@ -573,9 +575,10 @@ def _create_pptx_with_images(path: Path) -> None:
 
 def _create_pdf_with_images(path: Path) -> None:
     """Create PDF with images using PIL for PNG creation."""
-    from PIL import Image
-    import fitz
     import io
+
+    import fitz
+    from PIL import Image
 
     img = Image.new('RGB', (100, 100), color='red')
     buf = io.BytesIO()

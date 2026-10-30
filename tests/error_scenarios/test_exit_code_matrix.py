@@ -39,7 +39,6 @@ from pathlib import Path
 
 import pytest
 
-
 SUITE_ROOT = Path(__file__).resolve().parents[2]
 PYTHON = SUITE_ROOT / ".venv_ol" / "bin" / "python"
 OPP_BIN = SUITE_ROOT / ".venv_ol" / "bin" / "opp"
@@ -277,8 +276,9 @@ class TestOPPInternalError:
         # the dispatcher must always return a structured error.
         sys.path.insert(0, str(SUITE_ROOT / "Omni_Pre_Processor" / "src"))
         try:
-            from opp.mcp.server import _handle_call_tool
             import asyncio
+
+            from opp.mcp.server import _handle_call_tool
             result = asyncio.run(_handle_call_tool("definitely_not_a_real_tool", {}))
             assert len(result) == 1
             payload = json.loads(result[0].text)

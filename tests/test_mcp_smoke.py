@@ -261,14 +261,14 @@ def ol_mcp_server():
     """
     from fastmcp import FastMCP
     from ol_mcp.tools import (
-        translate_md_text,
+        batch_translate_texts,
+        get_relevant_terms,
         judge_text,
         load_glossary,
-        get_relevant_terms,
-        search_tm,
-        batch_translate_texts,
-        translate_xliff,
         ping,
+        search_tm,
+        translate_md_text,
+        translate_xliff,
     )
 
     mcp = FastMCP("OL MCP Server (smoke)")
@@ -1344,9 +1344,8 @@ class TestMCPSmokeORF:
         response is a structured dict (either success with output_path,
         or a graceful error dict).
         """
-        from fastmcp import Client
-
         from docx import Document
+        from fastmcp import Client
 
         doc = Document()
         doc.add_heading("Original", level=1)
@@ -1429,9 +1428,8 @@ class TestMCPSmokeORF:
         ``data_base64``; providing ``file_path`` is rejected to prevent
         arbitrary file reads.
         """
-        from fastmcp import Client
-
         from docx import Document
+        from fastmcp import Client
 
         doc = Document()
         doc.add_paragraph("Content.")
@@ -1541,9 +1539,8 @@ class TestMCPSmokeORF:
     @pytest.mark.asyncio
     async def test_detect_format(self, orf_mcp_server, tmp_path):
         """Happy: detect_format returns format=DOCX for a real DOCX."""
-        from fastmcp import Client
-
         from docx import Document
+        from fastmcp import Client
 
         doc = Document()
         doc.add_paragraph("Content.")
@@ -1595,9 +1592,8 @@ class TestMCPSmokeORF:
         returns ``{"format": ..., "size_mb": ..., "resource_count": ...,
         "manifest_status": ...}`` (no top-level ``success`` key).
         """
-        from fastmcp import Client
-
         from docx import Document
+        from fastmcp import Client
 
         doc = Document()
         doc.add_paragraph("Content.")

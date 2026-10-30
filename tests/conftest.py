@@ -4,21 +4,20 @@ This module provides fixtures that enable end-to-end testing of the complete
 OPP → OL → ORF localization pipeline.
 """
 
+import json
 import os
 import re
-import sys
 import shutil
+import sys
 import tempfile
-import zipfile
-import json
 import types
+import zipfile
 from datetime import datetime
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 
 import pytest
 from docx import Document
-
 
 # 2026-06-17 round 12: skip litellm's import-time network fetch.
 # ol_pool.router also setdefaults these, but conftest runs first.
@@ -1068,7 +1067,7 @@ def validate_manifest():
             return False, ["File does not exist"]
 
         try:
-            with open(manifest_path, 'r', encoding='utf-8') as f:
+            with open(manifest_path, encoding='utf-8') as f:
                 manifest = json.load(f)
 
             # Check required top-level keys

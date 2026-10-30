@@ -417,14 +417,15 @@ class TestEndToEndDistributedTrace:
         )
         doc.save(str(docx_path))
 
-        from opp.mcp.config import MCPConfig  # type: ignore
-        from opp.mcp.server import _init_server, _handle_call_tool  # type: ignore
-        from ol_mcp.tools import _call_tool as _ol_call_tool  # type: ignore
-        from orf.mcp.server import _call_tool as _orf_call_tool  # type: ignore
-        import opp.mcp.tracing as _opp_tracing
-        import ol_mcp.tracing as _ol_tracing
-        import orf.mcp.tracing as _orf_tracing
         import asyncio
+
+        import ol_mcp.tracing as _ol_tracing
+        import opp.mcp.tracing as _opp_tracing
+        import orf.mcp.tracing as _orf_tracing
+        from ol_mcp.tools import _call_tool as _ol_call_tool  # type: ignore
+        from opp.mcp.config import MCPConfig  # type: ignore
+        from opp.mcp.server import _handle_call_tool, _init_server  # type: ignore
+        from orf.mcp.server import _call_tool as _orf_call_tool  # type: ignore
 
         def _reset_for_module(tracing_mod) -> None:
             """Reset OTel provider + the given tracing module's

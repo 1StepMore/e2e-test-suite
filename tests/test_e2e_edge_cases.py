@@ -26,7 +26,6 @@ from pathlib import Path
 
 import pytest
 
-
 pytestmark = [pytest.mark.e2e, pytest.mark.real_chain]
 
 SUITE_ROOT = Path(__file__).resolve().parent
@@ -67,6 +66,7 @@ class TestEmptyInputs:
     def test_opp_detect_format_empty_file(self, init_opp, tmp_path):
         """OPP detect_format_tool on empty file → error."""
         import asyncio
+
         from opp.mcp.server import detect_format_tool
         empty = tmp_path / "empty.docx"
         empty.write_bytes(b"")
@@ -78,6 +78,7 @@ class TestEmptyInputs:
     def test_opp_generate_markdown_empty_file(self, init_opp, tmp_path):
         """OPP generate_markdown on empty file → error."""
         import asyncio
+
         from opp.mcp.server import generate_markdown
         empty = tmp_path / "empty.docx"
         empty.write_bytes(b"")
@@ -89,6 +90,7 @@ class TestEmptyInputs:
     def test_opp_extract_document_empty_file(self, init_opp, tmp_path):
         """OPP extract_document on empty file → error."""
         import asyncio
+
         from opp.mcp.server import extract_document
         empty = tmp_path / "empty.docx"
         empty.write_bytes(b"")
@@ -148,6 +150,7 @@ class TestNonExistentFiles:
     def test_opp_detect_format_nonexistent(self, init_opp):
         """OPP detect_format_tool on nonexistent path → error."""
         import asyncio
+
         from opp.mcp.server import detect_format_tool
         result = asyncio.run(detect_format_tool("/nonexistent/doc.docx"))
         assert result["success"] is False
@@ -156,6 +159,7 @@ class TestNonExistentFiles:
     def test_opp_extract_document_nonexistent(self, init_opp):
         """OPP extract_document on nonexistent path → error."""
         import asyncio
+
         from opp.mcp.server import extract_document
         result = asyncio.run(extract_document(
             file_path="/nonexistent/doc.docx", output_formats="md"
@@ -197,6 +201,7 @@ class TestCorruptedFiles:
     def test_opp_detect_format_corrupt_docx(self, init_opp, tmp_path):
         """OPP detect_format_tool on random bytes."""
         import asyncio
+
         from opp.mcp.server import detect_format_tool
         corrupt = tmp_path / "corrupt.docx"
         corrupt.write_bytes(b"\xff\xfe\x00\x01" * 100)
@@ -208,6 +213,7 @@ class TestCorruptedFiles:
     def test_opp_generate_markdown_corrupt_docx(self, init_opp, tmp_path):
         """OPP generate_markdown on random bytes."""
         import asyncio
+
         from opp.mcp.server import generate_markdown
         corrupt = tmp_path / "corrupt.docx"
         corrupt.write_bytes(b"\x00" * 100)
@@ -241,6 +247,7 @@ class TestLargeFiles:
     def test_opp_extract_large_docx_doesnt_crash(self, init_opp, tmp_path):
         """OPP handling of a large file should not crash."""
         import asyncio
+
         from opp.mcp.server import extract_document
         huge = tmp_path / "huge.docx"
         huge.write_bytes(b"X" * 1_000_000)

@@ -35,7 +35,7 @@ def _ensure_corpus_dir() -> Path:
 def generate_docx(dest: Path) -> None:
     """5 sections, 3 tables, 2 images, headings, lists, formatting."""
     from docx import Document
-    from docx.shared import Inches, Pt
+    from docx.shared import Inches
 
     d = Document()
     d.add_heading("Annual Report 2026", level=0)
@@ -173,14 +173,14 @@ def generate_pptx(dest: Path) -> None:
 
 def generate_pdf(dest: Path) -> None:
     """3 pages with text, headings, table, image, lists."""
-    html = f"""
+    html = """
     <html><head><style>
-        body {{ font-family: sans-serif; margin: 40px; }}
-        h1 {{ color: #003366; }}
-        h2 {{ color: #006699; }}
-        table {{ border-collapse: collapse; width: 100%; }}
-        td, th {{ border: 1px solid #ccc; padding: 8px; text-align: left; }}
-        .page-break {{ page-break-after: always; }}
+        body { font-family: sans-serif; margin: 40px; }
+        h1 { color: #003366; }
+        h2 { color: #006699; }
+        table { border-collapse: collapse; width: 100%; }
+        td, th { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        .page-break { page-break-after: always; }
     </style></head>
     <body>
         <h1>Technical Specification</h1>

@@ -19,7 +19,7 @@ import os
 import sys
 import time
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent

@@ -226,16 +226,18 @@ class TestOPPMCPToolPathRejection:
 
     def test_detect_format_outside_allowlist(self, init_opp_server):
         """detect_format_tool with path outside allowlist → OPP_PATH_DENIED."""
-        from opp.mcp.server import detect_format_tool
         import asyncio
+
+        from opp.mcp.server import detect_format_tool
 
         result = asyncio.run(detect_format_tool("/etc/passwd"))
         self._check_path_denied(result)
 
     def test_detect_format_traversal(self, init_opp_server):
         """detect_format_tool with path traversal → OPP_PATH_DENIED."""
-        from opp.mcp.server import detect_format_tool
         import asyncio
+
+        from opp.mcp.server import detect_format_tool
 
         result = asyncio.run(detect_format_tool(
             str(init_opp_server / ".." / ".." / "etc" / "passwd")
@@ -244,8 +246,9 @@ class TestOPPMCPToolPathRejection:
 
     def test_generate_markdown_outside(self, init_opp_server):
         """generate_markdown with path outside allowlist → OPP_PATH_DENIED."""
-        from opp.mcp.server import generate_markdown
         import asyncio
+
+        from opp.mcp.server import generate_markdown
 
         result = asyncio.run(generate_markdown(
             "/etc/passwd",
@@ -255,8 +258,9 @@ class TestOPPMCPToolPathRejection:
 
     def test_extract_document_outside(self, init_opp_server):
         """extract_document with path outside allowlist → OPP_PATH_DENIED."""
-        from opp.mcp.server import extract_document
         import asyncio
+
+        from opp.mcp.server import extract_document
 
         result = asyncio.run(extract_document(
             file_path="/etc/passwd",
@@ -266,8 +270,9 @@ class TestOPPMCPToolPathRejection:
 
     def test_save_skeleton_outside(self, init_opp_server):
         """save_skeleton with path outside allowlist → OPP_PATH_DENIED."""
-        from opp.mcp.server import save_skeleton
         import asyncio
+
+        from opp.mcp.server import save_skeleton
 
         result = asyncio.run(save_skeleton(
             file_path="/etc/passwd",
@@ -278,8 +283,9 @@ class TestOPPMCPToolPathRejection:
 
     def test_extract_document_blocked_extension(self, init_opp_server):
         """extract_document with blocked extension → OPP_PATH_DENIED."""
-        from opp.mcp.server import extract_document
         import asyncio
+
+        from opp.mcp.server import extract_document
 
         blocked = init_opp_server / "script.sh"
         blocked.write_text("echo hello")

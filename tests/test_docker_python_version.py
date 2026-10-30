@@ -2,7 +2,6 @@
 import re
 from pathlib import Path
 
-
 DOCKERFILES = [
     Path(__file__).resolve().parent.parent / "docker" / "Dockerfile.test",
     Path(__file__).resolve().parent.parent / "Omni_Pre_Processor" / "Dockerfile",

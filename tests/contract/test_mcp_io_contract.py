@@ -26,7 +26,6 @@ import os
 import sys
 from pathlib import Path
 
-import anyio
 import pytest
 from mcp import StdioServerParameters, stdio_client
 from mcp.client.session import ClientSession

@@ -7,6 +7,7 @@ Usage:
 
 import sys
 import zipfile
+
 from lxml import etree
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"

@@ -173,7 +173,7 @@ class TestOLLQAAutoInvoke:
         ])
         judge = _mock_judge_with_scores([8.0])  # Above threshold
 
-        result = _run_translate_md_async(
+        _run_translate_md_async(
             config_path=config_path,
             input_path=md_path,
             output_dir=tmp_path / "out",
@@ -273,7 +273,7 @@ class TestOLLQAAutoInvoke:
         ])
         judge = _mock_judge_with_scores([5.0])  # Below threshold but no retry
 
-        result = _run_translate_md_async(
+        _run_translate_md_async(
             config_path=config_path,
             input_path=md_path,
             output_dir=tmp_path / "out",
@@ -296,7 +296,7 @@ class TestOLLQAAutoInvoke:
         ])
         judge = _mock_judge_with_scores([9.0])  # High score, no retry needed
 
-        result = _run_translate_md_async(
+        _run_translate_md_async(
             config_path=config_path,
             input_path=md_path,
             output_dir=tmp_path / "out",

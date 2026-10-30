@@ -247,7 +247,7 @@ def sample_skeleton_odf(tmp_path: Path) -> Path:
     try:
         from odf.opendocument import OpenDocumentText
         from odf.style import Style
-        from odf.text import P, H
+        from odf.text import H, P
 
         doc = OpenDocumentText()
         h_style = Style(name="Heading1", family="paragraph")
@@ -316,7 +316,7 @@ class TestMD2DOCX:
 
         output = tmp_path / "output.docx"
         converter = MD2DOCXConverter()
-        result = converter.convert(sample_md, output)
+        converter.convert(sample_md, output)
 
         assert output.exists()
         # Check ZIP validity
@@ -354,7 +354,7 @@ class TestMD2PPTX:
 
         output = tmp_path / "output.pptx"
         converter = MD2PPTXConverter()
-        result = converter.convert(sample_md, output)
+        converter.convert(sample_md, output)
 
         assert output.exists()
         with zipfile.ZipFile(output, "r") as zf:
@@ -385,7 +385,7 @@ class TestMD2EPUB:
 
         output = tmp_path / "output.epub"
         converter = MD2EPUBConverter()
-        result = converter.convert(sample_md, output)
+        converter.convert(sample_md, output)
 
         assert output.exists()
         with zipfile.ZipFile(output, "r") as zf:
@@ -416,7 +416,7 @@ class TestMD2HTML:
 
         output = tmp_path / "output.html"
         converter = MD2HTMLConverter()
-        result = converter.convert(sample_md, output)
+        converter.convert(sample_md, output)
 
         assert output.exists()
         content = output.read_text(encoding="utf-8")
@@ -446,7 +446,7 @@ class TestMD2ODT:
 
         output = tmp_path / "output.odt"
         converter = MD2ODTConverter()
-        result = converter.convert(sample_md, output)
+        converter.convert(sample_md, output)
 
         assert output.exists()
         with zipfile.ZipFile(output, "r") as zf:
@@ -476,7 +476,7 @@ class TestMD2PDF:
 
         output = tmp_path / "output.pdf"
         converter = MD2PDFConverter()
-        result = converter.convert(sample_md, output)
+        converter.convert(sample_md, output)
 
         assert output.exists()
         content = output.read_bytes()
@@ -506,7 +506,7 @@ class TestMD2RTF:
 
         output = tmp_path / "output.rtf"
         converter = MD2RTFConverter()
-        result = converter.convert(sample_md, output)
+        converter.convert(sample_md, output)
 
         assert output.exists()
         content = output.read_bytes()
@@ -536,7 +536,7 @@ class TestMD2ICML:
 
         output = tmp_path / "output.icml"
         converter = MD2ICMLConverter()
-        result = converter.convert(sample_md, output)
+        converter.convert(sample_md, output)
 
         assert output.exists()
         content = output.read_text(encoding="utf-8")
@@ -566,7 +566,7 @@ class TestMD2SRT:
 
         output = tmp_path / "output.srt"
         converter = MD2SRTConverter()
-        result = converter.convert(sample_md_with_srt, output)
+        converter.convert(sample_md_with_srt, output)
 
         assert output.exists()
         content = output.read_text(encoding="utf-8")
@@ -598,7 +598,7 @@ class TestMD2XLSX:
 
         output = tmp_path / "output.xlsx"
         converter = MD2XLSXConverter()
-        result = converter.convert(sample_md_with_table, output)
+        converter.convert(sample_md_with_table, output)
 
         assert output.exists()
         with zipfile.ZipFile(output, "r") as zf:
@@ -629,7 +629,7 @@ class TestMD2CSV:
 
         output = tmp_path / "output.csv"
         converter = MD2CSVConverter()
-        result = converter.convert(sample_md_with_table, output)
+        converter.convert(sample_md_with_table, output)
 
         assert output.exists()
         content = output.read_text(encoding="utf-8")
@@ -660,7 +660,7 @@ class TestMD2JSON:
 
         output = tmp_path / "output.json"
         converter = MD2JSONConverter()
-        result = converter.convert(sample_md, output)
+        converter.convert(sample_md, output)
 
         assert output.exists()
         content = output.read_text(encoding="utf-8")
@@ -707,7 +707,7 @@ class TestXLIFF2DOCX:
 
         output = tmp_path / "output.docx"
         converter = XLIFF2DOCXConverter()
-        result = converter.convert(sample_skeleton_docx, sample_xliff, output)
+        converter.convert(sample_skeleton_docx, sample_xliff, output)
 
         assert output.exists()
         with zipfile.ZipFile(output, "r") as zf:
@@ -747,7 +747,7 @@ class TestXLIFF2PPTX:
 
         output = tmp_path / "output.pptx"
         converter = XLIFF2PPTXConverter()
-        result = converter.convert(sample_skeleton_pptx, sample_xliff, output)
+        converter.convert(sample_skeleton_pptx, sample_xliff, output)
 
         assert output.exists()
         with zipfile.ZipFile(output, "r") as zf:
@@ -788,7 +788,7 @@ class TestXLIFF2EPUB:
 
         output = tmp_path / "output.epub"
         converter = XLIFF2EPUBConverter()
-        result = converter.convert(sample_skeleton_epub, sample_xliff, output)
+        converter.convert(sample_skeleton_epub, sample_xliff, output)
 
         assert output.exists()
         with zipfile.ZipFile(output, "r") as zf:
@@ -829,7 +829,7 @@ class TestXLIFF2HTML:
 
         output = tmp_path / "output.html"
         converter = XLIFF2HTMLConverter()
-        result = converter.convert(sample_skeleton_html, sample_xliff, output)
+        converter.convert(sample_skeleton_html, sample_xliff, output)
 
         assert output.exists()
         content = output.read_text(encoding="utf-8")
@@ -875,7 +875,7 @@ class TestXLIFF2ODF:
 
         output = tmp_path / "output.odt"
         converter = XLIFF2ODFConverter()
-        result = converter.convert(sample_skeleton_odf, sample_xliff, output)
+        converter.convert(sample_skeleton_odf, sample_xliff, output)
 
         assert output.exists()
         with zipfile.ZipFile(output, "r") as zf:

@@ -46,7 +46,7 @@ def _pipeline_env() -> dict[str, str]:
     }
 
 
-def _run_pipeline(*extra_args: str) -> "subprocess.CompletedProcess[str]":
+def _run_pipeline(*extra_args: str) -> subprocess.CompletedProcess[str]:
     assert FIXTURE_DOCX.exists(), f"Fixture missing: {FIXTURE_DOCX}"
     return subprocess.run(
         [

@@ -84,7 +84,6 @@ def classify_handler(
     Returns ``(category, reasons)`` where *category* is one of:
         ``"safe"``, ``"violation"``
     """
-    reasons: list[str] = []
 
     type_node = handler.type
 

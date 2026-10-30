@@ -478,7 +478,7 @@ class TestPDFPipeline:
         """XLIFF→PDF must fail with clear error when skeleton_html missing."""
         try:
             from orf.channels.xliff2pdf import XLIFF2PDFConverter
-            from orf.converters.options import ConverterOptions
+            from orf.converters.options import ConverterOptions  # noqa: F401  (availability probe)
         except ImportError:
             pytest.skip("ORF xliff2pdf not available")
 

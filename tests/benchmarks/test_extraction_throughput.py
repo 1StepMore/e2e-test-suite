@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-
 pytestmark = [
     pytest.mark.benchmark,
     pytest.mark.requires_opp,

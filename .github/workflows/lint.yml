@@ -172,6 +172,19 @@ jobs:
         # matches nothing, so an empty changed-.py set is a no-op — the step
         # does NOT fail, so no shell bypass is needed.
 
+      - name: "Blocking: whole-tree ruff (pinned 0.17.1, suite-owned dirs)"
+        env:
+          OMNI_TEST_FAKE_LLM: "1"
+        run: python -m ruff check scripts tests omni_mcp omni_suite omni_metrics eval
+        # Issue #223 P4.1 (2026-10-31): the suite-owned tree was taken to zero
+        # findings under the project select (E,F,I,B,UP,N) — 197 safe auto-fixes
+        # + 33 F841/B007 unsafe fixes + 26 hand fixes (B023 default-arg bind,
+        # N811/N806 renames, E701/E702 splits, E741 renames, B905 strict=False,
+        # and three triaged noqas: UP042 str-mixin enum contract, F401
+        # availability probe, E402 import-after-env-setup). This whole-tree gate
+        # keeps it at zero; the F-class changed-file gate above stays as the
+        # no-NEW-violations tripwire for files this step does not cover.
+
       - name: "Blocking: mypy (omni_metrics + omni_suite + omni_mcp)"
         env:
           OMNI_TEST_FAKE_LLM: "1"

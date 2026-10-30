@@ -232,7 +232,7 @@ def _apply(
     for pattern, replacement in replacements:
         # Compare per-pattern so we only credit substitutions where the
         # replacement differs from the matched text.
-        def _count(m: re.Match[str]) -> str:
+        def _count(m: re.Match[str], replacement: str = replacement) -> str:
             nonlocal real_changes, matched
             matched += 1
             expanded = m.expand(replacement)

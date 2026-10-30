@@ -36,7 +36,6 @@ import re
 import sys
 from pathlib import Path
 
-
 # ═══════════════════════════════════════════════════════════════════════
 # Priority definitions per plan type
 # ═══════════════════════════════════════════════════════════════════════
@@ -183,7 +182,7 @@ def enrich_plan(filepath: str, plan_type: str, dry_run: bool = False) -> int:
               f"Valid options: {', '.join(sorted(PRIORITY_TABLE.keys()))}", file=sys.stderr)
 
     # Read the file preserving exact content
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding='utf-8') as f:
         original_content = f.read()
 
     # Split into lines while preserving line endings

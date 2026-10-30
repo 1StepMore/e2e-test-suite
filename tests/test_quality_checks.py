@@ -30,16 +30,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from quality_checks import (  # noqa: E402  (sys.path mutation must come first)
+    _FORMAT_RATIO_OVERRIDES,
+    _LANG_RATIO_OVERRIDES,
     MIN_TARGET_CHARS,
     MIN_TARGET_RATIO,
     QualityResult,
-    _FORMAT_RATIO_OVERRIDES,
-    _LANG_RATIO_OVERRIDES,
     _is_entirely_fenced_code,
     _resolve_min_ratio,
     check_translation_quality,
 )
-
 
 # ════════════════════════════════════════════════════════════════════════
 # Fix #1: table separator excluded from degenerate detection

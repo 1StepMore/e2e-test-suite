@@ -7,7 +7,6 @@ parameter. Mirrors the OL/OPP auth test structure.
 import json
 
 import pytest
-
 from orf.mcp.auth import auth_failure_response, check_auth
 
 

@@ -16,11 +16,11 @@ pipeline cannot yet meet.  The marker is meaningful, not decorative:
 
 import textwrap
 
+import pytest
+
 from omni_mcp.validation.cli import lint_scenarios, main
 from omni_mcp.validation.engine import run_scenarios
 from omni_mcp.validation.loader import ScenarioError, load_scenarios
-
-import pytest
 
 
 def _write(tmp_path, name, body):

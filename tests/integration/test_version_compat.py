@@ -16,10 +16,8 @@ Each scenario:
 """
 from __future__ import annotations
 
-import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -163,11 +161,11 @@ class TestVersionCompatibility:
 
     def test_version_report(self):
         """Print current version combo for documentation."""
-        print(f"\n=== Version Compatibility Report ===")
+        print("\n=== Version Compatibility Report ===")
         print(f"opp: {CURRENT_VERSIONS['opp']}")
         print(f"ol:  {CURRENT_VERSIONS['ol']}")
         print(f"orf: {CURRENT_VERSIONS['orf']}")
-        print(f"===================================")
+        print("===================================")
         # basic sanity: versions should be non-empty strings
         for k, v in CURRENT_VERSIONS.items():
             assert v and v != "unknown", f"{k} version not detected"

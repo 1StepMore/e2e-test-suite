@@ -272,9 +272,9 @@ def diff_artifact_reports(base: dict[str, Any], head: dict[str, Any]) -> dict[st
         )
 
     # Render order: the four classes, then "missing" (never a class).
-    _SORT_KINDS = (*_FOUR_CLASSES, "missing")
-    changes.sort(key=lambda c: (_SORT_KINDS.index(c.kind), c.artifact))
-    counts = {cls: 0 for cls in _SORT_KINDS}
+    sort_kinds = (*_FOUR_CLASSES, "missing")
+    changes.sort(key=lambda c: (sort_kinds.index(c.kind), c.artifact))
+    counts = {cls: 0 for cls in sort_kinds}
     for change in changes:
         counts[change.kind] = counts.get(change.kind, 0) + 1
 

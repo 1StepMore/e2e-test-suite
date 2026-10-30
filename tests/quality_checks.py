@@ -41,8 +41,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Optional
-
 
 # ---------------------------------------------------------------------------
 # Patterns
@@ -245,7 +243,7 @@ _LANG_RATIO_OVERRIDES: dict[tuple[str, str], float] = {}
 
 
 def _resolve_min_ratio(
-    source_format: Optional[str],
+    source_format: str | None,
     source_lang: str,
     target_lang: str,
 ) -> float:
@@ -263,7 +261,7 @@ def _resolve_min_ratio(
 def check_translation_quality(
     source: str,
     target: str,
-    source_format: Optional[str] = None,
+    source_format: str | None = None,
     source_lang: str = "en",
     target_lang: str = "zh",
 ) -> QualityResult:

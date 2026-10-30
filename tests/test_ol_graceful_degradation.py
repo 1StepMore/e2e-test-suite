@@ -174,13 +174,13 @@ class TestOLGracefulDegradation:
         for i in range(30):
             p = batch_dir / f"ch{i}.md"
             p.write_text(
-                "# Chapter {0}\n\n"
+                f"# Chapter {i}\n\n"
                 "This is a long paragraph to ensure the translator has enough "
                 "work to do before SIGINT arrives.\n\n"
-                "## Section {0}.1\n\n"
+                f"## Section {i}.1\n\n"
                 "Another paragraph to keep the processor busy.\n\n"
-                "## Section {0}.2\n\n"
-                "Yet more text to ensure the batch enqueue loop is active.\n".format(i),
+                f"## Section {i}.2\n\n"
+                "Yet more text to ensure the batch enqueue loop is active.\n",
                 encoding="utf-8",
             )
 

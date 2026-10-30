@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-
 _SUITE_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -149,15 +148,17 @@ class TestPipelineContract:
 
     def test_ping_opp_mcp(self):
         """OPP MCP ping returns success (in-process)."""
-        from opp.mcp.server import ping
         import asyncio
+
+        from opp.mcp.server import ping
         result = asyncio.run(ping(auth_token=None))
         assert result.get("success"), f"OPP MCP ping failed:\n{result}"
 
     def test_ping_orf_mcp(self):
         """ORF MCP ping returns success (in-process)."""
-        from orf.mcp.server import ping
         import json
+
+        from orf.mcp.server import ping
         result = json.loads(ping())
         assert result.get("success"), f"ORF MCP ping failed:\n{result}"
 
@@ -169,7 +170,7 @@ class TestPipelineContract:
 
     def test_opp_has_extract_tools(self):
         """OPP MCP server module exports extract_document and ping."""
-        from opp.mcp.server import extract_document, ping, batch_extract
+        from opp.mcp.server import batch_extract, extract_document, ping
         assert callable(extract_document)
         assert callable(ping)
         assert callable(batch_extract)
