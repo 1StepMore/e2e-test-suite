@@ -77,6 +77,13 @@
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
 
+### 2026-10-31：issue #234 通道分叉修复 + 回归护栏改逐格比
+
+- Date: 2026-10-31；触发：2026-10-30 nightly 实测 CLI skip 65 / MCP skip 55（总数恰差 10，`per_channel_max_skip` 护栏只比总数看不见）
+- Scope: `scripts/mcp_matrix_verifier.py`（新增 `_md_csv_skip` 运行时守卫，与 CLI 共用 `MD_CSV_TABLE_SKIP_REASON`）；`scripts/format_matrix_verifier.py`（skip 理由提为共享常量）；`scripts/nightly_gap.py`（护栏加 CLI/MCP 逐格比对 `find_divergent_cells`，`regression_gap = fail + 分叉 + 超额 skip`，schema → `nightly-gap/2`；`MD→CSV requires a table` 入 `EXEMPT_SKIP_REASONS`）；`docs/NIGHTLY.md` / `ACCEPTED_GAPS.md` 同步
+- Result: 三条验收全过——(a) 真实两通道 MD→CSV 11 格逐格一致（10 skip 同理由 + csv→csv 同 pass，分叉 0，证据 `99-Tools/validation-scratch/omni-suite/issue234-evidence/md_csv_parity.json`）；(b) 真实数据 `gap_units 0 / channel_divergence 0 / regression_gap 0`；(c) 人为把 MCP docx→csv 翻回 pass（修复前形态）→ 护栏 `channel_divergence 1 / regression_gap 1`，判定行显式报「逐格比对 1 格状态分叉」。单测 64 passed（含新增 `test_mcp_matrix_verifier.py` + `test_nightly_gap_divergence.py` 19 条），`doc_inventory --check` 绿
+- Conclusion: 通道分叉类退步从此由护栏逐格抓取，不再依赖 skip 总数；MD→CSV 10 格定性为夹具内容依赖（与 SRT/JSON 同类），per-channel `needs_cleanup` 39 → 29
+
 ### 2026-10-30：基础设施整改轮（plan `.omo/plans/2026-10-30-infrastructure-remediation-plan.md`）
 
 - Date: 2026-10-30；触发：审计报告 `docs/project-infrastructure-audit-2026-10-30.md` 的整改落地
