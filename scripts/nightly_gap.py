@@ -18,8 +18,10 @@ DoD：**201 个格子 × 2 条通道（CLI / MCP）= 402 次格子运行**全部
    —— 它是 DoD 的差距本体；**豁免的 skip**（因夹具内容缺失而必然跳过，
    `EXEMPT_SKIP_REASONS`）是夹具内容依赖、非能力缺陷，**不计入 `gap_units`**，
    要清掉它们需要补语料。豁免项**仍原样出现在通道 skipped 总数里**，不静默吞掉。
-   另设**回归护栏** `regression_gap`（每通道 skip 不得超过 `--max-skip`），
-   专门抓「跳过数变多」的退步。
+   另设**回归护栏** `regression_gap`（逐格比对 + 每通道 skip 不得超过 `--max-skip`），
+   专门抓「跳过数变多」与「两通道对同一格判定分叉」两类退步——
+   2026-10-30 实测 CLI skip 65 / MCP skip 55，总数恰差 10（CLI 多 skip 的
+   MD→CSV 守卫 MCP 没有，issue #234），只比总数的旧护栏完全看不见。
 2. **解释器必须先探活**。验证器按 `suite_root/.venv_ol/bin/python` 选解释器，
    选到缺 `opp`/`orf`/`ol_cli` 的环境时**不会报环境错**，而是让 201 格逐个 FAIL ——
    实测拿到过 128 fail / 0 pass 的**全假红**矩阵。故先探活，不通即 exit 2。
@@ -41,8 +43,9 @@ DoD：**201 个格子 × 2 条通道（CLI / MCP）= 402 次格子运行**全部
    ——「还需清理的跳过格子数」，夹具内容依赖的豁免项不算差距。
    `gap_units == 0` → exit 0；否则 exit 1。
 2. **回归护栏（只抓退步，不参与判定）**
-   `regression_gap = fail 合计 + Σ_通道 max(0, skipped_通道 − --max-skip)`
-   —— **每通道**基线（默认 67/通道），两条通道各自比、不相加。
+   `regression_gap = fail 合计 + CLI/MCP 逐格分叉数 + Σ_通道 max(0, skipped_通道 − --max-skip)`
+   —— **逐格分叉**：同一格 `(inp, outp, path)` 在两通道 status 不一致
+   （或缺侧）即计 1（issue #234）；**每通道**基线（默认 67/通道）各自比、不相加。
    护栏 0 **≠ 达标**：把 `--max-skip` 调宽只会洗掉退步告警，
    洗不掉 DoD 差距（exit 仍由 `gap_units` 定）。
 
@@ -69,6 +72,7 @@ EXEMPT_SKIP_REASONS = (
     # 仍属「需清理的 skip」。
     "MD→SRT requires timestamped cues",
     "MD→JSON requires JSON code block",
+    "MD→CSV requires a table",
     "XLSX→PPTX: no slide content",
     "PPTX→XLSX: no table content",
 )
@@ -171,6 +175,44 @@ def tally_cells(cells: list) -> tuple[dict, dict, dict]:
     return skips, fails, exempt
 
 
+def find_divergent_cells(cells_a: list, cells_b: list,
+                         name_a: str = "CLI", name_b: str = "MCP") -> list[dict]:
+    """逐格比对两条通道（issue #234）：同一格 ``(inp, outp, path)`` 状态不一致 → 分叉。
+
+    只比 status（pass/skip/fail），不比产物字节。某一侧缺格也算分叉
+    （status 记为 "missing"）——通道丢格是比状态分叉更糟的静默退步。
+    返回列表每项：{"cell": {inp, outp, path}, name_a: {status, reason},
+    name_b: {status, reason}}（理由取 skip_reason 或 detail，可为空串）。
+    """
+    def _key(c: dict) -> tuple:
+        return (c.get("inp"), c.get("outp"), c.get("path"))
+
+    def _side(cells: list) -> dict:
+        return {_key(c): c for c in cells if c.get("inp") is not None}
+
+    def _record(c: dict | None, status: str) -> dict:
+        if c is None:
+            return {"status": "missing", "reason": ""}
+        return {"status": status,
+                "reason": (c.get("skip_reason") or c.get("detail") or "").strip()}
+
+    map_a, map_b = _side(cells_a), _side(cells_b)
+    out: list[dict] = []
+    for k in sorted(set(map_a) | set(map_b),
+                    key=lambda t: (str(t[2]), str(t[0]), str(t[1]))):
+        a, b = map_a.get(k), map_b.get(k)
+        sa = (a or {}).get("status", "missing")
+        sb = (b or {}).get("status", "missing")
+        if sa == sb:
+            continue
+        out.append({
+            "cell": {"inp": k[0], "outp": k[1], "path": k[2]},
+            name_a: _record(a, sa),
+            name_b: _record(b, sb),
+        })
+    return out
+
+
 def supported_flags(script: str) -> dict:
     """验证器支持哪些透传参数（**能力探测**，不硬编码——MCP 验证器暂不认 --fidelity）。"""
     src = (REPO / "scripts" / script).read_text(encoding="utf-8")
@@ -234,6 +276,7 @@ def run_verifier(python: str, script: str, out_dir: Path, timeout: int,
         payload["skip_reasons"] = skips
         payload["failed_cells"] = fails
         payload["exempt_skip_reasons"] = exempt
+        payload["_cells"] = d.get("cells") or []  # main() 里逐格比对用，写盘前剔除
     else:
         payload["error"] = (f"没有产出 matrix.json；rc={r.returncode}；"
                             f"stderr={r.stderr.strip()[-400:]}")
@@ -300,6 +343,7 @@ def main(argv: list[str] | None = None) -> int:
             payload["skip_reasons"] = skips
             payload["failed_cells"] = fails
             payload["exempt_skip_reasons"] = exempt
+            payload["_cells"] = raw.get("cells") or []  # main() 里逐格比对用，写盘前剔除
             channels[name] = payload
         else:
             channels[name] = run_verifier(python, script, d, args.timeout,
@@ -328,6 +372,19 @@ def main(argv: list[str] | None = None) -> int:
               f"  这可能是**真变化**（矩阵扩展/收缩），也可能是取数出了问题。\n"
               f"  不自动放行，需人确认后调整 --expect-total。{hint}", file=sys.stderr)
         return 2
+
+    # —— 回归护栏第 3 项：CLI/MCP 逐格比对（issue #234）——
+    # skip 总数相同也可能藏分叉（实测：CLI skip 65 / MCP skip 55，总数恰差 10，
+    # 旧护栏只比总数就看不见）。同一格两通道状态不一致（或缺侧）计入 regression_gap。
+    _cells_by_ch = {n: (channels[n].pop("_cells", None) or []) for n in channels}
+    _ch_names = sorted(_cells_by_ch)
+    divergent_cells: list[dict] = []
+    for i in range(len(_ch_names)):
+        for j in range(i + 1, len(_ch_names)):
+            divergent_cells += find_divergent_cells(
+                _cells_by_ch[_ch_names[i]], _cells_by_ch[_ch_names[j]],
+                _ch_names[i], _ch_names[j])
+    divergence = len(divergent_cells)
 
     # —— 两个口径，物理分开 ——
     # 1) DoD 口径（判定与退出码用它）：gap = fail 合计 + Σ_通道 (skipped − exempt)
@@ -364,10 +421,11 @@ def main(argv: list[str] | None = None) -> int:
     needs_cleanup_total = sum(needs_cleanup.values())
     excess_total = sum(excess.values())
     gap_units = failed + needs_cleanup_total            # DoD 口径：判定与退出码
-    regression_gap = failed + excess_total              # 回归护栏：只抓退步
+    # 回归护栏：只抓退步 —— fail 合计 + 逐格分叉（issue #234）+ 每通道 skip 超基线
+    regression_gap = failed + divergence + excess_total
 
     result = {
-        "schema": "nightly-gap/1",
+        "schema": "nightly-gap/2",
         "project": "Omni Suite",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "interpreter": python,
@@ -380,9 +438,12 @@ def main(argv: list[str] | None = None) -> int:
         # —— 判定口径：DoD（还需清理的跳过 + fail）。exit 由它决定 ——
         "gap_units": gap_units,
         "gap_mode": "needs_cleanup_plus_failed",
-        # —— 回归护栏：跳过数有没有变多（每通道比 --max-skip）。**不参与判定** ——
+        # —— 回归护栏：逐格分叉（issue #234）+ 跳过数有没有变多（每通道比 --max-skip）。
+        #    **不参与判定**（exit 只由 gap_units 决定）——
         "regression_gap": regression_gap,
-        "regression_mode": "per_channel_max_skip",
+        "regression_mode": "per_cell_divergence_plus_max_skip",
+        "channel_divergence": divergence,
+        "divergent_cells": divergent_cells,
         "needs_cleanup_total": needs_cleanup_total,
         "per_channel": per_channel,
         "exempt_skips": exempt_skips,
@@ -394,10 +455,17 @@ def main(argv: list[str] | None = None) -> int:
 
     # —— 护栏与判定是两个数，判定行必须同时给出，避免「护栏 0 = 达标」的误读 ——
     if regression_gap > 0:
-        guard = (f"回归护栏 {regression_gap} > 基线 {args.max_skip}/通道："
-                 f"跳过数变多 = 退步")
+        parts = []
+        if divergence:
+            parts.append(f"CLI/MCP 逐格比对 {divergence} 格状态分叉")
+        if excess_total:
+            parts.append(f"skip 超基线 {args.max_skip}/通道 {excess_total} 格")
+        if failed:
+            parts.append(f"fail {failed} 格")
+        guard = f"回归护栏 {regression_gap} > 0（{'；'.join(parts)}）= 退步"
     else:
-        guard = f"回归护栏 {regression_gap} ≤ 基线 {args.max_skip}/通道"
+        guard = (f"回归护栏 {regression_gap} ≤ 基线 {args.max_skip}/通道"
+                 f"且无逐格分叉")
     split = " · ".join(f"{n} {needs_cleanup[n]} = 总 skip "
                        f"{per_channel[n]['skipped']} − 豁免 "
                        f"{per_channel[n]['exempt']}" for n in channels)
@@ -418,9 +486,11 @@ def main(argv: list[str] | None = None) -> int:
           f"Σ_通道 (skipped − exempt) = {failed} + {needs_cleanup_total} = "
           f"**{gap_units}**（= 还需清理的跳过格子数，**豁免项不算差距**）",
           f"- 回归护栏（只抓退步，**不决定判定**）：`regression_gap` = fail 合计 + "
-          f"Σ_通道 max(0, skipped − {args.max_skip}) = {failed} + {excess_total} = "
+          f"逐格分叉（CLI/MCP 状态不一致的格子）+ Σ_通道 max(0, skipped − "
+          f"{args.max_skip}) = {failed} + {divergence} + {excess_total} = "
           f"**{regression_gap}**（基线 {args.max_skip}/通道；**护栏通过 ≠ 达标**，"
-          "调宽 `--max-skip` 不会让差距消失）",
+          "调宽 `--max-skip` 不会让差距消失；逐格分叉是 issue #234 的教训——"
+          "skip 总数相同也可能藏着通道分叉）",
           f"- 解释器：`{python}`（已探活 {', '.join(REQUIRED_MODULES)}）",
           f"- 合计：**{total}** 格（CLI + MCP）· passed **{passed}** · "
           f"failed **{failed}** · skipped **{skipped}**"
@@ -452,6 +522,20 @@ def main(argv: list[str] | None = None) -> int:
                   f"超额 {pc['regression_excess']}")
         md.append(f"    - skip 拆分：豁免 {pc['exempt']}（夹具内容依赖）+ "
                   f"需清理 {pc['needs_cleanup']}")
+    if divergent_cells:
+        md.append(f"- ⚠️ 逐格分叉（channel_divergence）：**{divergence} 格**两通道状态不一致"
+                  " —— 同一格 CLI 与 MCP 必须同 pass / 同 skip / 同 fail"
+                  "（issue #234：CLI skip / MCP pass 的分叉曾藏在 skip 总数里）")
+        for dcell in divergent_cells[:20]:
+            sides = {k: v for k, v in dcell.items() if k != "cell"}
+            side_txt = " vs ".join(
+                f"{name}={side['status']}"
+                + (f"[{side['reason'][:40]}]" if side["reason"] else "")
+                for name, side in sides.items())
+            c0 = dcell["cell"]
+            md.append(f"  - `{c0['inp']}→{c0['outp']} ({c0['path']})`：{side_txt}")
+        if divergence > 20:
+            md.append(f"  - ……其余 {divergence - 20} 格见 JSON 的 divergent_cells")
     md.append("")
     md.append(f"- 豁免 skip（exempt_skips）：CLI {exempt_skips.get('CLI', 0)} · "
               f"MCP {exempt_skips.get('MCP', 0)}"

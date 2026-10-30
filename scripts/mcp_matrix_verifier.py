@@ -161,6 +161,24 @@ def _should_skip(inp: str, outp: str, path: str) -> str | None:
     return _check_skip(inp, outp, path)
 
 
+def _md_csv_skip(outp: str, md_text: str) -> str | None:
+    """Runtime twin of the CLI verifier's MD→CSV table guard (e2e-test-suite#234).
+
+    ``_check_skip`` only sees the static rule table — it cannot see the
+    extracted MD — so the MD→CSV no-table guard must run per cell after OPP
+    returns ``md_content``. Same trigger, same reason string as the CLI
+    channel (``MD_CSV_TABLE_SKIP_REASON``), so both transports classify the
+    cell identically.
+    """
+    if outp != "csv":
+        return None
+    from format_matrix_verifier import MD_CSV_TABLE_SKIP_REASON, _has_markdown_table
+
+    if _has_markdown_table(md_text):
+        return None
+    return MD_CSV_TABLE_SKIP_REASON
+
+
 async def _run_one_cell_mcp(
     inp: str, outp: str, path: str,
     src: Path, cell_dir: Path,
@@ -188,6 +206,10 @@ async def _run_one_cell_mcp(
                 return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
                                      opp_tool=opp_tool,
                                      detail=f"OPP MCP: no md_content in response: {opp_resp}")
+            csv_skip = _md_csv_skip(outp, md_content)
+            if csv_skip:
+                return MCPCellResult(inp, outp, path, "skip", time.monotonic() - t0,
+                                     opp_tool=opp_tool, skip_reason=csv_skip)
             opp_traceparent = opp_resp.get("traceparent")
 
             (cell_dir / "ol").mkdir(parents=True, exist_ok=True)

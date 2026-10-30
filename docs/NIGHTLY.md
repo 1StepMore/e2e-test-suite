@@ -141,14 +141,17 @@ cd <repo>
 # 1) DoD 口径 —— 判定与退出码只用它
 gap_units      = fail 合计 + Σ_通道 (skipped_通道 − exempt_通道)      # = 还需清理的跳过格子数
 
-# 2) 回归护栏 —— 只抓「跳过数变多」的退步，不参与判定
-regression_gap = fail 合计 + Σ_通道 max(0, skipped_通道 − --max-skip)  # 每通道比，各比各的
+# 2) 回归护栏 —— 只抓「跳过数变多」与「两通道判定分叉」的退步，不参与判定
+regression_gap = fail 合计 + CLI/MCP 逐格分叉数 + Σ_通道 max(0, skipped_通道 − --max-skip)
+#                 ^^^^^^^^^^^^^^^^^ issue #234：同一格两通道 status 不一致（或缺侧）计 1
 ```
 
 - **`gap_units == 0` → exit 0；否则 exit 1。** 护栏通过 **≠ 达标**：
   把 `--max-skip` 调宽只会洗掉退步告警，洗不掉 DoD 差距（exit 仍由 `gap_units` 定）。
 - CLI、MCP **各自**跟 `--max-skip` 比一次；JSON 看顶层 `regression_gap`（= 各通道
-  `regression_excess` 之和 + fail）与 `per_channel: {CLI: {total, passed, skipped,
+  `regression_excess` 之和 + 逐格分叉 `channel_divergence` + fail；分叉明细在
+  顶层 `divergent_cells`，每格带两通道 status/reason）与
+  `per_channel: {CLI: {total, passed, skipped,
   failed, exempt, needs_cleanup, regression_excess}, MCP: {…}}`，
   顶层 `channels` 里保留各通道原始 `total/passed/skipped`。
 - JSON 另带 `run_options: {subset, corpus, fidelity}` —— 每份矩阵自带口径，横向可比。
@@ -193,6 +196,8 @@ regression_gap = fail 合计 + Σ_通道 max(0, skipped_通道 − --max-skip)  
 
 - `MD→SRT requires timestamped cues`
 - `MD→JSON requires JSON code block`
+- `MD→CSV requires a table`（2026-10-31 起，issue #234：最小夹具多数输入格式
+  抽不出表格，属夹具内容依赖；该守卫两通道共用 `MD_CSV_TABLE_SKIP_REASON`）
 - `XLSX→PPTX: no slide content`
 - `PPTX→XLSX: no table content`
 

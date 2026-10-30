@@ -350,6 +350,12 @@ def _artifact_defect(path: Path, outp: str) -> str | None:
     return None
 
 
+#: Shared with the MCP verifier so both transports emit the identical skip
+#: reason for the MD→CSV no-table runtime guard (e2e-test-suite#234). The
+#: static SKIP_RULES cannot see the extracted MD, so this guard runs per cell
+#: after OPP produces the intermediate Markdown — in both channels.
+MD_CSV_TABLE_SKIP_REASON = "MD→CSV requires a table; intermediate MD has none"
+
 _SEPARATOR_CELL_RE = re.compile(r":?-{3,}:?")
 
 
@@ -470,7 +476,7 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
             if not _has_markdown_table(md_text):
                 return CellResult(
                     inp, outp, "md", "skip", time.monotonic() - t0,
-                    skip_reason="MD→CSV requires a table; intermediate MD has none",
+                    skip_reason=MD_CSV_TABLE_SKIP_REASON,
                 )
 
         ol_dir = cell_dir / "ol"
