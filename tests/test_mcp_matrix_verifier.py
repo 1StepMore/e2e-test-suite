@@ -9,14 +9,10 @@ identical skip *totals*. These tests lock in the shared guard.
 from __future__ import annotations
 
 import asyncio
-import sys
 from pathlib import Path
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
-sys.path.insert(0, str(_SCRIPTS_DIR))
-
-import format_matrix_verifier as fmv  # noqa: E402
-import mcp_matrix_verifier as mmv  # noqa: E402
+from scripts import format_matrix_verifier as fmv  # noqa: E402  (issue #223 P2.1)
+from scripts import mcp_matrix_verifier as mmv  # noqa: E402
 
 
 class _FakeSession:

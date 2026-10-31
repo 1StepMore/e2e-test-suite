@@ -22,9 +22,7 @@ with explicit tmp run dirs where a failure is simulated; no real
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -35,13 +33,10 @@ _DIFF_PATH = SUITE_ROOT / "scripts" / "validation" / "validation_diff.py"
 
 
 def _load_diff():
-    """Import scripts/validation/validation_diff.py from its file path."""
-    spec = importlib.util.spec_from_file_location("validation_diff", _DIFF_PATH)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    sys.modules["validation_diff"] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    """Import the sibling diff module through the package (issue #223 P2.1)."""
+    from scripts.validation import validation_diff
+
+    return validation_diff
 
 
 diff = _load_diff()

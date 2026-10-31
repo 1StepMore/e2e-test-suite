@@ -18,7 +18,6 @@ The baseline these tests pin: before R-07, a ``pipeline-*`` scenario with
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import textwrap
 from pathlib import Path
@@ -276,14 +275,10 @@ def test_invalid_does_not_run_into_failed(tmp_path):
 
 
 def _load_report_module():
-    spec = importlib.util.spec_from_file_location(
-        "validation_report_under_test_r07",
-        _REPO_ROOT / "scripts" / "validation" / "validation_report.py",
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    """Load the report module through the scripts package (issue #223 P2.1)."""
+    from scripts.validation import validation_report
+
+    return validation_report
 
 
 def test_invalid_does_not_render_green_in_report():

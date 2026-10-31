@@ -50,7 +50,6 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime
-import importlib.util
 import os
 import re
 import sys
@@ -635,24 +634,6 @@ _REPO_DIR_MAP: dict[str, list[str]] = {
 REPO_HELP = "scenario source repo(s): suite (default), opp, ol, orf, or all"
 
 
-def _load_script(name: str, rel_path: str) -> Any:
-    """Lazily load a ``scripts/validation`` module by path.
-
-    ``scripts/`` has no package ``__init__``, so a plain import cannot
-    resolve from ``omni_mcp``; importlib by absolute path keeps the
-    post-run extras (report card, delivery package) out of ``--help`` /
-    ``--check`` / ``--list`` hot paths.  Raises ImportError when the
-    target file is missing.
-    """
-    target = Path(__file__).resolve().parents[2] / rel_path
-    spec = importlib.util.spec_from_file_location(name, target)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load {target}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def _exit_code(matrix_exit_code: int | None, scenario_failures: bool) -> int:
     """Map the artifact and scenario outcomes onto the CLI exit contract."""
     if matrix_exit_code is not None:
@@ -872,9 +853,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.matrix:
         if args.artifacts is not None:
             try:
-                _amod = _load_script(
-                    "artifact_matrix", "scripts/validation/artifact_matrix.py"
-                )
+                # Package import (issue #223 P2.1): scripts/ is a regular
+                # package now; the import stays inside the branch so the
+                # post-run extras stay out of --help/--check/--list hot paths.
+                from scripts.validation import artifact_matrix as _amod
+
                 module = args.module or args.repo or "suite"
                 report = _amod.build_artifact_report(
                     args.artifacts, module, run.run_dir
@@ -898,9 +881,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
         else:
             try:
-                _report_mod = _load_script(
-                    "validation_report", "scripts/validation/validation_report.py"
-                )
+                from scripts.validation import validation_report as _report_mod
+
                 report_scenarios_dir = args.scenarios_dir if args.repo is None else dirs[0]
                 run_dir = run.run_dir
                 if run_dir is None:
@@ -914,9 +896,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.deliver:
         try:
-            _delivery_mod = _load_script(
-                "make_delivery_package", "scripts/validation/make_delivery_package.py"
-            )
+            from scripts.validation import make_delivery_package as _delivery_mod
+
             zip_path = _delivery_mod.build_delivery(
                 run.run_dir,
                 "04-Output/artifacts/deliverables/omni-suite",

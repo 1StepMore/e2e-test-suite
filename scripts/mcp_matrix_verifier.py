@@ -25,6 +25,12 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 SUITE_ROOT = SCRIPT_DIR.parent
 
+# Direct execution bootstrap — ONE documented insertion (issue #223 P2.1):
+# sibling modules are imported through the scripts package, which needs
+# the suite root on sys.path when this file is run as a script.
+if str(SUITE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SUITE_ROOT))
+
 
 # ---------------------------------------------------------------------------
 # Result types
@@ -156,7 +162,7 @@ def _should_skip(inp: str, outp: str, path: str) -> str | None:
     Delegates to the CLI verifier's dynamic availability check so both
     transports share one rule table (e2e-test-suite#128).
     """
-    from format_matrix_verifier import _check_skip
+    from scripts.format_matrix_verifier import _check_skip
 
     return _check_skip(inp, outp, path)
 
@@ -172,7 +178,7 @@ def _md_csv_skip(outp: str, md_text: str) -> str | None:
     """
     if outp != "csv":
         return None
-    from format_matrix_verifier import MD_CSV_TABLE_SKIP_REASON, _has_markdown_table
+    from scripts.format_matrix_verifier import MD_CSV_TABLE_SKIP_REASON, _has_markdown_table
 
     if _has_markdown_table(md_text):
         return None
@@ -324,7 +330,7 @@ async def _run_one_cell_mcp(
 # ---------------------------------------------------------------------------
 
 async def _run_matrix(args) -> int:
-    from format_matrix_verifier import FULL_MATRIX, _resolve_fixture
+    from scripts.format_matrix_verifier import FULL_MATRIX, _resolve_fixture
 
     env = os.environ.copy()
     env["OMNI_TEST_FAKE_LLM"] = "1"

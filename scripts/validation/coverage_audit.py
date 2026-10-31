@@ -71,6 +71,10 @@ from typing import Any
 
 import yaml
 
+# issue #223 P2.1: one scenario-file rule, shared with doc_inventory
+# (scripts/validation/scenario_discovery.py; scripts/ is a package).
+from scripts.validation.scenario_discovery import iter_scenario_yamls
+
 #: Suite root: this module lives at <root>/scripts/validation/coverage_audit.py.
 SUITE_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -161,7 +165,7 @@ def load_scenario_used(scenarios_dir: Path) -> tuple[set[str], int]:
     """
     used: set[str] = set()
     file_count = 0
-    for yf in sorted(scenarios_dir.rglob("*.yaml")):
+    for yf in iter_scenario_yamls(scenarios_dir):
         file_count += 1
         base = yf.name
         if base.startswith("tool-"):
@@ -280,7 +284,7 @@ def load_tool_arguments(scenarios_dir: Path, module: str, tool: str) -> dict[str
     tool is exercised with the same inputs an agent-user would supply.
     """
     target = f"tool-{module}-{tool}.yaml"
-    for yf in sorted(scenarios_dir.rglob("*.yaml")):
+    for yf in iter_scenario_yamls(scenarios_dir):
         if yf.name != target:
             continue
         try:

@@ -37,6 +37,12 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# Direct execution bootstrap — ONE documented insertion (issue #223 P2.1):
+# scenario discovery comes from the scripts package, which needs the suite
+# root on sys.path when this file is run as a script (pre-commit / CI).
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 DOCS = ROOT / "docs"
 OUT = DOCS / "dev" / "doc-inventory.md"
 TESTS = ROOT / "tests"
@@ -683,7 +689,9 @@ def check_scenarios(root: Path, failures: list[str]) -> None:
     if not scenarios.is_dir():
         print("  scenarios/: absent -> skip (report-only, not a failure)")
         return
-    yamls = sorted(p for p in scenarios.rglob("*.yaml") if p.is_file())
+    from scripts.validation.scenario_discovery import iter_scenario_yamls
+
+    yamls = iter_scenario_yamls(scenarios)
     total = len(yamls)
     tiers: dict[str, int] = {}
     for p in yamls:

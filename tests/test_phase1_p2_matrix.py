@@ -7,17 +7,10 @@ so a future contributor doesn't add the invalid combination back.
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 _SUITE_ROOT = Path(__file__).resolve().parents[1]
-_SCRIPTS_DIR = _SUITE_ROOT / "scripts"
-if str(_SUITE_ROOT) not in sys.path:
-    sys.path.insert(0, str(_SUITE_ROOT))
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
-
-import phase1_runner  # noqa: E402
+from scripts import phase1_runner  # noqa: E402  (issue #223 P2.1)
 
 
 class TestP2XLIFFMatrix:

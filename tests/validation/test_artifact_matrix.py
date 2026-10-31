@@ -13,9 +13,7 @@ sibling ``artifact_assertions.py`` lazily via its own ``_load_assertions``.
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 import zipfile
 from pathlib import Path
 
@@ -36,13 +34,10 @@ Some plain content.
 
 
 def _load_matrix():
-    """Import scripts/validation/artifact_matrix.py from its file path."""
-    spec = importlib.util.spec_from_file_location("artifact_matrix", _SCRIPT_PATH)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    sys.modules["artifact_matrix"] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    """Import the sibling matrix module through the package (issue #223 P2.1)."""
+    from scripts.validation import artifact_matrix
+
+    return artifact_matrix
 
 
 matrix = _load_matrix()

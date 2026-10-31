@@ -11,15 +11,9 @@ and asserts the function returns non-zero instead of raising.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-_OMO_LOOP_DIR = Path(__file__).resolve().parent.parent / "scripts"
-sys.path.insert(0, str(_OMO_LOOP_DIR))
-
-from omo_loop import _run_verify_all  # noqa: E402
+from scripts.omo_loop import _run_verify_all  # noqa: E402  (issue #223 P2.1)
 
 
 class TestAutonomousFix:

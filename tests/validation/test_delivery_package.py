@@ -22,9 +22,7 @@ small artifact files, so copies genuinely land in ``01-RAW/``.
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 import zipfile
 from pathlib import Path
 
@@ -36,14 +34,11 @@ _PACKAGE_PATH = SUITE_ROOT / "scripts" / "validation" / "make_delivery_package.p
 
 
 def _load_package():
-    """Import scripts/validation/make_delivery_package.py from its file
-    path (scripts/ is not a package)."""
-    spec = importlib.util.spec_from_file_location("make_delivery_package", _PACKAGE_PATH)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    sys.modules["make_delivery_package"] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    """Import the sibling delivery-packaging module through the package
+    (issue #223 P2.1)."""
+    from scripts.validation import make_delivery_package
+
+    return make_delivery_package
 
 
 pkg = _load_package()

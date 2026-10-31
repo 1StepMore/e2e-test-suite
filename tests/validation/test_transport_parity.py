@@ -22,8 +22,6 @@ Parity semantics (documented in dispatch.py):
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 
 import pytest
@@ -39,13 +37,11 @@ _AUDIT_PATH = SUITE_ROOT / "scripts" / "validation" / "coverage_audit.py"
 
 
 def _load_audit():
-    """Import scripts/validation/coverage_audit.py from its file path."""
-    spec = importlib.util.spec_from_file_location("coverage_audit", _AUDIT_PATH)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    sys.modules["coverage_audit"] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    """Import the sibling coverage-audit module through the package
+    (issue #223 P2.1)."""
+    from scripts.validation import coverage_audit
+
+    return coverage_audit
 
 
 audit = _load_audit()

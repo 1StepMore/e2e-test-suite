@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import importlib.util
 import json
 import re
 import shutil
@@ -39,18 +38,21 @@ from typing import Any
 SUITE_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUT_DIR = str(SUITE_ROOT / "04-Output" / "artifacts" / "deliverables" / "omni-suite")
 
-_REPORT_PATH = SUITE_ROOT / "scripts" / "validation" / "validation_report.py"
+# Direct execution bootstrap — same contract as artifact_matrix.py
+# (issue #223 P2.1): the sibling import below goes through the package.
+if str(SUITE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SUITE_ROOT))
 
 
 def _load_report_module() -> Any:
-    """Import scripts/validation/validation_report.py from its file path
-    (scripts/ is not a package)."""
-    spec = importlib.util.spec_from_file_location("validation_report", _REPORT_PATH)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules["validation_report"] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    """Lazily import the sibling report module through the package.
+
+    Imported as ``scripts.validation.validation_report`` so direct execution
+    and the omni_mcp CLI resolve the SAME module object (issue #223 P2.1).
+    """
+    from scripts.validation import validation_report
+
+    return validation_report
 
 
 def _resolve_run_dir(run_arg: str | None) -> Path:

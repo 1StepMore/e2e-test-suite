@@ -9,15 +9,11 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
-sys.path.insert(0, str(_SCRIPTS_DIR))
-
-import format_matrix_verifier as fmv  # noqa: E402
+from scripts import format_matrix_verifier as fmv  # noqa: E402  (issue #223 P2.1)
 
 
 class TestAvailability:

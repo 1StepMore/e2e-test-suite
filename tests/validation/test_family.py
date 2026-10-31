@@ -14,7 +14,6 @@ its fake-invalid decision.
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
 from omni_mcp.validation.family import (
@@ -171,16 +170,10 @@ def test_all_steps_agent_surface_human_quality_anchor_is_ineligible():
 
 
 def _load_report_module():
-    """Load ``scripts/validation/validation_report.py`` by absolute path
-    (``scripts/`` is not a package — same mechanism cli.py uses)."""
-    spec = importlib.util.spec_from_file_location(
-        "validation_report_under_test",
-        _REPO_ROOT / "scripts" / "validation" / "validation_report.py",
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    """Load the report module through the scripts package (issue #223 P2.1)."""
+    from scripts.validation import validation_report
+
+    return validation_report
 
 
 def test_report_uses_the_package_family_of():

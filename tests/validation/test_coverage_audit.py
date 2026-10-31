@@ -30,8 +30,6 @@ one real small-module run (omni_mcp, 4 tools) proving execution is real.
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 
 import pytest
@@ -42,15 +40,11 @@ _AUDIT_PATH = SUITE_ROOT / "scripts" / "validation" / "coverage_audit.py"
 
 
 def _load_audit():
-    """Import scripts/validation/coverage_audit.py from its file path."""
-    spec = importlib.util.spec_from_file_location("coverage_audit", _AUDIT_PATH)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    # Register before exec so dataclass forward references resolve
-    # (``dataclasses`` looks the class module up in sys.modules).
-    sys.modules["coverage_audit"] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    """Import the sibling coverage-audit module through the package
+    (issue #223 P2.1)."""
+    from scripts.validation import coverage_audit
+
+    return coverage_audit
 
 
 audit = _load_audit()
@@ -491,16 +485,7 @@ def test_coverage_delta_diffs_snapshots(tmp_path: Path):
     """compute_coverage_delta between two snapshot-carrying runs returns
     the delta — numeric counts diff arithmetically, list membership by
     added/removed (validation_diff consumes this)."""
-    import importlib.util
-    import sys as _sys
-
-    diff_spec = importlib.util.spec_from_file_location(
-        "validation_diff", SUITE_ROOT / "scripts" / "validation" / "validation_diff.py"
-    )
-    diff_mod = importlib.util.module_from_spec(diff_spec)
-    assert diff_spec.loader is not None
-    _sys.modules["validation_diff"] = diff_mod
-    diff_spec.loader.exec_module(diff_mod)
+    from scripts.validation import validation_diff as diff_mod
 
     older = tmp_path / "20260814-100000"
     newer = tmp_path / "20260814-200000"

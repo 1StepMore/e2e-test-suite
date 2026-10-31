@@ -429,6 +429,9 @@ def load_scenarios(scenarios_dir: str | Path = "scenarios") -> list[dict[str, An
     if not sd.is_dir():
         return scenarios
 
+    # Canonical rule lives in scripts/validation/scenario_discovery.py
+    # (issue #223 P2.1) — kept inline here because the MCP server may start
+    # from an arbitrary cwd where scripts.* imports cannot resolve.
     for yaml_path in sorted(sd.rglob("*.yaml")):
         # Skip dot-dirs (.git/, .hidden/, ...) — they are not scenario libraries.
         if any(part.startswith(".") for part in yaml_path.parts):

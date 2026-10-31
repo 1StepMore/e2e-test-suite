@@ -19,10 +19,13 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-
-sys.path.insert(0, str(SCRIPT_DIR))
-from fidelity_checker import compute_fidelity  # noqa: E402
+# Direct execution bootstrap — ONE documented insertion (issue #223 P2.1):
+# the sibling import below goes through the scripts package, which needs
+# the suite root on sys.path when this file is run as a script.
+SUITE_ROOT = Path(__file__).resolve().parents[1]
+if str(SUITE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SUITE_ROOT))
+from scripts.fidelity_checker import compute_fidelity  # noqa: E402
 
 
 @dataclass

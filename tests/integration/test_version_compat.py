@@ -22,9 +22,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
-from fidelity_checker import compute_fidelity  # noqa: E402
+from scripts.fidelity_checker import compute_fidelity  # noqa: E402  (issue #223 P2.1)
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent.parent
 PYTHON = sys.executable

@@ -45,7 +45,6 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import importlib.util
 import json
 import sys
 import tempfile
@@ -54,7 +53,13 @@ from pathlib import Path
 from typing import Any
 
 SUITE_ROOT = Path(__file__).resolve().parents[2]
-_ASSERTIONS_REL = "scripts/validation/artifact_assertions.py"
+
+# Direct execution (`python scripts/validation/artifact_matrix.py ...`) puts
+# scripts/validation/ on sys.path[0]; the package import below needs the suite
+# root. One documented bootstrap for this entry script (issue #223 P2.1) —
+# tests import through the package instead.
+if str(SUITE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SUITE_ROOT))
 
 #: Known modules (mirrors the scenario library module names).  ``all`` is
 #: accepted so a delivery package covering every module can be asserted in
@@ -63,26 +68,22 @@ _KNOWN_MODULES = ("opp", "ol", "orf", "suite", "all")
 
 
 def _load_assertions() -> Any:
-    """Lazily import ``scripts/validation/artifact_assertions.py`` by path.
+    """Lazily import the sibling assertions module through the package.
 
-    ``scripts/`` has no package ``__init__``, so a plain import cannot
-    resolve; importlib by absolute path keeps the dependency out of the
-    ``--help`` hot path.  Raises ImportError with a clear message when the
-    sibling module is not present yet.
+    Imported as ``scripts.validation.artifact_assertions`` so direct
+    execution and test imports resolve the SAME module object; kept inside
+    the function so the dependency stays out of the ``--help`` hot path.
+    Raises ImportError with a clear message when the sibling module is not
+    present yet.
     """
-    target = SUITE_ROOT / _ASSERTIONS_REL
-    if not target.is_file():
+    try:
+        from scripts.validation import artifact_assertions
+    except ModuleNotFoundError as exc:
         raise ImportError(
-            f"artifact_assertions module not found at {target} — the "
-            "artifact-assertion matrix cannot run until it exists"
-        )
-    spec = importlib.util.spec_from_file_location("artifact_assertions", target)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load {target}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["artifact_assertions"] = module
-    spec.loader.exec_module(module)
-    return module
+            "artifact_assertions module not found — the artifact-assertion "
+            "matrix cannot run until it exists"
+        ) from exc
+    return artifact_assertions
 
 
 def _result_dict(result: Any) -> dict[str, Any]:

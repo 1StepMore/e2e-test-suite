@@ -8,17 +8,15 @@ Locks in:
 from __future__ import annotations
 
 import shutil
-import sys
 from pathlib import Path
 
 import pytest
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
-sys.path.insert(0, str(_SCRIPTS_DIR))
-
-import corpus_generator  # noqa: E402
-import equivalence_checker  # noqa: E402
-import fidelity_checker  # noqa: E402
+from scripts import (  # noqa: E402  (issue #223 P2.1)
+    corpus_generator,
+    equivalence_checker,
+    fidelity_checker,
+)
 
 
 @pytest.fixture
