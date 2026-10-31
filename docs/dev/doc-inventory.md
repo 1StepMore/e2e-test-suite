@@ -14,14 +14,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Metric | Value |
 |--------|-------|
 | Total files | 63 |
-| Total lines | 34793 |
+| Total lines | 34806 |
 | Active files | 39 |
 | Archived files | 24 |
 | Category — archive | 24 files / 25391 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 18 files / 2769 lines |
-| Category — docs/root | 18 files / 5293 lines |
+| Category — docs/dev | 18 files / 2777 lines |
+| Category — docs/root | 18 files / 5298 lines |
 
 ## Inventory
 
@@ -34,7 +34,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
 | `HANDOVER.md` | 620 | docs/root | active | — |
-| `NIGHTLY.md` | 275 | docs/root | active | — |
+| `NIGHTLY.md` | 280 | docs/root | active | — |
 | `PRD.md` | 61 | docs/root | active | — |
 | `RELEASE_NOTES.md` | 23 | docs/root | active | — |
 | `SECURITY.md` | 250 | security | active | — |
@@ -48,7 +48,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `adr/0005-pdf-xliff-blocked.md` | 54 | docs/dev | active | — |
 | `adr/0006-fake-llm-hermetic-seam.md` | 53 | docs/dev | active | — |
 | `adr/0007-path-security-convergence.md` | 297 | docs/dev | active | — |
-| `adr/0008-cross-repo-copy-review.md` | 85 | docs/dev | active | — |
+| `adr/0008-cross-repo-copy-review.md` | 86 | docs/dev | active | — |
 | `adr/README.md` | 41 | docs/dev | active | — |
 | `adr/TEMPLATE.md` | 36 | docs/dev | active | — |
 | `agent-pipeline-guide.md` | 364 | docs/root | active | — |
@@ -81,7 +81,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/per-repo-validation-delivery.md` | 197 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 295 | docs/dev | active | — |
-| `dev/validation-loop-log.md` | 305 | docs/dev | active | — |
+| `dev/validation-loop-log.md` | 312 | docs/dev | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |
