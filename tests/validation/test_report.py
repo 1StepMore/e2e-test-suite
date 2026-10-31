@@ -30,9 +30,7 @@ loaded from its file path with importlib — the same convention as
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -45,13 +43,10 @@ FORBIDDEN_BLOCKER_WORDS = ("fix", "should", "recommend")
 
 
 def _load_report():
-    """Import scripts/validation/validation_report.py from its file path."""
-    spec = importlib.util.spec_from_file_location("validation_report", _REPORT_PATH)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    sys.modules["validation_report"] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    """Import the sibling report module through the package (issue #223 P2.1)."""
+    from scripts.validation import validation_report
+
+    return validation_report
 
 
 report = _load_report()

@@ -15,17 +15,14 @@ ledger to the probes and to the manifests, so the two cannot drift apart again.
 from __future__ import annotations
 
 import re
-import sys
 import tomllib
 from pathlib import Path
 
 import pytest
 
 _ROOT = Path(__file__).resolve().parent.parent
-_SCRIPTS_DIR = _ROOT / "scripts"
-sys.path.insert(0, str(_SCRIPTS_DIR))
 
-import format_matrix_verifier as fmv  # noqa: E402
+from scripts import format_matrix_verifier as fmv  # noqa: E402  (issue #223 P2.1)
 
 _VALID_KINDS = frozenset({"binary", "pip"})
 

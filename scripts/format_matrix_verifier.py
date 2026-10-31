@@ -28,6 +28,14 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+# Direct execution bootstrap — ONE documented insertion (issue #223 P2.1):
+# the sibling import below goes through the scripts package, which needs
+# the suite root on sys.path when this file is run as a script.
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+_SUITE_ROOT = _SCRIPTS_DIR.parent
+if str(_SUITE_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SUITE_ROOT))
+
 # ---------------------------------------------------------------------------
 # Availability gates
 # ---------------------------------------------------------------------------
@@ -438,7 +446,7 @@ def _run_one_cell(
         orf_out = cell_dir / f"result.{outp}"
         if orf_out.exists():
             try:
-                from fidelity_checker import compute_fidelity
+                from scripts.fidelity_checker import compute_fidelity
                 fr = compute_fidelity(src, orf_out, outp)
                 result.fidelity = fr.overall
                 result.fidelity_detail = fr.to_dict()

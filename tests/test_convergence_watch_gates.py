@@ -13,13 +13,8 @@ gate, which is a multi-minute subprocess and made this file flaky-slow.
 from __future__ import annotations
 
 import argparse
-import sys
-from pathlib import Path
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
-sys.path.insert(0, str(_SCRIPTS_DIR))
-
-import omo_loop  # noqa: E402
+from scripts import omo_loop  # noqa: E402  (issue #223 P2.1)
 
 
 def _args(max_cycles=10, consecutive_green=2, max_fix_fail=5, gate="both"):
