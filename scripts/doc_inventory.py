@@ -945,6 +945,7 @@ REFERENTIAL_SCOPE = (
     "docs/agent-pipeline-guide.md",
     "docs/ERROR_CODES.md",
     ".opencode/skills/omni-docmap/SKILL.md",
+    ".opencode/skills/omni-maintainer/SKILL.md",
 )
 
 #: Backticked paths inside instruction files; ``:NN`` line refs are stripped.
