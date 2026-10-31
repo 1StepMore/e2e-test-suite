@@ -199,10 +199,10 @@ def build_delivery(
             missing_dir = staging / "03-MISSING"
             missing_dir.mkdir()
             for entry in missing:
-                note = missing_dir / (
+                missing_note = missing_dir / (
                     f"missing-{_sanitize(entry['scenario'])}-step{entry['step_index']}.txt"
                 )
-                note.write_text(
+                missing_note.write_text(
                     f"declared collect_artifacts path not found:\n{entry['artifact_path']}\n",
                     encoding="utf-8",
                 )

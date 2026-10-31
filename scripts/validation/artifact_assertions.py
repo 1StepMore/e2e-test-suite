@@ -583,7 +583,7 @@ def _html_has_structure(path: Path, text: str, artifact: str, module: str) -> As
         and re.search(r"<[a-z][a-z0-9]*\b[^>]*>", text[500:], re.IGNORECASE)
     )
     return AssertionResult(
-        "_html_has_structure", ok, "orf", "P1", module, artifact,
+        "_html_has_structure", bool(ok), "orf", "P1", module, artifact,
         "html structure ok" if ok else "missing <html>/<body> or DOCTYPE+element",
     )
 
@@ -702,6 +702,22 @@ def _read_artifact(path: Path) -> str | bytes:
         return b""
 
 
+def _run_structure_fn(
+    fn: Callable[[Path, str, str, str], AssertionResult],
+    path: Path, raw: str | bytes, artifact: str, module: str,
+) -> AssertionResult:
+    """Call one structure assertion with a guaranteed-str ``text``.
+
+    Structure extensions are text formats, so ``raw`` is str by construction
+    (see ``_read_artifact``) — except the binary zip checks, whose fn ignores
+    the text argument. Decode defensively so the str-typed assertion contract
+    holds for every dispatch (mypy-clean, no behavior change).
+    """
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    return fn(path, raw, artifact, module)
+
+
 def _structure_groups(module: str, artifact: str) -> list[tuple[AssertionFn, ...]]:
     """Which structure groups apply to ``artifact`` under ``module``.
 
@@ -786,7 +802,7 @@ def run_assertions(
         # Module structure assertions.
         for group in _structure_groups(module, artifact):
             for fn in group:
-                results.append(fn(p, raw, artifact, module))
+                results.append(_run_structure_fn(fn, p, raw, artifact, module))
 
     # Deterministic order: (artifact, name).
     results.sort(key=lambda r: (r.artifact, r.name))

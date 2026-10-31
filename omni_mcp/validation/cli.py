@@ -859,10 +859,13 @@ def main(argv: list[str] | None = None) -> int:
                 from scripts.validation import artifact_matrix as _amod
 
                 module = args.module or args.repo or "suite"
+                matrix_run_dir = run.run_dir
+                if matrix_run_dir is None:
+                    raise RuntimeError("run directory was not persisted")
                 report = _amod.build_artifact_report(
-                    args.artifacts, module, run.run_dir
+                    args.artifacts, module, matrix_run_dir
                 )
-                report_path = _amod.write_artifact_report(report, run.run_dir)
+                report_path = _amod.write_artifact_report(report, matrix_run_dir)
                 print(f"ARTIFACT MATRIX: {report_path}")
                 counts = report.get("counts") or {}
                 p0 = int(counts.get("p0_failed") or 0)
@@ -898,8 +901,11 @@ def main(argv: list[str] | None = None) -> int:
         try:
             from scripts.validation import make_delivery_package as _delivery_mod
 
+            delivery_run_dir = run.run_dir
+            if delivery_run_dir is None:
+                raise RuntimeError("run directory was not persisted")
             zip_path = _delivery_mod.build_delivery(
-                run.run_dir,
+                delivery_run_dir,
                 "04-Output/artifacts/deliverables/omni-suite",
                 tag=None,
             )
