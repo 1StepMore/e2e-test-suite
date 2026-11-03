@@ -41,7 +41,7 @@ help:
 	@echo "  test-opp      — Run OPP CI-mode tests"
 	@echo "  test-ol       — Run OL CI-mode tests"
 	@echo "  test-orf      — Run ORF CI-mode tests"
-	@echo "  test-contract       — Run CLI + MCP contract tests (10 currently PASS)"
+	@echo "  test-contract       — Run CLI + MCP contract tests (63 currently PASS)"
 	@echo "  test-contract-cli   — Run CLI --help contract tests only (Section 7.5)"
 	@echo "  test-contract-mcp   — Run MCP tool-schema contract tests only (21 tools)"
 	@echo "  test-logs           — Run structured JSON logging tests (Phase 4.1, OMNI_LOG_FORMAT=json)"
@@ -54,7 +54,7 @@ help:
 	@echo "  fidelity-unit — Run FidelityScorer unit tests only (no scoring)"
 	@echo "  fidelity-nightly — Regenerate candidate via real LLM, then score (requires AMD_API_KEY in .env)"
 	@echo "  smoke         — Run contract smoke test"
-	@echo "  e2e           — Run real-LLM E2E pipeline tests (19 tests, nightly)"
+	@echo "  e2e           — Run real-LLM E2E pipeline tests (24 tests, nightly)"
 	@echo "  e2e-help      — Show E2E setup instructions"
 	@echo "  security-scan — Run gitleaks + bandit + pip-audit"
 	@echo "  lint          — ruff check + mypy on parent + submodules"
@@ -162,7 +162,7 @@ e2e:
 		echo "  Set them in Omni_Localizer/.env or export in your shell."; \
 		echo "  Run 'make e2e-help' for detailed setup instructions."; \
 		echo ""; \
-		echo "  All 19 tests will SKIP gracefully (not fail)."; \
+		echo "  All 24 tests will SKIP gracefully (not fail)."; \
 		echo ""; \
 	fi
 	$(E2E_ENV) $(PYTEST) tests/test_e2e_real_llm.py -v -m "nightly" --tb=short
@@ -188,7 +188,7 @@ e2e-help:
 	@echo "  3. Run: make e2e"
 	@echo ""
 	@echo "What you get:"
-	@echo "  - 19 tests across 4 tiers (per-component smoke, full E2E, LQA, formats)"
+	@echo "  - 24 tests across 4 tiers (per-component smoke, full E2E, LQA, formats)"
 	@echo "  - Full OPP→OL→ORF pipeline with REAL translations"
 	@echo "  - Estimated runtime: 25-40 minutes (depends on LLM latency)"
 	@echo ""

@@ -22,7 +22,7 @@ python scripts/validation/run_validation.py --check           # contract-lint th
 pytest tests/ -q -m "not nightly"                             # suite tests, EXCLUDING nightly
 ```
 
-> **为何排除 `nightly`（`-m "not nightly"`）**：`nightly` marker 已在 pyproject + tests/pytest.ini 注册，但 suite conftest 预置了 dummy API keys —— 若不排除，nightly 测试会真的发起 real LLM 调用或挂起，不适合作为 end-user 验证门禁。CI 本身同样使用 `-m "not nightly"`（见 .github/workflows/e2e-tests.yml:102/111/127）。
+> **为何排除 `nightly`（`-m "not nightly"`）**：`nightly` marker 已在 pyproject + tests/pytest.ini 注册，但 suite conftest 预置了 dummy API keys —— 若不排除，nightly 测试会真的发起 real LLM 调用或挂起，不适合作为 end-user 验证门禁。CI 本身同样使用 `-m "not nightly"`（见 .github/workflows/e2e-tests.yml:127/137/155）。
 
 ---
 
@@ -44,7 +44,6 @@ pytest tests/ -q -m "not nightly"                             # suite tests, EXC
 │   └── setup_dev.sh      # 一键安装脚本
 │
 ├── docs/                 # Suite-level 文档
-│   ├── AGENTS.md
 │   ├── ARCHITECTURE.md
 │   ├── API_STABILITY.md
 │   └── ...
@@ -57,6 +56,7 @@ pytest tests/ -q -m "not nightly"                             # suite tests, EXC
 ├── .venv_ol/             # ✅ Python 3.13 统一 venv
 │
 ├── .gitignore
+├── AGENTS.md             # Agent 工作说明（index + invariants）
 ├── pyproject.toml        # 根 workspace
 ├── VERSION               # Suite 版本
 ├── COMPATIBILITY.md      # 版本兼容矩阵
