@@ -51,7 +51,7 @@ OMNI_TEST_FAKE_LLM=1 OMNI_TEST_FAKE_PANDOC=1 .venv_ol/bin/python scripts/format_
 director loop in `docs/dev/validation-director-loop.md`) runs real scenarios against the
 shipped surface — see suite `AGENTS.md` → "How to validate".
 
-Derived library size: **119 scenario yaml files** (tier-1 = 105, tier-2 = 13, tier-3 = 1).
+Derived library size: **123 scenario yaml files** (tier-1 = 109, tier-2 = 13, tier-3 = 1).
 Latest recorded tier-1 sweep: `validation-runs/20260915-014100/` — 105 executed
 (passed 90, unconfigured 9, recovered 3, partial-pass 1, known-gap 1, failed 1).
 

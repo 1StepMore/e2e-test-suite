@@ -11,7 +11,7 @@
 #   test-orf      — Run ORF CI-mode tests
 #   test-contract       — Run CLI + MCP contract tests (Section 7.5 + Phase 4.7)
 #   test-contract-cli   — Run CLI --help contract tests only
-#   test-contract-mcp   — Run MCP tool-schema contract tests only (21 tools)
+#   test-contract-mcp   — Run MCP tool-schema contract tests only (37 tools)
 #   smoke         — Run contract smoke test
 #   lint          — Run ruff + mypy on parent + submodules
 #   matrix        — Run full MD matrix via real MCP (165 cells)
@@ -43,7 +43,7 @@ help:
 	@echo "  test-orf      — Run ORF CI-mode tests"
 	@echo "  test-contract       — Run CLI + MCP contract tests (63 currently PASS)"
 	@echo "  test-contract-cli   — Run CLI --help contract tests only (Section 7.5)"
-	@echo "  test-contract-mcp   — Run MCP tool-schema contract tests only (21 tools)"
+	@echo "  test-contract-mcp   — Run MCP tool-schema contract tests only (37 tools)"
 	@echo "  test-logs           — Run structured JSON logging tests (Phase 4.1, OMNI_LOG_FORMAT=json)"
 	@echo "  test-metrics        — Run metrics + prometheus wiring tests"
 	@echo "  test-tracing        — Run OTel tracing tests (Phase 4.5, OMNI_TRACING_ENABLED=1)"

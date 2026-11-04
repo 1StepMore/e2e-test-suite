@@ -15,6 +15,7 @@
 | 0.3.0 | 0.5.9 | 0.8.2 | 0.4.16 | OPP#26 — zero body margin/padding + <p> margin in DEFAULT_PDF2HTML_CSS (eliminates +12pt Y image offset) |
 | 0.4.0 | 0.5.9 | 0.9.0 | 0.4.16 | OPP#28 — CRITICAL: correct PDF text + image positions for top-left page space. Fixes OPP#24's wrong bottom-left origin assumption (M.d<0 → use bbox[1], not page_h-bbox[3]). Adds `position:absolute` to <p> tags. 552pt image offset resolved. |
 | 0.4.0 | 0.7.1 | 0.9.1 | 0.4.17 | OL v0.7.1 (21 MCP tools, quality gates), OPP v0.9.1 patch, ORF v0.4.17 Foreman/Specialist |
+| 0.5.0 | 0.7.1 | 0.10.0 | 0.5.0 | OPP#80 — per-paragraph table cells: `table_{t}_r{r}_c{c}_para{p}` resname (opt-in via `OPP_TABLE_PARAGRAPH_UNITS`, default off). Contract 1.0 -> 1.1. Bare resname semantics unchanged. |
 
 ## How to check installed versions
 
@@ -29,4 +30,3 @@ cat VERSION
 - Submodule versions move independently
 - A Suite release pins the 3 submodule versions tested together
 - `setup_dev.sh` asserts submodule versions match this matrix
-| 0.5.0 | 0.7.1 | 0.10.0 | 0.5.0 | OPP#80 — per-paragraph table cells: `table_{t}_r{r}_c{c}_para{p}` resname (opt-in via `OPP_TABLE_PARAGRAPH_UNITS`, default off). Contract 1.0 -> 1.1. Bare resname semantics unchanged. |

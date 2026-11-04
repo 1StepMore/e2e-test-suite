@@ -155,3 +155,8 @@ benchmarks/format-fidelity/fixtures/rich.docx
 /*_manifest.json
 # config/default.yaml 是指向 Omni_Localizer 的符号链接（不是本仓内容）
 /config/default.yaml
+# Agent/工具本地状态与产物目录（本机生成，不进仓库）
+/.omo/
+/.workbuddy/
+/.zcode/
+/pkg-Omni-Suite/

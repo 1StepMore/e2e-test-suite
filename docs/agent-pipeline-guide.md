@@ -112,9 +112,9 @@ per-module `AGENTS.md` files or `docs/API.md`.
 
 | Server | Tool Count | CLI Start Command | MCP Name |
 |--------|-----------|-------------------|----------|
-| OPP MCP | 9 | `opp mcp` or `uvx opp-mcp` | `opp-mcp` |
-| OL MCP | 21 | `ol mcp` or `uvx ol-mcp` | `ol-mcp` (alias `ol-mcp-server`) |
-| ORF MCP | 7 | `orf mcp` or `uvx orf-mcp` | `orf-mcp` |
+| OPP MCP | 9 | `opp-mcp-server` | `opp-mcp` |
+| OL MCP | 21 | `ol-mcp` | `ol-mcp` (alias `ol-mcp-server`) |
+| ORF MCP | 7 | `orf-mcp-server` | `orf-mcp` |
 | Omni MCP | 4 (suite) | `omni-mcp` | `omni-mcp` |
 
 > The **MCP Name** is the `Server()` handshake name an agent sees in the

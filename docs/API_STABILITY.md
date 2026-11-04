@@ -8,7 +8,7 @@
 > per-module ad-hoc stability claims. If they conflict, this file wins.
 >
 > **Companion doc**: `docs/ARCHITECTURE.md` for the pipeline and module
-> boundaries; `VERSION_COMPATIBILITY.md` for tested version combinations.
+> boundaries; `COMPATIBILITY.md` for tested version combinations.
 
 ---
 
@@ -19,7 +19,7 @@ deprecation policy and a contract test suite that fails CI on any
 backward-incompatible change to the public surface.**
 
 Each of OPP, OL, ORF is its own SemVer stream. Compatibility across the
-three is recorded in `VERSION_COMPATIBILITY.md` and verified by
+three is recorded in `COMPATIBILITY.md` and verified by
 `tests/integration/test_version_compat.py`.
 
 ---
@@ -43,18 +43,18 @@ three is recorded in `VERSION_COMPATIBILITY.md` and verified by
 
 ### 2.2 Module maturity
 
-- **OPP** is on its 0.6.x line. The CLI surface and the 9 MCP tools are
+- **OPP** is on its 0.10.x line. The CLI surface and the 9 MCP tools are
   stable enough to be treated as 1.0 candidates. We will bump to 1.0
   when we have completed Phase 4 observability work and have a clean
   security audit.
-- **OL** is on 0.4.x. The text-in/text-out MCP tool set is stable; the
+- **OL** is on 0.7.x. The text-in/text-out MCP tool set is stable; the
   file-based CLI is stable.
-- **ORF** is on 0.4.x. The 7 MCP tools and the `apply-md`/`apply-xliff`
+- **ORF** is on 0.5.x. The 7 MCP tools and the `apply-md`/`apply-xliff`
   CLIs are stable.
 
 Until each module reaches 1.0, a minor bump **may** contain a
 backward-incompatible change if it is justified in
-`Omni_<Module>/CHANGELOG.md` and `VERSION_COMPATIBILITY.md` is updated
+`Omni_<Module>/CHANGELOG.md` and `COMPATIBILITY.md` is updated
 in the same release. This exception will be removed when each module
 hits 1.0.
 
@@ -62,16 +62,15 @@ hits 1.0.
 
 When releasing a new version combination:
 
-1. `bash scripts/bumpversion.py {patch|minor|major}` updates the three
-   `pyproject.toml` files atomically. The script refuses to bump if any
-   module's working tree is dirty.
-2. Update `VERSION_COMPATIBILITY.md` with a new row (or mark an existing
+1. `python scripts/bumpversion.py {patch|minor|major}` rewrites the
+   `version` field in each of the three module `pyproject.toml` files.
+2. Update `COMPATIBILITY.md` with a new row (or mark an existing
    row as the current baseline).
 3. Run `pytest tests/integration/test_version_compat.py` — must pass for
    the new combination.
-4. Run `pre-commit run --all-files` — `omni-contract-smoke` is a
-   manual stage; run it explicitly (`pre-commit run
-   omni-contract-smoke --all-files`) before tagging.
+4. Run `pre-commit run --all-files` — `omni-contract-smoke` runs in
+   both the `commit` and `manual` stages; run it explicitly
+   (`pre-commit run omni-contract-smoke --all-files`) before tagging.
 5. Tag and push the three sub-repo commits plus the parent `VERSION`
    bump in one logical release.
 
@@ -95,10 +94,10 @@ implementation details even if they are importable today.**
 | **MCP tool names** | `extract_document`, `translate_md_text`, `apply_md`, `apply_xliff`, etc. (9 + 21 + 7 = 37 module tools; 41 total with the 4 suite tools) | `Omni_<Module>/src/<pkg>/mcp/server.py` `_TOOL_SCHEMAS` / `@server.list_tools()` |
 | **MCP tool input schemas** | Required and optional parameters, types, defaults | Same location as above |
 | **MCP tool output schemas** | Structured JSON payloads returned via `TextContent` | Same location |
-| **Artifact filenames** | `document.md`, `document.xlf`, `document_manifest.json`, `document.skeleton.zip`, `images.json` | OPP `cli.py` writers |
-| **`manifest.json` schema** | Required keys, types, `manifest_version` | OPP `cli.py:392-457` |
-| **`skeleton.zip` key-files list** | For DOCX: `word/document.xml`, `word/styles.xml`, `word/numbering.xml`, `word/settings.xml`, `[Content_Types].xml`. For PPTX: all `ppt/*`. | OPP `cli.py` |
-| **ORF output-format whitelist** | The 16 formats `apply-md` accepts | ORF `cli.py` / `security.py` |
+| **Artifact filenames** | `<name>.md`, `<name>.xlf`, `<name>_manifest.json`, `<name>.skeleton.zip`, `<name>_images.json` | OPP `Omni_Pre_Processor/src/opp/commands/extract.py` writers |
+| **`manifest.json` schema** | Required keys, types, `manifest_version` | `Omni_Pre_Processor/src/opp/contracts/manifest.py` (model), written by `commands/extract.py` |
+| **`skeleton.zip` key-files list** | For DOCX: `word/document.xml`, `word/styles.xml`, `word/numbering.xml`, `word/settings.xml`, `[Content_Types].xml`. For PPTX: all `ppt/*`. | OPP `commands/extract.py` (`pipeline.save_skeleton`) |
+| **ORF output-format whitelist** | The 16 formats `apply-md` accepts | ORF `commands/apply_md.py` (`--target-format` Choice) |
 | **Environment variables** | `OMNI_TEST_FAKE_LLM=1`, `OMNI_TEST_FAKE_PANDOC=1`, `OPP_MCP_ALLOWED_DIRS`, `OL_MCP_ALLOWED_DIRS`, `OL_CONFIG_PATH`, `ORF_MCP_ALLOWED_DIRS`, `MCP_SHARED_SECRET` | Per-module `mcp/config.py` |
 | **Package names & import names** | `pip install omni-pre-processor` (imports as `opp`), `pip install omni-localizer`, `pip install omni-re-formatter` | Per-module `pyproject.toml` |
 
@@ -130,7 +129,7 @@ We use the standard **warn → 2 minor versions → remove** cycle.
 | Step | What happens | Timeline (relative to the deprecation notice) |
 |------|--------------|-----------------------------------------------|
 | 1. **Deprecate** | Mark the API as deprecated in code AND in docs. Emit a `DeprecationWarning` (CLI) or return a `deprecation` field in the MCP response. Add an entry to `Omni_<Module>/CHANGELOG.md` under a "Deprecated" heading. | T = 0 |
-| 2. **Warn in minor #1** | The deprecated API still works. Every release notes the deprecation in `CHANGELOG.md` and `VERSION_COMPATIBILITY.md` (if the new combination includes the deprecation). | T = 0 to T = minor +1 |
+| 2. **Warn in minor #1** | The deprecated API still works. Every release notes the deprecation in `CHANGELOG.md` and `COMPATIBILITY.md` (if the new combination includes the deprecation). | T = 0 to T = minor +1 |
 | 3. **Warn in minor #2** | Same as above. By this point the deprecation has been visible in two released minor versions. | T = minor +1 to T = minor +2 |
 | 4. **Remove** | The API is deleted in the next major version (or, pre-1.0, the next minor — see § 2.2). `CHANGELOG.md` notes the removal under "Breaking changes". | T ≥ minor +2 |
 
@@ -239,17 +238,17 @@ to the contract tests. It:
 
 1. Reads the current pinned versions from each module's `pyproject.toml`.
 2. Runs the full OPP → OL → ORF pipeline on a minimal generated DOCX.
-3. Asserts the output exists, parses, and round-trips through
-   `scripts/fidelity_checker.py compute_fidelity()` above the smoke
-   threshold (text_score > 0.0 with `OMNI_TEST_FAKE_LLM=1`; the real
-   threshold of 0.9 needs real LLM and is gated separately).
-4. Reports pass/fail per (opp, ol, orf) combo — this is what populates
-   the rows in `VERSION_COMPATIBILITY.md`.
+3. Asserts the output exists and is a valid file of its type, then runs
+   `scripts/fidelity_checker.py compute_fidelity()` and asserts
+   `table_score == 1.0`, `image_score == 1.0`, and `source_words > 5`
+   (the FAKE_LLM text differs by design, so text fidelity is not asserted).
+4. Covers the current pinned (opp, ol, orf) combination only — it does
+   not write the `COMPATIBILITY.md` matrix, which is updated by hand per
+   release.
 
-The test is run on every PR. A failure on the current pinned combo
-blocks merge; a failure on an older combo is a regression that
-demotes that row from "✅ Tested" to "⚠️ Partial" in the compat
-matrix.
+The test runs on every PR as part of the suite-level `tests/` job. A
+failure on the current pinned combo blocks merge; the matrix rows in
+`COMPATIBILITY.md` are historical records updated at release time.
 
 ### 5.5 Rollback / migration coupling
 
@@ -290,7 +289,7 @@ To avoid scope creep:
 
 ## 7. References
 
-- `VERSION_COMPATIBILITY.md` — current tested (opp, ol, orf) combinations
+- `COMPATIBILITY.md` — current tested (opp, ol, orf) combinations
 - `docs/ARCHITECTURE.md` — pipeline, module boundaries, artifact contracts
 - `docs/ERROR_CODES.md` — CLI exit-code table (part of public API)
 - `docs/SECURITY.md` — security audit & CVE policy (overrides § 4.3 #1 for security fixes)

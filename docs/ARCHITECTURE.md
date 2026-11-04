@@ -22,7 +22,7 @@ same-format (or different-format) document.
 
 The three modules are **independent** (each has its own git repo, PyPI package,
 CLI, and MCP server) and **composable** (any version combination in
-`VERSION_COMPATIBILITY.md` is contract-tested end-to-end).
+`COMPATIBILITY.md` is contract-tested end-to-end).
 
 ---
 
@@ -360,20 +360,20 @@ pipeline horizontally parallelizable.
 
 ## 6. Observability Story
 
-The current state is **partial** — we are mid-migration to a uniform
-observability story (see Phase 4 in
-`.omo/plans/2026-06-22-production-readiness-plan.md` § 7.1).
+The three modules share one observability surface: `structlog` JSON
+logging, per-module Prometheus textfile metrics, and opt-in OTel span
+export. Metric names and the textfile layout: `docs/observability/README.md`.
 
 | Concern | OPP | OL | ORF | Suite |
 |---------|-----|----|-----|-------|
-| Text logs | ✓ `python-json-logger` | ✓ basic | ✓ basic | — |
-| Structured JSON logs | partial (text format) | ✗ | ✗ | — |
-| Prometheus / OTel metrics | dep only, no instrument | ✗ | ✗ | — |
-| Distributed tracing | ✗ | ✗ | ✗ | — |
+| Text logs | ✓ `structlog` | ✓ `structlog` | ✓ `structlog` | — |
+| Structured JSON logs | ✓ `OMNI_LOG_FORMAT=json` | ✓ | ✓ | — |
+| Prometheus metrics | ✓ `opp.prom` | ✓ `ol.prom` | ✓ `orf.prom` | ✓ `omni_metrics` |
+| Distributed tracing | ✓ opt-in (`OMNI_TRACING_ENABLED=1`) | ✓ opt-in | ✓ opt-in | — |
 | `ping` MCP health check | ✓ | ✓ | ✓ | — |
 | Tier 7/8 matrix verification | — | — | — | ✓ `scripts/format_matrix_verifier.py`, `scripts/mcp_matrix_verifier.py` |
-| Version matrix log | — | — | — | ✓ `VERSION_COMPATIBILITY.md` |
-| Pre-commit (`omni-contract-smoke`) | — | — | — | ✓ manual stage |
+| Version matrix log | — | — | — | ✓ `COMPATIBILITY.md` |
+| Pre-commit (`omni-contract-smoke`) | — | — | — | ✓ commit + manual stages |
 
 **Today, operators get visibility from**:
 
@@ -389,14 +389,16 @@ observability story (see Phase 4 in
    OPP → OL → ORF CLI pipeline on a minimal DOCX against the current
    pinned versions. Catches version drift before release.
 
-**Planned (Phase 4)**:
+**Shipped (Phase 4)**:
 
-- Migrate all three modules to `structlog` (JSON output, standard fields:
-  `module`, `tool`, `duration_ms`, `file`, `format`).
-- Add OTel/Prometheus metrics per module (`<module>_<operation>_total`,
-  `<module>_<operation>_duration_ms`).
-- Span each CLI invocation; OPP/OL/ORF become child spans linked by
-  `trace_id` propagated via the artifact filenames (no in-process state).
+- `structlog` JSON logging in all three modules (`OMNI_LOG_FORMAT=json`,
+  standard fields `timestamp`, `level`, `module`, `request_id`, `event`).
+- Per-module Prometheus textfile metrics under `OMNI_METRICS_DIR`
+  (`opp.prom` / `ol.prom` / `orf.prom`), plus the shared `omni_metrics`
+  counters.
+- OTel spans for every MCP tool call, exported as JSONL under
+  `OMNI_TRACES_DIR` when `OMNI_TRACING_ENABLED=1` (opt-in; no OTLP
+  exporter). CLI invocations are not spanned.
 
 ---
 
@@ -406,21 +408,21 @@ observability story (see Phase 4 in
 |---|----------|-----------|----------------|
 | 1 | **Three independent modules, not a monolith** | Each team can ship at its own cadence; `pip install opp` works without OL or ORF. | `Omni_*/pyproject.toml` × 3 |
 | 2 | **Two parallel channels (MD + XLIFF)** | MD is simpler; XLIFF preserves inline formatting tags. Choice is per-document. | `Omni_Pre_Processor/README.md` (Pipeline section) |
-| 3 | **`manifest.json` + `skeleton.zip` as the OPP → ORF contract** | The manifest is small, machine-readable, and versioned (`manifest_version`); the skeleton preserves the original layout without forcing OPP to know about ORF's internals. | `Omni_Pre_Processor/src/opp/cli.py:392-457`, `Omni_Re_Formatter/src/orf/...` |
+| 3 | **`manifest.json` + `skeleton.zip` as the OPP → ORF contract** | The manifest is small, machine-readable, and versioned (`manifest_version`); the skeleton preserves the original layout without forcing OPP to know about ORF's internals. | `Omni_Pre_Processor/src/opp/commands/extract.py`, `Omni_Re_Formatter/src/orf/...` |
 | 4 | **PDF → XLIFF is blocked at OPP** | A PDF cannot be backfilled into a structural DOCX/PPTX layout. The case-insensitive guard is intentional. | `Omni_Pre_Processor/src/opp/...` (PDF guard) |
 | 5 | **FAKE_LLM seam (`OMNI_TEST_FAKE_LLM=1`)** | Tests must never require real API keys. The seam is the contract for CI and local dev. | All three modules |
 | 6 | **MCP over stdio, one server per module** | Stdio is the only transport agents uniformly support; one server per module keeps failure domains and security allowlists independent. | `Omni_*/src/*/mcp/server.py` × 3 |
 | 7 | **Cross-format XLIFF is refused, not overridden** | ORF refuses a format-mismatched backfill (e.g. DOCX xlf → PPTX) because a "backfill" into another container would emit a file that only carries the right extension — every real reader of the target format rejects it. `--force` is kept as an accepted-but-inert flag; cross-format output goes through `apply_md`. | `Omni_Re_Formatter/src/orf/commands/apply_xliff.py` |
-| 8 | **Coordinate releases via `bumpversion.py` + `VERSION_COMPATIBILITY.md`** | The three modules version independently (different teams, different cadences) but every shipped combination must be matrix-tested before it lands in the compat table. | `scripts/bumpversion.py`, `VERSION_COMPATIBILITY.md` |
+| 8 | **Coordinate releases via `bumpversion.py` + `COMPATIBILITY.md`** | The three modules version independently (different teams, different cadences) but every shipped combination must be matrix-tested before it lands in the compat table. | `scripts/bumpversion.py`, `COMPATIBILITY.md` |
 | 9 | **(removed 2026-06-24) src/Omni_*/ git submodules no longer exist** | OPP/OL/ORF are now regular top-level directories. The `.gitmodules` entries were dropped; `scripts/sync_shallow.sh` is now a deprecation stub. | `.gitmodules` (removed), `scripts/sync_shallow.sh` (stub) |
-| 10 | **Single shared venv at `.venv_ol/` (Python 3.13)** | Eliminates "wrong venv" bugs. `.venv/` (Python 3.12) is deprecated. | `.venv_ol/`, `README.md` (Environment section) |
+| 10 | **Single shared venv at `.venv_ol/` (Python 3.13)** | Eliminates "wrong venv" bugs. `.venv/` (no OL installed) is deprecated. | `.venv_ol/`, `README.md` (Environment section) |
 
 ---
 
 ## 8. Version Topology
 
 Three independent SemVer streams, pinned together for each release by
-`VERSION_COMPATIBILITY.md`:
+`COMPATIBILITY.md`:
 
 ```
 opp ──── MD / XLIFF ────▶ ol ──── MD / XLIFF ────▶ orf
@@ -439,7 +441,7 @@ opp ──── MD / XLIFF ────▶ ol ──── MD / XLIFF ───
 
 **Version policy** is documented in `docs/API_STABILITY.md` (companion
 document in this directory). Cross-module coordination is recorded in
-`VERSION_COMPATIBILITY.md` and `scripts/bumpversion.py`.
+`COMPATIBILITY.md` and `scripts/bumpversion.py`.
 
 ---
 
@@ -452,7 +454,7 @@ Omni_Suite/                              ← this repo (parent / test suite)
 │   │   ├── pipeline.py                  ← OPPPipeline orchestrator
 │   │   ├── extractors/                  ← per-format extractors
 │   │   ├── channels/                    ← MD / XLIFF formatters
-│   │   ├── cli.py                       ← CLI (generates manifest + skeleton)
+│   │   ├── cli.py                       ← CLI entry point (dispatches to commands/)
 │   │   └── mcp/server.py                ← MCP server (9 tools)
 │   ├── pyproject.toml                   ← version (see pyproject.toml)
 │   └── README.md
@@ -469,8 +471,8 @@ Omni_Suite/                              ← this repo (parent / test suite)
 │   └── README.md
 ├── tests/                               ← parent suite tests (30+ files)
 │   ├── integration/test_version_compat.py
-│   ├── observability/                   ← 38 tests
-│   ├── security/                        ← 63 tests
+│   ├── observability/                   ← 61 tests
+│   ├── security/                        ← 173 tests
 │   ├── mcp/                             ← MCP smoke / e2e
 │   ├── e2e_*.py                         ← per-channel E2E
 │   └── conftest.py                      ← shared fixtures
@@ -480,7 +482,7 @@ Omni_Suite/                              ← this repo (parent / test suite)
 │   ├── format_matrix_verifier.py        ← CLI pipeline matrix
 │   ├── fidelity_checker.py              ← pipeline fidelity scoring
 │   ├── setup_dev.sh                     ← one-shot dev install
-│   └── sync_shallow.sh                  ← submodule SHA sync
+│   └── sync_shallow.sh                  ← deprecation stub (submodules removed)
 ├── docs/                                ← umbrella documentation (you are here)
 │   ├── ARCHITECTURE.md
 │   ├── API_STABILITY.md
@@ -488,7 +490,7 @@ Omni_Suite/                              ← this repo (parent / test suite)
 │   ├── ERROR_CODES.md
 │   ├── SECURITY.md
 │   └── archive/                          ← retired docs (markers enforced by --check)
-├── VERSION_COMPATIBILITY.md             ← tested (opp, ol, orf) combinations
+├── COMPATIBILITY.md                     ← tested (opp, ol, orf) combinations
 ├── .omo/                                ← operational plans & notepads
 │   ├── plans/2026-06-22-production-readiness-plan.md
 │   └── notepads/2026-06-22-production-readiness-plan/learnings.md
@@ -502,8 +504,8 @@ Omni_Suite/                              ← this repo (parent / test suite)
 ## 10. References
 
 ### Suite-level
-- `README.md` — Cross-Format Production-Readiness matrix (36 verified paths)
-- `VERSION_COMPATIBILITY.md` — tested (opp, ol, orf) version combinations
+- `README.md` — Cross-Format Production-Readiness matrix (verified OPP→OL→ORF paths)
+- `COMPATIBILITY.md` — tested (opp, ol, orf) version combinations
 - `AGENTS.md` — quick start, MCP configs, local MCP testing guide
 - `.omo/plans/2026-06-22-production-readiness-plan.md` — Phase 0–4 plan; § 13 version strategy, § 14 rollback/migration
 

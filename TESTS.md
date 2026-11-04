@@ -299,7 +299,7 @@ cd /mnt/d/贯维/Omni_Suite && .venv_ol/bin/python -m pytest tests/test_e2e_real
 cd /mnt/d/贯维/Omni_Suite && .venv_ol/bin/python -m pytest tests/ -m "not nightly"
 
 # Run one test with full traceback
-cd /mnt/d/贯维/Omni_Suite && .venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py::TestE2ERealLLMTranslationQuality --tb=long -v -s
+cd /mnt/d/贯维/Omni_Suite && .venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py::TestE2ERealLLMLQA --tb=long -v -s
 
 # Quick verify everything is set up
 cd /mnt/d/贯维/Omni_Suite && .venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py --collect-only -q
@@ -309,16 +309,15 @@ cd /mnt/d/贯维/Omni_Suite && .venv_ol/bin/python -m pytest tests/test_e2e_real
 
 ## Current Test Coverage Summary
 
-Last verified on 2026-06-11. Test counts grow as new tests are added; run `pytest --collect-only -q` for the latest.
+Collected counts re-measured on 2026-11-04 with `--collect-only`; test counts grow as new tests are added, so re-run that command for the latest.
 
 | Component | Command | Collected | Known Failures | Skipped |
 |---:|---:|---:|---:|---:|
-| Omni-Localizer (OL) | `.venv_ol/bin/python -m pytest Omni_Localizer/tests/ -m "not nightly" --tb=line -q` | ~755 | ~4 (see below) | ~1 |
-| Omni-Pre-Processor (OPP) | `.venv_ol/bin/python -m pytest Omni_Pre_Processor/tests/ -m "not nightly" --tb=line -q` | ~694 | 0 | ~10 |
-| Omni-Re-Formatter (ORF) | `.venv_ol/bin/python -m pytest Omni_Re_Formatter/tests/ --tb=line -q` | ~689 | ~3 (bx/ex backfill) | ~2 |
+| Omni-Localizer (OL) | `.venv_ol/bin/python -m pytest Omni_Localizer/tests/ -m "not nightly" --tb=line -q` | 1927 | 0 (see below) | — |
+| Omni-Pre-Processor (OPP) | `.venv_ol/bin/python -m pytest Omni_Pre_Processor/tests/ -m "not nightly" --tb=line -q` | 1212 | 0 | — |
+| Omni-Re-Formatter (ORF) | `.venv_ol/bin/python -m pytest Omni_Re_Formatter/tests/ --tb=line -q` | 1185 | 0 (see below) | — |
 
-> **Known OL failures**: `test_xliff_parser.py` (4 tests — working-dir-dependent fixture paths, fixed in recent update; re-run from suite root to confirm). Requires real API keys or `OL_CONFIG_PATH` set for CLI tests.
-> **Known ORF failures**: 3 position-based backfill tests in `test_xliff2docx_bx_ex_leak.py` — `<bx>`/`<ex>` tags leak into `<w:t>` as XML entities (production bug in position-based backfill path).
+> **Re-checked 2026-11-04**: the two previously listed failures pass now — `Omni_Localizer/tests/test_xliff_parser.py` (10 passed) and `Omni_Re_Formatter/tests/test_xliff2docx_bx_ex_leak.py` (18 passed). The `Skipped` column above is the 2026-06-11 snapshot and was not re-measured.
 
 > The previous venv `.venv` is deprecated. Do **not** add new deps to it — everything goes into `.venv_ol`.
 

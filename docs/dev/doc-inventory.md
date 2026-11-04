@@ -14,22 +14,22 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Metric | Value |
 |--------|-------|
 | Total files | 63 |
-| Total lines | 34806 |
+| Total lines | 34807 |
 | Active files | 39 |
 | Archived files | 24 |
 | Category — archive | 24 files / 25391 lines |
 | Category — security | 2 files / 1204 lines |
-| Category — docs/observability | 1 files / 136 lines |
-| Category — docs/dev | 18 files / 2777 lines |
-| Category — docs/root | 18 files / 5298 lines |
+| Category — docs/observability | 1 files / 138 lines |
+| Category — docs/dev | 18 files / 2775 lines |
+| Category — docs/root | 18 files / 5299 lines |
 
 ## Inventory
 
 | Relative path | Lines | Category | Status | Doc-type |
 |---------------|------:|----------|--------|----------|
 | `ACCEPTANCE.md` | 84 | docs/root | active | — |
-| `API_STABILITY.md` | 307 | docs/root | active | — |
-| `ARCHITECTURE.md` | 520 | docs/root | active | — |
+| `API_STABILITY.md` | 306 | docs/root | active | — |
+| `ARCHITECTURE.md` | 522 | docs/root | active | — |
 | `DECISIONS.md` | 22 | docs/root | active | — |
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
@@ -78,14 +78,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `archive/project-evaluation-pain-points-2026-09-06.md` | 313 | archive | archived | — |
 | `archive/system_improvements_v2.md` | 503 | archive | archived | — |
 | `dev/artifact-assertion-matrix.md` | 282 | docs/dev | active | — |
-| `dev/per-repo-validation-delivery.md` | 197 | docs/dev | active | — |
+| `dev/per-repo-validation-delivery.md` | 195 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 295 | docs/dev | active | — |
 | `dev/validation-loop-log.md` | 312 | docs/dev | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |
-| `observability/README.md` | 136 | docs/observability | active | — |
+| `observability/README.md` | 138 | docs/observability | active | — |
 | `project-health-report-2026-09-17.md` | 1771 | docs/root | active | — |
 | `project-infrastructure-audit-2026-10-30.md` | 254 | docs/root | active | — |
 | `venv-migration.md` | 54 | docs/root | active | — |
