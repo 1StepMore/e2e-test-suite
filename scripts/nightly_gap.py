@@ -59,6 +59,7 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -84,6 +85,10 @@ def is_exempt(reason: str) -> bool:
 
 
 _NIGHTLY_BASE = REPO / "test_artifacts" / "nightly" / "base.json"
+
+# 账本新鲜度窗口（小时）：超过它说明跨仓编排的 base.json 已过期，
+# bench 行不再引用账本里的旧 SHA，回退到现读各仓 git HEAD。
+BENCH_MAX_AGE_HOURS = 12.0
 
 
 def _load_default_repos() -> list[str]:
@@ -122,22 +127,50 @@ def _fmt_bench_entry(name: str, branch: str | None, sha: str | None) -> str:
     return f"{name}={branch or '<unknown>'}@{sha or '<unknown>'}"
 
 
-def bench_line(base_path: Path | None = None) -> str:
+def _ledger_is_stale(data: dict, now: datetime, max_age_hours: float) -> bool:
+    """账本是否早于新鲜度窗口。
+
+    没有 `generated_at` 字段 → 视为新鲜（向后兼容旧夹具）；
+    字段存在但解析失败 / 时区不可比 → 也按新鲜处理，不由过期判定推翻账本。
+    """
+    raw = data.get("generated_at")
+    if not raw:
+        return False
+    try:
+        generated_at = datetime.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return False
+    try:
+        age = now - generated_at
+    except TypeError:
+        return False
+    return age > timedelta(hours=max_age_hours)
+
+
+def bench_line(base_path: Path | None = None, *,
+               max_age_hours: float = BENCH_MAX_AGE_HOURS,
+               now: datetime | None = None) -> str:
     """构造 gap.md 头部的 bench 行：报告正文自答「这份矩阵测的是哪棵树」。
 
     优先读本轮同步账本 `test_artifacts/nightly/base.json`（其 `after` 是同步后
-    即将被测的 SHA）；账本缺失时对默认仓列表现读 git；都取不到写 `<unknown>`。
+    即将被测的 SHA）；账本缺失、解析失败或 `generated_at` 超过
+    `max_age_hours` 时现读各仓 git HEAD；都取不到写 `<unknown>`。
+    现读 git 时若账本里有 `path`，沿用账本那份仓清单（它是六仓的唯一权威清单）。
     """
     path = base_path if base_path is not None else _NIGHTLY_BASE
+    data: dict = {}
     records: list = []
     if path.is_file():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             records = data.get("repos") or []
         except (OSError, ValueError):
+            data = {}
             records = []
+    if now is None:
+        now = datetime.now().astimezone()
     entries: list[str] = []
-    if records:
+    if records and not _ledger_is_stale(data, now, max_age_hours):
         for r in records:
             entries.append(_fmt_bench_entry(
                 str(r.get("name") or "<unknown>"),
@@ -145,10 +178,17 @@ def bench_line(base_path: Path | None = None) -> str:
                 r.get("after") or r.get("before"),
             ))
     else:
-        for repo_path in DEFAULT_REPOS:
-            name = Path(str(repo_path).rstrip("/")).name or str(repo_path)
-            branch, sha = _git_identity(str(repo_path))
-            entries.append(_fmt_bench_entry(name, branch, sha))
+        live = [(str(r.get("name") or "<unknown>"), r.get("path"))
+                for r in records if r.get("path")]
+        if live:
+            for name, repo_path in live:
+                branch, sha = _git_identity(str(repo_path))
+                entries.append(_fmt_bench_entry(name, branch, sha))
+        else:
+            for repo_path in DEFAULT_REPOS:
+                name = Path(str(repo_path).rstrip("/")).name or str(repo_path)
+                branch, sha = _git_identity(str(repo_path))
+                entries.append(_fmt_bench_entry(name, branch, sha))
     if not entries:
         entries = ["<unknown>"]
     return "- bench：" + " · ".join(entries)

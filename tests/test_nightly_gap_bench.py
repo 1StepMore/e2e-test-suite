@@ -5,6 +5,7 @@ without the reader having to open ``base.json``.
 """
 import json
 import subprocess
+from datetime import datetime, timedelta
 
 import scripts.nightly_gap as ng
 
@@ -76,3 +77,55 @@ def test_bench_line_survives_malformed_base_json(tmp_path, monkeypatch):
     line = ng.bench_line(base)
 
     assert line == "- bench：<unknown>"
+
+
+def _seed_repo(path):
+    subprocess.run(["git", "init", "-b", "main", str(path)],
+                   check=True, capture_output=True, text=True)
+    subprocess.run(["git", "-C", str(path), "config", "user.email", "b@e.invalid"],
+                   check=True, capture_output=True, text=True)
+    subprocess.run(["git", "-C", str(path), "config", "user.name", "bench-test"],
+                   check=True, capture_output=True, text=True)
+    (path / "f.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(path), "add", "f.txt"],
+                   check=True, capture_output=True, text=True)
+    subprocess.run(["git", "-C", str(path), "commit", "-m", "seed"],
+                   check=True, capture_output=True, text=True)
+    r = subprocess.run(["git", "-C", str(path), "rev-parse", "HEAD"],
+                       check=True, capture_output=True, text=True)
+    return r.stdout.strip()
+
+
+def test_bench_line_uses_live_git_when_ledger_is_stale(tmp_path):
+    repo = tmp_path / "liverepo"
+    head = _seed_repo(repo)
+    stale_at = (datetime.now().astimezone() - timedelta(days=10)).isoformat()
+    base = tmp_path / "base.json"
+    base.write_text(json.dumps({
+        "generated_at": stale_at,
+        "repos": [
+            {"name": "liverepo", "branch": "main", "before": "deadbeef",
+             "after": "deadbeef", "path": str(repo)},
+        ],
+    }), encoding="utf-8")
+
+    line = ng.bench_line(base)
+
+    assert f"liverepo=main@{head}" in line
+    assert "deadbeef" not in line
+
+
+def test_bench_line_uses_ledger_when_fresh(tmp_path):
+    fresh_at = (datetime.now().astimezone() - timedelta(hours=1)).isoformat()
+    base = tmp_path / "base.json"
+    base.write_text(json.dumps({
+        "generated_at": fresh_at,
+        "repos": [
+            {"name": "proj-a", "branch": "main", "before": "aaa",
+             "after": "freshsha", "path": str(tmp_path / "nowhere")},
+        ],
+    }), encoding="utf-8")
+
+    line = ng.bench_line(base)
+
+    assert "proj-a=main@freshsha" in line
