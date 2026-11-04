@@ -11,7 +11,10 @@ Levels verified:
   1. CLAUDE.md                          — MCP Tool Quick Reference (exact sets)
   2. suite AGENTS.md                    — Per-Module Cheat Sheet (counts + examples)
      docs/agent-pipeline-guide.md       — `### Tool Lists` (exact sets)
-  3. per-module AGENTS.md               — MCP tools tables (exact sets):
+  3. per-module AGENTS.md               — MCP tools section, two compliant
+       styles (issue #242): enum-style (full tool table, exact sets) or
+       pointer-style (declared count + reference to the authoritative doc,
+       e.g. docs/API.md):
        Omni_Pre_Processor/AGENTS.md, Omni_Localizer/AGENTS.md,
        Omni_Re_Formatter/AGENTS.md
 """
@@ -21,6 +24,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
+import pytest
 from ol_mcp.tools import TOOL_REGISTRY
 from opp.mcp.server import _TOOL_SCHEMAS
 from orf.mcp.server import _TOOL_DISPATCH
@@ -140,31 +144,62 @@ def _guide_server_overview_counts(content: str) -> dict[str, int]:
     return counts
 
 
-def _per_module_table_tools(content: str) -> set[str]:
-    """Extract tool names from a per-module AGENTS.md MCP tools table.
+_MODULE_SECTION_HEADER: Final[re.Pattern[str]] = re.compile(
+    r"^## MCP tools \((?P<count>\d+) total\)", re.MULTILINE
+)
+# A tool name is a lowercase snake_case identifier. Anything else (`…`, `-`,
+# the `Tool`/`Purpose` header cells, backticked paths like `docs/API.md`) is
+# documentation debris and must never reach the registry comparison — issue
+# #242: a literal `…` cell was once parsed as a tool name and flagged as an
+# "extra tool".
+_TOOL_IDENTIFIER: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
+# Backticked or markdown-linked .md references, e.g. [`docs/API.md`](docs/API.md).
+_MD_REFERENCE: Final[re.Pattern[str]] = re.compile(r"(?:`|\]\()([^\s`)\]]+\.md)")
 
-    Looks for a section header like "## MCP tools (9 total)" and parses the
-    first column of the table below it.
+
+def _module_tools_section(content: str) -> tuple[int, str] | None:
+    """Return ``(declared_count, body)`` of the ``## MCP tools (N total)`` section.
+
+    The body extends to the next markdown heading. ``None`` when the section
+    is absent.
     """
-    section_pattern = re.compile(r"^## MCP tools \(\d+ total\)", re.MULTILINE)
-    match = section_pattern.search(content)
+    match = _MODULE_SECTION_HEADER.search(content)
     if not match:
-        return set()
-    rest = content[match.end():].strip()
-    _NON_TOOLS = {"Tool", "Purpose"}
+        return None
+    rest = content[match.end():]
+    stop = re.search(r"^#{1,6}\s", rest, re.MULTILINE)
+    body = rest[: stop.start()] if stop else rest
+    return int(match.group("count")), body
+
+
+def _enum_table_tools(body: str) -> set[str]:
+    """Tool names from enum-style table rows (first column) in the section body.
+
+    Only lowercase snake_case identifiers count: ``…``, ``-``, the ``Tool`` /
+    ``Purpose`` header cells and backticked paths are documentation debris
+    and are ignored (#242).
+    """
     tools: set[str] = set()
-    for line in rest.splitlines()[:25]:
-        if not line.startswith("|"):
-            if line.startswith("##") or line.startswith("---"):
-                break
+    for line in body.splitlines():
+        if not line.lstrip().startswith("|"):
             continue
-        cells = [c.strip() for c in line.split("|")]
-        if len(cells) >= 2:
-            first_col = cells[1].strip()
-            tool_name = first_col.strip("`")
-            if tool_name and tool_name not in _NON_TOOLS and not tool_name.startswith("-"):
-                tools.add(tool_name)
+        cells = line.split("|")
+        if len(cells) < 3:
+            continue
+        name = cells[1].strip().strip("`").strip()
+        if _TOOL_IDENTIFIER.match(name):
+            tools.add(name)
     return tools
+
+
+def _pointer_doc_refs(body: str) -> list[str]:
+    """Authoritative docs referenced by a pointer-style section (e.g. ``docs/API.md``)."""
+    refs: list[str] = []
+    for raw in _MD_REFERENCE.findall(body):
+        ref = raw.split("#", 1)[0]
+        if ref and "://" not in ref and ref not in refs:
+            refs.append(ref)
+    return refs
 
 
 class TestDocsMcpToolConsistency:
@@ -300,17 +335,144 @@ class TestDocsMcpToolConsistency:
 
     # --- Level 3: Per-module AGENTS.md ---
 
+    def _assert_module_agents_doc(
+        self, label: str, server: str, module_root: Path
+    ) -> None:
+        """Per-module AGENTS.md accepts two compliant styles (issue #242).
+
+        * enum-style — a full tool table: the declared section count must
+          match the number of listed rows and every name is compared against
+          the live registry (exact sets, unchanged strictness);
+        * pointer-style — a declared count plus a pointer to the
+          authoritative per-tool doc (e.g. ``docs/API.md``): the declared
+          count must equal the live registry size and every referenced file
+          must exist. Individual tool names are not required.
+
+        A section that neither enumerates tools nor points anywhere fails
+        loudly, so the gate can never loosen into "mentions tools somewhere".
+        """
+        filepath = module_root / "AGENTS.md"
+        assert filepath.exists(), f"File not found: {filepath}"
+        section = _module_tools_section(filepath.read_text(encoding="utf-8"))
+        assert section is not None, (
+            f"[{label}] no '## MCP tools (N total)' section in {filepath}"
+        )
+        declared, body = section
+        canonical = CANONICAL[server]
+
+        table_tools = _enum_table_tools(body)
+        if table_tools:
+            assert declared == len(table_tools), (
+                f"[{label}] {server!r} declared tool count: {declared}, "
+                f"but the enum-style table lists {len(table_tools)}"
+            )
+            self._assert_exact(label, server, table_tools)
+            return
+
+        # Pointer-style: the declared count must match the live registry ...
+        assert declared == len(canonical), (
+            f"[{label}] {server!r} pointer-style declared tool count: "
+            f"{declared}, expected {len(canonical)}"
+        )
+        # ... and the referenced authoritative doc must exist.
+        refs = _pointer_doc_refs(body)
+        assert refs, (
+            f"[{label}] {server!r} MCP tools section neither lists tools nor "
+            f"references an authoritative doc (e.g. docs/API.md)"
+        )
+        for ref in refs:
+            assert (module_root / ref).exists(), (
+                f"[{label}] {server!r} pointer-style reference not found: "
+                f"{module_root / ref}"
+            )
+
     def test_opp_agents_md(self) -> None:
-        """OPP AGENTS.md MCP tools table matches canonical."""
-        content = (SUITE_ROOT / "Omni_Pre_Processor" / "AGENTS.md").read_text(encoding="utf-8")
-        self._assert_exact("OPP AGENTS.md", "opp-mcp-server", _per_module_table_tools(content))
+        """OPP AGENTS.md MCP tools section matches canonical (either style)."""
+        self._assert_module_agents_doc(
+            "OPP AGENTS.md", "opp-mcp-server", SUITE_ROOT / "Omni_Pre_Processor"
+        )
 
     def test_ol_agents_md(self) -> None:
-        """OL AGENTS.md MCP tools table matches canonical."""
-        content = (SUITE_ROOT / "Omni_Localizer" / "AGENTS.md").read_text(encoding="utf-8")
-        self._assert_exact("OL AGENTS.md", "ol-mcp", _per_module_table_tools(content))
+        """OL AGENTS.md MCP tools section matches canonical (either style)."""
+        self._assert_module_agents_doc(
+            "OL AGENTS.md", "ol-mcp", SUITE_ROOT / "Omni_Localizer"
+        )
 
     def test_orf_agents_md(self) -> None:
-        """ORF AGENTS.md MCP tools table matches canonical."""
-        content = (SUITE_ROOT / "Omni_Re_Formatter" / "AGENTS.md").read_text(encoding="utf-8")
-        self._assert_exact("ORF AGENTS.md", "orf-mcp-server", _per_module_table_tools(content))
+        """ORF AGENTS.md MCP tools section matches canonical (either style)."""
+        self._assert_module_agents_doc(
+            "ORF AGENTS.md", "orf-mcp-server", SUITE_ROOT / "Omni_Re_Formatter"
+        )
+
+    # --- Issue #242: dual-style samples (positive + negative) ---
+
+    def _ol_enum_style_doc(self) -> str:
+        tools = sorted(CANONICAL["ol-mcp"])
+        rows = "\n".join(f"| `{tool}` | purpose of {tool} |" for tool in tools)
+        return (
+            f"## MCP tools ({len(tools)} total)\n"
+            "\n| Tool | Purpose |\n|------|---------|\n"
+            f"{rows}\n"
+        )
+
+    def _ol_pointer_style_doc(self, declared: int) -> str:
+        return (
+            f"## MCP tools ({declared} total)\n"
+            "\nThe Agent-facing surface. The authoritative per-tool parameter\n"
+            "reference is [docs/API.md](docs/API.md).\n"
+        )
+
+    def test_enum_style_positive_sample(self, tmp_path: Path) -> None:
+        """Enum-style: a full tool table passes the exact-set check."""
+        (tmp_path / "AGENTS.md").write_text(
+            self._ol_enum_style_doc(), encoding="utf-8"
+        )
+        self._assert_module_agents_doc("sample", "ol-mcp", tmp_path)
+
+    def test_enum_style_negative_sample_misspelled_tool(self, tmp_path: Path) -> None:
+        """A misspelled tool name in an enum-style table must fail (#242)."""
+        table = self._ol_enum_style_doc().replace("`judge_text`", "`judge_textt`")
+        (tmp_path / "AGENTS.md").write_text(table, encoding="utf-8")
+        with pytest.raises(AssertionError, match="extra tools"):
+            self._assert_module_agents_doc("sample", "ol-mcp", tmp_path)
+
+    def test_pointer_style_positive_sample(self, tmp_path: Path) -> None:
+        """Pointer-style: declared count + existing authoritative doc passes."""
+        (tmp_path / "AGENTS.md").write_text(
+            self._ol_pointer_style_doc(len(CANONICAL["ol-mcp"])), encoding="utf-8"
+        )
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "docs" / "API.md").write_text("# OL API\n", encoding="utf-8")
+        self._assert_module_agents_doc("sample", "ol-mcp", tmp_path)
+
+    def test_pointer_style_negative_sample_wrong_count(self, tmp_path: Path) -> None:
+        """A wrong declared count in a pointer-style section must fail (#242)."""
+        wrong = len(CANONICAL["ol-mcp"]) + 1
+        (tmp_path / "AGENTS.md").write_text(
+            self._ol_pointer_style_doc(wrong), encoding="utf-8"
+        )
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "docs" / "API.md").write_text("# OL API\n", encoding="utf-8")
+        with pytest.raises(AssertionError, match="pointer-style declared tool count"):
+            self._assert_module_agents_doc("sample", "ol-mcp", tmp_path)
+
+    def test_pointer_style_negative_sample_missing_doc(self, tmp_path: Path) -> None:
+        """A pointer to a non-existent authoritative doc must fail (#242)."""
+        doc = self._ol_pointer_style_doc(len(CANONICAL["ol-mcp"])).replace(
+            "docs/API.md", "docs/MISSING.md"
+        )
+        (tmp_path / "AGENTS.md").write_text(doc, encoding="utf-8")
+        with pytest.raises(AssertionError, match="pointer-style reference not found"):
+            self._assert_module_agents_doc("sample", "ol-mcp", tmp_path)
+
+    def test_non_identifier_cells_never_become_tool_names(self) -> None:
+        """`…`, `-` and backticked paths are debris, never tool names (#242)."""
+        body = (
+            "| Tool | Purpose |\n"
+            "|------|---------|\n"
+            "| `translate_md_text` | real tool |\n"
+            "| `…` | ellipsis debris |\n"
+            "| - | dash debris |\n"
+            "| `docs/API.md` | a path, not a tool |\n"
+        )
+        assert _enum_table_tools(body) == {"translate_md_text"}
