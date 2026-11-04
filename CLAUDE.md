@@ -18,7 +18,7 @@ OPP (extract) → OL (translate) → ORF (backfill)
 - **Source**: `Omni_Pre_Processor/src/opp/`
 - **CLI**: `opp --target-format=md|xliff|both <file>`
 - **MCP**: `opp-mcp-server` (stdio transport)
-- **Tests**: `Omni_Pre_Processor/tests/` (544+ tests)
+- **Tests**: `Omni_Pre_Processor/tests/` (1200+ tests)
 - **Outputs**: Markdown, XLIFF 1.2/2.0, skeleton.zip, manifest.json
 - **Extractors**: DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML, EPUB, EML, MSG, images (OCR), audio (Whisper), YouTube URLs
 
@@ -26,18 +26,18 @@ OPP (extract) → OL (translate) → ORF (backfill)
 - **Source**: `Omni_Localizer/src/ol/`
 - **CLI**: `ol translate-md <file> -s <src> -t <tgt> -o <dir>`
 - **MCP**: `ol-mcp` (stdio transport)
-- **Tests**: `Omni_Localizer/tests/` (90+ test files)
+- **Tests**: `Omni_Localizer/tests/` (170+ test files)
 - **Features**: Model pool failover, 3-stage repair (regex→span→fallback; L3 LLM restore is opt-in), LQA judging, TM/glossary injection, translation memory
 
 ### Module 3: ORF (Omni Re-Formatter)
 - **Source**: `Omni_Re_Formatter/src/orf/`
 - **CLI**: `orf apply-md <file> --target-format <fmt> -o <out>`
 - **MCP**: `orf-mcp-server` (stdio transport)
-- **Tests**: `Omni_Re_Formatter/tests/` (65 test files)
+- **Tests**: `Omni_Re_Formatter/tests/` (95+ test files)
 - **Output formats**: DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON
 
 ### Suite-Level Tests
-- **Location**: `tests/` (30+ test files)
+- **Location**: `tests/` (100+ test files)
 - **E2E tests**: `test_e2e_pipeline.py`, `test_e2e_real_llm.py`, `test_e2e_path_md_cli.py`, `test_e2e_path_xliff_cli.py`, etc.
 - **Smoke test**: `tests/test_pipeline_contract_smoke.py`
 

@@ -255,8 +255,8 @@ means you can switch without re-extracting.
 | ORF | `Omni_Re_Formatter/` | v0.5.0 |
 | Omni_Suite | `./` | v0.5.0 |
 | Python 3.13（统一 venv） | `.venv_ol/` | ✅ 当前唯一活跃 venv，所有组件共用 |
-| Python 3.12（已弃用） | `.venv/` | ⚠️ 旧 venv，OPP/ORF CLI 曾用，勿再使用 |
-| OL MCP 专用 venv | `~/.hermes/venvs/omni-localizer` | Python 3.13（OL MCP 服务）|
+| 旧 venv（已弃用） | `.venv/` | ⚠️ 未装 OL，勿再使用 |
+| OL MCP（console script） | `.venv_ol/bin/ol-mcp` | Python 3.13（入口 `ol_mcp.server:main`）|
 
 v0.10.0 · v0.7.1 · v0.5.0 · v0.5.0（last tested 2026-07-22）。
 **Push state（2026-10-18）**: origin（1StepMore）已于 2026-10-06 恢复、推送正常；本地 `main` 与 `origin/main` 已同步（2026-10-18 文档修正已推送）。
@@ -265,21 +265,20 @@ v0.10.0 · v0.7.1 · v0.5.0 · v0.5.0（last tested 2026-07-22）。
 
 ## OL MCP 说明
 
-OL MCP 服务运行在 `~/.hermes/venvs/omni-localizer`（Python 3.13），由 wrapper 脚本管理：
+OL MCP 服务由本仓 OL 包提供的 console script 启动（入口 `ol_mcp.server:main`，
+stdio transport），不需要单独的 venv 或 wrapper 脚本：
 
-```
-/mnt/d/Hermes-Workspace/01-Projects/Omni_Localizer/src/ol_mcp_wrapper.sh
-  → /home/renanzai/.hermes/venvs/omni-localizer/bin/python src/ol_mcp_run.py
-```
-
-**测试 OL MCP**（通过 Hermes MCP tool）：
 ```bash
-mcp_ol_translate_xliff({params: {input_path: "...", output_path: "...", ...}})
+# 启动 OL MCP（stdio）
+.venv_ol/bin/ol-mcp
+
+# 同一入口的别名 console script
+.venv_ol/bin/ol-mcp-server
 ```
 
-**测试 OL CLI**：
+**测试 OL CLI**（与 MCP 共用 `.venv_ol`）：
 ```bash
-~/.hermes/venvs/omni-localizer/bin/ol translate-xliff input.xlf \
+.venv_ol/bin/ol translate-xliff input.xlf \
   --source-lang zh --target-lang en --json -o output_dir/
 ```
 

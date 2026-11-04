@@ -17,18 +17,16 @@ scenarios provision).
 |---|---|---|---|---|
 | `suite` (default) | `scenarios/` | Agent-surface + pipeline | 1-2 | the original suite-level library |
 | `opp` | `Omni_Pre_Processor/scenarios/` | 6 `opp-extraction` | 1 | hermetic, no keys |
-| `ol` | `Omni_Localizer/scenarios/` | 5 `ol-translation` | 2 | `requires_env` = the 2 canonical real LLM provider keys (AND); `unconfigured` without them |
+| `ol` | `Omni_Localizer/scenarios/` | 5 `ol-translation` | 2 | `requires_env_any` = the 2 canonical real LLM provider keys (OR); `unconfigured` without them |
 | `orf` | `Omni_Re_Formatter/scenarios/` | 6 `orf-backfill`/`orf-md`/`orf-xliff` | 1 | `requires_env: [MCP_ALLOWED_DIRECTORIES]` — ORF is fail-closed on the MCP allowlist |
 | `all` | all four dirs merged | everything above | 1-2 | full cross-repo sweep |
 
 OL's provider env vars (mirroring `config/default.yaml`): `AMD_API_KEY`,
-`ZHIPU_API_KEY`. The two libraries gate differently: OL's **in-repo**
-scenarios still declare an AND `requires_env` over both provider keys (a
-separate pending change moves them to the OR field), while the **suite's** 13
-OL-driven scenarios declare
+`ZHIPU_API_KEY`. Both libraries gate the same way: the **suite's** 13
+OL-driven scenarios and every OL **in-repo** scenario declare
 `requires_env_any: [AMD_API_KEY, ZHIPU_API_KEY]` — an OR group, so one
-working provider key configures them. Either way, a user with no provider
-key gets `unconfigured`, never a pass (fail-closed).
+working provider key configures them. A user with no provider key gets
+`unconfigured`, never a pass (fail-closed).
 
 ## 2. Enumerate and run
 

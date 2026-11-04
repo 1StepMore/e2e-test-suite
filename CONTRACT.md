@@ -27,7 +27,7 @@ MD format drift that caused E2E-06, E2E-14, E2E-15).
 
 ## Contract Version
 
-This is contract version **1.0**. Changes must bump the version.
+This is contract version **1.1**. Changes must bump the version.
 
 See `omni_suite/contract/models.py:TranslationDocument` for the authoritative
 Pydantic model — it is the source of truth for the handoff schema.
@@ -230,7 +230,7 @@ doc = TranslationDocument(
 | `source_lang` | `str` | ISO 639-1 source language |
 | `target_lang` | `str` | ISO 639-1 target language |
 | `segments` | `list[TranslationSegment]` | Extracted translatable units |
-| `version` | `str` | Contract version (default `"1.0"`) |
+| `version` | `str` | Contract version (default `"1.1"`) |
 
 ### JSON Schema
 

@@ -1,17 +1,19 @@
 # Observability
 
-> **Status**: metrics surface shipped (Phase 4.5); structured logging
-> still in flight (`bg_86b8db38`).
+> **Status**: metrics, structured logging (Phase 4.1) and OTel tracing
+> (Phase 4.5) are shipped; this file is the metric reference.
 
 ## Artifacts
 
-- `METRICS.md` — module-prefixed counters and histograms for the
-  three MCP servers (this file)
-- `SCRAPE_CONFIG.yml` — example Prometheus scrape config
-- `STRUCTURED_LOGGING.md` — `structlog` configuration (scaffold;
-  lands with `bg_86b8db38`)
+- This file — metric names and the textfile layout below.
+- Metric producers: `Omni_Pre_Processor/src/opp/mcp/metrics.py`,
+  `Omni_Localizer/src/ol_mcp/metrics.py`,
+  `Omni_Re_Formatter/src/orf/mcp/metrics.py`
+- Shared counters: `omni_metrics/metrics.py`
+- Tests: `tests/observability/test_metrics.py`,
+  `tests/observability/test_metrics_wiring.py`
 
-## METRICS.md
+## Metric layout
 
 Each module emits its own Prometheus textfile under
 `OMNI_METRICS_DIR` (default `/tmp/omni-metrics/`):

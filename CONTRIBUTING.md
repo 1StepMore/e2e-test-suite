@@ -44,9 +44,9 @@ pytest Omni_Localizer/tests/ -q
 pytest Omni_Re_Formatter/tests/ -q
 
 # Specific test categories
-pytest tests/observability/ -q   # 38 observability tests
-pytest tests/security/ -q        # 63 security tests
-pytest tests/test_e2e_real_llm.py -v -k test_md_channel
+pytest tests/observability/ -q   # 61 observability tests
+pytest tests/security/ -q        # 173 security tests
+pytest tests/test_e2e_real_llm.py -v -k test_e2e_md_docx
 ```
 
 The agent-agnostic validation framework is also part of the test surface:
