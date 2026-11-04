@@ -4,16 +4,16 @@
 
 ---
 
-## TL;DR — one command, all 14 nightly tests (11 active + 3 skipped)
+## TL;DR — one command, all 24 nightly tests
 
 ```bash
 cd /mnt/d/贯维/Omni_Suite
 .venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py -m "nightly" -v
 ```
 
-**Expected:** `11 passed, 3 skipped in ~25–32 minutes`. The 3 skipped are Tier 1.2 (`opp-mcp`), Tier 2.2 (`xliff_all_mcp`), Tier 2.4 (`md_docx_all_mcp`) — all blocked on Phase 0.5 (OPP MCP server init + `save_skeleton` tool). See `tests/test_e2e_real_llm.py` Phase 0.5.
+**Expected:** without API keys every test skips gracefully — the `use_real_llm` fixture skips when neither `AMD_API_KEY` nor `ZHIPU_API_KEY` is set (a skip, never a failure). The MCP-path tests additionally require a running OPP MCP server with the `save_skeleton` tool (Phase 0.5 — completed, see below).
 
-> **Note:** After the full implementation cycle all 14 tests passed with no skips (see below). The 3 MCP-path tests require a running OPP MCP server with the `save_skeleton` tool — in CI or headless environments without a running server they remain skipped. When run on a machine with all MCP services running, all 14 pass.
+> **Note:** After the full implementation cycle all 14 tests passed with no skips (see below). The MCP-path tests require a running OPP MCP server with the `save_skeleton` tool — in CI or headless environments without a running server they remain skipped. When run on a machine with all MCP services running, all nightly tests pass (the captured run below is the 14-test baseline).
 
 ---
 
@@ -37,7 +37,7 @@ cd Omni_Localizer && git check-ignore -v config/local.yaml
 
 # 4. Markers are registered
 .venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py --collect-only -q 2>&1 | head -10
-# Expected: 3 tests collected, all marked nightly + requires_api_key
+# Expected: 24 tests collected, all marked nightly + requires_api_key
 ```
 
 If any fails, see `SETUP.md` to redo Phase 1.
@@ -48,10 +48,10 @@ If any fails, see `SETUP.md` to redo Phase 1.
 
 | Goal | Command | Duration |
 |---|---|---|
-| **All 14 nightly tests** (the main one) | `.venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py -m "nightly" -v` | ~25-32 min |
-| Just Tier 1 (smoke, 6 parametrized) | `.venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py::TestE2ERealLLMSmoke -m "nightly" -v` | ~8-12 min |
+| **All 24 nightly tests** (the main one) | `.venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py -m "nightly" -v` | varies with LLM latency |
+| Just Tier 1 (smoke, 7 tests) | `.venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py::TestE2ERealLLMSmoke -m "nightly" -v` | ~8-12 min |
 | Just Tier 2 (E2E, 4 tests) | `.venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py::TestE2ERealLLME2E -m "nightly" -v` | ~12-16 min |
-| Just Tier 3 (LQA, 2 tests) | `.venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py::TestE2ERealLLMLQA -m "nightly" -v` | ~6-8 min |
+| Just Tier 3 (LQA, 11 tests) | `.venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py::TestE2ERealLLMLQA -m "nightly" -v` | varies (~3-4 min/test) |
 | Just Tier 4 (formats, 2 tests) | `.venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py::TestE2ERealLLMFormats -m "nightly" -v` | ~6-8 min |
 | Just one specific test, full traceback | `.venv_ol/bin/python -m pytest tests/test_e2e_real_llm.py::TestE2ERealLLMLQA::test_lqa_xliff_final_docx --tb=long -v` | ~3-4 min |
 | All tests except nightly (CI mode) | `.venv_ol/bin/python -m pytest tests/ -m "not nightly" -v` | varies |
@@ -74,11 +74,11 @@ The mock/CI suite in `conftest.py` uses a different fixture (`sample_docx_path`,
 
 ---
 
-## What the 14 nightly tests do
+## What the 24 nightly tests do
 
-The 14 tests are organized in 4 tiers. See `tests/test_e2e_real_llm.py` for the full design rationale.
+The 24 tests are organized in 4 tiers. See `tests/test_e2e_real_llm.py` for the full design rationale. The per-tier tables below document the original 14-test baseline; the classes have since grown (PPTX smoke, MCP-transport finals, en→zh direction, mixed CLI/MCP transports) — run `pytest --collect-only -q` for the live list.
 
-### Tier 1 — Per-component × per-transport smoke (6 parametrized tests, ~8-12 min)
+### Tier 1 — Per-component × per-transport smoke (7 tests, ~8-12 min)
 
 | Test cell | What it verifies | ~Time |
 |---|---|---|
@@ -88,6 +88,7 @@ The 14 tests are organized in 4 tiers. See `tests/test_e2e_real_llm.py` for the 
 | `test_component_transport_smoke[ol-mcp]` | OL MCP translates both XLIFF and MD (XLIFF file-based, MD text-in/text-out) | ~2-3 min (LLM) |
 | `test_component_transport_smoke[orf-cli]` | ORF CLI produces 4 output formats (XLIFF→DOCX, MD→{DOCX, EPUB, HTML}) | ~30s |
 | `test_component_transport_smoke[orf-mcp]` | ORF MCP produces 4 output formats | ~30s |
+| `test_orf_xliff_pptx_cli` | ORF CLI backfills XLIFF into a real 3-slide PPTX skeleton (`scenarios/_fixtures/meridian_q1.pptx`) — a DOCX skeleton would produce a malformed deck | ~2-3 min (LLM) |
 
 ### Tier 2 — Sparse homogeneous E2E (4 tests, ~12-16 min)
 
@@ -98,12 +99,14 @@ The 14 tests are organized in 4 tiers. See `tests/test_e2e_real_llm.py` for the 
 | `test_e2e_md_docx_all_cli` | OPP-CLI → OL-CLI → ORF-CLI (MD→DOCX) | 7/7 unique images, paragraph_index within ±3 (wider for MD) | ~3-4 min |
 | `test_e2e_md_docx_all_mcp` | **SKIPPED** — blocked on Phase 0.5 | — | — |
 
-### Tier 3 — LQA on final DOCX (2 tests, ~6-8 min)
+### Tier 3 — LQA on final documents (11 tests, ~3-4 min each)
 
 | Test | Pipeline + judge | Asserts | ~Time |
 |---|---|---|---|
 | `test_lqa_xliff_final_docx` | Tier 2.1 chain + JudgeService on final DOCX | 4-dim avg (adequacy, fluency, terminology, format) ≥ 5.0 | ~3-4 min |
 | `test_lqa_md_final_docx` | Tier 2.3 chain + JudgeService on final DOCX | 4-dim avg ≥ 5.0 | ~3-4 min |
+
+The class has since grown to 11 tests — MCP-transport finals (`*_mcp`), EPUB/HTML finals (`*_epub` / `*_html`), the en→zh direction (`en_zh_*`, using an English source fixture) and mixed CLI/MCP transports (`mixed_transport_*`).
 
 ### Tier 4 — ORF format coverage (2 tests, ~6-8 min)
 
@@ -273,7 +276,7 @@ def test_your_new_real_llm_test(
 
 | File | Purpose |
 |---|---|
-| `tests/test_e2e_real_llm.py` | The 14 nightly tests + 4 test classes (`TestE2ERealLLMSmoke`, `TestE2ERealLLME2E`, `TestE2ERealLLMLQA`, `TestE2ERealLLMFormats`) + helpers (`_run_opp`, `_run_ol`, `_run_orf`, `_run_e2e_chain`, `_assert_image_positioning`, `_judge_docx_text`, `extract_image_positions`, `use_real_llm` fixture) |
+| `tests/test_e2e_real_llm.py` | The 24 nightly tests + 4 test classes (`TestE2ERealLLMSmoke`, `TestE2ERealLLME2E`, `TestE2ERealLLMLQA`, `TestE2ERealLLMFormats`) + helpers (`_run_opp`, `_run_ol`, `_run_orf`, `_run_e2e_chain`, `_assert_image_positioning`, `_judge_docx_text`, `extract_image_positions`, `use_real_llm` fixture) |
 | `tests/conftest.py:747-759` | `haier_real_docx_path` fixture definition |
 | `tests/test_e2e_real_llm.py:105-130` | `use_real_llm` fixture definition (sets `OL_CONFIG_PATH` to `local.yaml`) |
 | `tests/pytest.ini:54-55` | `requires_api_key` + `nightly` marker registration |
@@ -281,7 +284,7 @@ def test_your_new_real_llm_test(
 | `Omni_Localizer/config/local.yaml` | Real LLM pool config (gitignored) |
 | `SETUP.md` | Phase 1 setup guide — fill `.env` + `local.yaml` |
 | `.omo/plans/real-llm-integration-tests.md` | Section 0 ground-truth (12 drawings, 7 unique files) |
-| `tests/test_e2e_real_llm.py` | **Current design** — 14-test 4-tier matrix, Phase 0.5 OPP MCP gap, helper specs, risks |
+| `tests/test_e2e_real_llm.py` | **Original design** — 14-test 4-tier matrix, Phase 0.5 OPP MCP gap, helper specs, risks (the suite now runs 24 nightly tests) |
 | `scenarios/_fixtures/haier_ch2_zh.docx` | Test fixture (447 KB, 24 images, 9 paragraphs) |
 
 ---

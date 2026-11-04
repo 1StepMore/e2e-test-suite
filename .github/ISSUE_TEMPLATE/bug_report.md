@@ -19,7 +19,7 @@ One-line summary of the bug.
 ## Environment
 
 OS, Python version, Omni Suite version, module versions (OPP / OL / ORF), relevant env vars.
-(e.g. Ubuntu 22.04, Python 3.13, Suite v0.4.0, OPP v0.9.1, OL v0.7.1, ORF v0.4.17)
+(e.g. Ubuntu 22.04, Python 3.13, Suite v0.5.0, OPP v0.10.0, OL v0.7.1, ORF v0.5.0)
 
 ## Expected behavior
 
