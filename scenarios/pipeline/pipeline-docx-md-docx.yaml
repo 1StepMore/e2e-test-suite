@@ -7,11 +7,18 @@ description: >-
   +-5%, CJK density < 5%, zero Chinese punctuation, LQA >= 4.0/5 via OL
   JudgeService). Two of those bars are asserted at their LITERAL published
   threshold — #drawing-count (src == out) and #lqa-threshold
-  (judge_overall >= 4.0) — flagged step-level ``known_gap: true`` because
-  the shipped pipeline could not meet them (T13-02 / T13-01, both fixed in
-  code 2026-09-17 — markers kept until a tier-2 re-run re-verifies the
-  literal bars); their weakened observations live under
-  scenarios/pipeline/known-gaps/ and are excluded from the pass bar.
+  (judge_overall >= 4.0). Both bars are enforced DIRECTLY (their step-level
+  ``known_gap`` waivers were removed after the 2026-10-27 tier-2 real-key
+  round re-verified them — LQA 4.85/5, drawings 2->2, 14/14 passed).
+  #lqa-threshold holds (nightly 2026-11-01..04: 4.93-4.95/5 — T13-01
+  closed). #drawing-count had re-opened on CI nightly 2026-11-01..04
+  (deterministic src=2 out=4 — e2e-test-suite#244: CI pins OL
+  concurrency=1, the sequential path ran repair() BEFORE unshield, and
+  is_complete was blind to the [OL:IMG:xxxx] marker form, so level4
+  re-appended every original) and was re-fixed 2026-11-06 (marker-form
+  completeness + unshield-first order + post-unshield image-ref
+  self-check; local tier-2 re-run 20261106-012511: 14/14 passed,
+  drawings 2->2). The known-gaps twins were removed in the same sweep.
   Requires real LLM keys -> unconfigured in key-less CI, GREEN in nightly (D11).
 level: human-quality
 category: pipeline
@@ -52,25 +59,22 @@ instructions: |-
   Q5 :230-252, Q2 :302-396).
 
   Known-gap isolation (T-17, Wave-0 decision C-05): TWO gates are asserted
-  at the LITERAL published bar in this scenario but flagged step-level
-  ``known_gap: true`` because the shipped pipeline could not yet meet them —
-  their failure is recorded (proving the gap) yet excluded from this
-  scenario's verdict, so the pass bar is never silently weakened:
-  - #drawing-count (T13-02): ol translate-md duplicated every ![..](..)
-    image reference (level4_safe_fallback re-inserted content unshield had
-    already restored; 2 refs in -> 4 out, 12 -> 24 verified), so `src == out`
-    failed on any image-bearing document.
-  - #lqa-threshold (T13-01): OL's LLM judge prompt never asked for
-    terminology_consistency / format_preservation while RUBRIC_WEIGHTS gave
-    them 0.35 combined weight, and _remap_llm_fields padded the absent
-    dimensions with 0, so judge_overall_score was capped at 3.25/5.
-  BOTH ROOT CAUSES ARE FIXED IN CODE (2026-09-17: Omni_Localizer
-  src/ol_md/pipeline.py, src/ol_lqa/judge.py, src/ol_pool/router.py; unit
-  regressions in tests/test_md_repair_pipeline.py and test_lqa_judge.py).
-  The step-level ``known_gap: true`` markers are KEPT until a tier-2
-  (real-key) run re-verifies these literal bars — dropping them on
-  hermetic/unit evidence alone would be a false green.
-  The SHIPPED weakened observations for both (drawing `out >= src`; the
+  at the LITERAL published bar in this scenario. Their step-level
+  ``known_gap: true`` waivers were REMOVED 2026-10-30: the 2026-10-27
+  tier-2 real-key round re-verified both bars (LQA 4.85/5, drawings 2->2,
+  14/14 passed; LOOP-LOG GAP CLOSED) — each marker's own re-verification
+  condition — so both steps now enforce the published bars directly and a
+  failure counts toward this scenario's verdict:
+  - #lqa-threshold (T13-01): CLOSED. The 9-17 rubric/prompt fix holds —
+    CI nightly 2026-11-01..04 passes Q2 every night (judge_overall
+    4.93-4.95/5); local run 20261105-012731 scored 4.95/5.
+  - #drawing-count (T13-02): REOPENED. The 10-27 verification (2->2) was
+    superseded by CI nightly 2026-11-01..04 failing deterministically at
+    src=2 out=4 (pure zipfile count, no LLM involved; local run
+    20261105-012731 shows the opposite loss signature out=1) — tracked as
+    e2e-test-suite#244; the 9-17 fix (ol_md/pipeline.py
+    TestShieldValueAwareCompleteness) does not hold on this path.
+  The SHIPPED weakened observations (drawing `out >= src`; the
   four-dimension LQA average) live under scenarios/pipeline/known-gaps/
   marked ``known_gap: true`` and are excluded from the pass bar; both gaps
   are recorded in ACCEPTED_GAPS.md.
@@ -322,6 +326,17 @@ steps:
       round re-verified this literal bar (drawings 2->2; LOOP-LOG GAP
       CLOSED) — the marker's own re-verification condition — so the step
       now enforces the published bar directly.
+      RE-FIXED 2026-11-06 (e2e-test-suite#244): the 10-27 verification had
+      exercised the concurrent token path (local default), while CI pins
+      OL concurrency=1 and takes the sequential path, where repair() ran
+      BEFORE unshield and is_complete was blind to the [OL:IMG:xxxx]
+      marker form — level4 re-appended every original (deterministic
+      2 -> 4). Fixed in Omni_Localizer: marker-form completeness
+      (src/ol_md/pipeline.py), unshield-first order (src/cli/translate_md.py),
+      post-unshield image-ref self-check (src/ol_md/shield.py); regression
+      tests/test_md_repair_pipeline.py::TestSequentialPathMarkerForm.
+      Local tier-2 re-verification run 20261106-012511: 14/14 passed,
+      drawings 2->2 (match); the known-gaps twins were removed 2026-11-06.
   - name: Assert paragraph ratio within +-5% (Q6)
     kind: python
     command: |-

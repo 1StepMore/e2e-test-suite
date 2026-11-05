@@ -60,6 +60,19 @@ _LIBRARY_ROOTS = (
 _REQUIRED_SCENARIO_FIELDS = frozenset({"name", "description", "steps"})
 _REQUIRED_STEP_FIELDS = frozenset({"kind", "expect"})
 
+#: Fields with a LIVE implementing surface but intentionally zero scenario
+#: usage.  Step-level ``known_gap`` (+ its ``recheck_by`` expiry date, #206)
+#: is the T-17 bookkeeping marker: the engine implements the pair (verdict
+#: exclusion + expiry mechanics) and ACCEPTED_GAPS.md documents it, and
+#: driving its usage to zero was the desired END state of closing both
+#: quality gates (2026-11-06: the two known-gap twins were removed and the
+#: literal bars now hold).  Unlike ``requires_http`` (removed because no
+#: HTTP surface exists at all), deleting these fields would discard a
+#: working engine capability; a future gap reopening simply re-adds a
+#: marker.  The exemption itself is locked by
+#: ``test_step_known_gap_exemption_is_exact_and_surface_alive``.
+_T21_EXEMPT_STEP_FIELDS = frozenset({"known_gap", "recheck_by"})
+
 #: The scenario that exercises the R-04 partial-success policy.
 _PARTIAL_SUCCESS_SCENARIO = "scenarios/orf-md/orf-md-batch-partial-success.yaml"
 
@@ -114,7 +127,10 @@ _UNUSED_SCENARIO_FIELDS = sorted(
     _SCENARIO_FIELDS - _REQUIRED_SCENARIO_FIELDS - _RAW_SCENARIO_KEYS
 )
 _UNUSED_STEP_FIELDS = sorted(
-    _STEP_FIELDS - _REQUIRED_STEP_FIELDS - _RAW_STEP_KEYS
+    _STEP_FIELDS
+    - _REQUIRED_STEP_FIELDS
+    - _RAW_STEP_KEYS
+    - _T21_EXEMPT_STEP_FIELDS
 )
 
 
@@ -133,13 +149,37 @@ def test_every_declared_scenario_field_is_used(field: str):
     )
 
 
-@pytest.mark.parametrize("field", sorted(_STEP_FIELDS - _REQUIRED_STEP_FIELDS))
+@pytest.mark.parametrize(
+    "field", sorted(_STEP_FIELDS - _REQUIRED_STEP_FIELDS - _T21_EXEMPT_STEP_FIELDS)
+)
 def test_every_declared_step_field_is_used(field: str):
-    """Every optional step-level field appears in >=1 scenario step."""
+    """Every optional step-level field (minus the locked exemption) appears
+    in >=1 scenario step."""
     assert field in _RAW_STEP_KEYS, (
         f"step field {field!r} is declared in loader._STEP_FIELDS but used by "
         f"0 scenarios — exercise it or remove it (T-21)"
     )
+
+
+def test_step_known_gap_exemption_is_exact_and_surface_alive():
+    """Lock the T-21 exemption: exactly the T-17 marker pair, and only while
+    the loader still accepts it (the engine surface is alive)."""
+    assert _T21_EXEMPT_STEP_FIELDS == {"known_gap", "recheck_by"}
+    assert {"known_gap", "recheck_by"} <= _STEP_FIELDS
+    scenario = {
+        "name": "step-known-gap-surface",
+        "description": "step-level known_gap remains an accepted (intentionally unused) field",
+        "steps": [
+            {
+                "kind": "cli",
+                "command": "true",
+                "expect": {"success": True},
+                "known_gap": True,
+                "recheck_by": "2026-12-31",
+            }
+        ],
+    }
+    validate_scenario(scenario, Path("step-known-gap-surface.yaml"))
 
 
 def test_no_unused_declared_fields_remain():

@@ -61,8 +61,11 @@ jobs:
           # (OPP#24/26/28).
           sudo apt-get install -y \
             libpango-1.0-0 libpangoft2-1.0-0 libpangocairo-1.0-0 \
-            libcairo2 libcairo-gobject2 libgdk-pixbuf2.0-0 \
+            libcairo2 libcairo-gobject2 \
             shared-mime-info fontconfig
+            # Ubuntu 24.04 runners renamed libgdk-pixbuf2.0-0 -> libgdk-pixbuf-2.0-0
+            sudo apt-get install -y libgdk-pixbuf-2.0-0 || \
+                        sudo apt-get install -y libgdk-pixbuf2.0-0
 
       - name: Install md2pptx (Phase C2)
         run: |

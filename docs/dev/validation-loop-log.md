@@ -77,6 +77,26 @@
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
 
+### 2026-11-06（第二轮）：P0-B T13-02 修复关闭（#244）+ P1-A EPUB 确定性 + D3 归档
+
+- Date: 2026-11-06；触发：goal-mode 批次 P0-B/P1-A（plan 均已确认）+ issue #244
+- Scope: `Omni_Localizer`（`src/ol_md/pipeline.py` is_complete 标记形态判据、`src/cli/translate_md.py` unshield-first 顺序、`src/ol_core/repair/level2.py` 双格式占位符、`src/ol_md/shield.py` restore_image_ref_integrity 自检、`tests/test_md_repair_pipeline.py` 两类回归）；suite（`scenarios/pipeline/pipeline-docx-md-docx.yaml` 口径、`ACCEPTED_GAPS.md` T13-02/T-17/EPUB 行、孪生场景 ×2 移除 123→121）；`Omni_Re_Formatter`（`md2epub.py` content-hash SOURCE_DATE_EPOCH + uuid5 identifier、`tests/test_apply_md_epub_deterministic.py`）；`Omni_Pre_Processor`（`epub.py` 图像列表排序、顺序确定性测试）
+- Result:
+  - **D1 复现（红→绿）**：`TestSequentialPathMarkerForm` 先红——level4 "inserted 2 missing placeholder(s)" + `Tag_auto_appended`、2 正文 + 2 追加 = 4，CI 翻倍机制链 file:line 定案（CI concurrency=1 → sequential 路径 repair-before-unshield → is_complete 对 `[OL:IMG:xxxx]` 失明 → level4 追加）；修复后绿，53 passed，**OL 全量 1890 passed / 0 failed**
+  - **本地丢图定性**：缓存投毒（`~/.omni_cache/ol/ffe2f7d4*.md`，路径剥下划线 + URL 粘连"不至于"），已删（备份 `99-Tools/validation-scratch/omni-suite/p0b-poisoned-cache-backup/`）；产品层自检 `restore_image_ref_integrity` 落地防复发
+  - **tier-2 复验**：run `20261106-012511` = **14/14 passed**，`drawings src=2 out=2 (match)`，LQA 4.99/5
+  - **P1-A**：ORF epub 跨目录双跑字节一致（pandoc 3.9 实证认 SOURCE_DATE_EPOCH + identifier 元数据）；OPP 图像顺序确定性；三仓 ruff 零新增（HEAD stash 对比）
+  - **D3 归档**：11-02 `pipeline-xliff-backfill-docx` 定性=**LLM 波动**（失败步骤上游 stderr 带 litellm.RateLimitError 429 → 译文降级 → 断言正确拦截 → 次日恢复；同 #194/#176 模式）
+- 新坑（follow-up 方向，待 gate 化/开 issue）：(a) level2 的 SpanProjector 接口漂移——`'SpanProjector' object has no attribute 'project_tagged_text'`，L2 静默降级 no-op 仅 warning 级（OL 侧）；(b) `translate-xliff` 部分未翻译仍 exit 0 打印 "Translated"，与 translate-md 的 fail-closed 不一致（OL 侧，即 D3 拦截到的那类降级的根源）；(c) `/tmp` 是 tmpfs（WSL VM 空闲重启即清空）——tier-2 取证必须在同会话拷到 `/mnt/d`
+- Conclusion: 两个质量门槛全部从缺口清单消失（literal bar 直接生效，孪生清扫 123→121）；#244 按其验收的本地等价条款关闭并附证据（CI 连续两晚 nightly 绿作为后续确认）；EPUB 字节确定性在 ORF/OPP 层落地，矩阵级等价重测归入 P1-B 全库 run
+
+### 2026-11-06：P0-A T13-01 正式关闭（三场景 LQA waiver 摘除）+ T13-02 复燃定性
+
+- Date: 2026-11-06；触发：2026-11-05 目标批次（goal-mode 提示词）P0-A + issue #244 复燃证据复核
+- Scope: `scenarios/pipeline/pipeline-docx-md-{docx,epub}.yaml`、`pipeline-pptx-md-pptx.yaml`（头注释与 Q2 step 口径同步；epub/pptx 的 Q2 step-level `known_gap: true`+`recheck_by: 2026-11-30` 摘除——10-30 整改只摘了 docx，这两个漏网）；`scenarios/pipeline/known-gaps/pipeline-docx-md-docx-{lqa,drawing-count}.yaml`（状态注记）；`ACCEPTED_GAPS.md`（T-17 段 + 两行状态）
+- Result: T13-01（#lqa-threshold）**正式关闭**——证据链：2026-10-27 tier-2 真模型轮 LQA 4.85/5（docx 14/14）与 4.12/5（pptx 11/11）GAP CLOSED；CI 夜跑 2026-11-01..04 Q2 连续绿（4.93-4.95/5）；本地 run `20261105-012731` 4.95/5。T13-02（#drawing-count）复燃定性=**代码 bug**（非波动/非漂移）：10-27 复验 2→2 被 CI 夜跑 11-01..04 确定性 src=2 out=4 推翻（纯 zipfile 计数、无 LLM 参与），本地 11-05 点检又呈 out=1 丢图方向——两种签名并存，#244 跟踪，修复走 P0-B
+- Conclusion: 三个 pass-bar 场景的 literal bar 全部直接生效（失败计入 verdict，收紧非放松）；孪生场景暂留（lqa 的 premise 已消亡、drawing 仍在隔离活体回归），待 #244 关闭时一并清扫（届时需同步场景计数 claim-sites 123→121）
+
 ### 2026-10-31：issue #234 通道分叉修复 + 回归护栏改逐格比
 
 - Date: 2026-10-31；触发：2026-10-30 nightly 实测 CLI skip 65 / MCP skip 55（总数恰差 10，`per_channel_max_skip` 护栏只比总数看不见）
