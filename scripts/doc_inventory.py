@@ -1162,6 +1162,16 @@ def check_referential(root: Path, failures: list[str]) -> None:
                 continue
             if token in _HISTORICAL_PATH_TOKENS:
                 continue
+            # validation-runs/<ts>/... are gitignored ephemera: they exist in
+            # a checkout that has actually run the framework and are
+            # legitimate doc references (same family as latest.txt /
+            # latest-full.txt in the allowlist above), but a fresh clone
+            # does not have them — an exact existence check would be green
+            # locally and red in CI (the e2e#59 failure mode this gate
+            # exists to avoid). 2026-11-06: hit by the full-library baseline
+            # run references in README/PROJECT_STATUS.
+            if re.fullmatch(r"validation-runs/\d{8}-\d{6}(?:/.+)?", token):
+                continue
             if _resolve_token(root, token) is None:
                 failures.append(f"{rel}: dead path token -> `{token}`")
 
