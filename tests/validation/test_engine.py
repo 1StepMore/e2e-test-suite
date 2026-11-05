@@ -1013,7 +1013,10 @@ def test_run_scenarios_run_meta_auto_collected_single_dir(tmp_path):
     run = run_scenarios(str(tmp_path), persist=False)
     assert run.run_meta["suite_version"] != "unknown"
     assert run.run_meta["suite_sha"] != "unknown"
-    assert run.run_meta["repos"] == []
+    # A bare (suite-library) dir exercises all three modules' surfaces, so
+    # the auto-collected meta anchors the components too (P1-B pre-fix;
+    # the old contract was repos: [] and left the report card unanchored).
+    assert run.run_meta["repos"] == ["opp", "ol", "orf"]
 
 
 def test_run_scenarios_run_meta_auto_collected_component_dir(tmp_path):
@@ -1112,3 +1115,38 @@ def test_sanitize_for_json_recurses_and_reports_paths():
     assert out["scenarios"][0]["steps"][0]["actual"]["stdout"] == "\ufffdpartial"
     json.dumps(out)  # must not raise
     assert any("stdout" in p for p in problems)
+
+
+# ---------------------------------------------------------------------------
+# _dirs_to_repo_keys — run_meta component anchoring (P1-B pre-fix)
+# ---------------------------------------------------------------------------
+
+
+def test_dirs_to_repo_keys_default_suite_library_anchors_all_components():
+    """The suite-root library (default dirs == ['scenarios']) exercises all
+    three modules' surfaces, so its run_meta must anchor opp/ol/orf —
+    without this, every default full-library run recorded repos: [] and the
+    report card showed unknown/unknown (2026-10-12 baseline)."""
+    from omni_mcp.validation.engine import _dirs_to_repo_keys
+
+    assert _dirs_to_repo_keys(["scenarios"]) == ["suite", "opp", "ol", "orf"]
+
+
+def test_dirs_to_repo_keys_repo_all_mapping_anchors_all_components():
+    from omni_mcp.validation.engine import _dirs_to_repo_keys
+
+    dirs = [
+        "scenarios",
+        "Omni_Pre_Processor/scenarios",
+        "Omni_Localizer/scenarios",
+        "Omni_Re_Formatter/scenarios",
+    ]
+    assert _dirs_to_repo_keys(dirs) == ["suite", "opp", "ol", "orf"]
+
+
+def test_dirs_to_repo_keys_single_repo_run_stays_precise():
+    """A per-repo run names its own scenario dir; no component inflation."""
+    from omni_mcp.validation.engine import _dirs_to_repo_keys
+
+    assert _dirs_to_repo_keys(["Omni_Pre_Processor/scenarios"]) == ["suite", "opp"]
+    assert _dirs_to_repo_keys(["Omni_Re_Formatter/scenarios"]) == ["suite", "orf"]

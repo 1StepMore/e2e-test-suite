@@ -11,9 +11,9 @@ OPP → OL → ORF 全链路集成测试环境，含全自动 bug 发现 → Ope
 
 ---
 
-## Test status（2026-09-29）
+## Test status（2026-11-06）
 
-CI 已在 upstream（1StepMore）恢复并运行，徽章为实时状态（对应 `.github/workflows/validation.yml`）；backup 镜像（renanzai40/OmniSuite_BackUp）仍不触发 GitHub Actions。以下为本地可复现 CI 的验证命令：
+CI 已在 upstream（1StepMore）恢复并运行，徽章为实时状态（对应 `.github/workflows/validation.yml`）；backup 镜像（renanzai40/OmniSuite_BackUp）仍不触发 GitHub Actions。以下为本地可复现 CI 的验证命令。最新全库基线：`validation-runs/20261106-061539/report.md`（gitignored 本地产物，交付 zip 内含同源 report）（`latest-full.txt` 锚定；127 passed / 0 failed，per-repo report card 全锚定，见 [PROJECT_STATUS.md](PROJECT_STATUS.md)）。
 
 ```bash
 source .venv_ol/bin/activate
@@ -133,7 +133,10 @@ omni-suite pipeline document.docx --keep-intermediate # 保留 /tmp/omni-suite-p
 OPP accepts 16 input formats (DOCX, PPTX, PDF, XLSX, CSV, JSON, XML, HTML,
 EPUB, EML, MSG, images/OCR, Audio, Video, IPYNB, plus `.url` auto-detect
 for YouTube); ORF `apply-md` writes 16 output formats. Verified OPP→OL→ORF
-paths (W1–W3 verified 2026-06-23; the EML XLIFF row re-verified 2026-10-27):
+paths (W1–W3 verified 2026-06-23; the EML XLIFF row re-verified 2026-10-27;
+the 2026-11-06 full-library regression run `20261106-061539` — 0 failed —
+continuously re-exercises these paths, and the EPUB production link is
+byte-deterministic as of 2026-11-06, `Omni_Re_Formatter` #78):
 
 | From | Via | To | Engine / Note |
 |------|-----|----|---------------|
@@ -258,8 +261,8 @@ means you can switch without re-extracting.
 | 旧 venv（已弃用） | `.venv/` | ⚠️ 未装 OL，勿再使用 |
 | OL MCP（console script） | `.venv_ol/bin/ol-mcp` | Python 3.13（入口 `ol_mcp.server:main`）|
 
-v0.10.0 · v0.7.1 · v0.5.0 · v0.5.0（last tested 2026-07-22）。
-**Push state（2026-10-18）**: origin（1StepMore）已于 2026-10-06 恢复、推送正常；本地 `main` 与 `origin/main` 已同步（2026-10-18 文档修正已推送）。
+v0.10.0 · v0.7.1 · v0.5.0 · v0.5.0（last tested 2026-11-06，全库 run `20261106-061539`）。
+**Push state（2026-11-06）**: origin（1StepMore）已于 2026-10-06 恢复、推送正常；本地 `main` 与 `origin/main` 同步（2026-11-06 goal 批次四 PR 已合并：`Omni_Localizer`#170 / `Omni_Re_Formatter`#78 / `Omni_Pre_Processor`#115 / 本仓 #247）。
 
 ---
 

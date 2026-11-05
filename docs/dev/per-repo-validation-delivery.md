@@ -70,21 +70,27 @@ module's scenarios by category (its in-repo categories plus its
 ## 3. `run_meta` in persisted runs
 
 Every persisted run (`validation-runs/<ts>/scenarios.json`) carries a
-`run_meta` block, auto-collected at run time:
+`run_meta` block, auto-collected at run time. Real values from the
+2026-11-06 full-library baseline (`validation-runs/20261106-061539/`):
 
 ```json
 {
-  "suite_version": "0.4.0",
-  "suite_sha": "<suite git sha>",
-  "opp":  { "version": "0.9.1",  "sha": "<opp git sha>" },
-  "ol":   { "version": "0.7.1",  "sha": "<ol git sha>" },
-  "orf":  { "version": "0.4.17", "sha": "<orf git sha>" },
-  "repos": ["suite", "opp", "ol", "orf"]
+  "suite_version": "0.5.0",
+  "suite_sha": "0b4cb63c…",
+  "opp":  { "version": "0.10.0", "sha": "2e2c9dd0…" },
+  "ol":   { "version": "0.7.1",  "sha": "37bbf398…" },
+  "orf":  { "version": "0.5.0",  "sha": "8a99977d…" },
+  "repos": ["opp", "ol", "orf"]
 }
 ```
 
-`repos` lists which source dirs fed the run. The diff and report tools
-consume this block (see §5 and §6).
+`repos` lists which **component** source dirs fed the run (the suite itself
+is the run's home and is never listed). A run over the suite-root library
+(the default `dirs=["scenarios"]`, `--repo suite`, or `--repo all`) anchors
+all three components — the suite library exercises every module's surface
+(`_dirs_to_repo_keys`, `omni_mcp/validation/engine.py`); before 2026-11-06
+it recorded `repos: []` and the report card showed unknown/unknown.
+The diff and report tools consume this block (see §5 and §6).
 
 ## 4. `--matrix` and `--deliver`
 

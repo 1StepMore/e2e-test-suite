@@ -19,6 +19,32 @@ Version source of truth is each repo's `pyproject.toml` (`[project].version`) �
 suite root also carries a `VERSION` file. The suite↔sub-repo pinning lives in
 `COMPATIBILITY.md`; `scripts/sync_version_docs.py --check` asserts doc↔pyproject agreement.
 
+## Current verdict (2026-11-06)
+
+Full-library baseline run `validation-runs/20261106-061539/report.md`（gitignored 本地产物，交付 zip 内含同源 report）
+(`--repo all`, 138 scenarios loaded across the suite + 3 sub-repo libraries; `latest-full.txt` anchor,
+first written by this run):
+
+**127 passed / 0 failed / 0 invalid / 6 unconfigured (objective env: TM network, OCR, MSG, ipynb,
+youtube) / 4 recovered / 1 known-gap** — per-repo report card fully anchored for the first time
+(the `run_meta.repos` collection gap was fixed the same day):
+
+| Repo | Version | SHA | Scenarios | Passed | Failed |
+|---|---|---|---|---|---|
+| ol | 0.7.1 | 37bbf398 | 34 | 33 | 0 |
+| opp | 0.10.0 | 2e2c9dd0 | 31 | 27 | 0 |
+| orf | 0.5.0 | 8a99977d | 47 | 44 | 0 |
+| suite | 0.5.0 | 0b4cb63c | 26 | 23 | 0 |
+
+Both quality gates (T13-01 `#lqa-threshold`, T13-02 `#drawing-count`) are **closed** and enforced
+directly at the literal bars (`ACCEPTED_GAPS.md`; real-model quality baseline:
+`docs/dev/quality-baseline.md`). The hermetic tier-1 sweep earlier the same day
+(run `20261106-033215`) shows the same 0-failed picture (111 passed). A first full-library
+attempt (`20261106-045637`) had 2 failures, both classified away from regression per the
+failure-classification protocol: an epub judge truncation (free-tier `finish_reason=length`
+fail-closed degradation — rerun self-healed) and a local env override shadowing the engine's
+allowlist defaulting (operator error, corrected).
+
 ## Test matrix health
 
 **131 PASS, 64 SKIP, 0 FAIL** across 195 cells (last full matrix run 2026-06-29).
@@ -51,26 +77,32 @@ OMNI_TEST_FAKE_LLM=1 OMNI_TEST_FAKE_PANDOC=1 .venv_ol/bin/python scripts/format_
 director loop in `docs/dev/validation-director-loop.md`) runs real scenarios against the
 shipped surface — see suite `AGENTS.md` → "How to validate".
 
-Derived library size: **123 scenario yaml files** (tier-1 = 109, tier-2 = 13, tier-3 = 1).
-Latest recorded tier-1 sweep: `validation-runs/20260915-014100/` — 105 executed
-(passed 90, unconfigured 9, recovered 3, partial-pass 1, known-gap 1, failed 1).
+Derived library size: **121 scenario yaml files** (tier-1 = 109, tier-2 = 11, tier-3 = 1; the
+two known-gap twins were removed 2026-11-06 when both literal bars held). Latest full-library
+baseline: `validation-runs/20261106-061539/` — 127 passed / 0 failed (see "Current verdict"
+above); the previous recorded sweep `20260915-014100` predates the 2026-10 scenario-library
+expansion and is kept as history only.
 
 `validation-runs/latest.txt` points at the newest run of **any** scope, which may be a
-single-scenario run — for the full sweep read the timestamped directory, not `latest.txt`.
+single-scenario run — for the full sweep read `validation-runs/latest-full.txt` (written only
+by full-library runs since 2026-11-06) or the timestamped directory.
 
 ## Working tree state
 
-Suite-level `git status` was **not** clean on 2026-09-17 (the 2026-09-17 optimization round
-is uncommitted: `.github/workflows/lint.yml`, `.gitignore`, `.pre-commit-config.yaml`,
-`omni_mcp/`, `omni_suite/`, `scripts/`, `tests/`, `scenarios/pipeline/`, `ACCEPTED_GAPS.md`,
-`docs/project-health-report-2026-09-17.md`, `scripts/setup_dev.ps1`). OL likewise carries the
-T13-01/T13-02 fixes uncommitted. Sub-repo OPP/ORF trees were clean.
+Synced 2026-11-06: all four repos' `main` match `origin/main` (suite #247, `Omni_Localizer`#170,
+`Omni_Re_Formatter`#78, `Omni_Pre_Processor`#115 merged). Residual local-only dirt (uncommitted,
+pre-existing, none of it from the 2026-11-06 batch): suite `.github/workflows/lint.yml` (+ the
+three untracked working docs `2026-11-05/06-*.md`), `Omni_Pre_Processor` `scripts/coverage_matrix.py`.
 Always run `git status` in each repo before any work.
 
 ## Recent fixes
 
 | Date | Module | Fix |
 |---|---|---|
+| 2026-11-06 | Suite | **Goal batch closed**: T13-01 + T13-02 gates formally closed (#244), known-gap twins removed (123→121), `run_meta` per-repo anchoring fixed (`_dirs_to_repo_keys`), first `latest-full.txt` written, full-library baseline 127/0, real-model quality baseline doc. PR #247. |
+| 2026-11-06 | OL | **T13-02 root cause** — marker-form completeness + unshield-first order + level2 dual-format placeholders + post-unshield image-ref self-check (#244; PR #170; OL suite 1890 passed). |
+| 2026-11-06 | ORF | EPUB byte determinism — content-hash `SOURCE_DATE_EPOCH` + uuid5 `dc:identifier` (PR #78; two runs in different dirs → identical sha256). |
+| 2026-11-06 | OPP | EPUB image-item ordering determinism in `_parse_epub` (PR #115). |
 | 2026-09-17 | Suite | Health-audit round: `99-Tools/` gitignored; dead code removed from `scripts/omo_loop.py`; `doc_inventory.py` Windows interpreter fix; ruff pinned 0.15.11 across pre-commit/CI/pyproject; mypy scope widened to `omni_metrics omni_suite omni_mcp` (23 files, clean); `setup_dev.ps1` native-Windows bootstrap; contract smoke test platform-aware interpreter. |
 | 2026-09-17 | OL | **T13-01/T13-02** — judge score renormalization (`_remap_llm_fields` omits absent criteria instead of zero-filling) + judge prompt covers all `RUBRIC_WEIGHTS` dimensions + `is_complete()`/`repair()` match key **or** original value (fixes duplicated image refs). Pending tier-2 re-verification. |
 | 2026-09-15 | Suite | Validation run record `20260915-014100` + loop-log 2026-09-14 clear-out; #16 (stale ORF defect pinner retired) / #17 (validation-runs uploaded on structural job) qualified. |
@@ -94,12 +126,15 @@ Full history: `CHANGELOG.md` (last 283 lines).
    `Omni_Localizer/src/ol_mcp/security.py`, `Omni_Re_Formatter/src/orf/mcp/security.py`, plus the
    functional `Omni_Pre_Processor/src/opp/utils/security.py`. Each carries its own
    `ALLOWED_EXTENSIONS`, so a security fix does not propagate. Unifying them needs an ADR first.
-2. **T13-01 / T13-02 await tier-2 re-verification** — the code is fixed (2026-09-17) but the two
-   bars are literal thresholds (`src == out`, `judge_overall >= 4.0`), so the `known_gap: true`
-   markers in `ACCEPTED_GAPS.md` and `scenarios/pipeline/**` stay until a real-LLM run passes.
-3. **EPUB non-determinism** — 8/8 `epub→*` cells produce different MD5 between runs. Partially
-   fixed 2026-06-21 (`book.get_items()` sort). Root cause: `ebooklib` returns items in
-   non-deterministic order. Affects equivalence checks.
+   (Update 2026-11-06: `docs/adr/0007` Phase 1 + 2A have landed — the parity gate and the shared
+   `omni_security` package exist; what remains is Phase 2B: the three sub-repo validators as thin
+   wrappers + the four CLI-surface residual copies.)
+2. ~~T13-01 / T13-02 await tier-2 re-verification~~ — **CLOSED 2026-11-06**: both literal bars are
+   enforced directly and hold (nightly 2026-11-01..04 for T13-01; local tier-2 re-verification
+   `20261106-012511` + the 2026-11-06 full-library baseline for T13-02; e2e-test-suite#244).
+3. ~~EPUB non-determinism~~ — **largely closed 2026-11-06**: OPP image ordering + ORF byte-deterministic
+   EPUB production (`Omni_Re_Formatter`#78); matrix-level equivalence double-run re-measurement lands
+   with the P1-B batch.
 
 For the full gap list, see `ACCEPTED_GAPS.md`. PDF XLIFF is intentionally blocked (use the MD
 path); MSG output needs commercial `aspose-email-foss` (GPLv3) — use `.eml` instead.

@@ -897,3 +897,31 @@ def test_check_accepts_matching_input_format_claim(consistent_tree):
     )
     _generate(consistent_tree)
     assert di.main(["--check", "--root", str(consistent_tree)]) == 0
+
+
+def test_check_validation_run_dir_token_exempt(tmp_path, capsys):
+    """validation-runs/<ts>/... are gitignored ephemera: referencing them in
+    docs must NOT trip the dead-path gate (green locally AND in a fresh
+    clone — the exact run dir does not exist in either here), while a
+    genuinely dead path still fails."""
+    root = tmp_path
+    (root / "README.md").write_text(
+        "# Omni Suite\n\n"
+        "Baseline: `validation-runs/20261106-061539/report.md`.\n"
+        "Dead: `src/opp/mcp/does_not_exist.py`.\n",
+        encoding="utf-8",
+    )
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    (root / "scripts/sync_version_docs.py").write_text(
+        "if __name__ == '__main__':\n    raise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    _generate(root)
+    rc = di.main(["--check", "--root", str(root)])
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert rc == 1, "the genuinely dead path must still fail the check"
+    assert "20261106-061539" not in combined, (
+        f"the validation-run dir token must be exempt, got: {combined!r}"
+    )
+    assert "does_not_exist.py" in combined
