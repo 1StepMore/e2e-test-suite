@@ -21,7 +21,7 @@ suite root also carries a `VERSION` file. The suite↔sub-repo pinning lives in
 
 ## Current verdict (2026-11-06)
 
-Full-library baseline run [`validation-runs/20261106-061539/`](validation-runs/20261106-061539/report.md)
+Full-library baseline run `validation-runs/20261106-061539/report.md`（gitignored 本地产物，交付 zip 内含同源 report）
 (`--repo all`, 138 scenarios loaded across the suite + 3 sub-repo libraries; `latest-full.txt` anchor,
 first written by this run):
 

@@ -13,7 +13,7 @@ OPP → OL → ORF 全链路集成测试环境，含全自动 bug 发现 → Ope
 
 ## Test status（2026-11-06）
 
-CI 已在 upstream（1StepMore）恢复并运行，徽章为实时状态（对应 `.github/workflows/validation.yml`）；backup 镜像（renanzai40/OmniSuite_BackUp）仍不触发 GitHub Actions。以下为本地可复现 CI 的验证命令。最新全库基线：[`validation-runs/20261106-061539/`](validation-runs/20261106-061539/report.md)（`latest-full.txt` 锚定；127 passed / 0 failed，per-repo report card 全锚定，见 [PROJECT_STATUS.md](PROJECT_STATUS.md)）。
+CI 已在 upstream（1StepMore）恢复并运行，徽章为实时状态（对应 `.github/workflows/validation.yml`）；backup 镜像（renanzai40/OmniSuite_BackUp）仍不触发 GitHub Actions。以下为本地可复现 CI 的验证命令。最新全库基线：`validation-runs/20261106-061539/report.md`（gitignored 本地产物，交付 zip 内含同源 report）（`latest-full.txt` 锚定；127 passed / 0 failed，per-repo report card 全锚定，见 [PROJECT_STATUS.md](PROJECT_STATUS.md)）。
 
 ```bash
 source .venv_ol/bin/activate
