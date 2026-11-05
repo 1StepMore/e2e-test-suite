@@ -4,6 +4,10 @@
 
 ## 坑清单（pitfall checklist，迭代前逐条对照）
 
+- [ ] **本地手动导出 `MCP_ALLOWED_DIRECTORIES=/tmp` 会覆盖引擎的智能默认**——`omni_mcp/validation/dispatch.py` 在变量未设时默认 `repo:/tmp`（repo = 套件根，场景夹具所在地）；手动只设 `/tmp` 会让所有需要 repo 路径夹具的场景 `OL_PATH_DENIED`（2026-11-06 实测：glossary 夹具全灭，而同日未设变量的 tier-1 run 同场景绿）。本地全库 run 除非别无选择不要手动设 allowlist，让引擎默认装配。
+- [ ] **免费档判官截断（finish_reason=length）→ fail-closed 降级分是已知方差**——单次 judge_overall < 4.0 不构成回归信号（2026-11-06 epub Q2 3.22 即此因，stderr 有截断记录，重跑自愈 4.82）；判读口径见 `docs/dev/quality-baseline.md`：连续两晚 nightly < 4.0 才按回归处理，且先定性后处置。缓解（judge max_tokens 预算）属 OL follow-up。
+- [ ] **`/tmp` 是 tmpfs（WSL VM 空闲重启即清空）**——tier-2 取证产物（`/tmp/omni_val/...`）必须在**同一 WSL 会话内**拷贝到 `/mnt/d`（如 `99-Tools/validation-scratch/`），否则 VM 重启后证据消失（2026-11-06 实测：00:31 的 run 产物在 00:40 已不存在）。OL 的翻译缓存在 `~/.omni_cache/`（ext4，持久）——坏产物会被缓存定格并反复供给，投毒条目要删（先备份）。
+
 ### 2026-08-15 首循环（创建）
 
 - [ ] **venv 是 `.venv`（py3.13）或 `.venv_ol`——不是 `.venv_py313`?** 冒烟实测 `.venv/bin/python` 可用;runbook 记 `.venv_ol`。跑前确认 ImportError 不来自 venv。
@@ -76,6 +80,17 @@
 ## 循环事件（major events，newest on top）
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
+
+### 2026-11-06（第三轮）：P1-B 全库基线批次 + run_meta 锚定 + 对外文档刷新
+
+- Date: 2026-11-06；触发：goal-mode 批次 P1-B（依赖 P0-B 绿 ✓）
+- Scope: `omni_mcp/validation/engine.py`（`_dirs_to_repo_keys` suite 库兜底 → run_meta 锚定 opp/ol/orf）+ `tests/validation/test_engine.py`（3 新 + 1 契约更新，89 passed）；README.md（test status/readiness/脚注）、PROJECT_STATUS.md（verdict 块 + 库存 121 + sweep 指针 + Open work 结账）、docs/dev/per-repo-validation-delivery.md（run_meta 示例对齐实现）、**docs/dev/quality-baseline.md（新）**；validation-runs/coverage-snapshot.json 刷新
+- Result:
+  - **tier-1 全库** `20261106-033215` = **111 passed / 0 failed / 5 unconfigured / 4 recovered / 1 known-gap**；report card **首次全锚定**（ol 0.7.1@37bbf398 · opp 0.10.0@2e2c9dd0 · orf 0.5.0@8a99977d · suite 0.5.0@0b4cb63c），交付 zip 落 `04-Output/artifacts/deliverables/omni-suite/`
+  - **合并全库（latest-full 首秀）**：`20261106-045637` 2 failed → 逐一定性（epub Q2 = 判官截断 `finish_reason=length` fail-closed 降级分，波动族；glossary = 本地手动 `MCP_ALLOWED_DIRECTORIES=/tmp` 覆盖引擎 repo:/tmp 智能默认的自伤）→ 修正装配重跑 **`20261106-061539` = 127 passed / 0 failed / 6 unconfigured（客观缺 env）/ 4 recovered / 1 known-gap**，**`validation-runs/latest-full.txt` 首次生成**
+  - coverage-snapshot 刷新（suite_sha 0b4cb63c，missing 全空 = 41 工具全覆盖）；真实模型质量基线落盘（judge_overall 观测区间 4.06–4.99，全部 ≥ 4.0 过线）
+- 新坑（已入清单）：(a) **本地手动导出 `MCP_ALLOWED_DIRECTORIES=/tmp` 会覆盖引擎的 `repo:/tmp` 默认装配** → 需要 repo 路径夹具的场景全灭（#58 的镜像）；本地全库 run 除非别无选择不要手动设 allowlist，让引擎默认。(b) 判官截断 fail-closed 降级分是免费档已知方差——单次 < 4.0 不构成回归信号，连续两晚 nightly < 4.0 才处理；缓解（judge max_tokens 预算）记 OL follow-up
+- Conclusion: 「对外状态与能力矩阵反映真实近况」达成——`latest-full.txt` 首次存在、per-repo 全锚定、verdict 块入 PROJECT_STATUS；真实模型质量基线有载体。P1-B 全项闭环（equivalence 双矩阵比对在跑，结果入 P1-A 验收）
 
 ### 2026-11-06（第二轮）：P0-B T13-02 修复关闭（#244）+ P1-A EPUB 确定性 + D3 归档
 

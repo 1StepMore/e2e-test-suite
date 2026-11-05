@@ -805,6 +805,16 @@ def _dirs_to_repo_keys(dirs: list[str | Path]) -> list[str]:
     for key, expected in repo_map.items():
         if any(expected in d for d in dir_strs):
             keys.append(key)
+    if len(keys) == 1:
+        # The suite-root library (dirs == ["scenarios"], the default and
+        # ``--repo suite``/``--repo all`` entry) exercises all three modules'
+        # surfaces — agent-surface scenarios drive OPP/OL/ORF tools and the
+        # pipeline scenarios run the full OPP->OL->ORF chain.  Its run_meta
+        # must therefore anchor the component versions too; without this,
+        # every default full-library run records ``repos: []`` and the
+        # report card shows unknown/unknown for opp/ol/orf (the 2026-10-12
+        # baseline run did exactly that).
+        keys.extend(repo_map)
     return keys
 
 
