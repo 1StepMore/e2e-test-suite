@@ -6,11 +6,12 @@ description: >-
   PPTX, then separate quality-gate steps (opens in python-pptx, paragraph
   ratio within +-5%, CJK density < 5%, zero Chinese punctuation, LQA >=
   4.0/5 via OL JudgeService). The LQA bar is asserted at its LITERAL
-  published threshold (judge_overall >= 4.0), flagged step-level
-  ``known_gap: true`` because the shipped OL judge cannot meet it (T13-01);
-  the weakened observation lives under scenarios/pipeline/known-gaps/ and
-  is excluded from the pass bar. Requires real LLM keys -> unconfigured in
-  key-less CI, GREEN in nightly (D11).
+  published threshold (judge_overall >= 4.0) with no ``known_gap`` waiver:
+  the 2026-10-27 tier-2 real-key round re-verified it (11/11 passed, LQA
+  4.12/5) and the waiver was removed 2026-11-06 — T13-01 is closed
+  (nightly 2026-11-01..04 passes Q2 at 4.93-4.95/5 on the docx sibling).
+  Requires real LLM keys -> unconfigured in key-less CI, GREEN in nightly
+  (D11).
 level: human-quality
 category: pipeline
 tier: 2
@@ -54,10 +55,13 @@ instructions: |-
     python-pptx on source vs output — the PPTX-faithful port of Q6's +-5%
     structure check.
   - LQA (#lqa-threshold): asserted at the LITERAL judge_overall >= 4.0/5
-    bar, flagged step-level ``known_gap: true`` because OL's rubric/prompt
-    mismatch caps judge_overall_score at 3.25/5 (T13-01); the shipped
-    weakened four-dimension average lives under
-    scenarios/pipeline/known-gaps/ and ACCEPTED_GAPS.md records the gap.
+    bar with no waiver — the T13-01 rubric/prompt mismatch was fixed in
+    code 2026-09-17 and the bar re-verified by the 2026-10-27 tier-2
+    real-key round (11/11 passed, LQA 4.12/5); the waiver was removed
+    2026-11-06 (a step failure now counts toward the verdict). The
+    historical weakened four-dimension average lives under
+    scenarios/pipeline/known-gaps/ and ACCEPTED_GAPS.md records the
+    (closed) gap.
   Run it with the real key env (suite-root .env + Omni_Localizer/.env
   loaded) — with keys scrubbed it must report unconfigured, never
   pass/fail.
@@ -329,8 +333,6 @@ steps:
           sys.exit(1)
       print("OK: judge_overall %.2f/5 >= 4.0/5 (n=%d)" % (overall5, len(scores)))
     timeout_seconds: 300
-    known_gap: true
-    recheck_by: "2026-11-30"
     expect:
       exit_code: 0
       stdout_has: ["OK: judge_overall"]
@@ -341,15 +343,14 @@ steps:
       trans-unit pairs from the translated XLIFF, judge each via OL
       JudgeService with the real model pool (config/default.yaml), and
       require the average of ``judge_overall_score`` (0-1, rescored to /5)
-      >= 4.0/5 (STANDARDS.md#lqa-threshold). Flagged ``known_gap: true``:
-      the T13-01 mismatch (OL's judge prompt never asked for
+      >= 4.0/5 (STANDARDS.md#lqa-threshold). Historical known_gap (T13-01):
+      the rubric/prompt mismatch (OL's judge prompt never asked for
       terminology_consistency / format_preservation while RUBRIC_WEIGHTS
       gives them 0.35 combined weight, and _remap_llm_fields padded the
-      absent dimensions with 0, capping judge_overall_score at 3.25/5) is
-      FIXED IN CODE as of 2026-09-17 (Omni_Localizer src/ol_lqa/judge.py
+      absent dimensions with 0, capping judge_overall_score at 3.25/5) was
+      FIXED IN CODE 2026-09-17 (Omni_Localizer src/ol_lqa/judge.py
       and src/ol_pool/router.py; regression tests/test_lqa_judge.py). The
-      marker is KEPT until a tier-2 real-key run re-verifies this literal
-      bar — dropping it on hermetic/unit evidence alone would be a false
-      green. The failure (if any) is recorded here but excluded from this
-      scenario's verdict; the shipped weakened four-dimension average lives
-      under scenarios/pipeline/known-gaps/.
+      waiver was REMOVED 2026-11-06: the 2026-10-27 tier-2 real-key round
+      re-verified this literal bar (11/11 passed, LQA 4.12/5; LOOP-LOG GAP
+      CLOSED) — the marker's own re-verification condition — so the step
+      now enforces the published bar directly.

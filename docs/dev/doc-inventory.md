@@ -14,13 +14,13 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Metric | Value |
 |--------|-------|
 | Total files | 63 |
-| Total lines | 34807 |
+| Total lines | 34827 |
 | Active files | 39 |
 | Archived files | 24 |
 | Category — archive | 24 files / 25391 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 18 files / 2775 lines |
+| Category — docs/dev | 18 files / 2795 lines |
 | Category — docs/root | 18 files / 5299 lines |
 
 ## Inventory
@@ -81,7 +81,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/per-repo-validation-delivery.md` | 195 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 295 | docs/dev | active | — |
-| `dev/validation-loop-log.md` | 312 | docs/dev | active | — |
+| `dev/validation-loop-log.md` | 332 | docs/dev | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |
