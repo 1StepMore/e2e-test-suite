@@ -1,4 +1,4 @@
-> **Status: ARCHIVED (2026-10-26). Reason: Phase artifact; LQA expectations are maintained in docs/OL_EXPECTATIONS.md. Superseded by: `docs/OL_EXPECTATIONS.md`.**
+> **Status: ARCHIVED (2026-10-26). Reason: Phase artifact; LQA expectations are maintained in docs/OL_EXPECTATIONS.md. Superseded by: `docs/archive/OL_EXPECTATIONS.md`.**
 
 # MQM 7 维接入分析：体系内 vs 体系外
 

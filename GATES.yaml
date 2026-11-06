@@ -1,5 +1,5 @@
 schema: omni-suite/gates-v1
-generated: 2026-11-06 (W03/C03 of the remediation plan V3.2)
+generated: 2026-11-06 (W03/C03 creation; W12/C10 hook convergence 16->14)
 status_values: active | blocked | waiver (job-level; step-level blockage uses blocked_steps)
 evidence_values: static (text-level inspection) | execution (runs code/binaries) | manual (human)
 edit_policy: GATES.yaml may only change in topology-changing commits (creation, hook convergence, blocked-step
@@ -132,31 +132,20 @@ commit:
   status: active
   supersedes: ''
   note: ''
-- id: omni-version-docs-sync
-  title: Omni Suite version doc sync (README/AGENTS/COMPATIBILITY must match pyproject.toml)
-  group: 'repo: local'
-  command: bash scripts/pre_commit_python.sh scripts/sync_version_docs.py --check
-  files_scope: ^(pyproject\.toml|Omni_(Pre_Processor|Localizer|Re_Formatter)/pyproject\.toml|README\.md|AGENTS\.md|COMPATIBILITY\.md|VERSION_COMPATIBILITY\.md|scripts/sync_version_docs\.py)$
-  evidence: execution
-  windows: 'yes'
-  wsl: 'yes'
-  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
-  status: active
-  supersedes: ''
-  note: same assertion already delegated by doc_inventory check_version_sync (doc_inventory.py:779); block
-    scheduled for removal in the hook-convergence commit (16->14)
 - id: omni-doc-inventory
-  title: Omni Suite doc-inventory check (AUTO-GENERATED header + source-truth MCP counts)
+  title: Omni Suite doc truth + governance drift
   group: 'repo: local'
-  command: bash scripts/pre_commit_python.sh scripts/doc_inventory.py --check
-  files_scope: ^(docs/.*|README\.md|AGENTS\.md|CLAUDE\.md|reports/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|scenarios/.*|scripts/doc_inventory\.py|\.pre-commit-config\.yaml|Makefile|[^/]+\.(doc|docx|odt|epub|msg|pdf|ppt|pptx|rtf|xls|xlsx))$
+  command: bash scripts/pre_commit_python.sh scripts/doc_inventory.py --check (D-A..D-F governance drift)
+  files_scope: ^(docs/.*|README\.md|AGENTS\.md|CLAUDE\.md|COMPATIBILITY\.md|CONTRIBUTING\.md|GATES\.yaml|VERSION|pyproject\.toml|Omni_(Pre_Processor|Localizer|Re_Formatter)/pyproject\.toml|reports/.*|scenarios/.*|scripts/.*|omni_mcp/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|\.pre-commit-config\.yaml|Makefile|[^/]+\.(doc|docx|odt|epub|msg|pdf|ppt|pptx|rtf|xls|xlsx))$
   evidence: execution
   windows: 'yes'
   wsl: 'yes'
   authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
   status: active
   supersedes: ''
-  note: retained hook; becomes 'doc truth + governance drift' in the hook-convergence commit
+  note: 'sole doc-truth hook after the 16->14 convergence: D-A absorbs omni-version-docs-sync, D-C absorbs
+    omni-validation-check, plus D-D registry completeness, D-E governance references, D-F archive/generated
+    discipline'
 - id: omni-module-entry-check
   title: Omni Suite module-entry consistency (symlink/.git/.pth)
   group: 'repo: local'
@@ -182,20 +171,6 @@ commit:
   supersedes: ''
   note: Windows takes the visible SKIP branch (needs omni_mcp+omni_security+fastmcp under .venv_ol; SKIP
     classification semantic planned in the SKIP-labeling commit)
-- id: omni-validation-check
-  title: Omni Suite scenario-library contract lint
-  group: 'repo: local'
-  command: bash scripts/pre_commit_python.sh scripts/validation/run_validation.py --check (after import
-    probe)
-  files_scope: ^(scenarios/.*|scripts/validation/.*|omni_mcp/.*|\.pre-commit-config\.yaml)$
-  evidence: execution
-  windows: 'yes'
-  wsl: 'yes'
-  authoritative_executor: CI validation.yml structural job (Gate 1); local both platforms when omni_mcp
-    importable
-  status: active
-  supersedes: ''
-  note: same --check is delegated by doc_inventory (D-C) in the hook-convergence commit
 - id: omni-path-policy-parity
   title: Omni Suite path-security parity (one policy, every copy)
   group: 'repo: local'
