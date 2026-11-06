@@ -4,18 +4,9 @@
 > [`docs/adr/`](adr/README.md) per the agent-era documentation architecture
 > (one file per decision, immutable, indexed).
 
-## Index
-
-| ADR | Title | Status | Date |
-|-----|-------|--------|------|
-| [0001](adr/0001-cli-framework-defer-unification.md) | CLI Framework: Defer Unification | Accepted (deferred) | 2026-06-29 |
-| [0002](adr/0002-three-independent-modules.md) | Three Independent Modules, Not a Monolith | Accepted | 2026-08-13 |
-| [0003](adr/0003-md-xliff-dual-channels.md) | MD + XLIFF Dual Channels | Accepted | 2026-08-13 |
-| [0004](adr/0004-manifest-skeleton-handoff.md) | manifest + skeleton as OPP → ORF Handoff Contract | Accepted | 2026-08-13 |
-| [0005](adr/0005-pdf-xliff-blocked.md) | PDF → XLIFF Blocked by Design | Accepted | 2026-08-13 |
-| [0006](adr/0006-fake-llm-hermetic-seam.md) | FAKE_LLM / FAKE_PANDOC Hermetic Test Seam | Accepted | 2026-08-13 |
-| [0007](adr/0007-path-security-convergence.md) | Path-Security Validation: Converge the Three Copies Now, Defer the Shared Package | Accepted | 2026-09-17 |
-| [0008](adr/0008-cross-repo-copy-review.md) | Cross-Repo Copy Review: What Stays Duplicated, What Converges, and Why | Accepted | 2026-10-29 |
+The only ADR index lives in [`docs/adr/README.md`](adr/README.md) — this file
+duplicates it no longer (the two lists drifted: F10). Inbound links to this
+file (AGENTS.md, CONTEXT.md, PROJECT_STATUS.md) keep working as pointers.
 
 ---
 
