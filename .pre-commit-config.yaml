@@ -187,11 +187,15 @@ repos:
         verbose: true
         entry: |
           bash -c '
-            if err=$(.venv_ol/bin/python -c "import omni_mcp.server, omni_security, fastmcp" 2>&1); then
-              exec .venv_ol/bin/python scripts/validation/coverage_audit.py
+            if [ -x .venv_ol/bin/python ] && .venv_ol/bin/python -c "" 2>/dev/null; then
+              if err=$(.venv_ol/bin/python -c "import omni_mcp.server, omni_security, fastmcp" 2>&1); then
+                exec .venv_ol/bin/python scripts/validation/coverage_audit.py
+              fi
+              echo "SKIP[missing-imports]: omni-coverage-audit needs omni_mcp.server + omni_security + fastmcp importable under .venv_ol — the authoritative execution is the Validation Framework workflow Structural job (CI validation.yml, which installs fastmcp explicitly at a pinned version). Probe said:"
+              echo "$err"
+              exit 0
             fi
-            echo "SKIP: omni-coverage-audit needs omni_mcp.server + omni_security + fastmcp importable under .venv_ol — the authoritative execution is the Validation Framework workflow Structural job (CI validation.yml, which installs fastmcp explicitly at a pinned version). Probe said:"
-            echo "$err"
+            echo "SKIP[no-interpreter]: omni-coverage-audit is .venv_ol-specific by construction (omni_mcp/validation launches every module server through suite_python() = .venv_ol/bin/python; under any other interpreter the parity collapses — 0/41 with the Windows .venv_win, measured 2026-09-17). The authoritative execution is the Validation Framework workflow Structural job (CI validation.yml)."
             exit 0
           '
         language: system
@@ -251,14 +255,24 @@ repos:
       # comment corrected 2026-10-30, the Structural-job claim was false).
       - id: omni-path-policy-parity
         name: Omni Suite path-security parity (one policy, every copy)
+        # verbose: the SKIP[...] triage lines must be VISIBLE on Windows even
+        # though the hook exits 0 there — a silent pass is exactly the fake
+        # green this hook's triage exists to prevent.
+        verbose: true
         entry: |
           bash -c '
             if err=$(bash scripts/pre_commit_python.sh -c "import omni_mcp.orchestrator" 2>&1); then
               set -o pipefail
               bash scripts/pre_commit_python.sh -m pytest tests/security/test_path_policy_parity.py --tb=short -q --no-header 2>&1 | tail -15
-              exit $?
+              rc=${PIPESTATUS[0]}
+              case "$rc" in
+                0) exit 0 ;;
+                1) echo "FAIL[path-policy-parity]: behavioural drift — a policy copy disagrees; see pytest output above"; exit 1 ;;
+                2) echo "SKIP[collection-error]: pytest could not collect the parity test (environment problem, rc=2 — under Git Bash this is the omni_security namespace shadowing), NOT a policy verdict. The authoritative execution is the CI path-security parity gate (lint.yml) and the e2e ci-suite full pytest run."; exit 0 ;;
+                *) echo "SKIP[pytest-rc-$rc]: unexpected pytest exit code"; exit "$rc" ;;
+              esac
             fi
-            echo "SKIP: omni_mcp.orchestrator is not importable under the project interpreter — the authoritative execution is the CI path-security parity gate (lint.yml) and the e2e ci-suite full pytest run. Probe said:"
+            echo "SKIP[missing-imports]: omni_mcp.orchestrator is not importable under the project interpreter — the authoritative execution is the CI path-security parity gate (lint.yml) and the e2e ci-suite full pytest run. Probe said:"
             echo "$err"
             exit 0
           '
