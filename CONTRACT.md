@@ -306,7 +306,9 @@ Changes that break the contract (e.g., renaming `source_lang` to `src_lang`) req
 1. Bumping the contract version in this document AND the Pydantic model
 2. Updating all 3 sub-repos (OPP, OL, ORF) in the same release
 3. Adding migration tests to the contract test suite
-4. Notifying downstream consumers via RELEASE_NOTES.md
+4. Notifying downstream consumers via RELEASE_NOTES.md (generated artifact — regenerate via
+   `scripts/bumpversion.py --release-notes --write docs/RELEASE_NOTES.md`; see the AUTO-GENERATED
+   marker comment in the file's first 3 lines)
 
 The same four rules apply to the in-process import surface above — renaming one
 of those registry names (or changing its shape) is a breaking change of this
