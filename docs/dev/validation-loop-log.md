@@ -90,7 +90,8 @@
   - **合并全库（latest-full 首秀）**：`20261106-045637` 2 failed → 逐一定性（epub Q2 = 判官截断 `finish_reason=length` fail-closed 降级分，波动族；glossary = 本地手动 `MCP_ALLOWED_DIRECTORIES=/tmp` 覆盖引擎 repo:/tmp 智能默认的自伤）→ 修正装配重跑 **`20261106-061539` = 127 passed / 0 failed / 6 unconfigured（客观缺 env）/ 4 recovered / 1 known-gap**，**`validation-runs/latest-full.txt` 首次生成**
   - coverage-snapshot 刷新（suite_sha 0b4cb63c，missing 全空 = 41 工具全覆盖）；真实模型质量基线落盘（judge_overall 观测区间 4.06–4.99，全部 ≥ 4.0 过线）
 - 新坑（已入清单）：(a) **本地手动导出 `MCP_ALLOWED_DIRECTORIES=/tmp` 会覆盖引擎的 `repo:/tmp` 默认装配** → 需要 repo 路径夹具的场景全灭（#58 的镜像）；本地全库 run 除非别无选择不要手动设 allowlist，让引擎默认。(b) 判官截断 fail-closed 降级分是免费档已知方差——单次 < 4.0 不构成回归信号，连续两晚 nightly < 4.0 才处理；缓解（judge max_tokens 预算）记 OL follow-up
-- Conclusion: 「对外状态与能力矩阵反映真实近况」达成——`latest-full.txt` 首次存在、per-repo 全锚定、verdict 块入 PROJECT_STATUS；真实模型质量基线有载体。P1-B 全项闭环（equivalence 双矩阵比对在跑，结果入 P1-A 验收）
+- Conclusion: 「对外状态与能力矩阵反映真实近况」达成——`latest-full.txt` 首次存在、per-repo 全锚定、verdict 块入 PROJECT_STATUS；真实模型质量基线有载体。P1-B 全项闭环。
+- **equivalence 双矩阵实测补记（P1-A 验收口径修正）**：FAKE_LLM 双矩阵 + `equivalence_checker.py --a-dir/--b-dir` 显示**端到端格子逐 run MD5 发散是设计使然**——OL 前言的 `translated_at`/`request_id` 逐 run 变化（连 `docx→docx (xliff)` 文本相似度 1.00 都字节不同），格子级字节相等在不移除 per-run 溯源元数据前不可达（ACCEPTED_GAPS EPUB 行已按此修正）。P1-A 的真实验收口径落在 **ORF 级**：同一输入 MD → 同一 EPUB 字节，单测 + 真实矩阵内容（`md_docx_to_epub/ol/sample.md`）双跑 MD5 一致均已实证。
 
 ### 2026-11-06（第二轮）：P0-B T13-02 修复关闭（#244）+ P1-A EPUB 确定性 + D3 归档
 
