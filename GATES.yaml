@@ -1,0 +1,1289 @@
+schema: omni-suite/gates-v1
+generated: 2026-11-06 (W03/C03 of the remediation plan V3.2)
+status_values: active | blocked | waiver (job-level; step-level blockage uses blocked_steps)
+evidence_values: static (text-level inspection) | execution (runs code/binaries) | manual (human)
+edit_policy: GATES.yaml may only change in topology-changing commits (creation, hook convergence, blocked-step
+  registration); any other commit touching it breaks single-point rollback.
+line_ending_policy:
+  known_crlf_tracked_files:
+  - .github/workflows/lint.yml
+  - scenarios/_fixtures/generated/test_synthetic.csv
+  rule: NEVER run `git add --renormalize`; no .gitattributes on purpose (new-file budget). Windows core.autocrlf=true,
+    WSL has no autocrlf - commit C01-class files on the Windows side only.
+commit:
+- id: gitleaks
+  title: Detect hardcoded secrets
+  group: gitleaks v8.18.0
+  command: gitleaks --verbose (pinned rev v8.18.0)
+  files_scope: (every commit)
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: external binary; also mirrored in CI lint.yml hook set
+- id: check-added-large-files
+  title: Reject staged files larger than 512 KB
+  group: pre-commit-hooks v4.6.0
+  command: check-added-large-files --maxkb=512
+  files_scope: (every commit)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: ''
+- id: check-merge-conflict
+  title: Detect merge-conflict markers
+  group: pre-commit-hooks v4.6.0
+  command: check-merge-conflict
+  files_scope: (every commit)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: ''
+- id: detect-private-key
+  title: Detect private key blocks
+  group: pre-commit-hooks v4.6.0
+  command: detect-private-key
+  files_scope: (every commit)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: ''
+- id: end-of-file-fixer
+  title: Fix missing newline at end of file
+  group: pre-commit-hooks v4.6.0
+  command: end-of-file-fixer (mutating fixer)
+  files_scope: (every commit)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: ''
+- id: trailing-whitespace
+  title: Trim trailing whitespace
+  group: pre-commit-hooks v4.6.0
+  command: trailing-whitespace (mutating fixer)
+  files_scope: (every commit)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: ''
+- id: omni-contract-smoke
+  title: Omni Suite pipeline contract smoke
+  group: 'repo: local'
+  command: bash scripts/pre_commit_python.sh -m pytest tests/test_pipeline_contract_smoke.py --tb=short
+    -q --no-header
+  files_scope: '(every commit; stages: [commit, manual])'
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: uses OMNI_TEST_FAKE_LLM=1; plumbing/contract only, never human-quality evidence
+- id: ruff
+  title: ruff F-class (unused imports, undefined names)
+  group: ruff-pre-commit v0.17.1
+  command: ruff --select F --fix (pinned v0.17.1, same pin as CI)
+  files_scope: '**/*.py (changed)'
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: ''
+- id: omni-version-alignment
+  title: Omni Suite version alignment (requires-python across 4 pyprojects)
+  group: 'repo: local'
+  command: grep '^requires-python' pyproject.toml + 3 sub-repo pyproject.toml; mismatch -> exit 1
+  files_scope: (every commit)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: ''
+- id: omni-no-hardcoded-keys
+  title: Omni Suite hardcoded API key detector
+  group: 'repo: local'
+  command: grep -E over key shapes in src/config/docs/reports/.omo/tests/scripts + token-in-URL shape
+  files_scope: (every commit)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: ''
+- id: omni-version-docs-sync
+  title: Omni Suite version doc sync (README/AGENTS/COMPATIBILITY must match pyproject.toml)
+  group: 'repo: local'
+  command: bash scripts/pre_commit_python.sh scripts/sync_version_docs.py --check
+  files_scope: ^(pyproject\.toml|Omni_(Pre_Processor|Localizer|Re_Formatter)/pyproject\.toml|README\.md|AGENTS\.md|COMPATIBILITY\.md|VERSION_COMPATIBILITY\.md|scripts/sync_version_docs\.py)$
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: same assertion already delegated by doc_inventory check_version_sync (doc_inventory.py:779); block
+    scheduled for removal in the hook-convergence commit (16->14)
+- id: omni-doc-inventory
+  title: Omni Suite doc-inventory check (AUTO-GENERATED header + source-truth MCP counts)
+  group: 'repo: local'
+  command: bash scripts/pre_commit_python.sh scripts/doc_inventory.py --check
+  files_scope: ^(docs/.*|README\.md|AGENTS\.md|CLAUDE\.md|reports/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|scenarios/.*|scripts/doc_inventory\.py|\.pre-commit-config\.yaml|Makefile|[^/]+\.(doc|docx|odt|epub|msg|pdf|ppt|pptx|rtf|xls|xlsx))$
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: retained hook; becomes 'doc truth + governance drift' in the hook-convergence commit
+- id: omni-module-entry-check
+  title: Omni Suite module-entry consistency (symlink/.git/.pth)
+  group: 'repo: local'
+  command: bash scripts/pre_commit_python.sh scripts/check_module_entry.py (skips when no module entries)
+  files_scope: (every commit)
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: 'pre-commit (local; CI mirror: lint.yml changed-file run)'
+  status: active
+  supersedes: ''
+  note: appendix-A candidate for removal (needs setup_dev.sh --check-only takeover; not in this round)
+- id: omni-coverage-audit
+  title: Omni Suite MCP tool coverage audit (execution-backed)
+  group: 'repo: local'
+  command: .venv_ol/bin/python scripts/validation/coverage_audit.py (after import probe)
+  files_scope: ^(scenarios/.*|scripts/validation/.*|omni_mcp/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/.*|Omni_Localizer/src/ol_mcp/tools\.py|\.pre-commit-config\.yaml)$
+  evidence: execution
+  windows: 'no'
+  wsl: 'yes'
+  authoritative_executor: 'CI validation.yml structural job (Gate 2); local: WSL .venv_ol only'
+  status: active
+  supersedes: ''
+  note: Windows takes the visible SKIP branch (needs omni_mcp+omni_security+fastmcp under .venv_ol; SKIP
+    classification semantic planned in the SKIP-labeling commit)
+- id: omni-validation-check
+  title: Omni Suite scenario-library contract lint
+  group: 'repo: local'
+  command: bash scripts/pre_commit_python.sh scripts/validation/run_validation.py --check (after import
+    probe)
+  files_scope: ^(scenarios/.*|scripts/validation/.*|omni_mcp/.*|\.pre-commit-config\.yaml)$
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: CI validation.yml structural job (Gate 1); local both platforms when omni_mcp
+    importable
+  status: active
+  supersedes: ''
+  note: same --check is delegated by doc_inventory (D-C) in the hook-convergence commit
+- id: omni-path-policy-parity
+  title: Omni Suite path-security parity (one policy, every copy)
+  group: 'repo: local'
+  command: bash scripts/pre_commit_python.sh -m pytest tests/security/test_path_policy_parity.py --tb=short
+    -q --no-header (after import probe)
+  files_scope: ^(omni_mcp/orchestrator\.py|omni_security/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*security\.py|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/config\.py|tests/security/test_path_policy_parity\.py|\.pre-commit-config\.yaml)$
+  evidence: execution
+  windows: 'no'
+  wsl: 'yes'
+  authoritative_executor: 'CI lint.yml ''Blocking: path-security parity''; local: WSL .venv_ol only'
+  status: active
+  supersedes: ''
+  note: Windows pytest exits 2 (omni_security namespace shadowing -> collection error); exit-code triage
+    (0/1/2) planned in the SKIP-labeling commit
+ci:
+- id: workflow-self-containment
+  title: Contract-tests workflow self-containment
+  group: contract-tests.yml
+  command: verify the workflow does not depend on repo-external state
+  files_scope: push/PR/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: ''
+- id: contract-documentation
+  title: Contract documentation freshness
+  group: contract-tests.yml
+  command: CONTRACT.md vs shipped surface consistency checks
+  files_scope: push/PR/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: ''
+- id: cli-help-contract
+  title: CLI --help contract fixtures
+  group: contract-tests.yml
+  command: pytest tests/contract (collect step + artifact upload; assert step added by the ||true-split
+    commit)
+  files_scope: push/PR/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: collect/assert split planned (removes '|| true' at contract-tests.yml:112)
+- id: mcp-schemas-contract
+  title: MCP schema contract fixtures
+  group: contract-tests.yml
+  command: pytest tests/contract (collect step + artifact upload; assert step added by the ||true-split
+    commit)
+  files_scope: push/PR/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: collect/assert split planned (removes '|| true' at contract-tests.yml:150)
+- id: mcp-matrix
+  title: MCP tool matrix
+  group: contract-tests.yml
+  command: matrix job over module MCP servers
+  files_scope: push/PR/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: ''
+- id: doctor
+  title: Environment doctor
+  group: doctor.yml
+  command: scripts/doctor checks
+  files_scope: push/PR/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: ''
+- id: ci-suite
+  title: E2E CI suite
+  group: e2e-tests.yml
+  command: pytest ci suite (FAKE_LLM plumbing)
+  files_scope: push/PR/schedule/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: ''
+- id: nightly-llm
+  title: Nightly real-LLM suite
+  group: e2e-tests.yml
+  command: pytest -m nightly with real provider keys
+  files_scope: 'schedule/dispatch (needs: ci-suite)'
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: tier-2/3; unconfigured without keys is a distinct status, never a pass
+- id: fidelity-gate
+  title: Fidelity gate
+  group: fidelity.yml
+  command: tests/fidelity/run_fidelity.py
+  files_scope: push/PR/schedule/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: collect/assert split planned (removes '|| true' at fidelity.yml:75-76)
+- id: fidelity-nightly
+  title: Fidelity nightly
+  group: fidelity.yml
+  command: scheduled fidelity run
+  files_scope: schedule/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: ''
+- id: hardening-regression
+  title: Hardening regression suite
+  group: hardening-tests.yml
+  command: pytest hardening suite
+  files_scope: push/PR/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: ''
+- id: lint
+  title: Lint (changed-file pre-commit + blocking parity)
+  group: lint.yml
+  command: pre-commit run --files <changed> + ruff F changed-.py + path-security parity blocking step
+  files_scope: push/PR/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: whole-tree steps intentionally scoped to suite-owned dirs; see AGENTS.md lint notes
+- id: structural
+  title: Validation framework structural job (Gates 1-4)
+  group: validation.yml
+  command: Gate 1 run_validation --check; Gate 2 coverage_audit 41/41; Gate 3 T2 regression; Gate 4 contract+validation
+    pytest
+  files_scope: push/PR/schedule/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  blocked_steps:
+  - gate-3
+  note: 'gate-3 blocked (external), NOT FAIL: unblock = push 1StepMore/Omni_Pre_Processor c21bce6; job-level
+    status stays active because Gates 1/2/4 keep passing'
+- id: nightly
+  title: Validation framework nightly
+  group: validation.yml
+  command: scheduled full-library validation
+  files_scope: schedule/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: ''
+readiness:
+- id: '1.1'
+  title: Suite `VERSION` file matches the "Suite" column in `COMPATIBILITY.md` table
+  group: V1
+  command: Compare `VERSION` content to first column, first data row
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '1.2'
+  title: Each submodule's `pyproject.toml` `version` matches the corresponding column in `COMPATIBILITY.md`
+  group: V1
+  command: Parse each module's `pyproject.toml` and cross-reference
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '1.3'
+  title: Each submodule's `__version__` attribute (if exposed) matches its `pyproject.toml`
+  group: V1
+  command: '`import opp; opp.__version__` == pyproject version'
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '1.4'
+  title: Installed wheel version matches source version (no stale installs)
+  group: V1
+  command: '`pip show omni-pre-processor` version == pyproject version'
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '1.5'
+  title: '`setup_dev.sh` version-assertion logic references the current `COMPATIBILITY.md`'
+  group: V1
+  command: Parse `setup_dev.sh` for expected version regex
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '2.1'
+  title: Each module is importable without errors
+  group: V2
+  command: '`python -c "import opp"`, `import ol`, `import orf`'
+  files_scope: (suite tree)
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '2.2'
+  title: Each module's CLI entry point responds to `--help`
+  group: V2
+  command: '`opp --help`, `ol --help`, `orf --help` exit 0'
+  files_scope: (suite tree)
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '2.3'
+  title: Each MCP server starts, responds to `ping`, and shuts down cleanly
+  group: V2
+  command: MCP client `ping` on all 3 servers
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '2.4'
+  title: Each module's CLI provides a `--version` flag with correct output
+  group: V2
+  command: Parse CLI output, compare to expected version
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '2.5'
+  title: '`omni-suite status` reports all three modules with correct versions'
+  group: V2
+  command: Run `omni-suite status`, check output
+  files_scope: (suite tree)
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '2.6'
+  title: No circular imports between modules
+  group: V2
+  command: Module-level static analysis
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '2.7'
+  title: All declared `[project.scripts]` entry points resolve to existing functions
+  group: V2
+  command: Check each console_scripts target
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '3.1'
+  title: '`OMNI_TEST_FAKE_LLM=1` lets OL start without real LLM config'
+  group: V3
+  command: Run `OL_CONFIG_PATH=/dev/null ol --help` with FAKE_LLM
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '3.2'
+  title: OL span_aligner stubs correctly under FAKE_LLM seam
+  group: V3
+  command: Import OL, check `_FakeModelPool` is installed
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '3.3'
+  title: '`OMNI_TEST_FAKE_PANDOC=1` lets ORF run without pandoc'
+  group: V3
+  command: Run `orf --help` with FAKE_PANDOC
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '3.4'
+  title: No test sets `OMNI_TEST_FAKE_LLM` then calls a real LLM
+  group: V3
+  command: grep for patterns that bypass the seam
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '3.5'
+  title: FAKE_LLM output is deterministic (same input → same output)
+  group: V3
+  command: Run twice, diff output
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: human-verification item
+- id: '3.6'
+  title: Real-LLM tests (`nightly` marker) correctly skip when no API keys
+  group: V3
+  command: '`pytest tests/ -m nightly` should SKIP without keys'
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '4.1'
+  title: All 12 pytest markers are registered (10 in `tests/pytest.ini` + 2 extra `unit`/`integration`
+    in `Omni_Re_Formatter/pyproject.toml`; ORF's `e2e` is a duplicate of the suite-level one)
+  group: V4
+  command: Parse both files' marker registration
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '4.2'
+  title: '`tests/test_pipeline_contract_smoke.py` exists and runs'
+  group: V4
+  command: 'File existence + dry run; 100 lines, wired into pre-commit manual hook (stages: [manual])'
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '4.3'
+  title: Each module has a `tests/` directory with at least one test
+  group: V4
+  command: Directory existence check
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '4.4'
+  title: No test file contains `@pytest.mark.skip` without a documented reason
+  group: V4
+  command: grep for bare `@pytest.mark.skip`
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '4.5'
+  title: All `xfail` markers have a `reason=` string
+  group: V4
+  command: grep for `@pytest.mark.xfail` without reason
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '4.6'
+  title: CI-mode tests pass with `OMNI_TEST_FAKE_LLM=1`
+  group: V4
+  command: Run `make test` or equivalent
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '4.7'
+  title: E2E tests cover both the MD channel and XLIFF channel
+  group: V4
+  command: grep for test functions covering each path
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '4.8'
+  title: Test fixture documents (DOCX, PPTX, PDF) are present and non-empty
+  group: V4
+  command: File existence + size check
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '4.9'
+  title: No test relies on network access unless marked `nightly`
+  group: V4
+  command: Static analysis of test imports
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: human-verification item
+- id: '5.1'
+  title: GitHub Actions workflow `.github/workflows/e2e-tests.yml` is valid YAML
+  group: V5
+  command: YAML parse
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '5.2'
+  title: Pre-commit hooks pass on all files
+  group: V5
+  command: '`pre-commit run --all-files` exit 0'
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '5.3'
+  title: gitleaks hook is configured and runs
+  group: V5
+  command: Check `.pre-commit-config.yaml` for gitleaks
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '5.4'
+  title: '`Makefile` targets work: `test`, `smoke`, `lint`, `clean`'
+  group: V5
+  command: Dry-run each target
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '5.5'
+  title: CI workflow has a timeout set (prevent runaway jobs)
+  group: V5
+  command: Check `timeout-minutes` in workflow
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '5.6'
+  title: Nightly job depends on CI passing (not orphaned)
+  group: V5
+  command: Check `needs:` in workflow
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '5.7'
+  title: Test output is captured as CI artifacts if tests fail
+  group: V5
+  command: Check `actions/upload-artifact` usage
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '5.8'
+  title: CI uses `uv sync --frozen` (reproducible installs)
+  group: V5
+  command: Check CI workflow for frozen flag
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '6.1'
+  title: 'E1: 50MB DOCX processes within P95 latency < 5 minutes'
+  group: V6
+  command: Run `test_e1_50mb.py` with fixture
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '6.2'
+  title: E1 fixture exists when test is not skipped
+  group: V6
+  command: Check `OMNI_E1_FIXTURE_PATH` or default path
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '6.3'
+  title: 'E2: 5-concurrent load produces zero crashes'
+  group: V6
+  command: Run `test_e2_load.py`
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '6.4'
+  title: 'E2: Memory growth stays under 500 MB during concurrent load'
+  group: V6
+  command: Check heap delta in E2 output
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '6.5'
+  title: 'E3: 100 docs/day throughput target is reachable'
+  group: V6
+  command: Run `test_e3_throughput.py`
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '6.6'
+  title: 'E3: Pass rate meets 85% threshold'
+  group: V6
+  command: Check pass rate in E3 output
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '6.7'
+  title: Each E test has a `SKIP_ENV` escape hatch
+  group: V6
+  command: grep for `SKIP_ENV` in each e test
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '6.8'
+  title: E tests are NOT marked `nightly` (they run in CI)
+  group: V6
+  command: Check pytest markers on E tests
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '7.1'
+  title: No hardcoded API keys, tokens, or secrets in source
+  group: V7
+  command: '`gitleaks` scan + `tests/security/test_no_hardcoded_keys.py`'
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '7.2'
+  title: MCP servers validate file paths (no path traversal)
+  group: V7
+  command: '`tests/security/` path traversal tests pass'
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '7.3'
+  title: Pre-commit `detect-private-key` hook fires
+  group: V7
+  command: Check `.pre-commit-config.yaml`
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '7.4'
+  title: No `.env` files committed to git
+  group: V7
+  command: Check `.gitignore` + git tracked files
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '7.5'
+  title: MCP `allowed_directories` is configured (OPP_ALLOWED_DIRECTORIES)
+  group: V7
+  command: grep for env var in MCP server code
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '7.6'
+  title: All security tests pass
+  group: V7
+  command: '`pytest tests/security/` exit 0'
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '8.1'
+  title: Circuit breaker tests pass
+  group: V8
+  command: '`pytest tests/observability/` for circuit_breaker'
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '8.2'
+  title: JSON logging is structured and parseable
+  group: V8
+  command: Run pipeline, check log output is valid JSON
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '8.3'
+  title: Each MCP server has a working health/ping endpoint
+  group: V8
+  command: MCP ping on all 3 servers
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '8.4'
+  title: Metrics are exported via prometheus_client
+  group: V8
+  command: Check `omni_metrics` for metric definitions
+  files_scope: (suite tree)
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '8.5'
+  title: Request IDs flow through the pipeline (OPP→OL→ORF trace)
+  group: V8
+  command: Run pipeline, check request_id propagation
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '8.6'
+  title: All 38 observability tests pass
+  group: V8
+  command: '`pytest tests/observability/ -q`'
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '9.1'
+  title: All 16 ORF output formats are listed in `apply_md` tool definition
+  group: V9
+  command: Parse MCP tool definition
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '9.2'
+  title: DOCX → MD → DOCX roundtrip preserves content
+  group: V9
+  command: Run pipeline on fixture, diff content
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '9.3'
+  title: XLIFF → cross-format conversion works (e.g., DOCX XLIFF → PPTX)
+  group: V9
+  command: '`orf apply-xliff --force` on cross-format'
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '9.4'
+  title: HTML/CSV/JSON input extracts correctly via MD path
+  group: V9
+  command: Run OPP on each format
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '9.5'
+  title: PDF → XLIFF is correctly blocked (not silently broken)
+  group: V9
+  command: '`orf generate-xliff` on PDF should error'
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '9.6'
+  title: EML → MSG path does not crash on missing headers
+  group: V9
+  command: Run OPP on EML, verify graceful handling
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '9.7'
+  title: '`.url` (YouTube) transcription does not hang'
+  group: V9
+  command: Run OPP with timeout guard
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '9.8'
+  title: Image extraction produces valid image files
+  group: V9
+  command: Check images from pipeline are non-corrupt
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: human-verification item
+- id: '10.1'
+  title: Missing input file → informative error, not traceback
+  group: V10
+  command: Run CLI on nonexistent file
+  files_scope: (suite tree)
+  evidence: execution
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '10.2'
+  title: Corrupted input file → informative error, not crash
+  group: V10
+  command: Run CLI on corrupted file
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '10.3'
+  title: Empty XLIFF → proper validation error
+  group: V10
+  command: Run with empty XLIFF
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '10.4'
+  title: Pipeline timeout produces exit code 1 with message
+  group: V10
+  command: Run pipeline on oversized input with short timeout
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '10.5'
+  title: All `except` blocks log the error (no silent swallows)
+  group: V10
+  command: grep for `except:` without logging
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '10.6'
+  title: Subprocess failures propagate to CLI exit code
+  group: V10
+  command: Check return codes from subprocess.run callers
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '10.7'
+  title: Skeleton ZIP corruption is handled (partial recovery, not crash)
+  group: V10
+  command: Apply corrupted skeleton, verify graceful error
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: declared but not auto-checked by scripts/check_readiness.py today (manual pending implementation)
+- id: '11.1'
+  title: '`README.md` exists and is non-empty at suite root'
+  group: V11
+  command: File existence + size
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '11.2'
+  title: Each submodule has a `README.md` or `AGENTS.md`
+  group: V11
+  command: File existence
+  files_scope: (suite tree)
+  evidence: static
+  windows: 'yes'
+  wsl: 'yes'
+  authoritative_executor: scripts/check_readiness.py
+  status: active
+  supersedes: ''
+  note: ''
+- id: '11.3'
+  title: '`AGENTS.md` CLI cheat sheet table matches current tool counts'
+  group: V11
+  command: Check table row counts vs actual
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: human-verification item
+- id: '11.4'
+  title: Cross-format support matrix in README is up to date
+  group: V11
+  command: Review matrix against test coverage
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: human-verification item
+- id: '11.5'
+  title: All `--help` output is accurate and matches actual CLI
+  group: V11
+  command: Spot-check each CLI
+  files_scope: (suite tree)
+  evidence: manual
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: human sign-off
+  status: active
+  supersedes: ''
+  note: human-verification item
