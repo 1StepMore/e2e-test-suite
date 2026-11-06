@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Production-readiness checker for Omni Suite.
 
-Auto-verifies all 🔧 items from PRODUCTION_READINESS.md.
-Reports pass/fail per version (V1..V11) and outputs an overall score.
+Thin shell (W02): the set of auto-checked readiness ids is owned by the root
+GATES.yaml registry (`readiness` layer, evidence != manual). This script only
+dispatches those ids to the REGISTRY functions below and asserts, in BOTH
+directions, that the registry and the GATES declaration never drift apart.
+The historical V1-V11 checklist that used to live in PRODUCTION_READINESS.md
+is superseded by GATES.yaml.
 
 Usage:
     python scripts/check_readiness.py              # quick score
@@ -21,7 +25,7 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent
 VERSION_FILE = SUITE_ROOT / "VERSION"
@@ -181,6 +185,14 @@ class CheckResult:
         self.items: list[dict[str, Any]] = []
         self.version_passes: dict[str, int] = {}
         self.version_fails: dict[str, int] = {}
+        # W02 completeness counters, filled by run_checks() from GATES.yaml:
+        # declared = all readiness rows; implemented = rows dispatched to the
+        # REGISTRY (GATES evidence != manual); manual = the remainder.
+        self.declared = 0
+        self.implemented = 0
+        self.manual = 0
+        # group titles come from GATES.yaml's readiness `group:` field
+        self.group_titles: dict[str, str] = {}
 
     def ok(self, vid: str, label: str, detail: str = "") -> None:
         self.items.append({"id": vid, "label": label, "status": "pass", "detail": detail})
@@ -204,11 +216,9 @@ class CheckResult:
             vid = item["id"]
             version = vid.split(".")[0]
             if version != current_version:
-                vname = {"1": "V1 — Version", "2": "V2 — Module", "3": "V3 — FAKE_LLM",
-                         "4": "V4 — Test Infra", "5": "V5 — CI/CD", "6": "V6 — Production",
-                         "7": "V7 — Security", "8": "V8 — Observability",
-                         "9": "V9 — Format Compat", "10": "V10 — Error Handling",
-                         "11": "V11 — Documentation"}.get(version, f"V{version}")
+                # Group titles come from GATES.yaml's readiness `group:` field
+                # (V1..V11); no hardcoded vname map anymore.
+                vname = self.group_titles.get(vid) or f"V{version}"
                 current_version = version
 
             icon = PASS if item["status"] == "pass" else FAIL if item["status"] == "fail" else SKIP
@@ -230,11 +240,7 @@ class CheckResult:
         for ver in all_versions:
             p = self.version_passes.get(ver, 0)
             f = self.version_fails.get(ver, 0)
-            vname = {"1": "V1 Version", "2": "V2 Module", "3": "V3 FAKE_LLM",
-                     "4": "V4 Test Infra", "5": "V5 CI/CD", "6": "V6 Production",
-                     "7": "V7 Security", "8": "V8 Observability",
-                     "9": "V9 Format Compat", "10": "V10 Error Handling",
-                     "11": "V11 Documentation"}.get(ver, f"V{ver}")
+            vname = f"V{ver}"
             icon = PASS if f == 0 else FAIL
             lines.append(f"  {icon} {vname}: {p} pass, {f} fail")
             total_pass += p
@@ -269,22 +275,26 @@ class CheckResult:
             return "🔴", "Not Ready (V1-V3 blocking failures)"
 
         total_fail = sum(self.version_fails.values())
-        if total_fail == 0:
+        if total_fail == 0 and self.manual == 0:
             return "🏆", "Certified — All checks pass!"
+        if total_fail == 0:
+            # 🏆 would be a false claim: declared-manual rows are not verified
+            # by this checker. Green = all auto-implemented gates pass.
+            return "🟢", f"PASS(auto) — {self.manual} declared-manual items pending human sign-off"
         return "🟡", f"Needs Work ({total_fail} non-blocking failures)"
 
 
 # ---------------------------------------------------------------------------
-# V1 — Version Consistency
+# V1 — Version Consistency (split to GATES.yaml readiness-id granularity)
 # ---------------------------------------------------------------------------
 
-def check_v1(r: CheckResult) -> None:
-    """Version consistency checks."""
+def check_1_1(r: CheckResult) -> None:
+    """1.1 Suite VERSION matches the LAST (newest) COMPATIBILITY.md data row."""
     suite_version = _version_file_suite_version()
     compat_text = _read(COMPAT_FILE)
 
-    # 1.1 Suite VERSION matches COMPATIBILITY.md — the LAST data row is the
-    # newest pinned set (the matrix is append-only; row 5 is historical).
+    # The matrix is append-only: the last row is the newest pinned set
+    # (the header is line 3; row 5 is the historical first data row).
     row = _compat_last_data_row(compat_text)
     if row:
         compat_suite = row[0]
@@ -295,8 +305,12 @@ def check_v1(r: CheckResult) -> None:
     else:
         r.fail("1.1", "Cannot parse COMPATIBILITY.md", "No version table found")
 
-    # 1.2 Submodule versions match COMPATIBILITY.md (same last-row rule;
-    # column layout per the line-3 header: Suite | OL | OPP | ORF | Notes).
+
+def check_1_2(r: CheckResult) -> None:
+    """1.2 Submodule pyproject versions match COMPATIBILITY.md (last row)."""
+    compat_text = _read(COMPAT_FILE)
+    row = _compat_last_data_row(compat_text)
+    # Column layout per the line-3 header: Suite | OL | OPP | ORF | Notes.
     compat_cols = {}
     if row and len(row) >= 4:
         compat_cols = {"OPP": row[2], "OL": row[1], "ORF": row[3]}
@@ -312,7 +326,9 @@ def check_v1(r: CheckResult) -> None:
         else:
             r.ok("1.2", f"{name} version consistent ({actual})")
 
-    # 1.3 Module __version__ attribute
+
+def check_1_3(r: CheckResult) -> None:
+    """1.3 Module __version__ attribute matches pyproject."""
     for name, mod_path in MODULES.items():
         pyproject = mod_path / "pyproject.toml"
         expected = _parse_pyproject_version(pyproject)
@@ -331,7 +347,9 @@ def check_v1(r: CheckResult) -> None:
             elif found_version:
                 r.ok("1.3", f"{name} __version__ ({found_version}) matches pyproject")
 
-    # 1.5 setup_dev.sh version assertion
+
+def check_1_5(r: CheckResult) -> None:
+    """1.5 setup_dev.sh version assertion."""
     setup_text = _read(SETUP_SCRIPT)
     if "COMPATIBILITY.md" in setup_text or "version" in setup_text.lower():
         r.ok("1.5", "setup_dev.sh references version assertion")
@@ -340,16 +358,14 @@ def check_v1(r: CheckResult) -> None:
 
 
 # ---------------------------------------------------------------------------
-# V2 — Module Integrity
+# V2 — Module Integrity (split to GATES.yaml readiness-id granularity)
 # ---------------------------------------------------------------------------
 
-def check_v2(r: CheckResult) -> None:
-    """Module integrity checks."""
+def check_2_1(r: CheckResult) -> None:
+    """2.1 Each module is importable."""
     # Import probes get timeout=60: a cold `import opp` measures ~15.5s under
     # WSL (.venv_ol), which the 10s default turns into a permanent false red.
     probe_timeout = 60
-
-    # 2.1 Module importability
     for name in MODULES:
         mod_name = {"OPP": "opp", "OL": "ol", "ORF": "orf"}[name]
         rc, out, err = _run([sys.executable, "-c", f"import {mod_name}; print('ok')"], timeout=probe_timeout)
@@ -358,7 +374,10 @@ def check_v2(r: CheckResult) -> None:
         else:
             r.fail("2.1", f"{name} import failed", err[:200] if err else out[:200])
 
-    # 2.2 CLI --help (each attempt imports the package, so same timeout)
+
+def check_2_2(r: CheckResult) -> None:
+    """2.2 Each module's CLI responds to --help (each attempt imports the package)."""
+    probe_timeout = 60
     venv_bin = SUITE_ROOT / ".venv_ol" / "bin"
     for name in MODULES:
         cli = name.lower()
@@ -381,7 +400,9 @@ def check_v2(r: CheckResult) -> None:
                 continue
         r.fail("2.2", f"{name} CLI --help failed", err[:200] if err else out[:200])
 
-    # 2.5 omni-suite status
+
+def check_2_5(r: CheckResult) -> None:
+    """2.5 omni-suite status reports all three modules."""
     # Try python -m first (always works when venv is active, avoids PATH issues)
     rc, out, err = _run([sys.executable, "-m", "omni_suite", "status"])
     if rc == 0 and "OPP" in out and "OL" in out and "ORF" in out:
@@ -394,7 +415,9 @@ def check_v2(r: CheckResult) -> None:
         else:
             r.fail("2.5", "omni-suite status failed", err[:200] if err else out[:200])
 
-    # 2.7 Entry points exist
+
+def check_2_7(r: CheckResult) -> None:
+    """2.7 Declared [project.scripts] entry points resolve."""
     root_pyproject = SUITE_ROOT / "pyproject.toml"
     try:
         with open(root_pyproject, "rb") as f:
@@ -430,13 +453,12 @@ def check_v2(r: CheckResult) -> None:
 
 
 # ---------------------------------------------------------------------------
-# V3 — FAKE_LLM Seam
+# V3 — FAKE_LLM Seam (split to GATES.yaml readiness-id granularity)
 # ---------------------------------------------------------------------------
 
-def check_v3(r: CheckResult) -> None:
-    """FAKE_LLM seam integrity."""
-    # 3.1 FAKE_LLM environment variable handling — the seam lives across the
-    # OL source tree (cli/_shared.py, cli/cache.py, ...), not only ol_cli.py.
+def check_3_1(r: CheckResult) -> None:
+    """3.1 FAKE_LLM seam exists in OL source — the seam lives across the OL
+    source tree (cli/_shared.py, cli/cache.py, ...), not only ol_cli.py."""
     ol_src = MODULES["OL"] / "src"
     ol_py_files = sorted(ol_src.rglob("*.py")) if ol_src.exists() else []
     seam_hits = [f for f in ol_py_files if "OMNI_TEST_FAKE_LLM" in _read(f)]
@@ -445,7 +467,9 @@ def check_v3(r: CheckResult) -> None:
     else:
         r.fail("3.1", "OL FAKE_LLM seam not found", f"Scanned {len(ol_py_files)} .py files under {ol_src}")
 
-    # 3.3 FAKE_PANDOC seam
+
+def check_3_3(r: CheckResult) -> None:
+    """3.3 ORF FAKE_PANDOC seam."""
     orf_files = list(MODULES["ORF"].rglob("*.py"))
     fake_pandoc_found = False
     for f in orf_files:
@@ -457,11 +481,13 @@ def check_v3(r: CheckResult) -> None:
     else:
         r.fail("3.3", "ORF FAKE_PANDOC seam not found")
 
-    # 3.4 No test bypasses FAKE_LLM seam unsafely.
-    # Real bypass = a test that leans on the FAKE_LLM seam while importing a
-    # provider SDK directly (openai/litellm/zhipuai) — the env var never
-    # reaches those calls. Function names/comments mentioning "real_llm"
-    # (e.g. the canonical-key contract tests) are NOT bypasses.
+
+def check_3_4(r: CheckResult) -> None:
+    """3.4 No test bypasses FAKE_LLM seam unsafely.
+    Real bypass = a test that leans on the FAKE_LLM seam while importing a
+    provider SDK directly (openai/litellm/zhipuai) — the env var never
+    reaches those calls. Function names/comments mentioning "real_llm"
+    (e.g. the canonical-key contract tests) are NOT bypasses."""
     test_files = list((SUITE_ROOT / "tests").rglob("test_*.py"))
     bypass_found = False
     for f in test_files:
@@ -479,7 +505,9 @@ def check_v3(r: CheckResult) -> None:
     if not bypass_found:
         r.ok("3.4", "No unsafe FAKE_LLM bypasses detected")
 
-    # 3.6 Nightly tests skip gracefully without API keys
+
+def check_3_6(r: CheckResult) -> None:
+    """3.6 Nightly tests skip gracefully without API keys."""
     nightly_file = SUITE_ROOT / "tests" / "test_e2e_real_llm.py"
     if nightly_file.exists():
         content = _read(nightly_file)
@@ -491,14 +519,12 @@ def check_v3(r: CheckResult) -> None:
 
 
 # ---------------------------------------------------------------------------
-# V4 — Test Infrastructure
+# V4 — Test Infrastructure (split to GATES.yaml readiness-id granularity)
 # ---------------------------------------------------------------------------
 
-def check_v4(r: CheckResult) -> None:
-    """Test infrastructure checks."""
+def check_4_1(r: CheckResult) -> None:
+    """4.1 Pytest markers registered."""
     conftest = SUITE_ROOT / "tests" / "conftest.py"
-
-    # 4.1 Markers registered
     content = _read(conftest)
     marker_count = content.count("addinivalue_line")
     if marker_count >= 8:
@@ -506,13 +532,17 @@ def check_v4(r: CheckResult) -> None:
     else:
         r.fail("4.1", f"Only {marker_count} markers registered", "Expected at least 8")
 
-    # 4.2 Contract smoke test exists
+
+def check_4_2(r: CheckResult) -> None:
+    """4.2 Contract smoke test exists."""
     if SMOKE_TEST.exists():
         r.ok("4.2", "test_pipeline_contract_smoke.py exists")
     else:
         r.fail("4.2", "test_pipeline_contract_smoke.py MISSING", "Referenced in Makefile & pre-commit but not created")
 
-    # 4.3 Each module has tests/
+
+def check_4_3(r: CheckResult) -> None:
+    """4.3 Each module has a tests/ directory with tests."""
     for name, mod_path in MODULES.items():
         test_dir = mod_path / "tests"
         py_files = list(test_dir.rglob("test_*.py")) if test_dir.exists() else []
@@ -521,9 +551,11 @@ def check_v4(r: CheckResult) -> None:
         else:
             r.fail("4.3", f"{name} missing test files", f"{test_dir} has no test_*.py files")
 
-    # 4.5 xfail without reason — AST-based: docstrings/comments containing the
-    # literal text (test_phase7_root_test_isolation.py) must not match, and
-    # multi-line decorator calls must still resolve their reason= keyword.
+
+def check_4_5(r: CheckResult) -> None:
+    """4.5 All xfail markers carry reason= — AST-based: docstrings/comments
+    containing the literal text (test_phase7_root_test_isolation.py) must not
+    match, and multi-line decorator calls must still resolve their reason=."""
     skip_without_reason = 0
     for f in list((SUITE_ROOT / "tests").rglob("*.py")):
         try:
@@ -536,7 +568,9 @@ def check_v4(r: CheckResult) -> None:
     else:
         r.fail("4.5", f"{skip_without_reason} xfail markers missing reason=")
 
-    # 4.8 Fixture documents present
+
+def check_4_8(r: CheckResult) -> None:
+    """4.8 Fixture documents present and non-empty."""
     fixture_paths = [
         SUITE_ROOT / "scenarios" / "_fixtures" / "meridian_robotics.docx",
         SUITE_ROOT / "scenarios" / "_fixtures" / "meridian_q1.pptx",
@@ -547,18 +581,19 @@ def check_v4(r: CheckResult) -> None:
 
 
 # ---------------------------------------------------------------------------
-# V5 — CI/CD
+# V5 — CI/CD (split to GATES.yaml readiness-id granularity)
 # ---------------------------------------------------------------------------
 
-def check_v5(r: CheckResult) -> None:
-    """CI/CD checks."""
-    # 5.1 Workflow YAML exists
+def check_5_1(r: CheckResult) -> None:
+    """5.1 GitHub Actions workflow exists."""
     if CI_WORKFLOW.exists():
         r.ok("5.1", "GitHub Actions workflow exists")
     else:
         r.fail("5.1", "GitHub Actions workflow missing")
 
-    # 5.2 Pre-commit config exists
+
+def check_5_2(r: CheckResult) -> None:
+    """5.2 Pre-commit config with hook repos."""
     if PRE_COMMIT_CONFIG.exists():
         content = _read(PRE_COMMIT_CONFIG)
         hook_count = content.count("- repo:")
@@ -569,7 +604,9 @@ def check_v5(r: CheckResult) -> None:
     else:
         r.fail("5.2", "Pre-commit config missing")
 
-    # 5.3 Gitleaks configured
+
+def check_5_3(r: CheckResult) -> None:
+    """5.3 gitleaks hook configured."""
     if PRE_COMMIT_CONFIG.exists():
         content = _read(PRE_COMMIT_CONFIG)
         if "gitleaks" in content:
@@ -577,7 +614,9 @@ def check_v5(r: CheckResult) -> None:
         else:
             r.fail("5.3", "Gitleaks hook not found")
 
-    # 5.4 Makefile targets
+
+def check_5_4(r: CheckResult) -> None:
+    """5.4 Makefile targets."""
     if MAKEFILE.exists():
         content = _read(MAKEFILE)
         for target in ["test:", "smoke:", "lint:", "clean:"]:
@@ -589,16 +628,20 @@ def check_v5(r: CheckResult) -> None:
     else:
         r.fail("5.4", "Makefile missing")
 
-    # 5.5 CI workflow has timeout
-    ci_content = ""
+
+def check_5_5(r: CheckResult) -> None:
+    """5.5 CI workflow has timeout-minutes."""
+    ci_content = _read(CI_WORKFLOW) if CI_WORKFLOW.exists() else ""
     if CI_WORKFLOW.exists():
-        ci_content = _read(CI_WORKFLOW)
         if "timeout-minutes" in ci_content:
             r.ok("5.5", "CI workflow has timeout configured")
         else:
             r.fail("5.5", "CI workflow missing timeout-minutes")
 
-    # 5.6 Nightly depends on CI
+
+def check_5_6(r: CheckResult) -> None:
+    """5.6 Nightly job depends on CI."""
+    ci_content = _read(CI_WORKFLOW) if CI_WORKFLOW.exists() else ""
     if CI_WORKFLOW.exists() and "needs:" in ci_content:
         r.ok("5.6", "Nightly job depends on CI passing")
     else:
@@ -606,26 +649,18 @@ def check_v5(r: CheckResult) -> None:
 
 
 # ---------------------------------------------------------------------------
-# V6 — Production Tests
+# V6 — Production Tests (split to GATES.yaml readiness-id granularity)
 # ---------------------------------------------------------------------------
 
-def check_v6(r: CheckResult) -> None:
-    """Production test checks."""
-    prod_tests = {
-        "E1 (50MB)": PROD_TEST_DIR / "test_e1_50mb.py",
-        "E2 (load)": PROD_TEST_DIR / "test_e2_load.py",
-        "E3 (throughput)": PROD_TEST_DIR / "test_e3_throughput.py",
-    }
+E_TESTS = {
+    "E1 (50MB)": PROD_TEST_DIR / "test_e1_50mb.py",
+    "E2 (load)": PROD_TEST_DIR / "test_e2_load.py",
+    "E3 (throughput)": PROD_TEST_DIR / "test_e3_throughput.py",
+}
 
-    for label, path in prod_tests.items():
-        if path.exists():
-            content = _read(path)
-            has_skip_env = "SKIP_ENV" in content
-            r.ok("6.7" if has_skip_env else "6.x", f"{label} exists{' with SKIP_ENV' if has_skip_env else ''}")
-        else:
-            r.fail("6.x", f"{label} test missing", f"{path} not found")
 
-    # E1 fixture check
+def check_6_2(r: CheckResult) -> None:
+    """6.2 E1 fixture exists when the test is not skipped."""
     e1_fixture_env = os.environ.get("OMNI_E1_FIXTURE_PATH", "")
     e1_default = Path("/tmp/omni_e1_fixture.docx")
     if e1_fixture_env and Path(e1_fixture_env).exists():
@@ -638,33 +673,51 @@ def check_v6(r: CheckResult) -> None:
         # absence is a SKIP[missing-fixture], never a blocking red.
         r.skip("6.2", "E1 fixture not found", "[missing-fixture] Run tests/production/generate_50mb_fixture.py first")
 
-    # E2 memory check config
+
+def check_6_4(r: CheckResult) -> None:
+    """6.4 E2 memory threshold configured."""
     e2_content = _read(PROD_TEST_DIR / "test_e2_load.py") if (PROD_TEST_DIR / "test_e2_load.py").exists() else ""
     if "heap_growth_mb < 500" in e2_content:
         r.ok("6.4", "E2 memory growth threshold configured (500 MB)")
 
 
+def check_6_7(r: CheckResult) -> None:
+    """6.7 Each E test carries the SKIP_ENV escape hatch."""
+    for label, path in E_TESTS.items():
+        if not path.exists():
+            r.fail("6.7", f"{label} test missing", f"{path} not found — no SKIP_ENV hatch possible")
+            continue
+        content = _read(path)
+        if "SKIP_ENV" in content:
+            r.ok("6.7", f"{label} has SKIP_ENV escape hatch")
+        else:
+            r.fail("6.7", f"{label} has no SKIP_ENV escape hatch")
+
+
 # ---------------------------------------------------------------------------
-# V7 — Security
+# V7 — Security (split to GATES.yaml readiness-id granularity)
 # ---------------------------------------------------------------------------
 
-def check_v7(r: CheckResult) -> None:
-    """Security checks."""
-    # 7.1 Hardcoded keys test exists
+def check_7_1(r: CheckResult) -> None:
+    """7.1 Hardcoded keys test exists."""
     key_test = SECURITY_DIR / "test_no_hardcoded_keys.py"
     if key_test.exists():
         r.ok("7.1", "Hardcoded keys test exists")
     else:
         r.fail("7.1", "Hardcoded keys test missing")
 
-    # 7.2 Path traversal tests exist
+
+def check_7_2(r: CheckResult) -> None:
+    """7.2 Path traversal tests exist."""
     traversal_tests = list(SECURITY_DIR.glob("*traversal*"))
     if traversal_tests:
         r.ok("7.2", f"Path traversal tests exist ({len(traversal_tests)} files)")
     else:
         r.fail("7.2", "Path traversal tests missing")
 
-    # 7.5 OPP_ALLOWED_DIRECTORIES configured
+
+def check_7_5(r: CheckResult) -> None:
+    """7.5 OPP_ALLOWED_DIRECTORIES configured."""
     opp_mcp_files = list(MODULES["OPP"].rglob("*.py"))
     allowed_dirs_found = any("OPP_ALLOWED_DIRECTORIES" in _read(f) for f in opp_mcp_files)
     if allowed_dirs_found:
@@ -674,22 +727,11 @@ def check_v7(r: CheckResult) -> None:
 
 
 # ---------------------------------------------------------------------------
-# V8 — Observability
+# V8 — Observability (split to GATES.yaml readiness-id granularity)
 # ---------------------------------------------------------------------------
 
-def check_v8(r: CheckResult) -> None:
-    """Observability checks."""
-    if OBSERVABILITY_DIR.exists():
-        obs_files = list(OBSERVABILITY_DIR.glob("*.py"))
-        file_count = len(obs_files)
-        r.ok("8.x", f"Observability tests: {file_count} test files")
-        for f in obs_files:
-            name = f.stem.replace("test_", "")
-            r.ok("8.x", f"  Obs test: {name}")
-    else:
-        r.fail("8.x", "Observability test directory missing")
-
-    # 8.3 MCP ping exists (check through import)
+def check_8_4(r: CheckResult) -> None:
+    """8.4 omni_metrics module importable."""
     try:
         import omni_metrics  # noqa
         r.ok("8.4", "omni_metrics module exists")
@@ -698,41 +740,20 @@ def check_v8(r: CheckResult) -> None:
 
 
 # ---------------------------------------------------------------------------
-# V9 — Cross-Format
+# V10 — Error Handling (split to GATES.yaml readiness-id granularity)
 # ---------------------------------------------------------------------------
 
-def check_v9(r: CheckResult) -> None:
-    """Cross-format compatibility checks."""
-    # Check for format coverage in phase1_runner
-    runner = SUITE_ROOT / "scripts" / "phase1_runner.py"
-    if runner.exists():
-        content = _read(runner)
-        format_count = content.count(".format") + content.count("_format")
-        r.ok("9.x", f"Phase 1 runner references formats ({format_count}x)")
-
-
-# ---------------------------------------------------------------------------
-# V10 — Error Handling
-# ---------------------------------------------------------------------------
-
-def check_v10(r: CheckResult) -> None:
-    """Error handling checks."""
-    # 10.1 Missing input file
+def check_10_1(r: CheckResult) -> None:
+    """10.1 Missing input file -> non-zero exit, no traceback."""
     rc, out, err = _run([sys.executable, "-m", "opp", "/nonexistent/file.docx", "--target-format", "md"])
     if rc != 0:
         r.ok("10.1", "OPP handles missing input (non-zero exit)")
     else:
         r.fail("10.1", "OPP returned 0 for missing input")
 
-    # 10.6 Check for subprocess return code propagation
-    suite_cli = SUITE_ROOT / "omni_suite" / "cli.py"
-    cli_content = _read(suite_cli)
-    if "check=True" in cli_content:
-        r.ok("10.6", "Subprocess failures propagate via check=True")
-    else:
-        r.fail("10.6", "Subprocess failures may not propagate")
 
-    # 10.5 Bare except blocks — scan only source directories, skip venvs/caches
+def check_10_5(r: CheckResult) -> None:
+    """10.5 No bare except: blocks."""
     bare_excepts = 0
     source_dirs = ["omni_suite", "omn_metrics", "Omni_Pre_Processor/src", "Omni_Localizer/src", "Omni_Re_Formatter/src", "scripts", "tests"]
     for src_dir in source_dirs:
@@ -748,51 +769,145 @@ def check_v10(r: CheckResult) -> None:
         r.fail("10.5", f"{bare_excepts} bare except: blocks found", "Should have logging or be specific")
 
 
+def check_10_6(r: CheckResult) -> None:
+    """10.6 Subprocess failures propagate (check=True)."""
+    suite_cli = SUITE_ROOT / "omni_suite" / "cli.py"
+    cli_content = _read(suite_cli)
+    if "check=True" in cli_content:
+        r.ok("10.6", "Subprocess failures propagate via check=True")
+    else:
+        r.fail("10.6", "Subprocess failures may not propagate")
+
+
 # ---------------------------------------------------------------------------
-# V11 — Documentation
+# V11 — Documentation (split to GATES.yaml readiness-id granularity)
 # ---------------------------------------------------------------------------
 
-def check_v11(r: CheckResult) -> None:
-    """Documentation checks."""
+def check_11_1(r: CheckResult) -> None:
+    """11.1 Suite README exists and is non-empty."""
     readme = SUITE_ROOT / "README.md"
     if readme.exists() and readme.stat().st_size > 100:
         r.ok("11.1", f"README.md exists ({readme.stat().st_size / 1024:.0f} KB)")
     else:
         r.fail("11.1", "README.md missing or too small")
 
+
+def check_11_2(r: CheckResult) -> None:
+    """11.2 Each submodule has a README.md or AGENTS.md (SKILL.md also accepted)."""
     for name, mod_path in MODULES.items():
         for doc_name in ["README.md", "AGENTS.md", "SKILL.md"]:
             doc = mod_path / doc_name
             if doc.exists():
-                r.ok("11.x", f"{name} {doc_name} exists")
+                r.ok("11.2", f"{name} {doc_name} exists")
                 break
         else:
-            r.skip("11.x", f"{name} no AGENTS.md/SKILL.md", "Not required but recommended")
+            r.skip("11.2", f"{name} no AGENTS.md/SKILL.md", "Not required but recommended")
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Registry + GATES.yaml wiring (W02 thin shell)
 # ---------------------------------------------------------------------------
+
+# One entry per GATES.yaml `readiness` row with evidence != manual. The set of
+# keys MUST equal that GATES subset — assert_registry_matches_gates() enforces
+# it in both directions, so a row registered in GATES.yaml without a checker
+# (or a checker without a GATES row) fails the run instead of silently
+# drifting. Split logic lives in the check_<id> functions above.
+REGISTRY: dict[str, "Callable[[CheckResult], None]"] = {
+    "1.1": check_1_1,
+    "1.2": check_1_2,
+    "1.3": check_1_3,
+    "1.5": check_1_5,
+    "2.1": check_2_1,
+    "2.2": check_2_2,
+    "2.5": check_2_5,
+    "2.7": check_2_7,
+    "3.1": check_3_1,
+    "3.3": check_3_3,
+    "3.4": check_3_4,
+    "3.6": check_3_6,
+    "4.1": check_4_1,
+    "4.2": check_4_2,
+    "4.3": check_4_3,
+    "4.5": check_4_5,
+    "4.8": check_4_8,
+    "5.1": check_5_1,
+    "5.2": check_5_2,
+    "5.3": check_5_3,
+    "5.4": check_5_4,
+    "5.5": check_5_5,
+    "5.6": check_5_6,
+    "6.2": check_6_2,
+    "6.4": check_6_4,
+    "6.7": check_6_7,
+    "7.1": check_7_1,
+    "7.2": check_7_2,
+    "7.5": check_7_5,
+    "8.4": check_8_4,
+    "10.1": check_10_1,
+    "10.5": check_10_5,
+    "10.6": check_10_6,
+    "11.1": check_11_1,
+    "11.2": check_11_2,
+}
+
+GATES_FILE = SUITE_ROOT / "GATES.yaml"
+
+
+def load_gates() -> dict[str, Any]:
+    """Load the root GATES.yaml gate registry."""
+    try:
+        import yaml  # lazy: only this shell path needs PyYAML
+    except ModuleNotFoundError as e:
+        print(f"check_readiness: PyYAML is required to read {GATES_FILE.name} — SKIP[no-pyyaml]: {e}", file=sys.stderr)
+        raise SystemExit(2)
+    with open(GATES_FILE, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict) or "readiness" not in data:
+        print(f"check_readiness: {GATES_FILE} has no 'readiness' layer", file=sys.stderr)
+        raise SystemExit(2)
+    return data
+
+
+def assert_registry_matches_gates(gates: dict[str, Any]) -> None:
+    """Bidirectional completeness: REGISTRY keys == GATES non-manual readiness ids."""
+    readiness = gates["readiness"]
+    declared_ids = {e["id"] for e in readiness}
+    auto_ids = {e["id"] for e in readiness if e.get("evidence") != "manual"}
+    registry_ids = set(REGISTRY)
+    problems: list[str] = []
+    missing_in_registry = sorted(auto_ids - registry_ids)
+    missing_in_gates = sorted(registry_ids - auto_ids)
+    if missing_in_registry:
+        problems.append(f"GATES readiness ids (evidence != manual) with no REGISTRY entry: {missing_in_registry}")
+    if missing_in_gates:
+        problems.append(f"REGISTRY ids not declared as auto-checked in GATES.yaml: {missing_in_gates}")
+    unknown = sorted(registry_ids - declared_ids)
+    if unknown:
+        problems.append(f"REGISTRY ids absent from GATES.yaml readiness layer entirely: {unknown}")
+    if problems:
+        print("readiness registry <-> GATES.yaml mismatch:", file=sys.stderr)
+        for p in problems:
+            print(f"  - {p}", file=sys.stderr)
+        raise SystemExit(1)
+
 
 def run_checks(verbose: bool = False) -> CheckResult:
     r = CheckResult()
+    gates = load_gates()
+    assert_registry_matches_gates(gates)
+    readiness = gates["readiness"]
+    auto_entries = [e for e in readiness if e.get("evidence") != "manual"]
 
-    for name, fn in [
-        ("V1 Version", check_v1),
-        ("V2 Module Integrity", check_v2),
-        ("V3 FAKE_LLM", check_v3),
-        ("V4 Test Infra", check_v4),
-        ("V5 CI/CD", check_v5),
-        ("V6 Production", check_v6),
-        ("V7 Security", check_v7),
-        ("V8 Observability", check_v8),
-        ("V9 Format Compat", check_v9),
-        ("V10 Error Handling", check_v10),
-        ("V11 Documentation", check_v11),
-    ]:
+    r.declared = len(readiness)
+    r.implemented = len(auto_entries)
+    r.manual = len(readiness) - len(auto_entries)
+    r.group_titles = {e["id"]: e.get("group", f"V{e['id'].split('.')[0]}") for e in readiness}
+
+    for entry in auto_entries:
         if verbose:
-            print(f"  Running {name}...", flush=True)
-        fn(r)
+            print(f"  Running {entry.get('group', '')} {entry['id']} — {entry.get('title', '')}...", flush=True)
+        REGISTRY[entry["id"]](r)
 
     return r
 
@@ -811,10 +926,16 @@ def main() -> int:
             "skip_count": sum(1 for i in r.items if i["status"] == "skip"),
             "score": r._score()[0],
             "score_label": r._score()[1],
+            # W02 additions: the declared/implemented/manual accounting against
+            # GATES.yaml. Keys are only ever ADDED to this contract, never removed.
+            "declared": r.declared,
+            "implemented": r.implemented,
+            "manual": r.manual,
         }
         print(json.dumps(output, indent=2, ensure_ascii=False))
     else:
         print(r.report(verbose=verbose))
+        print(f"  Declared: {r.declared} readiness rows — {r.implemented} auto-checked, {r.manual} manual")
 
     fail_count = sum(1 for i in r.items if i["status"] == "fail")
     return 1 if fail_count > 0 else 0
