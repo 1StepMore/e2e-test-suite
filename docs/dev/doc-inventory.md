@@ -14,13 +14,13 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Metric | Value |
 |--------|-------|
 | Total files | 64 |
-| Total lines | 34892 |
+| Total lines | 34907 |
 | Active files | 40 |
 | Archived files | 24 |
 | Category — archive | 24 files / 25391 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 19 files / 2860 lines |
+| Category — docs/dev | 19 files / 2875 lines |
 | Category — docs/root | 18 files / 5299 lines |
 
 ## Inventory
@@ -47,7 +47,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `adr/0004-manifest-skeleton-handoff.md` | 57 | docs/dev | active | — |
 | `adr/0005-pdf-xliff-blocked.md` | 54 | docs/dev | active | — |
 | `adr/0006-fake-llm-hermetic-seam.md` | 53 | docs/dev | active | — |
-| `adr/0007-path-security-convergence.md` | 297 | docs/dev | active | — |
+| `adr/0007-path-security-convergence.md` | 304 | docs/dev | active | — |
 | `adr/0008-cross-repo-copy-review.md` | 86 | docs/dev | active | — |
 | `adr/README.md` | 41 | docs/dev | active | — |
 | `adr/TEMPLATE.md` | 36 | docs/dev | active | — |
@@ -82,7 +82,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/quality-baseline.md` | 44 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 295 | docs/dev | active | — |
-| `dev/validation-loop-log.md` | 347 | docs/dev | active | — |
+| `dev/validation-loop-log.md` | 355 | docs/dev | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |

@@ -81,6 +81,13 @@
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
 
+### 2026-11-06（第四轮）：P2-lite 安全校验面收敛（ADR 0007 Phase 2B-lite）
+
+- Date: 2026-11-06；触发：goal-mode 批次 P2；plan 前提修正——Phase 2B 的真卡点不是 uv.lock（Phase 2A 已把 omni-security 做成 workspace 成员并进锁）而是 **omni-security 的发布/可解析决策**（ADR 原文 "deferred pending an omni-security release"；Alternative-3 拒绝未声明的跨仓导入），属维护者决策 → 本轮交付**仓内可完成**的 CLI 面收敛子集，跨仓薄包装如实保持 deferred
+- Scope: `Omni_Localizer/src/cli/load_glossary.py`（fail-open [cwd,/tmp] 兜底 → canonical 链 + fail-closed；统一 os.pathsep+comma 解析）+ 新测试 `tests/test_cli_load_glossary.py`（5 用例）；`Omni_Pre_Processor/src/opp/cli.py`（startswith → `is_relative_to`，兄弟前缀逃逸闭合）+ `tests/test_cli.py` 逃逸回归；`Omni_Pre_Processor/src/opp_hermes/opp_tool.py`（只认单一变量 → MCP_ALLOWED_DIRECTORIES > OPP_MCP_ALLOWED_DIRS 链）；`omni_suite/cli.py`（透传补 OL_MCP_ALLOWED_DIRS）+ `tests/test_phase2_root_env_vars.py` 断言反转（原"禁止"前提 stale——OL#96 已使该变量成为正式链成员）
+- Result: OPP test_cli 19 passed（含逃逸回归红→绿）· hardening 5 passed · parity 38 passed/1 platform-skip · OL glossary+security 44 passed · suite phase2 6 passed。**三处有意行为变更**：load_glossary 未配置时从静默兜底改为 fail-closed 带整改指引（--allow-dir 显式指定仍单独可用）；opp --resource-dir 兄弟前缀逃逸闭合；hermes 入口认全变量链
+- Conclusion: 四个 CLI 面漂移实例全数闭合且同仓无跨仓依赖；跨仓薄包装（三 validator 转包装）维持 deferred——解除条件 = omni-security 发布决策（PyPI 发布或逐仓 vendor），已写入 ADR 0007 状态注记
+
 ### 2026-11-06（第三轮）：P1-B 全库基线批次 + run_meta 锚定 + 对外文档刷新
 
 - Date: 2026-11-06；触发：goal-mode 批次 P1-B（依赖 P0-B 绿 ✓）

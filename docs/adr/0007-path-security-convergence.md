@@ -3,7 +3,14 @@
 **Status**: Accepted (Phase 1 implemented 2026-09-17; **Phase 2A implemented
 2026-09-18** — shared `omni_security` package + suite-orchestrator adoption;
 Phase 2B, the OPP/OL/ORF thin wrappers, deferred pending an `omni-security`
-release — see "Implementation" below)
+release — see "Implementation" below. **2026-11-06 Phase 2B-lite**: the four
+CLI-surface residual copies were consolidated WITHIN their own repos (no
+cross-repo dependency needed) — `opp/cli.py` containment is now component-wise
+(`is_relative_to`), `ol load-glossary` reuses the canonical OL chain and fails
+CLOSED, the Hermes entry resolves the unified chain, and the omni-suite CLI
+passes `OL_MCP_ALLOWED_DIRS` through. The cross-repo thin wrappers remain
+blocked on the `omni-security` release decision (publish to an index or
+vendor per repo — a maintainer call, not an engineering one).)
 
 **Date**: 2026-09-17
 

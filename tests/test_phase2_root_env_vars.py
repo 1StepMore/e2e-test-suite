@@ -58,11 +58,17 @@ def test_omni_suite_cli_has_unified_var():
     )
 
 
-def test_omni_suite_cli_does_not_reference_nonexistent_ol_mcp_allowed_dirs():
-    """omni_suite/cli.py must NOT reference the nonexistent OL_MCP_ALLOWED_DIRS."""
+def test_omni_suite_cli_passes_ol_mcp_allowed_dirs_through():
+    """omni_suite/cli.py must pass OL_MCP_ALLOWED_DIRS through.
+
+    2026-11-06 (ADR 0007 Phase 2B-lite): this assertion is the REVERSE of
+    the original one. The test used to forbid the name as "nonexistent" —
+    but OL#96 made it live: OL's canonical allowlist chain is
+    MCP_ALLOWED_DIRECTORIES > OL_MCP_ALLOWED_DIRS > OL_ALLOWED_DIRECTORIES
+    (ol_mcp/security.py get_default_validator). Not passing it through
+    meant a user setting only OL_MCP_ALLOWED_DIRS lost it on every
+    omni-suite launch (OL_PATH_DENIED)."""
     content = (REPO_ROOT / "omni_suite" / "cli.py").read_text(encoding="utf-8")
-    # Check that "OL_MCP_ALLOWED_DIRS" is not used as a real var name
-    # (with the OL_ prefix, not OPP_/ORF_)
     lines_with_ol_mcp = [
         line
         for line in content.splitlines()
@@ -70,8 +76,8 @@ def test_omni_suite_cli_does_not_reference_nonexistent_ol_mcp_allowed_dirs():
         and "OPP_MCP" not in line
         and "ORF_MCP" not in line
     ]
-    assert not lines_with_ol_mcp, (
-        f"omni_suite/cli.py references nonexistent 'OL_MCP_ALLOWED_DIRS'. "
-        f"The correct var name is 'OL_ALLOWED_DIRECTORIES'.\n"
-        f"Lines: {lines_with_ol_mcp}"
+    assert lines_with_ol_mcp, (
+        "omni_suite/cli.py must pass OL_MCP_ALLOWED_DIRS through (live OL "
+        "allowlist name since OL#96); a user setting only that var loses it "
+        "on every omni-suite launch otherwise"
     )
