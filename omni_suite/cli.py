@@ -58,6 +58,12 @@ _OPTIONAL_VARS = [
     "OPP_MCP_ALLOWED_DIRS",
     "ORF_MCP_ALLOWED_DIRS",
     "OL_ALLOWED_DIRECTORIES",
+    # 2026-11-06 (ADR 0007 Phase 2B-lite): OL's live allowlist chain is
+    # MCP_ALLOWED_DIRECTORIES > OL_MCP_ALLOWED_DIRS > OL_ALLOWED_DIRECTORIES
+    # (ol_mcp/security.py get_default_validator) — the middle name must be
+    # passed through too, or a user setting only OL_MCP_ALLOWED_DIRS loses
+    # it on every omni-suite launch (OL_PATH_DENIED).
+    "OL_MCP_ALLOWED_DIRS",
 ]
 
 
