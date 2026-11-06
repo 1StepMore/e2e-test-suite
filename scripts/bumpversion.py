@@ -17,7 +17,7 @@ Effects (bump mode):
 
 Post-bump checklist:
     - [ ] Run `tests/integration/test_version_compat.py`
-    - [ ] Update VERSION_COMPATIBILITY.md with the new row
+    - [ ] Append the new row to COMPATIBILITY.md (append-only matrix, Suite|OL|OPP|ORF|Notes)
     - [ ] `git commit -m "bump: version X.Y.Z"` in each submodule
     - [ ] Tag each submodule
     - [ ] Update submodule SHAs in root repo
@@ -281,8 +281,9 @@ def main() -> int:
         versions.append(new_ver)
         print(f"  ✅ {name}: {new_ver}")
 
-    print("\nDone. To update VERSION_COMPATIBILITY.md:")
-    print(f"  Add row: | {' | '.join(v for v in versions)} | ✅ Tested | {__import__('datetime').date.today().isoformat()} |")
+    print("\nDone. Append a row to COMPATIBILITY.md:")
+    print("  (append-only matrix; header is `| Suite | OL | OPP | ORF | Notes |`)")
+    print(f"  | {' | '.join(v for v in versions)} | <notes> |")
     return 0
 
 
