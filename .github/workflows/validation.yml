@@ -133,7 +133,10 @@ jobs:
         # while any tool is `missing` (plan todo 17 / draft D13).
         run: .venv_ol/bin/python scripts/validation/coverage_audit.py
 
-      - name: 'Gate 3 — T2 regression check (PDF -> XLIFF guard)'
+      - name: "Gate 3 — T2 regression check (PENDING_SIGNOFF: blocked on OPP c21bce6 not pushed)"
+        # blocked (external), NOT FAIL, and NOT part of this repo's internal remediation
+        # DoD: unblock = push 1StepMore/Omni_Pre_Processor c21bce6. Registered in GATES.yaml as
+        # structural.blocked_steps: [gate-3] (step-level; the job's Gates 1/2/4 stay active).
         # CAVEAT (delivery note, NOT a weakened gate): the OPP guard fix
         # (commit c21bce6 in 1StepMore/Omni_Pre_Processor, 2026-08-14) is
         # committed but NOT pushed. CI clones OPP fresh from GitHub main,
