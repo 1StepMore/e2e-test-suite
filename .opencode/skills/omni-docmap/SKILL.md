@@ -35,7 +35,7 @@ All paths are relative to the project root `/mnt/d/贯维/Omni_Suite`. Each entr
 | `CONTRIBUTING.md` | ~172 | Contributors | PR workflow, branch naming, test expectations, doc update requirements | Process changes, CI changes |
 | `SETUP.md` | ~220 | Developers | Phase 1 setup guide for real LLM integration tests (API keys, config) | API key changes, env var changes, setup process changes |
 | `PROJECT_STATUS.md` | ~228 | First file to read | Project snapshot: versions, test matrix health, recent fixes, platform notes, canonical-doc pointer table | Version bumps, test health changes, architecture changes |
-| `PRODUCTION_READINESS.md` | ~187 | Maintainers | V1-V11 production-readiness checklist (version consistency, module integrity, security, observability) | Any new production requirement, new check items |
+| `PRODUCTION_READINESS.md` | ~10 | Maintainers | Root stub: points at the `GATES.yaml` readiness layer and the archived V1-V11 checklist (`docs/archive/PRODUCTION_READINESS.md`) | Gate-registry topology changes |
 | `ACCEPTED_GAPS.md` | ~103 | All devs | Known limitations and tradeoffs (PDF→XLIFF blocked, MSG requires commercial, validation known gaps, etc.) | New gap discovered, existing gap resolved |
 | `CONTRACT.md` | ~308 | All devs | OPP→OL→ORF handoff contract (artifact formats, metadata schemas, failure modes) **+ the suite↔module in-process import surface + the `table_{t}_r{r}_c{c}` XLIFF coordinate contract** | Pipeline boundary contract changes, and any rename of a module tool registry |
 | `CLAUDE.md` | ~7 | Claude Code | Claude-specific context (architecture summary, commands, tips) | Architecture changes, CLI changes, MCP changes |

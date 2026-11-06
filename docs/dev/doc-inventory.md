@@ -13,11 +13,11 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 68 |
-| Total lines | 35025 |
+| Total files | 69 |
+| Total lines | 35215 |
 | Active files | 44 |
-| Archived files | 24 |
-| Category — archive | 24 files / 25391 lines |
+| Archived files | 25 |
+| Category — archive | 25 files / 25581 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
 | Category — docs/dev | 22 files / 2958 lines |
@@ -60,7 +60,8 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `archive/OPP_VALIDATION_MASTER_PLAN.md` | 3106 | archive | archived | — |
 | `archive/ORF_EXPECTATIONS.md` | 541 | archive | archived | — |
 | `archive/ORF_VALIDATION_MASTER_PLAN.md` | 2563 | archive | archived | — |
-| `archive/README.md` | 61 | archive | archived | — |
+| `archive/PRODUCTION_READINESS.md` | 189 | archive | archived | — |
+| `archive/README.md` | 62 | archive | archived | — |
 | `archive/SECURITY_FINDINGS.md` | 80 | archive | archived | — |
 | `archive/SUITE_EXPECTATIONS.md` | 894 | archive | archived | — |
 | `archive/SUITE_VALIDATION_MASTER_PLAN.md` | 3589 | archive | archived | — |
