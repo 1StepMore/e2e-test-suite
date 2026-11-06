@@ -1,7 +1,9 @@
 """Generate the Omni Suite documentation inventory + run the source-truth ``--check``.
 
-Pure Python 3.13 stdlib only (pathlib, re, argparse, subprocess) — no yaml or
-any third-party dependency. Two modes:
+Pure Python 3.13 stdlib + PyYAML, the latter imported lazily and only inside
+``check_governance_drift`` (GATES.yaml / pre-commit / workflow parsing); when
+PyYAML is missing that check degrades to ``SKIP[no-pyyaml]``, never a red.
+Two modes:
 
 * generate (default): scan ``docs/**/*.md|*.yaml|*.json`` (skipping the
   inventory itself) and write ``docs/dev/doc-inventory.md`` — an
@@ -1234,6 +1236,281 @@ GOV_PLACEHOLDER_FILES: tuple[str, ...] = (
 )
 
 
+def check_governance_drift(root: Path, failures: list[str]) -> None:
+    """Governance-drift gates (hook convergence D-A..D-F).
+
+    Absorbs the verdicts of the two retired pre-commit hooks
+    (omni-version-docs-sync -> D-A, omni-validation-check -> D-C) and adds the
+    GATES.yaml completeness (D-D), reference (D-E), and archive/generated
+    discipline (D-F) assertions. Every class prints its own ``D-x`` label so a
+    mixed failure list stays attributable (risk K6).
+    """
+    print("  governance-drift:")
+
+    # D-A — version consistency: VERSION <-> 4 pyprojects <-> COMPATIBILITY.md
+    # <-> README/AGENTS/PROJECT_STATUS version tables. Full assertion lives in
+    # scripts/sync_version_docs.py --check (delegated, same as pre-convergence).
+    da: list[str] = []
+    check_version_sync(root, da)
+    for f in da:
+        failures.append(f"D-A (version consistency): {f}")
+    print(f"    D-A version consistency: {'ok' if not da else f'{len(da)} issue(s)'}")
+
+    # D-B — count truth: check_claim_sites / check_scenarios /
+    # check_input_formats / check_test_matrix already ran earlier in the
+    # pipeline; nothing to re-run here, only an attribution note.
+    print("    D-B count truth: covered by the source-truth gates above (shared failures)")
+
+    # D-C — scenario-library contract (absorbed omni-validation-check).
+    dc = _check_scenario_contract(root)
+    failures.extend(dc)
+    print(f"    D-C scenario contract: {'ok' if not dc else ' / '.join(dc)}")
+
+    # D-D — GATES.yaml <-> pre-commit hook ids <-> workflow job ids, both ways.
+    dd = _check_gates_registry(root)
+    failures.extend(dd)
+    print(f"    D-D gate registry completeness: {'ok' if not dd else f'{len(dd)} issue(s)'}")
+
+    # D-E — reference integrity over the governance surface (zombie shapes red).
+    de: list[str] = []
+    _check_governance_references(root, de)
+    failures.extend(f"D-E (reference integrity): {f}" for f in de)
+    print(f"    D-E reference integrity: {'ok' if not de else f'{len(de)} issue(s)'}")
+
+    # D-F — archive / generated-artifact discipline.
+    df = _check_generated_discipline(root)
+    failures.extend(f"D-F (generated artifact): {f}" for f in df)
+    print(f"    D-F archive/generated discipline: {'ok' if not df else f'{len(df)} issue(s)'}")
+
+
+def _check_scenario_contract(root: Path) -> list[str]:
+    """D-C: run_validation.py --check, import-probed like the retired hook."""
+    runner = root / "scripts" / "validation" / "run_validation.py"
+    if not runner.exists():
+        print("    D-C scenario contract: skip — scripts/validation/run_validation.py absent from this tree")
+        return []
+    cli_probe = subprocess.run(
+        [sys.executable, "-P", "-c", "import omni_mcp.validation.cli"],
+        cwd=str(root), capture_output=True, text=True, timeout=120,
+    )
+    if cli_probe.returncode != 0 and "ModuleNotFoundError" in (cli_probe.stderr or ""):
+        print("    D-C scenario contract: SKIP[missing-imports] — omni_mcp.validation.cli not importable "
+              "under this interpreter; the authoritative execution is the CI structural job (validation.yml)")
+        return []
+    try:
+        proc = subprocess.run(
+            [sys.executable, "scripts/validation/run_validation.py", "--check"],
+            cwd=str(root), capture_output=True, text=True, timeout=300,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        return [f"run_validation.py --check could not run: {exc}"]
+    if proc.returncode != 0:
+        return [
+            f"run_validation.py --check failed (rc={proc.returncode}): "
+            f"{(proc.stdout or proc.stderr).strip()[-400:]}"
+        ]
+    return []
+
+
+def _load_yaml(path: Path) -> Any:
+    """Lazy PyYAML load; returns None when PyYAML is unavailable or the file
+    is absent (same absent->skip convention as the rest of this checker)."""
+    if not path.is_file():
+        print(f"    (yaml input absent -> skip: {path.name})")
+        return None
+    try:
+        import yaml
+    except ModuleNotFoundError:
+        return None
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def _check_gates_registry(root: Path) -> list[str]:
+    """D-D: pre-commit hook ids == GATES.yaml commit layer; workflow job ids ==
+    GATES.yaml ci layer. Bidirectional — one extra or one missing id is red."""
+    gates = _load_yaml(root / "GATES.yaml")
+    if gates is None:
+        print("    D-D gate registry completeness: skip — GATES.yaml unavailable or absent")
+        return []
+    problems: list[str] = []
+    gates_commit = {e["id"] for e in gates.get("commit", [])}
+    gates_ci = {e["id"] for e in gates.get("ci", [])}
+
+    cfg = _load_yaml(root / ".pre-commit-config.yaml")
+    if cfg is None:
+        print("    D-D gate registry completeness: skip hook cross-check — .pre-commit-config.yaml absent")
+    else:
+        hook_ids = {
+            h["id"]
+            for repo in cfg.get("repos", [])
+            for h in repo.get("hooks", [])
+            if isinstance(h, dict) and "id" in h
+        }
+        problems += _set_diff_problems("pre-commit hooks", hook_ids, "GATES.yaml commit", gates_commit)
+
+    wf_dir = root / ".github" / "workflows"
+    job_ids: set[str] = set()
+    if wf_dir.is_dir():
+        for wf in sorted(wf_dir.glob("*.y*ml")):
+            wfd = _load_yaml(wf)
+            if isinstance(wfd, dict):
+                job_ids.update(j for j in (wfd.get("jobs") or {}) if isinstance(j, str))
+        problems += _set_diff_problems("workflow jobs", job_ids, "GATES.yaml ci", gates_ci)
+    return problems
+
+
+def _set_diff_problems(left_name: str, left: set, right_name: str, right: set) -> list[str]:
+    out: list[str] = []
+    if extra := sorted(left - right):
+        out.append(f"{left_name} not in {right_name}: {extra}")
+    if missing := sorted(right - left):
+        out.append(f"{right_name} ids with no {left_name} entry: {missing}")
+    return out
+
+
+#: Governance reference scope (D-E): instruction docs + the whole scripts/
+#: tree + the hook config. docs/adr/** is EXCLUDED (historical records keep
+#: their period-accurate references); .omo/**, CHANGELOG.md and 99-Tools/**
+#: are skipped by construction (not in scope) and tests/ is never scanned —
+#: tests/test_version_single_source_of_truth.py asserts the zombie's ABSENCE
+#: and must never be flagged for quoting it. scripts/doc_inventory.py is
+#: likewise self-referential: it names the zombie shapes it exists to reject.
+_D_E_ROOT_DOCS = (".pre-commit-config.yaml", "AGENTS.md", "README.md", "CLAUDE.md", "CONTRIBUTING.md")
+#: Dead-path shapes that are red on sight inside the D-E scope (the
+#: VERSION_COMPATIBILITY zombie: the file has never existed in this repo —
+#: F13; a hypothetical scenarios/GATES.yaml would be parsed as a scenario and
+#: must never be referenced as a gate registry).
+_D_E_ZOMBIE_SHAPES = ("VERSION_COMPATIBILITY.md", "scenarios/GATES.yaml")
+
+
+def _check_governance_references(root: Path, failures: list[str]) -> None:
+    """D-E: reference integrity over the governance surface.
+
+    Two layers, mirroring the plan's split (R9):
+
+    1. Zombie shapes — red on sight anywhere on the governance surface
+       (hook config, root instruction docs, scripts/**, docs/** minus
+       docs/adr/**): VERSION_COMPATIBILITY.md and scenarios/GATES.yaml must
+       not be referenced outside the exemption list (historical ADR records,
+       the reverse-assertion test, this checker itself).
+    2. Everything else (broken links, dead path tokens) follows the EXISTING
+       check_referential rules: that gate already enforces them over its
+       curated REFERENTIAL_SCOPE earlier in the pipeline. D-E only adds the
+       one governance file Gate B cannot see — .pre-commit-config.yaml —
+       with the same resolution rules. Widening the generic pass to all of
+       docs/** was measured and rejected: 170 pre-existing historical/
+       example tokens in archive/report docs (the exact noise Gate B's
+       curation exists to avoid).
+    """
+    zombie_files: list[Path] = [root / rel for rel in _D_E_ROOT_DOCS]
+    if (root / "scripts").is_dir():
+        zombie_files += sorted((root / "scripts").rglob("*.py"))
+    if (root / "docs").is_dir():
+        zombie_files += sorted((root / "docs").rglob("*.md"))
+    for path in zombie_files:
+        rel = path.relative_to(root).as_posix()
+        if not path.exists() or not path.is_file():
+            continue
+        if "docs/adr/" in rel or rel == "CHANGELOG.md":
+            continue
+        if rel == "scripts/doc_inventory.py" or rel == "docs/dev/doc-inventory.md":
+            continue  # self-referential (names the zombies it rejects)
+        text = read_text(path)
+        for zombie in _D_E_ZOMBIE_SHAPES:
+            if zombie in text:
+                failures.append(f"{rel}: dead path token -> `{zombie}` (zombie shape on the governance surface)")
+
+    # Broken links / dead tokens for the governance file outside Gate B's scope.
+    hook_cfg = root / ".pre-commit-config.yaml"
+    if hook_cfg.exists():
+        text = read_text(hook_cfg)
+        extra_skip = (
+            "${{", "secrets.", "needs.", "steps.",  # workflow expressions / YAML keys
+            "github.", "env.", "runner.", "inputs.", "matrix.",
+        )
+        for m in _LINK_TARGET_RE.finditer(text):
+            target = m.group(1).strip()
+            if not target or any(s in target for s in _SKIP_TOKEN_SUBSTR) or any(s in target for s in extra_skip):
+                continue
+            if target.startswith(("#", "/")) or target in _SYNTAX_EXAMPLE_TARGETS:
+                continue
+            target = _strip_line_ref(target)
+            if not target:
+                continue
+            if not (hook_cfg.parent / target).resolve().exists():
+                failures.append(f".pre-commit-config.yaml: broken link -> {target}")
+        for m in _PATH_TOKEN_RE.finditer(text):
+            token = m.group(1).strip()
+            if not token or any(s in token for s in _SKIP_TOKEN_SUBSTR) or any(s in token for s in extra_skip):
+                continue
+            token = _strip_line_ref(token)
+            if not token or "()" in token or not _is_path_token(token):
+                continue
+            if token in _HISTORICAL_PATH_TOKENS or token in _D_E_ZOMBIE_SHAPES:
+                continue
+            if re.fullmatch(r"validation-runs/\d{8}-\d{6}(?:/.+)?", token):
+                continue
+            if _resolve_token(root, token) is None:
+                failures.append(f".pre-commit-config.yaml: dead path token -> `{token}`")
+
+
+def _check_generated_discipline(root: Path) -> list[str]:
+    """D-F: archive + generated-artifact discipline.
+
+    * Every ``docs/archive/*.md`` copy that declares a repo-path
+      ``Superseded by:`` target must point at a real path (the archive
+      first-line marker itself stays Gate A; prose targets are skipped).
+    * When an archive copy of ``PRODUCTION_READINESS.md`` exists, the suite
+      root must keep a short pointer stub (not a stale full copy).
+    * When ``docs/RELEASE_NOTES.md`` carries the AUTO-GENERATED header, it
+      must be the full generated artifact, not a 2-line stub (>100 lines).
+    """
+    problems: list[str] = []
+    archive_dir = root / "docs" / "archive"
+    if archive_dir.is_dir():
+        for path in sorted(archive_dir.glob("*.md")):
+            if path.name == "README.md":
+                continue
+            head = "\n".join(read_text(path).splitlines()[:6])
+            m = re.search(r"[Ss]uperseded\s+by:?\s*`?([^\s`]+)`?", head)
+            if not m:
+                continue
+            target = _strip_line_ref(m.group(1)).rstrip("*_")
+            if not target:
+                continue
+            # Only doc-shaped targets are assertable (the superseding doc or
+            # registry); code paths (.py) and prose pointers ("Superseded by:
+            # the executable gate registry") are skipped — a minimal fixture
+            # tree legitimately references files it does not carry.
+            if not target.endswith((".md", ".yaml", ".yml", ".json")):
+                continue
+            if not (root / target).resolve().exists():
+                problems.append(
+                    f"{path.relative_to(root)}: superseded_by -> `{target}` does not exist"
+                )
+    archived_prd = archive_dir / "PRODUCTION_READINESS.md" if archive_dir.is_dir() else None
+    if archived_prd is not None and archived_prd.exists():
+        root_prd = root / "PRODUCTION_READINESS.md"
+        if not root_prd.exists():
+            problems.append("root PRODUCTION_READINESS.md stub missing (archive copy exists)")
+        elif len(read_text(root_prd).splitlines()) > 40:
+            problems.append(
+                "root PRODUCTION_READINESS.md is not a stub "
+                f"({len(read_text(root_prd).splitlines())} lines; archive copy exists)"
+            )
+    release_notes = root / "docs" / "RELEASE_NOTES.md"
+    if release_notes.exists():
+        first3 = "\n".join(read_text(release_notes).splitlines()[:3])
+        if "AUTO-GENERATED" in first3:
+            lines = len(read_text(release_notes).splitlines())
+            if lines <= 100:
+                problems.append(
+                    f"docs/RELEASE_NOTES.md carries the AUTO-GENERATED header but only {lines} lines — "
+                    "regenerate with scripts/bumpversion.py --release-notes --write"
+                )
+    return problems
+
+
 def run_check(root: Path) -> list[str]:
     """Run all --check gates; return the list of human-readable failures."""
     failures: list[str] = []
@@ -1315,6 +1592,11 @@ def run_check(root: Path) -> list[str]:
         check_expectations=True,
     )
     gov_role_pointer(root, failures)
+
+    # 14. Governance drift (hook convergence: D-A..D-F — absorbs the two
+    #     retired pre-commit hooks' verdicts and adds registry completeness,
+    #     reference integrity, and generated-artifact discipline).
+    check_governance_drift(root, failures)
 
     return failures
 
