@@ -177,7 +177,7 @@ On native Windows, `make` targets need a POSIX shell — prefer the explicit com
 | `docs/API_STABILITY.md` | API stability guarantees | 16KB |
 | `docs/SECURITY.md` | Security model (PathValidator, MCP auth, rate limits) | 12KB |
 | `docs/ERROR_CODES.md` | Exit code / error code reference | 19KB |
-| `docs/RELEASE_NOTES.md` | Cross-repo release notes (monthly) | 0.6KB |
+| `docs/RELEASE_NOTES.md` | Cross-repo release notes (AUTO-GENERATED, full history) | 66116 bytes (`wc -c`, 2026-11-07) |
 | `COMPATIBILITY.md` | Suite↔sub-repo version matrix | 2KB |
 | `ACCEPTED_GAPS.md` | Known limitations and workarounds | 9KB |
 | `CHANGELOG.md` | Suite changelog (last 283 lines) | 27KB |

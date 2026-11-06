@@ -28,6 +28,7 @@
 | `SECURITY_FINDINGS.md` | 2026-08-23 | Dated `pip-audit` snapshot (2026-06-22) | `docs/SECURITY_AUDIT.md` (live audit) |
 | `e2e-fix-records.md` | 2026-08-23 | One-off E2E bug-fix records moved out of `README.md` | `CHANGELOG.md` + git history |
 | `INTEGRATED_TEST_PLAN.md` | 2026-10-26 | Phase artifact; superseded by the executable scenario library | `tests/` + `scenarios/` |
+| `PRODUCTION_READINESS.md` | 2026-11-07 | V1–V11 numbering migrated to the executable gate registry (root `GATES.yaml` `readiness` layer + `scripts/check_readiness.py` thin shell) | `GATES.yaml` + root stub |
 | `feature_inventory.md` | 2026-10-26 | Phase artifact; feature/QA state maintained in `README.md` + module docs | `README.md` |
 | `system_improvements_v2.md` | 2026-10-26 | Phase artifact; improvements landed | `CHANGELOG.md` |
 | `e2e-test-plan.md` | 2026-10-26 | Phase artifact; superseded by the executable scenario library | `tests/` + `scenarios/` |
