@@ -1380,6 +1380,11 @@ def _check_governance_references(root: Path, failures: list[str]) -> None:
             continue
         if "docs/adr/" in rel or rel == "CHANGELOG.md":
             continue
+        if rel == "docs/RELEASE_NOTES.md":
+            # Generated mirror of the CHANGELOGs: it inherits their historical
+            # text verbatim, so it shares CHANGELOG's historical-record
+            # exemption (a regenerated artifact is never hand-policed).
+            continue
         if rel == "scripts/doc_inventory.py" or rel == "docs/dev/doc-inventory.md":
             continue  # self-referential (names the zombies it rejects)
         text = read_text(path)
@@ -1467,14 +1472,23 @@ def _check_generated_discipline(root: Path) -> list[str]:
             )
     release_notes = root / "docs" / "RELEASE_NOTES.md"
     if release_notes.exists():
+        # W11: the file is GENERATED — both assertions hold unconditionally:
+        # the AUTO-GENERATED marker must sit in the first 3 lines (title +
+        # marker) and the artifact must be the full aggregate (>100 lines),
+        # not a handwritten stub.
         first3 = "\n".join(read_text(release_notes).splitlines()[:3])
-        if "AUTO-GENERATED" in first3:
-            lines = len(read_text(release_notes).splitlines())
-            if lines <= 100:
-                problems.append(
-                    f"docs/RELEASE_NOTES.md carries the AUTO-GENERATED header but only {lines} lines — "
-                    "regenerate with scripts/bumpversion.py --release-notes --write"
-                )
+        lines = len(read_text(release_notes).splitlines())
+        if "AUTO-GENERATED" not in first3:
+            problems.append(
+                "docs/RELEASE_NOTES.md is a generated artifact but lacks the AUTO-GENERATED "
+                "marker in its first 3 lines — regenerate with "
+                "scripts/bumpversion.py --release-notes --write docs/RELEASE_NOTES.md"
+            )
+        elif lines <= 100:
+            problems.append(
+                f"docs/RELEASE_NOTES.md carries the AUTO-GENERATED header but only {lines} lines — "
+                "regenerate with scripts/bumpversion.py --release-notes --write docs/RELEASE_NOTES.md"
+            )
     return problems
 
 
