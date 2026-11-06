@@ -104,12 +104,18 @@ jobs:
           pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify readability-lxml
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
-      - name: Run CLI contract tests
+      - name: Run CLI contract tests (collect)
+        id: collect_cli
+        # continue-on-error lets a failing run finish so the fixture artifacts
+        # (incl. .actual.txt diffs) still upload; the guard step below turns
+        # the collected outcome into the job verdict — failure is no longer
+        # swallowed by a shell fallback.
+        continue-on-error: true
         env:
           OMNI_TEST_FAKE_LLM: '1'
           OMNI_TEST_FAKE_PANDOC: '1'
         run: |
-          python -m pytest tests/contract/test_cli_help.py -v --tb=short || true
+          python -m pytest tests/contract/test_cli_help.py -v --tb=short
       - name: Upload contract fixtures (incl. .actual.txt) for inspection
         if: always()
         uses: actions/upload-artifact@v4
@@ -117,6 +123,11 @@ jobs:
           name: cli-help-fixtures
           path: tests/contract/fixtures/
           if-no-files-found: warn
+      - name: Assert CLI contract result
+        if: always()
+        run: |
+          echo "collect_cli outcome: ${{ steps.collect_cli.outcome }} (conclusion: ${{ steps.collect_cli.conclusion }})"
+          test "${{ steps.collect_cli.outcome }}" = "success"
 
   mcp-schemas-contract:
     name: MCP schema contract (frozen fixtures)
@@ -141,13 +152,16 @@ jobs:
           pip install -e ./Omni_Pre_Processor -e "./Omni_Localizer[mcp]" -e ./Omni_Re_Formatter markdownify readability-lxml
       - name: Install root deps
         run: pip install --upgrade pip pydantic-settings python-multipart cryptography starlette aiohttp pytest pyyaml opentelemetry-api opentelemetry-sdk structlog
-      - name: Run MCP schema contract tests (allow failure to capture .actual.json)
-        id: mcp_test
+      - name: Run MCP schema contract tests (collect)
+        id: collect_mcp
+        # Same collect/assert split as cli-help-contract: capture the fixture
+        # artifacts on failure, then fail the job via the guard step.
+        continue-on-error: true
         env:
           OMNI_TEST_FAKE_LLM: '1'
           OMNI_TEST_FAKE_PANDOC: '1'
         run: |
-          python -m pytest tests/contract/test_mcp_schemas.py -v --tb=short || true
+          python -m pytest tests/contract/test_mcp_schemas.py -v --tb=short
       - name: Upload contract fixtures (incl. .actual.json) for inspection
         if: always()
         uses: actions/upload-artifact@v4
@@ -155,6 +169,11 @@ jobs:
           name: mcp-contract-fixtures
           path: tests/contract/fixtures/
           if-no-files-found: warn
+      - name: Assert MCP schema contract result
+        if: always()
+        run: |
+          echo "collect_mcp outcome: ${{ steps.collect_mcp.outcome }} (conclusion: ${{ steps.collect_mcp.conclusion }})"
+          test "${{ steps.collect_mcp.outcome }}" = "success"
 
   mcp-matrix:
     name: MCP matrix XLIFF (${{ matrix.xliff_format }})
