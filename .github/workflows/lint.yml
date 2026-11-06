@@ -130,15 +130,19 @@ jobs:
         # ruff v0.17.1 (--select F --fix), omni-contract-smoke (needs
         # OMNI_TEST_FAKE_LLM=1 and the .venv_ol symlink, both set up above),
         # omni-version-alignment, omni-no-hardcoded-keys,
-        # omni-version-docs-sync.
+        # omni-version-docs-sync, omni-doc-inventory, omni-module-entry-check,
+        # omni-coverage-audit, omni-validation-check, omni-path-policy-parity
+        # (the last three self-SKIP here when their imports are missing —
+        # never silently, per .pre-commit-config.yaml).
         #
         # SCOPING: runs on CHANGED files only (changed_files.txt from the
-        # diff-base steps above), NOT --all-files — a whole-tree run would be
-        # red on day one from pre-existing violations (ruff F-class x65, plus
-        # 5 EOF/trailing-whitespace violations in out-of-scope files), all
-        # recorded in .omo/evidence/doc-framework-improvements/
-        # task-8-lint-baseline.md (5-file EOF list: F2-quality.md:148). Per
-        # the plan guardrail, pre-existing errors are NOT fixed; this is a
+        # diff-base steps above), NOT --all-files — a whole-tree run would
+        # still be red: end-of-file-fixer/trailing-whitespace violations
+        # persist in tracked fixture/evidence files outside product code
+        # (scenarios/_fixtures/, tests/fidelity/, test_artifacts/,
+        # test_corpus/, measured 2026-11-05). The ruff F-class x65 that used
+        # to share this rationale was fixed by the issue #223 P4.1 sweep
+        # (2026-10-31); this remains a
         # "no NEW violations on changed files" gate. Note the ruff-pre-commit
         # hook in this set itself runs v0.17.1 --select F --fix on the changed
         # .py files only, so it too is a changed-file gate (mirroring the
@@ -158,16 +162,18 @@ jobs:
         # .pre-commit-config.yaml ruff-pre-commit hook (rev v0.17.1) runs.
         # SCOPING: this step gate-keeps CHANGED .py files only
         # (filtered from changed_files.txt). The whole-tree
-        # `ruff check . --select F` baseline under ruff 0.17.1 is 65 findings
-        # (F841 x27, F401 x19, F541 x18, plus 1 invalid-syntax file); re-measure
-        # with `ruff check . --select F --statistics` — this is a SNAPSHOT, not a
-        # constant: it moved 123 -> 107 on 2026-09-17 because the changed-file
-        # gate fixed real debt in the files it touched, and re-measured at 65 on
-        # 2026-10-19 against the current tree. 0.17.1 reports the same 65
-        # findings as the previous pin on this tree, so the bump introduced no
-        # new F-class violations. The remainder is kept in
-        # .omo/evidence/doc-framework-improvements/
-        # task-8-lint-baseline.md and NOT fixed (plan guardrail). Note: the
+        # `ruff check . --select F` F-class debt the earlier snapshots tracked
+        # (123 -> 107 on 2026-09-17, 65 on 2026-10-19: F841 x27, F401 x19,
+        # F541 x18, plus 1 invalid-syntax file) was fixed by the issue #223 P4.1
+        # sweep (2026-10-31): re-measured under this same 0.17.1 pin on
+        # 2026-11-05, the whole tree shows 0 pyflakes findings plus the
+        # 1 invalid-syntax fixture (scenarios/_fixtures/sample.ipynb — not a
+        # .py file, so this gate never sees it). This step stays as the
+        # no-NEW-violations tripwire for the files the whole-tree gate below
+        # does not cover (the three sub-repos' trees). Re-measure with
+        # `ruff check . --select F --statistics` before relying on any count.
+        # The historical per-snapshot record lives in
+        # .omo/evidence/doc-framework-improvements/task-8-lint-baseline.md. Note: the
         # grep|sort pipeline above ends with `sort` (exit 0) even when grep
         # matches nothing, so an empty changed-.py set is a no-op — the step
         # does NOT fail, so no shell bypass is needed.
