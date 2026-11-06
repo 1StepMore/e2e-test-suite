@@ -81,6 +81,13 @@
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
 
+### 2026-11-06（第五轮）：P3 立项 + 首里程碑（OL 术语审计 gate 接线）
+
+- Date: 2026-11-06；触发：goal-mode 批次 P3——"推进 OPP 结构化信息增强"此前**没有计划文档**（四处 repo 均无），先立项再动手
+- Scope: **docs/opp-structured-information-plan.md（新，三支柱里程碑 + 验收锚 + OPP/OL 分工）**；`Omni_Localizer/src/ol_lqa/quality_gates.py`（Gate 2b 接线）+ `tests/test_quality_gates.py::TestGate2bTerminologyAudit`
+- Result: M1 完成——`ol_terminology/verifier.py::verify_translation`（2026-10-22 审阅发现从未被 `run_quality_gates` 调用）接入 Gate 2b：glossary 术语源文出现而译文缺失（TERM_ABSENT）、渲染不符（TERM_MISMATCH）以 OL_WARN 浮出；质量门家族 **126 passed**；配置沿用既有 `quality_gates.terminology` 开关，无新配置面
+- Conclusion: "OPP 结构化信息增强"自此有立项载体与首个落地里程碑；M2（章节元信息增强）/ M3（OPP 术语候选抽取）为候选里程碑，归属 OPP 仓，按计划文档推进
+
 ### 2026-11-06（第四轮）：P2-lite 安全校验面收敛（ADR 0007 Phase 2B-lite）
 
 - Date: 2026-11-06；触发：goal-mode 批次 P2；plan 前提修正——Phase 2B 的真卡点不是 uv.lock（Phase 2A 已把 omni-security 做成 workspace 成员并进锁）而是 **omni-security 的发布/可解析决策**（ADR 原文 "deferred pending an omni-security release"；Alternative-3 拒绝未声明的跨仓导入），属维护者决策 → 本轮交付**仓内可完成**的 CLI 面收敛子集，跨仓薄包装如实保持 deferred
