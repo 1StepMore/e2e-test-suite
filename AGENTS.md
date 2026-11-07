@@ -213,6 +213,22 @@ See `README.md` → "Cross-Format Production-Readiness" for the verified-path su
 
 Configured in `.pre-commit-config.yaml` at the project root. Install: `pip install pre-commit && pre-commit install`. Run all: `pre-commit run --all-files` (the CI-equivalent gate). `make lint` is **not** equivalent: it runs the contract smoke test plus a whole-tree `ruff check .` and `mypy` (the whole-tree ruff baseline is red; see `lint.yml`). Hooks: gitleaks, check-added-large-files, check-merge-conflict, detect-private-key, end-of-file-fixer, trailing-whitespace, omni-doc-inventory (doc-truth gate, runs on commit), omni-contract-smoke (runs in both commit and manual stages — `stages: [commit, manual]`; `make smoke` runs it on demand).
 
+## Issue conventions
+
+- **`pinned` = 常开索引件, not a to-do.** A pinned issue is a roadmap pointer.
+  Do not close it and do not consume it as a work item; an accidental close is
+  reverted by the pinned-guard workflow tracked in this repo's issue #256.
+- **A defect in a module belongs to that module's repo.** File and fix it in
+  OPP/OL/ORF; this repo tracks cross-repo work, the validation framework and
+  the pipeline as a whole. Cross-repo evidence is recorded here as a
+  reference, never fixed in passing.
+- **Cross-repo reference check.** Each module's `scripts/doc_inventory.py`
+  verifies backticked paths in its `README.md`/`AGENTS.md`: an unprefixed path
+  must exist in that repo, while another repo's path carries a `suite:` /
+  `opp:` / `ol:` / `orf:` prefix and is verified only when that checkout is
+  reachable. The resolution block is byte-identical in the three copies —
+  change rule: [docs/dev/doc-inventory-copies.md](docs/dev/doc-inventory-copies.md).
+
 ## Where Things Live (Doc Map)
 
 | Need | Go to |
