@@ -236,3 +236,14 @@ jobs:
         # both exit 0 (a false `if` with no branch executed returns 0), so no
         # shell bypass is needed. When it does run it exercises ALL FOUR copies,
         # not just the one that changed — that is the whole point.
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # A13 (agent-governance rectification, 2026-11-08) — doc-truth +
+      # governance consistency gate (C1–C7). Deterministic action →
+      # conventional Actions, never an agentic workflow. Whole-tree by design:
+      # pure stdlib, runs in seconds, and it is the SAME check pre-commit runs
+      # on changed files — CI runs it unconditionally so a stale inventory or
+      # a drifted claim cannot slip through a changed-file-filter gap.
+      # Failure blocks the merge via the main-protection ruleset.
+      - name: "Blocking: doc-inventory + governance consistency (C1–C7)"
+        run: python scripts/doc_inventory.py --check
