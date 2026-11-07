@@ -13,14 +13,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 65 |
-| Total lines | 34958 |
-| Active files | 41 |
+| Total files | 66 |
+| Total lines | 35002 |
+| Active files | 42 |
 | Archived files | 24 |
 | Category — archive | 24 files / 25391 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 19 files / 2882 lines |
+| Category — docs/dev | 20 files / 2926 lines |
 | Category — docs/root | 19 files / 5343 lines |
 
 ## Inventory
@@ -78,6 +78,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `archive/project-evaluation-pain-points-2026-09-06.md` | 313 | archive | archived | — |
 | `archive/system_improvements_v2.md` | 503 | archive | archived | — |
 | `dev/artifact-assertion-matrix.md` | 282 | docs/dev | active | — |
+| `dev/doc-inventory-copies.md` | 44 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 201 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/quality-baseline.md` | 44 | docs/dev | active | — |
