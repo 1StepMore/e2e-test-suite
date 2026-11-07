@@ -13,14 +13,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 66 |
-| Total lines | 35002 |
-| Active files | 42 |
+| Total files | 68 |
+| Total lines | 35034 |
+| Active files | 44 |
 | Archived files | 24 |
 | Category — archive | 24 files / 25391 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 20 files / 2926 lines |
+| Category — docs/dev | 22 files / 2958 lines |
 | Category — docs/root | 19 files / 5343 lines |
 
 ## Inventory
@@ -91,5 +91,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `opp-structured-information-plan.md` | 44 | docs/root | active | — |
 | `project-health-report-2026-09-17.md` | 1771 | docs/root | active | — |
 | `project-infrastructure-audit-2026-10-30.md` | 254 | docs/root | active | — |
+| `user/README.md` | 11 | docs/dev | active | — |
+| `user/journey-docx-localization.md` | 21 | docs/dev | active | — |
 | `venv-migration.md` | 54 | docs/root | active | — |
 | `七阶段AI开发流程-用CodingAgent交付成品的方法论.md` | 230 | docs/root | active | — |
