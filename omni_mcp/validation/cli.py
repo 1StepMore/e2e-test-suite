@@ -119,6 +119,138 @@ def build_validation_env(
     return out
 
 
+#: Per-module MCP allowlist resolution order (unified name first), read off
+#: the real module configs — do not guess.  ``MCP_ALLOWED_DIRECTORIES``
+#: overrides every per-module name when set:
+#:
+#: - OPP  ``opp/mcp/config.py``: MCP_ALLOWED_DIRECTORIES > OPP_MCP_ALLOWED_DIRS
+#: - ORF  ``orf/mcp/config.py``: MCP_ALLOWED_DIRECTORIES > ORF_MCP_ALLOWED_DIRS
+#: - OL   ``ol_mcp/security.py``: MCP_ALLOWED_DIRECTORIES > OL_MCP_ALLOWED_DIRS
+#:        > OL_ALLOWED_DIRECTORIES
+#: - omni ``omni_mcp/orchestrator.py``: first non-empty of MCP_ALLOWED_DIRECTORIES,
+#:        OMNI_MCP_ALLOWED_DIRS, then the three per-module names.
+#:
+#: (``OPP_ALLOWED_DIRECTORIES`` is the OPP CLI's *additive* resource-dir
+#: allowlist — it always includes cwd + tempdir and is not fail-closed, so it
+#: is not part of this preflight.)
+MCP_ALLOWLIST_PRECEDENCE: dict[str, tuple[str, ...]] = {
+    "opp": ("MCP_ALLOWED_DIRECTORIES", "OPP_MCP_ALLOWED_DIRS"),
+    "ol": (
+        "MCP_ALLOWED_DIRECTORIES",
+        "OL_MCP_ALLOWED_DIRS",
+        "OL_ALLOWED_DIRECTORIES",
+    ),
+    "orf": ("MCP_ALLOWED_DIRECTORIES", "ORF_MCP_ALLOWED_DIRS"),
+    "omni_mcp": (
+        "MCP_ALLOWED_DIRECTORIES",
+        "OMNI_MCP_ALLOWED_DIRS",
+        "OPP_MCP_ALLOWED_DIRS",
+        "OL_MCP_ALLOWED_DIRS",
+        "ORF_MCP_ALLOWED_DIRS",
+    ),
+}
+
+
+def _parse_allowlist_value(value: str) -> list[Path]:
+    """Split an allowlist value the way the module servers do.
+
+    Both :data:`os.pathsep` and comma are accepted separators (every module
+    parser splits on both), blanks are dropped.  Returns unresolved paths.
+    """
+    paths: list[Path] = []
+    for chunk in value.split(os.pathsep):
+        for piece in chunk.split(","):
+            piece = piece.strip()
+            if piece:
+                paths.append(Path(piece))
+    return paths
+
+
+def _missing_sandbox_roots(value: str) -> list[Path]:
+    """The sandbox roots *value* does not contain (resolved).
+
+    Only the system tempdir is required: every artifact a tier-1 scenario
+    hands to an MCP tool lives under it.  The suite root is part of the
+    *default* value for ``sys.path`` imports, but no scenario passes a
+    suite-root path through MCP path validation — ``validation.yml`` has
+    always shipped ``MCP_ALLOWED_DIRECTORIES=/tmp`` and passed, so requiring
+    the root here would refuse a configuration that demonstrably works.
+    """
+    required = [Path(tempfile.gettempdir()).resolve()]
+    allowed = [p.resolve() for p in _parse_allowlist_value(value)]
+    return [root for root in required if not any(root.is_relative_to(a) for a in allowed)]
+
+
+def check_allowlist_covers_sandbox(
+    base: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Preflight: does every explicitly-set MCP allowlist cover the sandbox?
+
+    Tier-1 scenarios write fixtures under the system tempdir (the only root
+    that goes through MCP path validation).  An operator who *explicitly* exports a narrower value
+    would make every path-taking scenario fail one-by-one with
+    ``*_PATH_DENIED``; this returns the offending allowlists instead so the
+    runner can abort once with a copy-pasteable fix (issue #251 acceptance #2).
+
+    Precedence mirrors the real module code (:data:`MCP_ALLOWLIST_PRECEDENCE`).
+    A name chain with no non-empty value is skipped: :func:`build_validation_env`
+    defaults those names to the full sandbox, so they can never be too narrow.
+    ``build_validation_env``'s "explicit value wins verbatim" semantics are
+    unchanged — this only reports, it never rewrites.
+
+    Returns one dict per (variable, missing roots) with ``surface``,
+    ``variable``, ``value`` and ``missing`` keys; ``[]`` means the sandbox is
+    covered (or nothing was explicitly set).
+    """
+    env = os.environ if base is None else base
+    problems: list[dict[str, Any]] = []
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    for surface, precedence in MCP_ALLOWLIST_PRECEDENCE.items():
+        variable = next(
+            (name for name in precedence if env.get(name, "").strip()), None
+        )
+        if variable is None:
+            continue
+        value = env[variable]
+        missing = _missing_sandbox_roots(value)
+        if not missing:
+            continue
+        key = (variable, tuple(str(m) for m in missing))
+        if key in seen:
+            continue  # the unified name is shared by every surface: report once
+        seen.add(key)
+        problems.append(
+            {
+                "surface": surface,
+                "variable": variable,
+                "value": value,
+                "missing": missing,
+            }
+        )
+    return problems
+
+
+def format_allowlist_problem(problem: Mapping[str, Any]) -> str:
+    """One copy-pasteable fail-fast block for a :func:`check_allowlist_covers_sandbox` entry."""
+    variable = problem["variable"]
+    value = problem["value"]
+    lines = [
+        "ERROR: validation preflight failed — an explicitly-set MCP path "
+        "allowlist does not cover the tier-1 sandbox.",
+        f"  offending variable: {variable}",
+        f"  current value:      {value}",
+    ]
+    for root in problem["missing"]:
+        lines.append(f"  missing sandbox root: {root}")
+    widened = os.pathsep.join([value, *(str(root) for root in problem["missing"])])
+    lines.append(f'  fix: export {variable}="{widened}"')
+    lines.append(
+        "Refusing to run: scenarios would each fail with PATH_DENIED. Widen "
+        "the allowlist as above (or unset it) and retry."
+    )
+    return "\n".join(lines)
+
+
 def _allowed_dirs_run_meta(base: Mapping[str, str]) -> dict[str, Any]:
     """The ``validation_env`` run_meta block: which names were defaulted, value."""
     defaulted = [name for name in ALLOWLIST_ENV_VARS if not base.get(name)]
@@ -813,6 +945,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         _print_plan(loaded, names)
         return 0
+
+    allowlist_problems = check_allowlist_covers_sandbox()
+    if allowlist_problems:
+        for problem in allowlist_problems:
+            print(format_allowlist_problem(problem), file=sys.stderr)
+        return 1
 
     filters = (
         None
