@@ -65,3 +65,59 @@ def test_doc_inventory_checked_copy_parity():
         )
 
     assert len(reference) > 100, f"shared block looks truncated ({len(reference)} lines)"
+
+
+GOV_BEGIN = "# ── BEGIN SHARED GOVERNANCE CHECKS"
+GOV_END = "# ── END SHARED GOVERNANCE CHECKS"
+
+GOV_COPIES = {
+    **COPIES,
+    "suite": ROOT / "scripts" / "doc_inventory.py",
+}
+
+
+def _gov_block_lines(path: Path) -> list[str] | None:
+    """Return the delimited governance block, or None when a copy has not
+    landed it yet (the four copies are separate git repos, so during the
+    landing window a copy may legitimately lack the block)."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    begin = [i for i, line in enumerate(lines) if line.startswith(GOV_BEGIN)]
+    end = [i for i, line in enumerate(lines) if line.startswith(GOV_END)]
+    if not begin and not end:
+        return None
+    assert len(begin) == 1, f"{path}: expected exactly one GOV BEGIN marker, found {len(begin)}"
+    assert len(end) == 1, f"{path}: expected exactly one GOV END marker, found {len(end)}"
+    assert begin[0] < end[0], f"{path}: GOV END marker precedes BEGIN marker"
+    return lines[begin[0]: end[0] + 1]
+
+
+def test_doc_inventory_governance_block_parity():
+    """Every copy that carries the shared governance block must be
+    byte-identical to every other. Change rule: edit all checked-out copies
+    byte for byte (docs/dev/doc-inventory-copies.md), then re-run each
+    repo's --check gate."""
+    present = {name: path for name, path in GOV_COPIES.items() if path.is_file()}
+    blocks = {
+        name: block
+        for name, path in present.items()
+        if (block := _gov_block_lines(path)) is not None
+    }
+    assert blocks, "governance block missing from every checked-out copy"
+    reference_name, reference = next(iter(blocks.items()))
+    for name, block in blocks.items():
+        if block == reference:
+            continue
+        first_diff = next(
+            (
+                f"line {offset + 1}: {reference[offset]!r} != {block[offset]!r}"
+                for offset in range(min(len(reference), len(block)))
+                if reference[offset] != block[offset]
+            ),
+            f"block length differs: {len(reference)} != {len(block)}",
+        )
+        pytest.fail(
+            f"doc_inventory governance block drifted: {reference_name} vs {name}: "
+            f"{first_diff}. Edit the block in every copy byte for byte and "
+            "re-run each repo's --check gate."
+        )
+    assert len(reference) > 100, f"governance block looks truncated ({len(reference)} lines)"
