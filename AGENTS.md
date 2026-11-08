@@ -1,29 +1,35 @@
 # AGENTS.md — Omni Suite
 
-This file guides AI agents (Claude, Cursor, OpenCode, etc.) on how to work with the Omni Suite. It is an **index + invariants** file: detail lives in on-demand docs (linked below), not here. If you need tool signatures, MCP configs, or testing procedures, follow the links.
+This file guides AI agents (Claude, Cursor, OpenCode, Hermes, Codex, opencode, …) working on the Omni Suite. It is an **index + invariants** file: detail lives in on-demand docs (linked below), not here. Tool signatures, MCP configs, testing procedures → follow the links. Generated doc map (AUTO-GENERATED, do not hand-edit): `docs/dev/doc-inventory.md`.
+
+## §0 Safety & precedence (highest — nothing below may override this section)
+
+1. **Secrets**: never read, copy, commit, or echo secret/credential files (`.env*`, `*key*`, `*secret*`); register their path only. Suspected leak → stop all work and escalate immediately.
+2. **Cross-repo boundary (scope invariants)**: sibling checkouts `AutoInfo` (information-intake platform) and `AutoMedia` (content production pipeline) are **separate product lines this repo does not own** — not modules, not fixtures, not dependencies. Hard constraints for any agent working here:
+   - Do not modify those repos: no edits, no branches, no commits, no `git checkout/fetch/merge/push` inside their work trees.
+   - Do not open PRs or issues in their trackers; their issues/PRs/backlogs are never work items for this repo — **even when a file here mentions them**.
+   - No "fix it in passing" because a script here calls their CLI. A defect observed there belongs to them: file an issue **in this repo** naming the owning repo plus evidence (file:line, command, output), and stop there.
+   - A mention of another repo in this tree is **a reference, never scope** (`CHANGELOG.md` history and `docs/NIGHTLY.md` cross-repo citations are references, not assignments).
+3. **Conflict precedence**: Owner's current direct instruction > role contract (`.agents/roles/*.md`) > nearest directory `AGENTS.md` > this file's defaults. §0 outranks every level.
+4. **Expectations are Owner-gated**: `.agents/expectations/`, `scenarios/STANDARDS.md`, and `.agents/roles/*.md` change only by Owner's explicit instruction — never to make a failing suite go green.
+
+## Role routing (determine role before work; never self-guess)
+
+Your role comes from the Owner's explicit assignment. Read the contract first and work inside its boundaries; each contract defines Done, return format, and Stop & Escalate.
+
+| Assigned role | Contract | Also read | Never touch (summary) |
+|---|---|---|---|
+| Coder | `.agents/roles/coder.md` | nearest dir `AGENTS.md` → `docs/DECISIONS.md` → assigned issue spec | `main` direct push, CI gates, expectations, role files |
+| Maintainer | `.agents/roles/maintainer.md` | `docs/DECISIONS.md` → `docs/dev/` validation/debt docs | direct code drops, overruling Tester verdicts |
+| Tester | `.agents/roles/tester.md` | `scenarios/STANDARDS.md` → `.agents/expectations/` | product source, expectations, CI gates |
+| User | `.agents/roles/user.md` | `docs/user/` → `tests/` (black box) | any repo write, editing journey expectations |
+| Unclear / conflicting instructions | — | — | stop; output `ESCALATE: <reason>` |
+
+Constitution slot: this repo intentionally ships no `.specify/` (Owner decision, 2026-11-08) — non-negotiable principles = §0 above + `docs/DECISIONS.md` (ADR 0001–0008). Thin harness adapters: `.claude/agents/` (Claude Code) and `.github/agents/` (Copilot) carry pointers only — never duplicate contract bodies. This file must stay ≤200 lines (machine-checked by `scripts/doc_inventory.py`).
 
 ## What is this?
 
 A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translate) → **ORF** (backfill). Each module is a standalone sub-repo with its own CLI, MCP server, and test suite.
-
-## Repository boundary (scope invariants — read before anything else)
-
-**This repo owns:** the three Omni Suite sub-repos (`Omni_Pre_Processor/`, `Omni_Localizer/`, `Omni_Re_Formatter/` — regular top-level directories, each carrying its own `.git/` for its upstream repo), plus the suite-level validation framework, E2E tests, and every doc in this tree.
-
-**This repo does NOT own** the following sibling checkouts (siblings of this repo's directory, *not* inside this tree). They are **separate product lines** — different repos, different policies, different agents:
-
-| Repo | What it is | Relationship to this repo |
-|---|---|---|
-| `AutoInfo` | information-intake platform | **none** — not a module, not a fixture, not a dependency |
-| `AutoMedia` | content production pipeline | **none** — same |
-
-Hard constraints for any agent working here:
-
-1. **Do not modify those repos.** No edits, no branches, no commits, no `git checkout/fetch/merge/push` inside their work trees.
-2. **Do not open PRs or issues in their trackers**, and do not treat their issues, PRs, or backlogs as work items for this repo — **even when a file here mentions them.**
-3. **Do not "fix it in passing"** because a script here calls their CLI. A defect observed there belongs to them.
-4. If work here surfaces a defect that belongs to another repo: file an issue **in this repo**, name the owning repo plus the evidence (file:line, command, output), and stop there.
-5. A mention of another repo in this tree is **a reference, never scope**. `CHANGELOG.md` history and `docs/NIGHTLY.md`'s cross-repo citations are references, not assignments. (`docs/agent-tester-validation-guide.md` is now only a pointer — the worked example that used to live there has moved out of this repo.)
 
 ## Current Versions
 
@@ -45,24 +51,27 @@ Changelog: `CHANGELOG.md`; compatibility matrix: `COMPATIBILITY.md`.
 ## Quick Start
 
 ```bash
-# Install (one command)
-bash scripts/setup_dev.sh
-
-# Verify without installing
-bash scripts/setup_dev.sh --check-only
-
-# Check version
-omni-suite --version
+bash scripts/setup_dev.sh                 # install (one command)
+bash scripts/setup_dev.sh --check-only    # verify without installing
+omni-suite --version                      # check version
 ```
+
+## Commands (single source — CI references these; do not restate)
+
+- Build/install: `bash scripts/setup_dev.sh`
+- Tests: `make test` (per-module `make test-opp|test-ol|test-orf`; contract: `make test-contract`)
+- Lint: `make lint` — the whole-tree ruff baseline is red by design; CI `lint.yml` gates changed files only
+- E2E: `python tests/e2e_runner.py` (CI: `e2e-tests.yml`; FAKE_LLM CI-mode, real-LLM weekly nightly)
+- Doc truth: `bash scripts/pre_commit_python.sh scripts/doc_inventory.py --check` (regenerate: drop `--check`)
 
 ## Per-Module Cheat Sheet
 
 | Module | Role | CLI (key subcommand) | MCP tools | Source |
 |--------|------|---------------------|-----------|--------|
-| **OPP** | Extract documents → MD + XLIFF + skeleton | `opp <file> --target-format both --output-dir <dir>` | 9 tools (`extract_document`, `batch_extract`…) | `Omni_Pre_Processor/src/` |
-| **OL** | Translate MD/XLIFF between languages | `ol translate-md <file> -s <src> -t <tgt> -o <dir>` | 21 tools (`translate_md_text`, `judge_text`…) | `Omni_Localizer/src/` |
-| **ORF** | Backfill translated content → target format | `orf apply-md <file> --target-format <fmt> -o <out>` | 7 tools (`apply_md`, `apply_xliff`…) | `Omni_Re_Formatter/src/` |
-| **Validation** | Agent-agnostic validation — scenario library + standards + director loop | `python scripts/validation/run_validation.py --list` | 4 tools (`translate_file`, `ping`, `list_validation_scenarios`, `run_validation_scenario`; 2 validation-specific) | `scripts/validation/` + `omni_mcp/` |
+| **OPP** | Extract documents → MD + XLIFF + skeleton | `opp <file> --target-format both --output-dir <dir>` | `extract_document`, `batch_extract`… | `Omni_Pre_Processor/src/` |
+| **OL** | Translate MD/XLIFF between languages | `ol translate-md <file> -s <src> -t <tgt> -o <dir>` | `translate_md_text`, `judge_text`… | `Omni_Localizer/src/` |
+| **ORF** | Backfill translated content → target format | `orf apply-md <file> --target-format <fmt> -o <out>` | `apply_md`, `apply_xliff`… | `Omni_Re_Formatter/src/` |
+| **Validation** | Agent-agnostic validation — scenario library + standards + director loop | `python scripts/validation/run_validation.py --list` | `translate_file`, `ping`, `list_validation_scenarios`, `run_validation_scenario`; 2 validation-specific | `scripts/validation/` + `omni_mcp/` |
 
 Full MCP server/tool inventory and namespacing (all 41 tools: 37 module + 4 suite): [`docs/agent-pipeline-guide.md`](docs/agent-pipeline-guide.md) — full per-tool parameter signatures live in each module's `docs/API.md` (e.g. [`Omni_Pre_Processor/docs/API.md`](Omni_Pre_Processor/docs/API.md)). Per-module internals: each sub-repo's own `AGENTS.md`.
 
@@ -73,120 +82,60 @@ Full MCP server/tool inventory and namespacing (all 41 tools: 37 module + 4 suit
 ```bash
 # CLI smoke/contract runs only: FAKE_LLM gives deterministic, zero-cost output
 # (plumbing / schema / exit-code checks). Do NOT use it as human-quality
-# validation evidence — see "Critical Notes" #1.
+# validation evidence — see Critical Notes #1.
 export OMNI_TEST_FAKE_LLM=1
-
-# 1. Extract
 opp document.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/opp
-
-# 2. Translate
 ol translate-md /tmp/opp/document.md -s en -t zh -o /tmp/ol
-
-# 3. Backfill
 orf apply-md /tmp/ol/document.md --target-format docx -o result.docx
 ```
 
-### Run the suite pipeline in one shot (N1 enhancement, 2026-09-04)
+### Run the suite pipeline in one shot
 
-`omni-suite pipeline <file>` chains the 3 steps above behind a single CLI.
-A real run needs **at least one** LLM provider key (`AMD_API_KEY` or
-`ZHIPU_API_KEY`): one is enough — any unset entry is a fallback the router
-skips. The three bypass flags below need none.
-Three flags (see `omni-suite pipeline --help`):
+`omni-suite pipeline <file>` chains the 3 steps behind a single CLI; it really executes the OPP→OL→ORF subprocesses (only `--dry-run` prints without executing). A real run needs at least one LLM provider key (`AMD_API_KEY` or `ZHIPU_API_KEY`). Flags: `--dry-run` / `--gates-only` (OPP + OL 8 quality gates, skip ORF) / `--keep-intermediate` / `--json`. See `omni-suite pipeline --help`.
 
-```bash
-omni-suite pipeline document.docx --dry-run            # print the OPP→OL→ORF commands without executing (no LLM keys)
-omni-suite pipeline document.docx --gates-only         # OPP + OL (8 quality gates) + `ol extract-warnings`; skip ORF backfill
-omni-suite pipeline document.docx --keep-intermediate  # keep /tmp/omni-suite-pipeline/<stem>/ after the run
-```
+## Validation (agent-agnostic; citable bar = `scenarios/STANDARDS.md`)
 
-### Run validation
-
-The agent-agnostic validation framework runs real scenarios against the shipped surface (no mocks, no FAKE_LLM as evidence — a fallback-active human-quality run is `invalid`, see [`scenarios/STANDARDS.md#fallbacks-never-evidence`](scenarios/STANDARDS.md#fallbacks-never-evidence)). Tier-1 scenarios are hermetic — no LLM keys needed.
+Every scenario dispatches through the REAL shipped surface (no mocks; FAKE_LLM as validation evidence is forbidden — a fallback-active human-quality run is `invalid` per [`scenarios/STANDARDS.md#fallbacks-never-evidence`](scenarios/STANDARDS.md#fallbacks-never-evidence)). Tier semantics: 1 = hermetic (no keys), 2 = real LLM keys, 3 = paid/external/network; a tier-2/3 scenario without keys reports `unconfigured` — never a fake green.
 
 ```bash
-source .venv_ol/bin/activate
-
-# Enumerate the library — no execution, no LLM
-python scripts/validation/run_validation.py --list
-
-# Run one hermetic scenario (tier 1 = no LLM keys needed; --scenario is a
-# case-insensitive substring match on the file stem: tool-, opp, orf-md,
-# orf-xliff, pipeline, regression)
-python scripts/validation/run_validation.py --scenario regression --tier 1
-
-# Contract-lint the library itself (falsifiable expects, STANDARDS.md anchors)
-python scripts/validation/run_validation.py --check
-
-# Coverage audit — every live MCP tool must be exercised by a scenario
-python scripts/validation/coverage_audit.py
-
-# Read the newest run and generate the director report (two verdict families)
-cat validation-runs/latest.txt          # newest run of ANY kind (single-scenario spot checks included)
-cat validation-runs/latest-full.txt     # newest FULL-LIBRARY run (written only by full-library runs)
-python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json
-
-# Per-repo scenario libraries (OPP#58): --repo opp|ol|orf|suite|all
-MCP_ALLOWED_DIRECTORIES=/tmp python scripts/validation/run_validation.py --repo orf --tier 1
-
-# Run everything, then build the report card + delivery package
-python scripts/validation/run_validation.py --repo all --dry-run            # plan only
-python scripts/validation/run_validation.py --repo orf --tier 1 --matrix --deliver
-#   --matrix  -> report.md + report.json (with report_card per-repo matrix) in the run dir
-#   --deliver -> zip at 04-Output/artifacts/deliverables/omni-suite/ (01-RAW/ real
-#                artifacts, 02-PROCESSED/ reports, manifest.json)
-
-# Artifact-assertion matrix (e2e-test-suite#44): deterministic P0/P1 assertions
-# on the ACTUAL PRODUCED FILES. --artifacts implies --matrix; P0/P1 failures -> exit 1.
-# Full reference: docs/dev/artifact-assertion-matrix.md
-MCP_ALLOWED_DIRECTORIES=/tmp python scripts/validation/run_validation.py --repo orf --tier 1 \
-  --matrix --artifacts /tmp/omni_val/orf-backfill-html --module orf
-#   -> artifact-report.json in the run dir, prints "ARTIFACT MATRIX: <path>"
-python scripts/validation/artifact_matrix.py /tmp/omni_val/orf-backfill-html \
-  --module orf --out /tmp/omni_val/artifact-report.json   # standalone (dir or delivery .zip)
-
-# Four-class diffs (new/regressed/fixed/existing-failing); exit 1 when regressed>0
-python scripts/validation/artifact_diff.py <base-artifact-report.json> <head-artifact-report.json>
-python scripts/validation/validation_diff.py <newer> --against-version 0.4.0
-python scripts/validation/validation_diff.py <newer> --base-sha <sha-prefix>
-python scripts/validation/coverage_audit.py --out validation-runs/<ts>/coverage.json
+python scripts/validation/run_validation.py --list                       # enumerate (no execution, no LLM)
+python scripts/validation/run_validation.py --scenario regression --tier 1   # one hermetic scenario
+python scripts/validation/run_validation.py --check                      # contract-lint the library
+python scripts/validation/coverage_audit.py                              # every live MCP tool exercised
+python scripts/validation/run_validation.py --repo orf --tier 1 --matrix --deliver   # report card + delivery zip
+MCP_ALLOWED_DIRECTORIES=/tmp python scripts/validation/run_validation.py --repo orf --tier 1   # module-scoped runs: unified sandbox var
+python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json   # director report
 ```
 
-Every run persists `run_meta` (suite/opp/ol/orf versions + git SHAs). Full reference: [docs/dev/per-repo-validation-delivery.md](docs/dev/per-repo-validation-delivery.md). Artifact assertions (P0/P1 groups, report JSON shape, exit-code contract): [docs/dev/artifact-assertion-matrix.md](docs/dev/artifact-assertion-matrix.md).
+Every run persists `run_meta` (suite/opp/ol/orf versions + git SHAs). Reading results: `validation-runs/latest.txt` → newest run of any kind; `validation-runs/latest-full.txt` → newest FULL-LIBRARY run. `report.md` renders TWO verdict families — judge both:
 
-Tier semantics: 1 = hermetic (no keys), 2 = real LLM keys, 3 = paid/external/network. A tier-2/3 scenario without its keys reports `unconfigured` — never a fake green. The citable bar is `scenarios/STANDARDS.md` (two families: AGENT-SURFACE + HUMAN-QUALITY); the human director loop is `docs/dev/validation-director-loop.md`.
+| Family | What it proves |
+|---|---|
+| **agent-user conformance** | every agent-facing tool/CLI works as an agent would use it (AGENT-SURFACE anchors: `#tool-contract`, `#json-parseable`, `#error-clarity`, `#path-security`, `#exit-codes`) |
+| **human-quality conformance** | pipeline output satisfies human end-users (HUMAN-QUALITY anchors: `#lqa-threshold`, `#para-ratio`, `#cjk-density`, `#untranslated-units`, `#punct-hygiene`, `#drawing-count`, `#opens-docx`) |
+
+**Standards**: `scenarios/STANDARDS.md` is the single citable bar — every step's `expect` cites `standard: STANDARDS.md#<anchor>`. Read it before judging a verdict; never invent thresholds. Full references: [docs/dev/per-repo-validation-delivery.md](docs/dev/per-repo-validation-delivery.md), [docs/dev/artifact-assertion-matrix.md](docs/dev/artifact-assertion-matrix.md).
 
 #### Validation 循环治理规范（2026-08-15）
 
-跨项目通用规范的本仓权威版本即本节 + `docs/dev/validation-director-loop.md`（director 循环）+ `docs/dev/validation-loop-log.md`（坑清单/循环事件）——不依赖任何仓库外文件。
-
-**开始前必读**：STANDARDS.md（判定基准）、坑清单（`docs/` 下 LOOP-LOG，如无则本循环创建）、上次 run（`validation-runs/latest.txt`；全库基线看 `validation-runs/latest-full.txt`，仅全库 run 写入）。
-
-**结束后必形成**：run 记录（`validation-runs/<ts>/`）、坑清单更新（新坑当天追加）、issue + PR（代码层 bug）、validation 报告、交付包（→ `04-Output/artifacts/deliverables/omni-suite/`）。
-每轮 validation 无论是否有新失败，都要在 LOOP-LOG 循环事件记一行结果（日期 + 范围 + 结果 + 结论），保持基线连续（关闭 issue #2）；
-验证证据中的 lint/测试声称必须可复现：附工具版本（如 ruff --version）+ 完整命令（含 select/文件范围）+ 原始输出（error 规则码 + 行号），"pre-existing N errors" 须列具体规则码与行号并确认位于未触碰行（关闭 issue #1）。
-
-**失败定性**：任何 failed 先单独复现定性（LLM 波动 / 场景断言漂移 / 代码 bug / 数据漂移 / 环境），不直接报"回归"。**LLM 门禁**：tier-2 全量跑前短探测；波动时段结果不作回归依据。**归档**：run 记录 → repo `validation-runs/`；交付包 → `04-Output/artifacts/deliverables/omni-suite/`；中间件/log → `99-Tools/validation-scratch/omni-suite/`（不是 /tmp）。**验收**：打开产物审查（非空/相关性/无 VAGUE），不是数字。
+跨项目通用规范的本仓权威版本 = 本节 + `docs/dev/validation-director-loop.md`（director 循环）+ `docs/dev/validation-loop-log.md`（坑清单/循环事件）。开始前必读：STANDARDS.md、坑清单、上次 run（`validation-runs/latest.txt` / `latest-full.txt`）。结束后必形成：run 记录（`validation-runs/<ts>/`）、坑清单当天追加、issue + PR（代码层 bug）、validation 报告、交付包（→ `04-Output/artifacts/deliverables/omni-suite/`）；每轮在 LOOP-LOG 循环事件记一行（日期+范围+结果+结论，保持基线连续）。lint/测试声称必须可复现：附工具版本 + 完整命令 + 原始输出。失败先定性（LLM 波动/断言漂移/代码 bug/数据漂移/环境），不直接报"回归"；tier-2 全量跑前短探测。中间件/log → `99-Tools/validation-scratch/omni-suite/`（不是 /tmp）。验收 = 打开产物审查（非空/相关性/无 VAGUE），不是数字。
 
 ## MCP Servers
 
-Each module exposes its own MCP server. Server/tool inventory, response envelope, namespacing, and client config notes: [`docs/agent-pipeline-guide.md`](docs/agent-pipeline-guide.md). Full per-tool parameter signatures: each module's `docs/API.md`.
+Each module exposes its own MCP server. Server/tool inventory, response envelope, namespacing, and client config notes: [`docs/agent-pipeline-guide.md`](docs/agent-pipeline-guide.md).
 
 ### OPP MCP Server (9 tools)
 ### OL MCP Server (21 tools)
 ### ORF MCP Server (7 tools)
 ### Omni MCP Server / suite aggregator (4 tools)
 
-`translate_file`, `ping`, `list_validation_scenarios`, `run_validation_scenario`
-(the last two are validation-specific). Runs as `omni-mcp` from `omni_mcp/server.py`.
+`translate_file`, `ping`, `list_validation_scenarios`, `run_validation_scenario` (the last two are validation-specific). Runs as `omni-mcp` from `omni_mcp/server.py`.
 
-> **Note**: Two name layers. The MCP `Server()` handshake name (what an agent sees in the initialize response) is `opp-mcp`, `ol-mcp`, `orf-mcp`, `omni-mcp`. The `-server` spellings (`opp-mcp-server`, `orf-mcp-server`) are only console-script launch commands; OL exposes both `ol-mcp` and `ol-mcp-server` console scripts pointing at the same entry point. Four servers, same protocol.
+> **Note**: Two name layers. The MCP `Server()` handshake name is `opp-mcp`, `ol-mcp`, `orf-mcp`, `omni-mcp`; the `-server` spellings (`opp-mcp-server`, `orf-mcp-server`) are only console-script launch commands (OL exposes both `ol-mcp` and `ol-mcp-server`). Four servers, same protocol.
 
 ## Format Support Matrix
 
-ORF `apply-md` supports 16 output formats: DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON.
-
-See `README.md` → "Cross-Format Production-Readiness" for the verified-path summary table and per-format support matrix.
+ORF `apply-md` supports 16 output formats: DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX, ICML, SRT, CSV, XLSX, XML, IPYNB, EML, MSG, JSON. See `README.md` → "Cross-Format Production-Readiness" for the verified-path summary table and per-format support matrix.
 
 ## Critical Notes
 
@@ -195,39 +144,27 @@ See `README.md` → "Cross-Format Production-Readiness" for the verified-path su
 3. **MSG → use .eml** — MSG output requires commercial Aspose.Email. Use `.eml` instead (open standard, fully supported).
 4. **Cross-format XLIFF** — Not implemented. `orf apply-xliff` is format-preserving and refuses a format-mismatched skeleton with a clear error; `--force` is accepted but inert. Use `orf apply-md --target-format <fmt>`.
 5. **PDF XLIFF blocked** — OPP intentionally blocks PDF → XLIFF generation (unsupported).
-6. **Docs are gate-enforced** — `python3 scripts/doc_inventory.py --check` verifies doc truth (tool counts, scenario counts, canonical numbers, archive markers, link/path integrity, skill line-claims). Regenerate with `python3 scripts/doc_inventory.py` after any `docs/` change; wired into pre-commit. Full reference: `.opencode/skills/omni-docmap/SKILL.md`.
+6. **Docs are gate-enforced** — `python3 scripts/doc_inventory.py --check` verifies doc truth (tool counts, scenario counts, canonical numbers, archive markers, link/path integrity, skill line-claims, plus agent-governance checks C3–C7). Regenerate with `python3 scripts/doc_inventory.py` after any `docs/` change; wired into pre-commit and the `lint.yml` blocking gate. Full reference: `.opencode/skills/omni-docmap/SKILL.md`.
 
 ## Agent Tips
 
-- **FAKE_LLM scope**: use `OMNI_TEST_FAKE_LLM=1` for CLI smoke/contract runs only — it is forbidden as human-quality validation evidence and forces an `invalid` verdict (see Critical Notes #1; [`scenarios/STANDARDS.md#fallbacks-never-evidence`](scenarios/STANDARDS.md#fallbacks-never-evidence)).
-- **Glossary**: see [CONTEXT.md](CONTEXT.md) — shared pipeline terminology (Ubiquitous Language).
-- `omni-suite pipeline` really executes the OPP→OL→ORF subprocesses — only `--dry-run` prints without executing. It also supports `--gates-only`, `--keep-intermediate`, and a `--json` machine envelope; for step-level control use the per-module CLIs.
-- Per-sub-repo `AGENTS.md` files (in each sub-repo root) cover dev/agent context: architecture, CLI, MCP tools, env vars, test patterns, known gotchas.
-- **OL E2E-65 (prompt injection strip)**: `translate_md_text` output is post-processed to strip `CRITICAL/IMPORTANT/NOTE: Output ONLY...` echoes. Don't strip these patterns yourself; OL handles it.
-- **OL quality gates**: configurable via `quality_gates:` in OL config. Tune with `OL_LENGTH_RATIO_MIN` / `OL_LENGTH_RATIO_MAX`; `OL_TARGET_LOCALE` enforces locale checks.
-- **OPP E2E-15 (orphan image filter)**: `extract_document --target-format both` won't double-embed images already output inline; `images.json` reflects this.
-- **ORF E2E-07 (fuzzy match)**: `apply_xliff` to DOCX tolerates small text mismatches (5-char length diff, 0.85 ratio). Retry previously-`SKIPPED` units.
+- **Glossary**: [CONTEXT.md](CONTEXT.md) — shared pipeline terminology (Ubiquitous Language).
+- Per-sub-repo `AGENTS.md` files cover dev/agent context: architecture, CLI, MCP tools, env vars, test patterns, known gotchas.
+- **OL E2E-65**: `translate_md_text` output is post-processed to strip `CRITICAL/IMPORTANT/NOTE: Output ONLY...` echoes — don't strip these yourself.
+- **OL quality gates**: tune via `OL_LENGTH_RATIO_MIN` / `OL_LENGTH_RATIO_MAX`; `OL_TARGET_LOCALE` enforces locale checks.
+- **OPP E2E-15**: `extract_document --target-format both` won't double-embed images already output inline; `images.json` reflects this.
+- **ORF E2E-07**: `apply_xliff` to DOCX tolerates small text mismatches (5-char length diff, 0.85 ratio); retry previously-`SKIPPED` units.
 - **`opp -v` writes to stderr** (as of v0.6.2). Use `--detect-format -v file.docx` to see the detected format.
 
 ## Pre-commit Hooks
 
-Configured in `.pre-commit-config.yaml` at the project root. Install: `pip install pre-commit && pre-commit install`. Run all: `pre-commit run --all-files` (the CI-equivalent gate). `make lint` is **not** equivalent: it runs the contract smoke test plus a whole-tree `ruff check .` and `mypy` (the whole-tree ruff baseline is red; see `lint.yml`). Hooks: gitleaks, check-added-large-files, check-merge-conflict, detect-private-key, end-of-file-fixer, trailing-whitespace, omni-doc-inventory (doc-truth gate, runs on commit), omni-contract-smoke (runs in both commit and manual stages — `stages: [commit, manual]`; `make smoke` runs it on demand).
+Configured in `.pre-commit-config.yaml` at the project root. Install: `pip install pre-commit && pre-commit install`. Run all: `pre-commit run --all-files` (the CI-equivalent gate). `make lint` is **not** equivalent: it runs the contract smoke test plus a whole-tree `ruff check .` and `mypy` (the whole-tree ruff baseline is red; see `lint.yml`). Hooks: gitleaks, check-added-large-files, check-merge-conflict, detect-private-key, end-of-file-fixer, trailing-whitespace, omni-doc-inventory (doc-truth gate, runs on commit), omni-contract-smoke (commit + manual stages; `make smoke` runs it on demand).
 
 ## Issue conventions
 
-- **`pinned` = 常开索引件, not a to-do.** A pinned issue is a roadmap pointer.
-  Do not close it and do not consume it as a work item; an accidental close is
-  reverted by the pinned-guard workflow tracked in this repo's issue #256.
-- **A defect in a module belongs to that module's repo.** File and fix it in
-  OPP/OL/ORF; this repo tracks cross-repo work, the validation framework and
-  the pipeline as a whole. Cross-repo evidence is recorded here as a
-  reference, never fixed in passing.
-- **Cross-repo reference check.** Each module's `scripts/doc_inventory.py`
-  verifies backticked paths in its `README.md`/`AGENTS.md`: an unprefixed path
-  must exist in that repo, while another repo's path carries a `suite:` /
-  `opp:` / `ol:` / `orf:` prefix and is verified only when that checkout is
-  reachable. The resolution block is byte-identical in the three copies —
-  change rule: [docs/dev/doc-inventory-copies.md](docs/dev/doc-inventory-copies.md).
+- **`pinned` = 常开索引件, not a to-do.** A pinned issue is a roadmap pointer; do not close it or consume it as a work item. An accidental close is reverted by the pinned-guard workflow (this repo's issue #256).
+- **A defect in a module belongs to that module's repo.** File and fix it in OPP/OL/ORF; this repo tracks cross-repo work, the validation framework and the pipeline as a whole. Cross-repo evidence is recorded here as a reference, never fixed in passing.
+- **Cross-repo reference check.** Each module's `scripts/doc_inventory.py` verifies backticked paths in its `README.md`/`AGENTS.md`: an unprefixed path must exist in that repo, while another repo's path carries a `suite:` / `opp:` / `ol:` / `orf:` prefix and is verified only when that checkout is reachable. The resolution block is byte-identical in the three copies — change rule: [docs/dev/doc-inventory-copies.md](docs/dev/doc-inventory-copies.md).
 
 ## Where Things Live (Doc Map)
 
@@ -241,40 +178,7 @@ Configured in `.pre-commit-config.yaml` at the project root. Install: `pip insta
 | Decision records (ADR 0001–0008) | `docs/DECISIONS.md` |
 | Setup (real LLM keys) | `SETUP.md` |
 | Test instructions | `TESTS.md` |
+| User journeys (User role) | `docs/user/` |
+| Role contracts / expectations / audit trail | `.agents/` (`roles/`, `expectations/`, `audit/`) |
 | Retired docs (archive) | `docs/archive/` |
 | Full change-impact map | `.opencode/skills/omni-docmap/SKILL.md` |
-
-## How to validate (any agent)
-
-Generic instructions — applies to Hermes, Claude, Cursor, Codex, opencode, or any agent. Every scenario dispatches through the REAL shipped surface (no mocks, no FAKE_LLM as evidence — `OMNI_TEST_FAKE_LLM=1` is allowed only for CLI smoke/contract runs, never for validation evidence; a fallback-active human-quality run is `invalid` per [`scenarios/STANDARDS.md#fallbacks-never-evidence`](scenarios/STANDARDS.md#fallbacks-never-evidence)); tier-1 scenarios are hermetic and need no LLM keys.
-
-```bash
-source .venv_ol/bin/activate
-
-# 1. See what exists (no execution, no LLM)
-python scripts/validation/run_validation.py --list
-
-# 2. Run one hermetic scenario (tier 1 = no LLM keys needed)
-python scripts/validation/run_validation.py --scenario <name> --tier 1
-
-# 3. Lint the library itself (falsifiable expects, standard anchors)
-python scripts/validation/run_validation.py --check
-
-# 4. Coverage audit — every live MCP tool must be exercised by a scenario
-python scripts/validation/coverage_audit.py
-python scripts/validation/coverage_audit.py --out validation-runs/<ts>/coverage.json
-
-# 5. Diff two runs (verdict changes + regression detection)
-python scripts/validation/validation_diff.py <runs-dir>/<ts1> <runs-dir>/<ts2>
-python scripts/validation/validation_diff.py <newer> --against-version 0.4.0
-python scripts/validation/validation_diff.py <newer> --base-sha <sha-prefix>
-```
-
-**Reading results**: `validation-runs/latest.txt` → newest run (`validation-runs/<ts>/scenarios.json`); `python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json` → `report.md` + `report.json` in the run dir. `report.md` renders TWO verdict families side by side — judge both:
-
-| Family | What it proves |
-|---|---|
-| **agent-user conformance** | every agent-facing tool/CLI works as an agent would use it (tool-* scenarios + AGENT-SURFACE anchors: `#tool-contract`, `#json-parseable`, `#error-clarity`, `#path-security`, `#exit-codes`) |
-| **human-quality conformance** | pipeline output satisfies human end-users (pipeline-* scenarios + HUMAN-QUALITY anchors: `#lqa-threshold`, `#para-ratio`, `#cjk-density`, `#untranslated-units`, `#punct-hygiene`, `#drawing-count`, `#opens-docx`) |
-
-`unconfigured` (missing env, e.g. no LLM keys) is a distinct status — never a pass, never a silent skip. **Standards**: `scenarios/STANDARDS.md` is the single citable bar — every step's `expect` cites `standard: STANDARDS.md#<anchor>`. Read it before judging a verdict; never invent thresholds. **Director checklist**: `docs/dev/validation-director-loop.md` (two-role model, 10-minute per-run loop).

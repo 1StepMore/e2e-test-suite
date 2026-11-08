@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 from typing import Final
 
+import pytest
 from ol_mcp.tools import TOOL_REGISTRY
 from opp.mcp.server import _TOOL_SCHEMAS
 from orf.mcp.server import _TOOL_DISPATCH
@@ -61,11 +62,25 @@ def _parse_claude_md_tool_sections(content: str) -> dict[str, set[str]]:
     return sections
 
 
+def _claude_md_is_pointer(content: str) -> bool:
+    """O-7 (2026-11-08): CLAUDE.md may be a thin pointer to AGENTS.md instead
+    of carrying the MCP quick reference. In pointer mode the name-level claim
+    does not exist here; claim-site truth (tool counts per server) is enforced
+    by ``scripts/doc_inventory.py --check`` against AGENTS.md."""
+    return not _parse_claude_md_tool_sections(content) and "AGENTS.md" in content
+
+
 class TestClaudeMdToolsExist:
     """Every tool named in CLAUDE.md must match the server's live registry."""
 
     def _assert_server_tools(self, server_name: str) -> None:
         content = CLAUDE_MD.read_text(encoding="utf-8")
+        if _claude_md_is_pointer(content):
+            pytest.skip(
+                "CLAUDE.md is a thin pointer to AGENTS.md (O-7, 2026-11-08); "
+                "tool-name claim no longer lives here — count-truth is enforced "
+                "by scripts/doc_inventory.py --check on AGENTS.md claim sites"
+            )
         parsed = _parse_claude_md_tool_sections(content)
         assert server_name in parsed, (
             f"Server {server_name!r} not found in CLAUDE.md sections. "
@@ -116,6 +131,11 @@ class TestClaudeMdToolsExist:
     def test_no_unknown_servers_in_claude_md(self) -> None:
         """CLAUDE.md must not list servers beyond the three expected ones."""
         content = CLAUDE_MD.read_text(encoding="utf-8")
+        if _claude_md_is_pointer(content):
+            pytest.skip(
+                "CLAUDE.md is a thin pointer to AGENTS.md (O-7, 2026-11-08); "
+                "no server sections to validate here"
+            )
         parsed = _parse_claude_md_tool_sections(content)
         expected_servers = set(EXPECTED_TOOLS)
         parsed_servers = set(parsed)
