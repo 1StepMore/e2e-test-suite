@@ -433,8 +433,9 @@ def load_scenarios(scenarios_dir: str | Path = "scenarios") -> list[dict[str, An
     # (issue #223 P2.1) — kept inline here because the MCP server may start
     # from an arbitrary cwd where scripts.* imports cannot resolve.
     for yaml_path in sorted(sd.rglob("*.yaml")):
-        # Skip dot-dirs (.git/, .hidden/, ...) — they are not scenario libraries.
-        if any(part.startswith(".") for part in yaml_path.parts):
+        # Only dot components below the scenarios root are hidden (#266).
+        rel = yaml_path.relative_to(sd)
+        if any(part.startswith(".") for part in rel.parts):
             continue
         try:
             with open(yaml_path, encoding="utf-8") as fh:

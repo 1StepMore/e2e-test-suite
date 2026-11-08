@@ -22,8 +22,10 @@ def iter_scenario_yamls(scenarios_dir: Path) -> list[Path]:
     """Sorted ``*.yaml`` files under *scenarios_dir*, dot-dirs excluded.
 
     The canonical scenario-file rule: recursive glob over the scenarios
-    root, sorted for deterministic ordering, hidden/dot directories
-    (``.git/``, ``.hidden/``) and non-files excluded.
+    root, sorted for deterministic ordering, hidden/dot directories below
+    the root (``.git/``, ``.hidden/``) and non-files excluded.  Dot
+    components above the root (e.g. ``/tmp/.probe/scenarios``) are not
+    hidden scenario directories and do not hide the library (issue #266).
     """
     sd = Path(scenarios_dir)
     if not sd.is_dir():
@@ -31,5 +33,6 @@ def iter_scenario_yamls(scenarios_dir: Path) -> list[Path]:
     return sorted(
         p
         for p in sd.rglob("*.yaml")
-        if p.is_file() and not any(part.startswith(".") for part in p.parts)
+        if p.is_file()
+        and not any(part.startswith(".") for part in p.relative_to(sd).parts)
     )
