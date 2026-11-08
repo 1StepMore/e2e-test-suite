@@ -29,7 +29,7 @@ All paths are relative to the project root `/mnt/d/贯维/Omni_Suite`. Each entr
 |------|-------|----------|---------|---------------|
 | `CONTEXT.md` | 292 | All agents | Shared glossary / Ubiquitous Language of pipeline terms (OPP/OL/ORF, MD/XLIFF channels, shield/unshield, FAKE_LLM, Foreman/Specialist, etc.) | New pipeline/domain term added or renamed |
 | `README.md` | ~382 | All users | Project overview, pipeline selection strategy, format support matrix, Git submodule notes, environment | Version bumps, pipeline changes, new formats, env changes |
-| `AGENTS.md` | ~261 | AI Agents | Per-module cheat sheet, MCP configuration for Claude/Cursor/OpenCode, MCP server/tool inventory pointers, env vars, pre-commit hooks, MCP local testing | MCP tool changes, CLI changes, version bumps, env var changes, new formats |
+| `AGENTS.md` | ~183 | AI Agents | §0 safety & precedence, role routing (`.agents/roles/`), per-module cheat sheet, MCP server/tool inventory pointers, commands, pre-commit hooks, validation loop | MCP tool changes, CLI changes, version bumps, env var changes, new formats, role/expectation changes |
 | `CHANGELOG.md` | ~272 | All devs | Suite-level changelog (Unreleased + released versions) | Every change — always add an entry |
 | `COMPATIBILITY.md` | ~31 | All devs | Suite↔submodule version compatibility matrix | Version bumps of any module |
 | `CONTRIBUTING.md` | ~172 | Contributors | PR workflow, branch naming, test expectations, doc update requirements | Process changes, CI changes |
@@ -38,7 +38,7 @@ All paths are relative to the project root `/mnt/d/贯维/Omni_Suite`. Each entr
 | `PRODUCTION_READINESS.md` | ~187 | Maintainers | V1-V11 production-readiness checklist (version consistency, module integrity, security, observability) | Any new production requirement, new check items |
 | `ACCEPTED_GAPS.md` | ~103 | All devs | Known limitations and tradeoffs (PDF→XLIFF blocked, MSG requires commercial, validation known gaps, etc.) | New gap discovered, existing gap resolved |
 | `CONTRACT.md` | ~308 | All devs | OPP→OL→ORF handoff contract (artifact formats, metadata schemas, failure modes) **+ the suite↔module in-process import surface + the `table_{t}_r{r}_c{c}` XLIFF coordinate contract** | Pipeline boundary contract changes, and any rename of a module tool registry |
-| `CLAUDE.md` | ~142 | Claude Code | Claude-specific context (architecture summary, commands, tips) | Architecture changes, CLI changes, MCP changes |
+| `CLAUDE.md` | ~7 | Claude Code | Claude-specific context (architecture summary, commands, tips) | Architecture changes, CLI changes, MCP changes |
 | `TESTS.md` | ~335 | Developers | Test instructions for real LLM + E2E suite (14 nightly tests, prerequisites) | Test suite changes, test configuration changes |
 | `VERSION` | 3 | All | Suite version number (must match `pyproject.toml [project].version`) | Version bumps |
 | `THIRD_PARTY_LICENSES.md` | — | Legal | Third-party license attributions | New dependency added |
