@@ -103,6 +103,7 @@ python scripts/validation/run_validation.py --scenario regression --tier 1   # o
 python scripts/validation/run_validation.py --check                      # contract-lint the library
 python scripts/validation/coverage_audit.py                              # every live MCP tool exercised
 python scripts/validation/run_validation.py --repo orf --tier 1 --matrix --deliver   # report card + delivery zip
+MCP_ALLOWED_DIRECTORIES=/tmp python scripts/validation/run_validation.py --repo orf --tier 1   # module-scoped runs: unified sandbox var
 python scripts/validation/validation_report.py validation-runs/<ts>/scenarios.json   # director report
 ```
 

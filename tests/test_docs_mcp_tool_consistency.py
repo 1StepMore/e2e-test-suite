@@ -242,10 +242,23 @@ class TestDocsMcpToolConsistency:
     # --- Level 1: CLAUDE.md ---
 
     def test_claude_md_quick_reference(self) -> None:
-        """CLAUDE.md MCP Tool Quick Reference matches canonical."""
+        """CLAUDE.md MCP Tool Quick Reference matches canonical.
+
+        O-7 (2026-11-08): CLAUDE.md may be a thin pointer to AGENTS.md. When it
+        carries no server sections it must point at AGENTS.md; claim-site truth
+        for tool counts is then enforced by scripts/doc_inventory.py --check.
+        """
+        path = SUITE_ROOT / "CLAUDE.md"
+        content = path.read_text(encoding="utf-8")
+        if not _claude_md_tools(content):
+            assert "AGENTS.md" in content, (
+                "CLAUDE.md carries no MCP quick reference and does not point at "
+                "AGENTS.md — neither claim model is satisfied"
+            )
+            return
         self._check_level(
             "CLAUDE.md",
-            SUITE_ROOT / "CLAUDE.md",
+            path,
             {"opp-mcp-server", "ol-mcp", "orf-mcp-server"},
             _claude_md_tools,
         )
