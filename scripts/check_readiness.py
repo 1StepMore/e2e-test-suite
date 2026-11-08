@@ -24,8 +24,9 @@ import shutil
 import subprocess
 import sys
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent
 VERSION_FILE = SUITE_ROOT / "VERSION"
@@ -813,7 +814,7 @@ def check_11_2(r: CheckResult) -> None:
 # it in both directions, so a row registered in GATES.yaml without a checker
 # (or a checker without a GATES row) fails the run instead of silently
 # drifting. Split logic lives in the check_<id> functions above.
-REGISTRY: dict[str, "Callable[[CheckResult], None]"] = {
+REGISTRY: dict[str, Callable[[CheckResult], None]] = {
     "1.1": check_1_1,
     "1.2": check_1_2,
     "1.3": check_1_3,
