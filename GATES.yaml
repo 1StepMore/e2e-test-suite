@@ -332,6 +332,18 @@ ci:
   status: active
   supersedes: ''
   note: whole-tree steps intentionally scoped to suite-owned dirs; see AGENTS.md lint notes
+- id: reopen
+  title: Reopen closed pinned issues
+  group: pinned-guard.yml
+  command: 'issues.closed webhook: reopen when the `pinned` label is present and comment'
+  files_scope: issues.closed
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: 'guard for pinned index issues (e2e-test-suite#256)'
 - id: structural
   title: Validation framework structural job (Gates 1-4)
   group: validation.yml
