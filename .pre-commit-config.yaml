@@ -107,23 +107,28 @@ repos:
         language: system
         pass_filenames: false
 
-      - id: omni-version-docs-sync
-        name: Omni Suite version doc sync (README/AGENTS/COMPATIBILITY must match pyproject.toml)
-        # Interpreter comes from scripts/pre_commit_python.sh (see the note at
-        # the top of this file); a bare `python3` is the Store alias stub under
-        # Git Bash.
-        entry: "bash scripts/pre_commit_python.sh scripts/sync_version_docs.py --check"
-        language: system
-        pass_filenames: false
-        # Only run on commits that touch the version sources or the doc files;
-        # otherwise the check is wasted work. This matches both:
-        #  - pyproject.toml files (when a version is bumped)
-        #  - the doc targets (when someone edits them by hand)
-        files: ^(pyproject\.toml|Omni_(Pre_Processor|Localizer|Re_Formatter)/pyproject\.toml|README\.md|AGENTS\.md|COMPATIBILITY\.md|VERSION_COMPATIBILITY\.md|scripts/sync_version_docs\.py)$
-
       - id: omni-doc-inventory
-        name: Omni Suite doc-inventory check (AUTO-GENERATED header + source-truth MCP counts)
-        # Same interpreter note as omni-version-docs-sync above.
+        name: Omni Suite doc truth + governance drift
+        # SINGLE doc-truth gate (hook convergence, 16 -> 14): this hook now
+        # owns the assertions of the two retired hooks —
+        #   * omni-version-docs-sync (deleted): its assertion lives on via
+        #     doc_inventory's version-sync delegation (D-A) and was already
+        #     redundant (check_version_sync delegated to
+        #     scripts/sync_version_docs.py --check since the delegation
+        #     landed). Red-verified before deletion: a README version-table
+        #     drift still turns `doc_inventory.py --check` exit 1.
+        #   * omni-validation-check (deleted): its assertion lives on via
+        #     doc_inventory's governance-drift D-C (subprocess
+        #     run_validation.py --check with the same import probe: run as a
+        #     SCRIPT context, sys.path[0] = scripts/validation, cwd is NOT on
+        #     sys.path — so the probe passes `-P`, otherwise a plain -c would
+        #     resolve ./omni_mcp via cwd and falsely pass; ModuleNotFoundError
+        #     degrades to SKIP[missing-imports], never a silent pass).
+        # Authoritative CI execution for the scenario contract: the Validation
+        # Framework workflow Structural job (validation.yml, full install).
+        # Same interpreter note as the retired hooks: the interpreter comes
+        # from scripts/pre_commit_python.sh; a bare `python3` is the Store
+        # alias stub under Git Bash.
         entry: "bash scripts/pre_commit_python.sh scripts/doc_inventory.py --check"
         language: system
         pass_filenames: false
@@ -135,7 +140,11 @@ repos:
         # failure mode fixed for the other three hooks on 2026-09-17.
         # `[^/]+` keeps it root-only; fixtures under scenarios/ are matched by
         # the `scenarios/.*` branch for the doc-truth checks, not for this one.
-        files: ^(docs/.*|README\.md|AGENTS\.md|CLAUDE\.md|reports/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|scenarios/.*|scripts/doc_inventory\.py|\.pre-commit-config\.yaml|Makefile|[^/]+\.(doc|docx|odt|epub|msg|pdf|ppt|pptx|rtf|xls|xlsx))$
+        # files: = the union of the retained hook's domain, both retired
+        # hooks' domains (version sources + the 4 pyprojects per R1; scenario
+        # surfaces per review point #2), and the governance-drift targets
+        # (GATES.yaml, VERSION, workflows are read through D-D/D-E).
+        files: ^(docs/.*|README\.md|AGENTS\.md|CLAUDE\.md|COMPATIBILITY\.md|CONTRIBUTING\.md|GATES\.yaml|VERSION|pyproject\.toml|Omni_(Pre_Processor|Localizer|Re_Formatter)/pyproject\.toml|reports/.*|scenarios/.*|scripts/.*|omni_mcp/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/server\.py|Omni_Localizer/src/ol_mcp/tools\.py|\.pre-commit-config\.yaml|Makefile|[^/]+\.(doc|docx|odt|epub|msg|pdf|ppt|pptx|rtf|xls|xlsx))$
 
       # Module-entry consistency (issue #11): the suite's Omni_* symlinks must
       # resolve to real clones (no gitdir-pointer second worktree) and the venv
@@ -187,46 +196,20 @@ repos:
         verbose: true
         entry: |
           bash -c '
-            if err=$(.venv_ol/bin/python -c "import omni_mcp.server, omni_security, fastmcp" 2>&1); then
-              exec .venv_ol/bin/python scripts/validation/coverage_audit.py
+            if [ -x .venv_ol/bin/python ] && .venv_ol/bin/python -c "" 2>/dev/null; then
+              if err=$(.venv_ol/bin/python -c "import omni_mcp.server, omni_security, fastmcp" 2>&1); then
+                exec .venv_ol/bin/python scripts/validation/coverage_audit.py
+              fi
+              echo "SKIP[missing-imports]: omni-coverage-audit needs omni_mcp.server + omni_security + fastmcp importable under .venv_ol — the authoritative execution is the Validation Framework workflow Structural job (CI validation.yml, which installs fastmcp explicitly at a pinned version). Probe said:"
+              echo "$err"
+              exit 0
             fi
-            echo "SKIP: omni-coverage-audit needs omni_mcp.server + omni_security + fastmcp importable under .venv_ol — the authoritative execution is the Validation Framework workflow Structural job (CI validation.yml, which installs fastmcp explicitly at a pinned version). Probe said:"
-            echo "$err"
+            echo "SKIP[no-interpreter]: omni-coverage-audit is .venv_ol-specific by construction (omni_mcp/validation launches every module server through suite_python() = .venv_ol/bin/python; under any other interpreter the parity collapses — 0/41 with the Windows .venv_win, measured 2026-09-17). The authoritative execution is the Validation Framework workflow Structural job (CI validation.yml)."
             exit 0
           '
         language: system
         pass_filenames: false
         files: ^(scenarios/.*|scripts/validation/.*|omni_mcp/.*|Omni_(Pre_Processor|Localizer|Re_Formatter)/src/.*/mcp/.*|Omni_Localizer/src/ol_mcp/tools\.py|\.pre-commit-config\.yaml)$
-
-      # Scenario-library contract lint (C-03 local gate): every step
-      # falsifiable, standards anchors resolve. Fast, hermetic, no network.
-      #
-      # Preflight guard (e2e#61): same rationale as omni-coverage-audit — the
-      # lint job does not install omni_mcp, and run_validation.py is a thin
-      # wrapper importing omni_mcp.validation.cli from a SCRIPT context
-      # (sys.path[0] = scripts/validation; cwd is NOT on sys.path), so in the
-      # lint job it died with `ModuleNotFoundError: No module named
-      # omni_mcp`. The probe therefore passes `-P` (do not prepend the cwd):
-      # a plain `-c` probe would resolve ./omni_mcp via the cwd and falsely
-      # pass in the lint job while the gate still failed (measured
-      # 2026-09-21 with a lint-equivalent venv). The probe tests
-      # installed-ness exactly the way the gate imports it. Authoritative CI
-      # execution: the Validation Framework workflow Structural job
-      # (validation.yml, full install).
-      - id: omni-validation-check
-        name: Omni Suite scenario-library contract lint
-        entry: |
-          bash -c '
-            if err=$(bash scripts/pre_commit_python.sh -P -c "import omni_mcp.validation.cli" 2>&1); then
-              exec bash scripts/pre_commit_python.sh scripts/validation/run_validation.py --check
-            fi
-            echo "SKIP: omni_mcp.validation.cli is not importable under the project interpreter — the authoritative execution is the Validation Framework workflow Structural job (CI validation.yml, full install). Probe said:"
-            echo "$err"
-            exit 0
-          '
-        language: system
-        pass_filenames: false
-        files: ^(scenarios/.*|scripts/validation/.*|omni_mcp/.*|\.pre-commit-config\.yaml)$
 
       # Path-security parity invariant (ADR 0007 Phase 1 step 3): every copy of
       # the path policy (OPP core+wrapper, OL, ORF, and the suite orchestrator's
@@ -251,14 +234,24 @@ repos:
       # comment corrected 2026-10-30, the Structural-job claim was false).
       - id: omni-path-policy-parity
         name: Omni Suite path-security parity (one policy, every copy)
+        # verbose: the SKIP[...] triage lines must be VISIBLE on Windows even
+        # though the hook exits 0 there — a silent pass is exactly the fake
+        # green this hook's triage exists to prevent.
+        verbose: true
         entry: |
           bash -c '
             if err=$(bash scripts/pre_commit_python.sh -c "import omni_mcp.orchestrator" 2>&1); then
               set -o pipefail
               bash scripts/pre_commit_python.sh -m pytest tests/security/test_path_policy_parity.py --tb=short -q --no-header 2>&1 | tail -15
-              exit $?
+              rc=${PIPESTATUS[0]}
+              case "$rc" in
+                0) exit 0 ;;
+                1) echo "FAIL[path-policy-parity]: behavioural drift — a policy copy disagrees; see pytest output above"; exit 1 ;;
+                2) echo "SKIP[collection-error]: pytest could not collect the parity test (environment problem, rc=2 — under Git Bash this is the omni_security namespace shadowing), NOT a policy verdict. The authoritative execution is the CI path-security parity gate (lint.yml) and the e2e ci-suite full pytest run."; exit 0 ;;
+                *) echo "SKIP[pytest-rc-$rc]: unexpected pytest exit code"; exit "$rc" ;;
+              esac
             fi
-            echo "SKIP: omni_mcp.orchestrator is not importable under the project interpreter — the authoritative execution is the CI path-security parity gate (lint.yml) and the e2e ci-suite full pytest run. Probe said:"
+            echo "SKIP[missing-imports]: omni_mcp.orchestrator is not importable under the project interpreter — the authoritative execution is the CI path-security parity gate (lint.yml) and the e2e ci-suite full pytest run. Probe said:"
             echo "$err"
             exit 0
           '

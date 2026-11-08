@@ -31,6 +31,7 @@ api_key.*
 .sisyphus/
 
 # .omo is mostly runtime state, but plans are source — whitelist plans/
+# 注意：本节必须保持 /.omo/* 形式；任何 /.omo/ 目录级规则都会杀死下面的白名单（实测 2026-11-06，git 无法在已忽略目录内重包含）
 /.omo/*
 !/.omo/plans/
 /.omo/plans/*
@@ -156,7 +157,6 @@ benchmarks/format-fidelity/fixtures/rich.docx
 # config/default.yaml 是指向 Omni_Localizer 的符号链接（不是本仓内容）
 /config/default.yaml
 # Agent/工具本地状态与产物目录（本机生成，不进仓库）
-/.omo/
 /.workbuddy/
 /.zcode/
 /pkg-Omni-Suite/

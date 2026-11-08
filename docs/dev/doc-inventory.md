@@ -13,15 +13,15 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 68 |
-| Total lines | 35034 |
+| Total files | 69 |
+| Total lines | 36063 |
 | Active files | 44 |
-| Archived files | 24 |
-| Category — archive | 24 files / 25391 lines |
+| Archived files | 25 |
+| Category — archive | 25 files / 25581 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
 | Category — docs/dev | 22 files / 2958 lines |
-| Category — docs/root | 19 files / 5343 lines |
+| Category — docs/root | 19 files / 6182 lines |
 
 ## Inventory
 
@@ -30,13 +30,13 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `ACCEPTANCE.md` | 84 | docs/root | active | — |
 | `API_STABILITY.md` | 306 | docs/root | active | — |
 | `ARCHITECTURE.md` | 522 | docs/root | active | — |
-| `DECISIONS.md` | 22 | docs/root | active | — |
+| `DECISIONS.md` | 13 | docs/root | active | — |
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
 | `HANDOVER.md` | 620 | docs/root | active | — |
 | `NIGHTLY.md` | 280 | docs/root | active | — |
 | `PRD.md` | 61 | docs/root | active | — |
-| `RELEASE_NOTES.md` | 23 | docs/root | active | — |
+| `RELEASE_NOTES.md` | 871 | docs/root | active | — |
 | `SECURITY.md` | 250 | security | active | — |
 | `SECURITY_AUDIT.md` | 954 | security | active | — |
 | `SLA.md` | 128 | docs/root | active | — |
@@ -60,7 +60,8 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `archive/OPP_VALIDATION_MASTER_PLAN.md` | 3106 | archive | archived | — |
 | `archive/ORF_EXPECTATIONS.md` | 541 | archive | archived | — |
 | `archive/ORF_VALIDATION_MASTER_PLAN.md` | 2563 | archive | archived | — |
-| `archive/README.md` | 61 | archive | archived | — |
+| `archive/PRODUCTION_READINESS.md` | 189 | archive | archived | — |
+| `archive/README.md` | 62 | archive | archived | — |
 | `archive/SECURITY_FINDINGS.md` | 80 | archive | archived | — |
 | `archive/SUITE_EXPECTATIONS.md` | 894 | archive | archived | — |
 | `archive/SUITE_VALIDATION_MASTER_PLAN.md` | 3589 | archive | archived | — |
