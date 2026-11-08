@@ -16,6 +16,15 @@ below is **byte-identical**:
 (`test_doc_inventory_checked_copy_parity`); it skips only when fewer than two
 module checkouts are present.
 
+## The playbook hash pin moves in lockstep too
+
+Each copy also carries `DOC_ARCH_SHA256` (the pinned bytes of
+`docs/dev/agent-era-doc-architecture.md`, protocol e2e-test-suite#254).
+That constant is **per-repo custom code, not part of the delimited block**,
+but its value must be identical in all four copies (suite + OPP/OL/ORF) and
+must be bumped in the same wave as any playbook revision — see playbook §7
+and `tests/test_doc_arch_playbook_parity.py`.
+
 ## Change rule
 
 1. Edit the block in **every copy that is checked out**, byte for byte. Do not

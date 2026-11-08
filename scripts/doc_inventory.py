@@ -32,6 +32,7 @@ printed as ``SOURCE: OPP=9 OL=21 ORF=7 total=37``.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import subprocess
 import sys
@@ -51,6 +52,14 @@ TESTS = ROOT / "tests"
 README = ROOT / "README.md"
 AGENTS = ROOT / "AGENTS.md"
 SKILL = ROOT / ".opencode" / "skills" / "omni-docmap" / "SKILL.md"
+
+#: Pinned SHA-256 of the cross-repo documentation-architecture playbook copy.
+#: All six participating repositories hold this file byte-identical (canonical
+#: copy: AutoInfo); an edit is a six-repo sync plus six pin bumps
+#: (protocol: e2e-test-suite#254, playbook §7). Purely local on purpose — this
+#: gate verifies the synced copy against a constant, not against another
+#: checkout (the cross-repo resolution machinery is under separate repair).
+DOC_ARCH_SHA256 = "725316a1fd83fcf68243ab87144f37add67b45275bd5faa31883c2f0bb061807"
 OPP_SERVER = ROOT / "Omni_Pre_Processor" / "src" / "opp" / "mcp" / "server.py"
 OPP_CAPABILITIES = (
     ROOT / "Omni_Pre_Processor" / "src" / "opp" / "mcp" / "tools" / "get_capabilities.py"
@@ -1525,6 +1534,31 @@ def _check_generated_discipline(root: Path) -> list[str]:
     return problems
 
 
+def _check_doc_arch(root: Path, failures: list[str]) -> None:
+    """Gate 15 — cross-repo documentation playbook pin (e2e-test-suite#254).
+
+    Drift-only when the copy is present (minimal fixture trees skip
+    silently): whenever ``docs/dev/agent-era-doc-architecture.md`` exists it
+    must be byte-identical to the pinned canonical copy. Presence in THIS
+    repo plus four-copy byte parity is enforced by
+    ``tests/test_doc_arch_playbook_parity.py``.
+    """
+    path = root / "docs" / "dev" / "agent-era-doc-architecture.md"
+    if not path.is_file():
+        return
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual == DOC_ARCH_SHA256:
+        print(f"  {path.relative_to(root)}: sha256 matches DOC_ARCH_SHA256 -> ok")
+        return
+    failures.append(
+        f"{path.relative_to(root)} drifted from the pinned cross-repo copy "
+        f"(expected {DOC_ARCH_SHA256}, got {actual}). 跨仓同步副本与钉住版本不同，"
+        "改版需六仓同传: edit the canonical copy (AutoInfo), re-sync all six "
+        "repositories, bump every pin together — see "
+        "https://github.com/1StepMore/e2e-test-suite/issues/254"
+    )
+
+
 def run_check(root: Path) -> list[str]:
     """Run all --check gates; return the list of human-readable failures."""
     failures: list[str] = []
@@ -1611,6 +1645,9 @@ def run_check(root: Path) -> list[str]:
     #     retired pre-commit hooks' verdicts and adds registry completeness,
     #     reference integrity, and generated-artifact discipline).
     check_governance_drift(root, failures)
+
+    # 15. Cross-repo documentation playbook pin (e2e-test-suite#254).
+    _check_doc_arch(root, failures)
 
     return failures
 
