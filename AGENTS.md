@@ -175,6 +175,7 @@ Configured in `.pre-commit-config.yaml` at the project root (14 hooks; the root 
 | Architecture / data flow | `docs/ARCHITECTURE.md` |
 | OPP→OL→ORF handoff contract | `CONTRACT.md` |
 | Shared glossary | `CONTEXT.md` |
+| Doc architecture playbook (six-repo synced, hash-pinned) | `docs/dev/agent-era-doc-architecture.md` |
 | Decision records (ADR 0001–0008) | `docs/DECISIONS.md` |
 | Setup (real LLM keys) | `SETUP.md` |
 | Test instructions | `TESTS.md` |

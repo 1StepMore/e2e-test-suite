@@ -13,14 +13,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 69 |
-| Total lines | 36063 |
-| Active files | 44 |
+| Total files | 70 |
+| Total lines | 36372 |
+| Active files | 45 |
 | Archived files | 25 |
 | Category — archive | 25 files / 25581 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 22 files / 2958 lines |
+| Category — docs/dev | 23 files / 3267 lines |
 | Category — docs/root | 19 files / 6182 lines |
 
 ## Inventory
@@ -78,8 +78,9 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `archive/project-code-aesthetics-review-2026-10-22.md` | 570 | archive | archived | — |
 | `archive/project-evaluation-pain-points-2026-09-06.md` | 313 | archive | archived | — |
 | `archive/system_improvements_v2.md` | 503 | archive | archived | — |
+| `dev/agent-era-doc-architecture.md` | 300 | docs/dev | active | instruction |
 | `dev/artifact-assertion-matrix.md` | 282 | docs/dev | active | — |
-| `dev/doc-inventory-copies.md` | 44 | docs/dev | active | — |
+| `dev/doc-inventory-copies.md` | 53 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 201 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/quality-baseline.md` | 44 | docs/dev | active | — |
