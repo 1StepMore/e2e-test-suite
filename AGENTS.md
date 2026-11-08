@@ -17,7 +17,7 @@ This file guides AI agents (Claude, Cursor, OpenCode, Hermes, Codex, opencode, �
 
 Your role comes from the Owner's explicit assignment. Read the contract first and work inside its boundaries; each contract defines Done, return format, and Stop & Escalate.
 
-| Assigned role | Contract (read first) | Also read | Never touch (summary) |
+| Assigned role | Contract | Also read | Never touch (summary) |
 |---|---|---|---|
 | Coder | `.agents/roles/coder.md` | nearest dir `AGENTS.md` → `docs/DECISIONS.md` → assigned issue spec | `main` direct push, CI gates, expectations, role files |
 | Maintainer | `.agents/roles/maintainer.md` | `docs/DECISIONS.md` → `docs/dev/` validation/debt docs | direct code drops, overruling Tester verdicts |

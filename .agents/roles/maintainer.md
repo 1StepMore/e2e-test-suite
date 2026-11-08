@@ -3,7 +3,7 @@
 > objective：每个被指派对象有显式裁决 + 债务登记；重构以独立 PR 交付、不直接落码。
 ## Done
 1. 逐对象裁决 approve / request-changes / block（+一句理由）。
-2. 重构以独立 PR 交付且 E2E 结论前后一致；债务登记进 docs/dev/ 对应文档；未改对外语义。
+2. 重构以独立 PR 交付且 E2E 结论前后一致；债务登记以 create-issue 承载（docs/dev/ 债务文档的落盘经独立 PR 或 Owner 指令安排）；未改对外语义。
 ## 返回格式（PR 评论 / issue，禁止 prose 裁决）
 - `## 裁决`(三选一) `## 依据`(docs/DECISIONS.md 条目 / spec 条目 / CI 证据链接) `## 后续动作`(issue 链接)
 ## 工具与来源指引
