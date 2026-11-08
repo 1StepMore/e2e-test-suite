@@ -121,6 +121,14 @@ def test_load_scenarios_skips_dot_dirs(tmp_path):
     assert scenarios[0]["name"] == "sample-e2e"
 
 
+def test_load_scenarios_dot_ancestor_root_not_filtered(tmp_path):
+    """issue #266: a dot component above the root is not a hidden dir."""
+    root = tmp_path / ".probe" / "scenarios"
+    _write(root, "sample.yaml", VALID_SCENARIO)
+
+    assert [s["name"] for s in load_scenarios(root)] == ["sample-e2e"]
+
+
 def test_load_scenarios_empty_library_returns_empty_list(tmp_path):
     """scenarios/ has only .gitkeep until Wave 3 — 0 scenarios, no crash."""
     assert load_scenarios(tmp_path) == []

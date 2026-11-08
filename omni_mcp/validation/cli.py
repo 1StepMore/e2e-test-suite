@@ -332,14 +332,17 @@ def parse_standard_anchors(standards_path: str | Path) -> set[str]:
 
 
 def _discover_files(scenarios_dir: str | Path) -> list[Path]:
-    """Recursive ``*.yaml`` glob, dot-dirs skipped, sorted — the loader's
-    discovery rules (loader.py), mirrored so the lint and the
-    filename-substring filter see the same file set."""
+    """Recursive ``*.yaml`` glob, dot-dirs below the root skipped, sorted —
+    the loader's discovery rules (loader.py), mirrored so the lint and the
+    filename-substring filter see the same file set.  Dot components above
+    the root are not hidden scenario dirs (issue #266)."""
     sd = Path(scenarios_dir)
     if not sd.is_dir():
         return []
     return sorted(
-        p for p in sd.rglob("*.yaml") if not any(part.startswith(".") for part in p.parts)
+        p
+        for p in sd.rglob("*.yaml")
+        if not any(part.startswith(".") for part in p.relative_to(sd).parts)
     )
 
 

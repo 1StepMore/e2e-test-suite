@@ -47,6 +47,16 @@ STANDARDS = """
 Text.
 """
 
+BAD_NO_EXPECT = """
+name: bad-no-expect
+description: "missing expect"
+level: agent-user
+steps:
+  - name: "one"
+    kind: cli
+    command: "true"
+"""
+
 
 def _write(tmp_path, name, body):
     """Write a file under tmp_path, creating parent dirs."""
@@ -111,6 +121,20 @@ def test_main_check_clean_exits_zero(tmp_path, capsys):
 
     assert rc == 0
     assert "clean" in capsys.readouterr().out.lower()
+
+
+def test_main_check_dot_ancestor_root_not_hidden(tmp_path, capsys):
+    """issue #266: --check must lint under a dot-named ancestor, not
+    silently report the library clean."""
+    root = tmp_path / ".probe" / "scenarios"
+    _write(root, "bad.yaml", BAD_NO_EXPECT)
+
+    rc = main(["--check", "--scenarios-dir", str(root)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "bad.yaml" in out
+    assert "falsifiable" in out
 
 
 def test_main_check_self_echo_command_fails(tmp_path, capsys):
