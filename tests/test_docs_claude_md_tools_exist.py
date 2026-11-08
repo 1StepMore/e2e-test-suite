@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Final
 
 import pytest
-
 from ol_mcp.tools import TOOL_REGISTRY
 from opp.mcp.server import _TOOL_SCHEMAS
 from orf.mcp.server import _TOOL_DISPATCH
