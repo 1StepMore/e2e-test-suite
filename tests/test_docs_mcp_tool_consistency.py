@@ -71,28 +71,26 @@ def _claude_md_tools(content: str) -> dict[str, set[str]]:
     return result
 
 
-def _suite_cheat_sheet_tools(content: str) -> dict[str, tuple[int, set[str]]]:
+def _suite_cheat_sheet_tools(content: str) -> dict[str, set[str]]:
     """Parse suite AGENTS.md Per-Module Cheat Sheet table.
 
     Expects rows like::
 
-        | **OPP** | ... | 9 tools (`extract_document`, `batch_extract`...) | ... |
+        | **OPP** | ... | `extract_document`, `batch_extract`... | ... |
 
-    Returns ``{server: (expected_tool_count, example_tools)}``. The example list
-    is abbreviated, so callers validate count + example prefix, not exact set.
+    Returns ``{server: example_tools}``. The example list is abbreviated;
+    canonical counts live in the MCP Servers section and are enforced by
+    ``scripts/doc_inventory.py --check``, so the cheat sheet carries no
+    duplicate count.
     """
-    result: dict[str, tuple[int, set[str]]] = {}
+    result: dict[str, set[str]] = {}
     server_map = {"OPP": "opp-mcp-server", "OL": "ol-mcp", "ORF": "orf-mcp-server"}
-    count_pattern = re.compile(r"(\d+)\s+tools")
     for line in content.splitlines():
         if "| **" not in line:
             continue
         for abbr, server in server_map.items():
             if f"**{abbr}**" in line:
-                count_match = count_pattern.search(line)
-                count = int(count_match.group(1)) if count_match else 0
-                tools = _collect_tools_from_backtick_line(line)
-                result[server] = (count, tools)
+                result[server] = _collect_tools_from_backtick_line(line)
     return result
 
 
@@ -266,11 +264,12 @@ class TestDocsMcpToolConsistency:
     # --- Level 2: suite AGENTS.md Per-Module Cheat Sheet ---
 
     def test_suite_agents_cheat_sheet(self) -> None:
-        """Suite AGENTS.md Per-Module Cheat Sheet matches canonical count + examples.
+        """Suite AGENTS.md Per-Module Cheat Sheet examples match canonical tools.
 
-        The cheat sheet abbreviates tool lists (e.g. ``9 tools (`extract_document`,
-        `batch_extract`…)``), so we verify the tool count and that the shown
-        examples are actual canonical tools rather than checking exact set equality.
+        The cheat sheet abbreviates tool lists (e.g. `` `extract_document`,
+        `batch_extract`… ``) and intentionally carries no duplicate count; the
+        canonical count lives in the MCP Servers section and is enforced by
+        ``scripts/doc_inventory.py --check``.
         """
         filepath = SUITE_ROOT / "AGENTS.md"
         assert filepath.exists()
@@ -287,11 +286,7 @@ class TestDocsMcpToolConsistency:
             assert server in extracted, (
                 f"Server {server!r} not found in cheat sheet. Found: {sorted(extracted)}"
             )
-            doc_count, doc_examples = extracted[server]
-            assert doc_count == len(canonical_tools), (
-                f"[Cheat Sheet] {server!r} tool count: {doc_count}, "
-                f"expected {len(canonical_tools)}"
-            )
+            doc_examples = extracted[server]
             assert doc_examples == expected_examples[server], (
                 f"[Cheat Sheet] {server!r} example tools: {sorted(doc_examples)}, "
                 f"expected {sorted(expected_examples[server])}"

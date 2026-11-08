@@ -68,10 +68,10 @@ omni-suite --version                      # check version
 
 | Module | Role | CLI (key subcommand) | MCP tools | Source |
 |--------|------|---------------------|-----------|--------|
-| **OPP** | Extract documents → MD + XLIFF + skeleton | `opp <file> --target-format both --output-dir <dir>` | 9 tools (`extract_document`, `batch_extract`…) | `Omni_Pre_Processor/src/` |
-| **OL** | Translate MD/XLIFF between languages | `ol translate-md <file> -s <src> -t <tgt> -o <dir>` | 21 tools (`translate_md_text`, `judge_text`…) | `Omni_Localizer/src/` |
-| **ORF** | Backfill translated content → target format | `orf apply-md <file> --target-format <fmt> -o <out>` | 7 tools (`apply_md`, `apply_xliff`…) | `Omni_Re_Formatter/src/` |
-| **Validation** | Agent-agnostic validation — scenario library + standards + director loop | `python scripts/validation/run_validation.py --list` | 4 tools (`translate_file`, `ping`, `list_validation_scenarios`, `run_validation_scenario`; 2 validation-specific) | `scripts/validation/` + `omni_mcp/` |
+| **OPP** | Extract documents → MD + XLIFF + skeleton | `opp <file> --target-format both --output-dir <dir>` | `extract_document`, `batch_extract`… | `Omni_Pre_Processor/src/` |
+| **OL** | Translate MD/XLIFF between languages | `ol translate-md <file> -s <src> -t <tgt> -o <dir>` | `translate_md_text`, `judge_text`… | `Omni_Localizer/src/` |
+| **ORF** | Backfill translated content → target format | `orf apply-md <file> --target-format <fmt> -o <out>` | `apply_md`, `apply_xliff`… | `Omni_Re_Formatter/src/` |
+| **Validation** | Agent-agnostic validation — scenario library + standards + director loop | `python scripts/validation/run_validation.py --list` | `translate_file`, `ping`, `list_validation_scenarios`, `run_validation_scenario`; 2 validation-specific | `scripts/validation/` + `omni_mcp/` |
 
 Full MCP server/tool inventory and namespacing (all 41 tools: 37 module + 4 suite): [`docs/agent-pipeline-guide.md`](docs/agent-pipeline-guide.md) — full per-tool parameter signatures live in each module's `docs/API.md` (e.g. [`Omni_Pre_Processor/docs/API.md`](Omni_Pre_Processor/docs/API.md)). Per-module internals: each sub-repo's own `AGENTS.md`.
 
