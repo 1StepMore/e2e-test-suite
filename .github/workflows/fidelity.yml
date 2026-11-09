@@ -46,7 +46,12 @@ jobs:
         run: python tests/fidelity/run_fidelity.py
 
   fidelity-nightly:
-    name: Fidelity nightly (regenerate via priority-1 provider)
+    # 2026-11-10 (suite#279): regeneration routes through Zhipu only. The CI
+    # AMD_API_KEY returns 401 (suite#282, owner:master) and ol_pool treats
+    # AuthenticationError as terminal (no intra-role failover to priority-2),
+    # so the AMD key is deliberately not injected below — with it unset the
+    # pool skips the AMD models (partition_usable_models) and Zhipu serves.
+    name: Fidelity nightly (regenerate via Zhipu)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -72,8 +77,12 @@ jobs:
         # swallowed by a shell fallback.
         continue-on-error: true
         env:
-          AMD_API_KEY: ${{ secrets.AMD_API_KEY }}
+          # Fail-closed required by OL security (ol_mcp/security.py
+          # get_default_validator): unset, every translate_md_text call raises
+          # MCPNotConfiguredError (suite#279, run 42589215258, paragraphs 1-10).
+          MCP_ALLOWED_DIRECTORIES: ${{ github.workspace }},/tmp
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+          # AMD_API_KEY intentionally absent — see the job-level comment.
           HF_ENDPOINT: 'https://hf-mirror.com'
           PYTHONPATH: /tmp/ol/src
           OL_CONFIG_PATH: /tmp/ol/config/default.yaml
@@ -82,6 +91,9 @@ jobs:
       - name: Score candidate
         if: always()
         env:
+          # Same fail-closed env as regen: any ol_mcp import must not blow up
+          # the scoring step on a missing allowlist (suite#279).
+          MCP_ALLOWED_DIRECTORIES: ${{ github.workspace }},/tmp
           PYTHONPATH: /tmp/ol/src
           OL_CONFIG_PATH: /tmp/ol/config/default.yaml
         run: |
@@ -92,4 +104,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fidelity-result
-          path: tests/fidelity/results/alice_ch1_fidelity.json
+          path: |
+            tests/fidelity/results/alice_ch1_fidelity.json
+            tests/fidelity/results/alice_ch1_regen_meta.json
+          if-no-files-found: warn
