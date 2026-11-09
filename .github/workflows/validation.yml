@@ -71,10 +71,14 @@ jobs:
         with:
           version: "0.11.8"
 
-      - name: Install system deps (pandoc for ORF MD conversions)
+      - name: Install system deps (pandoc for ORF MD conversions, tesseract for real OCR)
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc
+          # suite#280 queue-4: the OCR scenario (opp-ocr-extract) is wired
+          # into CI with a REAL engine — tesseract binary (+ chi_sim for
+          # CJK-capable fixtures); pytesseract/Pillow arrive via pip below.
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-chi-sim
 
       - name: Install weasyprint C libs (real PDF render in orf-md scenarios)
         run: |
@@ -92,8 +96,8 @@ jobs:
       - name: uv sync (root workspace installs all 3 submodules via [tool.uv.workspace])
         run: uv sync --locked
 
-      - name: Install test deps (pytest + docx/pptx/pandoc + weasyprint for real PDF render)
-        run: uv pip install --python .venv/bin/python pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout weasyprint nbformat markdownify chardet openpyxl lxml yake
+      - name: Install test deps (pytest + docx/pptx/pandoc + weasyprint/pytesseract for real render+OCR)
+        run: uv pip install --python .venv/bin/python pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout weasyprint nbformat markdownify chardet openpyxl lxml yake pillow pytesseract
 
       # Gate 2 (coverage_audit -> dispatch.run_transport_parity) imports fastmcp.Client,
       # but fastmcp only arrives through a submodule's optional extra, which `uv sync`
@@ -127,6 +131,19 @@ jobs:
 
       - name: 'Gate 1 — Run validation scenarios (tier 1, hermetic)'
         run: .venv_ol/bin/python scripts/validation/run_validation.py --tier 1
+
+      - name: 'Gate 1b — OCR scenario real-pass (tesseract installed; suite#280 queue-4)'
+        # The unconfigured-6 disposition (suite#280): opp-ocr-extract carries
+        # no `tier:` so --tier 1 never selects it; this gate runs it for real
+        # with OCR_ENGINE set and a tesseract binary present, and asserts the
+        # verdict is `passed` — exit 0 alone proves nothing here because
+        # unconfigured also exits 0.
+        env:
+          OCR_ENGINE: '1'
+        run: |
+          .venv_ol/bin/python scripts/validation/run_validation.py --scenario opp-ocr-extract | tee /tmp/ocr_gate.txt
+          grep -Eq '^opp-ocr-extract[[:space:]]+passed' /tmp/ocr_gate.txt \
+            || { echo "FAIL: opp-ocr-extract did not pass with a real OCR engine"; exit 1; }
 
       - name: 'Gate 2 — Coverage audit (must be 0 missing: exit 0)'
         # Every live MCP tool must be exercised by a scenario; exit 1
