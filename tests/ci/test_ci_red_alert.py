@@ -117,6 +117,17 @@ def test_classify_ignores_401_inside_larger_numbers():
     assert kind == "code"
 
 
+def test_classify_catches_signature_beyond_the_body_excerpt():
+    """suite#285 lesson: the env signature sat mid-log, outside the 80-line
+    tail shown in the issue body — classification must scan deeper."""
+    filler = "\n".join(f"score line {i}" for i in range(400))
+    deep_log = "MCPNotConfiguredError: MCP_ALLOWED_DIRECTORIES must be set\n" + filler
+    kind, _ = ci_red_alert.classify_failure(deep_log)
+    assert kind == "environment"
+    # and the same log without the signature stays code-red
+    assert ci_red_alert.classify_failure(filler)[0] == "code"
+
+
 # ---------------------------------------------------------------------------
 # auto-close gate
 # ---------------------------------------------------------------------------

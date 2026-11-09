@@ -38,6 +38,9 @@ import sys
 from datetime import UTC, datetime, timedelta
 
 ALERT_MARKER = "<!-- ci-red-alert bot -->"
+#: --dry-run: every decision runs, every tracker write is skipped (local
+#: smoke tests must never create/comment/close real issues).
+_DRY_RUN = False
 ISSUE_TITLE_PREFIX = "[CI红]"
 #: Issues with any of these labels are never auto-closed (suite#274 contract).
 NEVER_AUTOCLOSE_LABELS = {"pinned", "on-hold", "owner:master"}
@@ -71,7 +74,12 @@ ENV_RED_SIGNATURES = (
 )
 #: Matches "Closes #123", "fixes: #123", "Resolves #123" in a PR body.
 CLOSE_KEYWORD_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b", re.I)
+#: Issue-body log excerpt per failed job (readability).
 LOG_TAIL_LINES = 80
+#: Classification scans deeper than the body excerpt — an environment-gap
+#: signature buried mid-log (e.g. tracebacks before the scoring step) must
+#: still classify the run as environment red (suite#285 lesson).
+LOG_SCAN_LINES = 4000
 
 
 # ---------------------------------------------------------------------------
@@ -252,11 +260,23 @@ class GhClient:
         return [j for j in data.get("jobs", []) if j.get("conclusion") == "failure"]
 
     def job_log_tail(self, job_id: int, lines: int = LOG_TAIL_LINES) -> str:
-        try:
-            log = self._gh("api", f"repos/{self.repo}/actions/jobs/{job_id}/logs")
-        except RuntimeError:
-            return "(log unavailable)"
-        return "\n".join(log.splitlines()[-lines:])
+        return self._job_log(job_id, lines)
+
+    def job_log_scan(self, job_id: int, lines: int = LOG_SCAN_LINES) -> str:
+        return self._job_log(job_id, lines)
+
+    def _job_log(self, job_id: int, lines: int) -> str:
+        path = f"repos/{self.repo}/actions/jobs/{job_id}/logs"
+        # Newer gh refuses to print log bodies carrying terminal escape
+        # sequences unless --allow-escape-sequences is passed; older gh
+        # doesn't know the flag. Try new-gh first, fall back to plain.
+        for args in ([path, "--allow-escape-sequences"], [path]):
+            try:
+                log = self._gh("api", *args)
+            except RuntimeError:
+                continue
+            return "\n".join(log.splitlines()[-lines:])
+        return "(log unavailable)"
 
     def open_issues(self) -> list[dict]:
         return json.loads(self._gh(
@@ -268,32 +288,39 @@ class GhClient:
             "api", f"repos/{self.repo}/issues/{issue_number}/comments?per_page=100"
         ))
 
+    def _write(self, *args: str, result: dict | None = None) -> dict:
+        if _DRY_RUN:
+            print(f"[dry-run] write skipped: gh {' '.join(args[:3])}...")
+            return result or {}
+        return json.loads(self._gh(*args))
+
     def create_issue(self, title: str, body: str, labels: list[str]) -> dict:
         label_args: list[str] = []
         for label in labels:
             label_args += ["-f", f"labels[]={label}"]
-        return json.loads(self._gh(
+        return self._write(
             "api", f"repos/{self.repo}/issues",
             "-f", f"title={title}", "-f", f"body={body}",
             *label_args,
-        ))
+            result={"html_url": f"(dry-run) {title}"},
+        )
 
     def comment(self, issue_number: int, body: str) -> dict:
-        return json.loads(self._gh(
+        return self._write(
             "api", f"repos/{self.repo}/issues/{issue_number}/comments",
             "-f", f"body={body}",
-        ))
+        )
 
     def edit_comment(self, comment_id: int, body: str) -> None:
-        self._gh(
+        self._write(
             "api", f"repos/{self.repo}/issues/comments/{comment_id}",
             "-f", f"body={body}",
         )
 
     def close_issue(self, issue_number: int, comment: str) -> None:
         self.comment(issue_number, comment)
-        self._gh("api", f"repos/{self.repo}/issues/{issue_number}", "-X", "PATCH",
-                 "-f", "state=closed")
+        self._write("api", f"repos/{self.repo}/issues/{issue_number}",
+                    "-X", "PATCH", "-f", "state=closed")
 
     def merged_prs(self) -> list[dict]:
         return json.loads(self._gh(
@@ -346,7 +373,11 @@ def handle_run(gh: GhClient, run_id: int, replay: bool = False) -> int:
         f"[job] {j.get('name')}\n{gh.job_log_tail(j['id'])}" for j in jobs
     ) or "(no logs)"
 
-    kind, signatures = classify_failure(tails)
+    # Classification sees more than the body excerpt: mid-log signatures count.
+    scan = "\n\n---\n\n".join(
+        f"[job] {j.get('name')}\n{gh.job_log_scan(j['id'])}" for j in jobs
+    )
+    kind, signatures = classify_failure(scan)
     if kind == "environment":
         _summary(
             f"nightly-alert: run `{run_id}` ({name} @ {branch}) classified "
@@ -418,9 +449,13 @@ def _handle_green(
 
 
 def main(argv: list[str]) -> int:
+    global _DRY_RUN
     if not argv or argv[0] != "handle-run":
         print(__doc__)
         return 2
+    if "--dry-run" in argv:
+        _DRY_RUN = True
+        argv = [a for a in argv if a != "--dry-run"]
     positional: list[str] = []
     repo = os.environ.get("GITHUB_REPOSITORY")
     replay = False
