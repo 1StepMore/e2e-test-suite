@@ -7,11 +7,18 @@ suite#279 hardening:
 - Paces calls (default 1.1s apart) so OL's local token-bucket limiter
   (ol_mcp/rate_limiter.py, default 60 RPM / burst 10) never rejects a blast
   of paragraph calls — the 2026-11-09 nightly lost paragraphs 11-30 to it.
-- Retries RATE_LIMITED envelopes with bounded exponential backoff (same
-  policy shape as omni_mcp/validation/engine.py since suite#278).
+- Retries throttle-like failures with bounded exponential backoff (same
+  policy shape as omni_mcp/validation/engine.py since suite#278). OL surfaces
+  both provider 429s AND an open per-role circuit breaker as the generic
+  OL_TRANSLATE_FAILED code, so the retry trigger is the message text too —
+  an open breaker (ol_pool/router.py: fail_max=5, reset_timeout=60) needs a
+  wait longer than the 60s reset window to recover.
 - OL_MCP_NOT_CONFIGURED is deterministic (fail-closed missing
   MCP_ALLOWED_DIRECTORIES): abort immediately instead of burning the
   remaining paragraphs.
+- A wall-clock budget (FIDELITY_REGEN_BUDGET_SECONDS) bounds the retry
+  ladder so backoff can never blow the job timeout; paragraphs past the
+  budget are recorded as skipped_budget.
 - Writes a regen meta sidecar (translated/total + candidate sha256) next to
   the fidelity result so run_fidelity.py can distinguish "genuinely below
   threshold" from "undersampled by the environment".
@@ -36,9 +43,14 @@ META = REPO_ROOT / "tests" / "fidelity" / "results" / "alice_ch1_regen_meta.json
 
 # Throttle policy (env-overridable for CI and hermetic tests, mirroring the
 # OMNI_VALIDATION_THROTTLE_* names used by the validation engine).
-THROTTLE_RETRIES = int(os.environ.get("FIDELITY_THROTTLE_RETRIES", "5"))
-THROTTLE_BACKOFF = float(os.environ.get("FIDELITY_THROTTLE_BACKOFF_SECONDS", "2"))
-THROTTLE_BACKOFF_MAX = float(os.environ.get("FIDELITY_THROTTLE_BACKOFF_MAX_SECONDS", "60"))
+THROTTLE_RETRIES = int(os.environ.get("FIDELITY_THROTTLE_RETRIES", "4"))
+THROTTLE_BACKOFF = float(os.environ.get("FIDELITY_THROTTLE_BACKOFF_SECONDS", "30"))
+THROTTLE_BACKOFF_MAX = float(os.environ.get("FIDELITY_THROTTLE_BACKOFF_MAX_SECONDS", "90"))
+# Breaker reset window is 60s (ol_pool/router.py) — never wait less than that
+# or the retry lands on the still-open breaker and fails fast.
+BREAKER_RESET_SECONDS = float(os.environ.get("FIDELITY_BREAKER_RESET_SECONDS", "65"))
+# Wall-clock budget for the whole regen (default 40 min inside the 60-min job).
+BUDGET_SECONDS = float(os.environ.get("FIDELITY_REGEN_BUDGET_SECONDS", "2400"))
 # Inter-paragraph pacing; the local limiter refills 1 token/s at 60 RPM, so a
 # little over 1s between calls keeps the bucket from emptying.
 PACE_SECONDS = float(os.environ.get("FIDELITY_PARA_PACE_SECONDS", "1.1"))
@@ -49,6 +61,20 @@ def _err_code(rd: dict) -> str:
     if isinstance(err, dict):
         return str(err.get("code") or rd.get("error_code") or "?")
     return str(rd.get("error_code") or "?")
+
+
+def _err_message(rd: dict) -> str:
+    err = rd.get("error")
+    if isinstance(err, dict):
+        return str(err.get("message") or "")
+    if isinstance(err, str):
+        return err
+    return str(rd.get("message") or "")
+
+
+def _is_breaker_open(rd: dict) -> bool:
+    msg = _err_message(rd).lower()
+    return "circuit breaker" in msg and "is open" in msg
 
 
 def main() -> int:
@@ -93,8 +119,10 @@ def main() -> int:
         "failed_rate_limited": 0,
         "failed_not_configured": 0,
         "failed_other": 0,
+        "skipped_budget": 0,
         "throttle_retries_used": 0,
     }
+    deadline = time.monotonic() + BUDGET_SECONDS
 
     async def translate_one(i: int, p: str) -> tuple[str | None, str]:
         """Translate one paragraph. Returns (translated_or_None, outcome_code)."""
@@ -119,15 +147,25 @@ def main() -> int:
                     file=sys.stderr,
                 )
                 return None, "not_configured"
-            if "RATE_LIMIT" in code and attempt < THROTTLE_RETRIES:
-                wait = min(THROTTLE_BACKOFF_MAX, THROTTLE_BACKOFF * (2 ** attempt))
+            breaker_open = _is_breaker_open(rd)
+            throttled = "RATE_LIMIT" in code or breaker_open
+            wait = min(THROTTLE_BACKOFF_MAX, THROTTLE_BACKOFF * (2 ** attempt))
+            if breaker_open:
+                wait = max(wait, BREAKER_RESET_SECONDS)
+            if throttled and attempt < THROTTLE_RETRIES:
+                if time.monotonic() + wait > deadline:
+                    print(f"  [{i+1}] throttle retry would exceed the regen budget "
+                          f"({BUDGET_SECONDS:.0f}s) — giving up on this paragraph",
+                          file=sys.stderr)
+                    return None, "rate_limited"
                 stats["throttle_retries_used"] += 1
-                print(f"  [{i+1}] rate-limited, retrying in {wait:.0f}s "
+                print(f"  [{i+1}] {'breaker open' if breaker_open else 'rate-limited'}, "
+                      f"retrying in {wait:.0f}s "
                       f"(attempt {attempt + 1}/{THROTTLE_RETRIES + 1})", file=sys.stderr)
                 await asyncio.sleep(wait)
                 continue
             print(f"  [{i+1}] failed: {err[:60]}", file=sys.stderr)
-            return None, "rate_limited" if "RATE_LIMIT" in code else code
+            return None, "rate_limited" if throttled else code
         return None, "rate_limited"
 
     async def translate_all() -> list[str]:
@@ -135,6 +173,10 @@ def main() -> int:
         for i, p in enumerate(paragraphs):
             if i > 0 and PACE_SECONDS > 0:
                 await asyncio.sleep(PACE_SECONDS)
+            if time.monotonic() > deadline:
+                stats["skipped_budget"] += 1
+                results.append(p)
+                continue
             translated, outcome = await translate_one(i, p)
             if translated is not None:
                 results.append(translated)
@@ -163,6 +205,7 @@ def main() -> int:
     meta = {
         **stats,
         "pace_seconds": PACE_SECONDS,
+        "budget_seconds": BUDGET_SECONDS,
         "throttle_retries": THROTTLE_RETRIES,
         "throttle_backoff_seconds": THROTTLE_BACKOFF,
         "chinese_chars": chinese,
