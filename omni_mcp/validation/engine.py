@@ -84,6 +84,14 @@ _FAKE_ECHO_RE = re.compile(r"^\[[A-Za-z][A-Za-z0-9_-]*\] ", re.MULTILINE)
 #: matches; ``\b429\b`` keeps ``14290`` out.
 _RATE_LIMIT_RE = re.compile(r"RateLimitError|\b429\b", re.IGNORECASE)
 
+#: Retry policy for a transient 429 (issue #270): a throttled step is
+#: re-dispatched with exponential backoff before it is recorded as
+#: ``throttled``.  Overridable so CI and hermetic tests control the wait.
+_THROTTLE_RETRIES_ENV = "OMNI_VALIDATION_THROTTLE_RETRIES"
+_THROTTLE_BACKOFF_ENV = "OMNI_VALIDATION_THROTTLE_BACKOFF_SECONDS"
+_THROTTLE_RETRIES_DEFAULT = 2
+_THROTTLE_BACKOFF_DEFAULT = 2.0
+
 
 @dataclasses.dataclass
 class ScenarioResult:
@@ -389,6 +397,22 @@ def _is_throttled(actual: dict[str, Any]) -> bool:
     )
 
 
+def _throttle_retry_policy(env: Mapping[str, str] | None) -> tuple[int, float]:
+    """Return ``(retries, backoff_seconds)`` for a throttled step."""
+    source: Mapping[str, str] = env if env is not None else os.environ
+    try:
+        retries = int(source.get(_THROTTLE_RETRIES_ENV, _THROTTLE_RETRIES_DEFAULT))
+    except (TypeError, ValueError):
+        retries = _THROTTLE_RETRIES_DEFAULT
+    try:
+        backoff = float(
+            source.get(_THROTTLE_BACKOFF_ENV, _THROTTLE_BACKOFF_DEFAULT)
+        )
+    except (TypeError, ValueError):
+        backoff = _THROTTLE_BACKOFF_DEFAULT
+    return max(0, retries), max(0.0, backoff)
+
+
 def _step_status(
     known_gap: bool,
     passed: bool,
@@ -445,19 +469,35 @@ def _execute_step(
     docstring).  *step_timeout* (the ``--step-timeout`` cap) is forwarded to
     the ``cli``/``python`` adapters (issue #176).
     """
-    try:
-        sr = dispatch_step(step, env, step_timeout)
-    except Exception as exc:  # undeclared surface etc. — fail loudly, never fake
-        sr = StepResult(
-            surface=f"{step.get('kind')}: (dispatch error)",
-            real_call=str(step),
-            expect=dict(step.get("expect") or {}),
-            actual={"success": False, "error": str(exc)},
-            artifact_to_show=None,
-            standard=step.get("standard"),
-            duration_seconds=0.0,
-        )
-    grade = grade_step(step.get("expect"), sr.actual)
+    retries_allowed, backoff_base = _throttle_retry_policy(env)
+    throttle_retries = 0
+    backoff_used: list[float] = []
+    total_duration = 0.0
+    while True:
+        try:
+            sr = dispatch_step(step, env, step_timeout)
+        except Exception as exc:  # undeclared surface etc. — fail loudly, never fake
+            sr = StepResult(
+                surface=f"{step.get('kind')}: (dispatch error)",
+                real_call=str(step),
+                expect=dict(step.get("expect") or {}),
+                actual={"success": False, "error": str(exc)},
+                artifact_to_show=None,
+                standard=step.get("standard"),
+                duration_seconds=0.0,
+            )
+        total_duration += sr.duration_seconds
+        grade = grade_step(step.get("expect"), sr.actual)
+        if (
+            grade.passed
+            or not _is_throttled(sr.actual)
+            or throttle_retries >= retries_allowed
+        ):
+            break
+        delay = backoff_base * (2 ** throttle_retries)
+        throttle_retries += 1
+        backoff_used.append(delay)
+        time.sleep(delay)
     known_gap = bool(step.get("known_gap"))
     timed_out = bool(sr.actual.get("timeout"))
     throttled = not grade.passed and _is_throttled(sr.actual)
@@ -473,7 +513,9 @@ def _execute_step(
         "artifact_to_show": sr.artifact_to_show,
         "standard": sr.standard,
         "arguments": _step_arguments(step),
-        "duration_seconds": sr.duration_seconds,
+        "duration_seconds": total_duration + sum(backoff_used),
+        "throttle_retries": throttle_retries,
+        "throttle_backoff_seconds": backoff_used,
         "trace_id": trace_id,
         "passed": grade.passed,
         "known_gap": known_gap,
