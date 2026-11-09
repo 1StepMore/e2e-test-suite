@@ -95,6 +95,36 @@ steps:
       (config/default.yaml; the requires_env gate guarantees the keys are
       present). The translated XLIFF is the backfill input. Check: exit 0 +
       stdout contains "Translated".
+  - name: Assert translated XLIFF carries CJK target units
+    kind: python
+    command: |-
+      import re, sys
+      p = "/tmp/omni_val/pipeline-xliff-docx/ol_out/source.xlf"
+      try:
+          s = open(p, encoding="utf-8").read()
+          targets = re.findall(r"<target\b[^>]*>(.*?)</target>", s, re.S)
+          cjk = [t for t in targets if re.search(r"[\u4e00-\u9fff]", t)]
+          assert cjk, (
+              "translated XLIFF carries no CJK <target> units "
+              f"(targets={len(targets)}, cjk=0); the translate step likely "
+              "exhausted rate limits and silently returned an untranslated "
+              "file — check its stderr for 429"
+          )
+          print("OK: translated XLIFF carries %d CJK target unit(s)" % len(cjk))
+      except Exception as exc:
+          print("ERROR: %s" % exc)
+          sys.exit(1)
+    timeout_seconds: 60
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: translated XLIFF carries"]
+    standard: STANDARDS.md#untranslated-units
+    instructions: |-
+      Guard the translate -> backfill contract at the produce side: read the
+      translated XLIFF and require at least one CJK <target>. A 429-exhausted
+      translate that exits 0 with an untranslated file fails here with the
+      cause named, instead of surfacing as a downstream "no CJK backfilled"
+      DOCX error (e2e-test-suite#270).
   - name: Backfill translated XLIFF into the skeleton via orf apply-xliff
     kind: cli
     command: orf apply-xliff /tmp/omni_val/pipeline-xliff-docx/opp_out/source.skeleton.zip --xliff /tmp/omni_val/pipeline-xliff-docx/ol_out/source.xlf --output /tmp/omni_val/pipeline-xliff-docx/out.docx --format docx
