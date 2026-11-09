@@ -155,6 +155,27 @@ def fuzz_root(tmp_path_factory):
 ALL_CASES = generate_cases()
 
 
+def _case_param(case: FuzzCase):
+    """broken-symlink case 携带 xfail(strict)（suite#290 真漂移钉子）。
+
+    CI 实证（run 42709435378）：opp_core 对指向 allowlist 内缺失文件的断链
+    返回 True（lexists 语义），与三个壳 + orchestrator 的存在性/解析语义
+    分歧。strict 保证 core 修复后 XPASS 顶红、强制摘除本标记。
+    """
+    if case.domain == "symlink" and case.allowlist_raw.startswith("missing_"):
+        return pytest.param(
+            case,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="suite#290: opp_core 把断链当存在（lexists），与壳层/orchestrator 漂移",
+            ),
+        )
+    return case
+
+
+CASE_PARAMS = [_case_param(c) for c in ALL_CASES]
+
+
 # ---------------------------------------------------------------------------
 # DoD 2：固定种子可复现（生成两次逐项相等）
 # ---------------------------------------------------------------------------
@@ -214,6 +235,11 @@ def _expected(impl: str, case: FuzzCase, exists: bool) -> bool:
       存在即 True，缺失 False。
     - 三个壳：白名单 ∩ 存在。
     - symlink：inside → True；outside/broken → False（解析后包含性，五方共享）。
+      broken 的两处差异均有归因：orchestrator 只做解析后包含性（无存在性
+      检查，ADR 0007 Step 3b / FILE_NOT_FOUND 契约）→ 应然 True；**opp_core
+      把断链当存在（lexists 语义）→ 应然 False 但实然 True，属真漂移**
+      （suite#290，由 broken-symlink case 上的 xfail(strict) 钉住——core 修复
+      后 XPASS 会把本标记顶红，强制摘除）。
     """
     if case.domain == "symlink":
         mode = _symlink_mode(case)
@@ -221,9 +247,8 @@ def _expected(impl: str, case: FuzzCase, exists: bool) -> bool:
             return True
         if mode == "outside":
             return False
-        # broken：orchestrator 只做解析后包含性（无存在性检查）→ 指向
-        # allowlist 内缺失文件的断链仍放行；四个子模块的存在性检查 → 拒绝。
-        # 这是文档化设计差异（ADR 0007 Step 3b / FILE_NOT_FOUND 契约）。
+        # broken：orchestrator 放行（设计差异，见上）；四个子模块应然 False
+        #（opp_core 实然 True 的真漂移由 case 级 xfail(strict) 接管）。
         return impl == "omni_mcp"
     if _structurally_rejected(case):
         return False
@@ -242,7 +267,7 @@ def _expected(impl: str, case: FuzzCase, exists: bool) -> bool:
 class TestFuzzParity:
     """2400 case × 5 实现：逐 case 对文档化模型对拍 + 共享维度一致断言。"""
 
-    @pytest.mark.parametrize("case", ALL_CASES, ids=[c.case_id for c in ALL_CASES])
+    @pytest.mark.parametrize("case", CASE_PARAMS, ids=[c.case_id for c in ALL_CASES])
     def test_case(self, case: FuzzCase, fuzz_root, monkeypatch):
         root, unsupported, creation_failed = fuzz_root
         if case.case_id in unsupported:
