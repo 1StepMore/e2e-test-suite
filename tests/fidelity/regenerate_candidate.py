@@ -33,7 +33,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -213,7 +213,7 @@ def main() -> int:
         # meta whose sha does not match the candidate being scored.
         "candidate_sha256": hashlib.sha256(OUTPUT.read_bytes()).hexdigest(),
         "elapsed_seconds": round(time.monotonic() - started, 1),
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
     }
     META.parent.mkdir(parents=True, exist_ok=True)
     META.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
