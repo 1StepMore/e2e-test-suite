@@ -125,7 +125,7 @@ def _issue(number=10, labels=None, created_minutes_ago=60 * 24 * 3):
     return {
         "number": number,
         "title": "[CI红] fidelity @ main",
-        "labels": [{"name": l} for l in (labels or [])],
+        "labels": [{"name": lab} for lab in (labels or [])],
         "created_at": _ts(created_minutes_ago),
     }
 
