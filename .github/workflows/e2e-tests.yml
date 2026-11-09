@@ -241,7 +241,15 @@ jobs:
           sudo apt-get install -y pandoc
 
       - name: Install md2pptx
-        run: bash scripts/install_md2pptx.sh
+        run: |
+          # Same requirement as the ci-suite job above: md2pptx's shebang is
+          # `#!/usr/bin/env python3`, and install_md2pptx.sh's preflight
+          # rejects an interpreter that cannot `import pptx` (added in #226).
+          # setup-python@v5 ships no python-pptx, so without this line the
+          # nightly job dies here before `uv sync` -- e2e run 42604611008
+          # (2026-11-09) failed at this exact step with all later steps skipped.
+          python3 -m pip install 'python-pptx>=1.0'
+          bash scripts/install_md2pptx.sh
 
       - name: uv sync
         run: uv sync --locked
