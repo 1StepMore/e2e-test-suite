@@ -51,6 +51,10 @@ THROTTLE_BACKOFF_MAX = float(os.environ.get("FIDELITY_THROTTLE_BACKOFF_MAX_SECON
 BREAKER_RESET_SECONDS = float(os.environ.get("FIDELITY_BREAKER_RESET_SECONDS", "65"))
 # Wall-clock budget for the whole regen (default 40 min inside the 60-min job).
 BUDGET_SECONDS = float(os.environ.get("FIDELITY_REGEN_BUDGET_SECONDS", "2400"))
+# Abort after this many consecutive paragraphs exhausted all throttle retries
+# with the breaker open — the provider is saturated; grinding on would only
+# hit the job timeout (dispatch 42696707838 ran the ladder to 60+ minutes).
+ABORT_BREAKER_STREAK = int(os.environ.get("FIDELITY_ABORT_BREAKER_STREAK", "3"))
 # Inter-paragraph pacing; the local limiter refills 1 token/s at 60 RPM, so a
 # little over 1s between calls keeps the bucket from emptying.
 PACE_SECONDS = float(os.environ.get("FIDELITY_PARA_PACE_SECONDS", "1.1"))
@@ -120,6 +124,7 @@ def main() -> int:
         "failed_not_configured": 0,
         "failed_other": 0,
         "skipped_budget": 0,
+        "skipped_breaker_abort": 0,
         "throttle_retries_used": 0,
     }
     deadline = time.monotonic() + BUDGET_SECONDS
@@ -157,7 +162,7 @@ def main() -> int:
                     print(f"  [{i+1}] throttle retry would exceed the regen budget "
                           f"({BUDGET_SECONDS:.0f}s) — giving up on this paragraph",
                           file=sys.stderr)
-                    return None, "rate_limited"
+                    return None, "breaker" if breaker_open else "rate_limited"
                 stats["throttle_retries_used"] += 1
                 print(f"  [{i+1}] {'breaker open' if breaker_open else 'rate-limited'}, "
                       f"retrying in {wait:.0f}s "
@@ -165,11 +170,14 @@ def main() -> int:
                 await asyncio.sleep(wait)
                 continue
             print(f"  [{i+1}] failed: {err[:60]}", file=sys.stderr)
+            if breaker_open:
+                return None, "breaker"
             return None, "rate_limited" if throttled else code
         return None, "rate_limited"
 
     async def translate_all() -> list[str]:
         results: list[str] = []
+        breaker_streak = 0
         for i, p in enumerate(paragraphs):
             if i > 0 and PACE_SECONDS > 0:
                 await asyncio.sleep(PACE_SECONDS)
@@ -181,14 +189,32 @@ def main() -> int:
             if translated is not None:
                 results.append(translated)
                 stats["translated"] += 1
+                breaker_streak = 0
                 if (i + 1) % 5 == 0:
                     print(f"  [{i+1}/{len(paragraphs)}] done")
             elif outcome == "not_configured":
                 stats["failed_not_configured"] += 1
                 break  # deterministic — remaining paragraphs cannot succeed
-            elif outcome == "rate_limited":
+            elif outcome in ("rate_limited", "breaker"):
                 stats["failed_rate_limited"] += 1
                 results.append(p)
+                if outcome == "breaker":
+                    breaker_streak += 1
+                    if breaker_streak >= ABORT_BREAKER_STREAK:
+                        remaining = len(paragraphs) - (i + 1)
+                        stats["skipped_breaker_abort"] = remaining
+                        results.extend(paragraphs[i + 1:])
+                        print(
+                            f"  ABORT: {breaker_streak} consecutive paragraphs exhausted "
+                            f"all throttle retries with the translation breaker open — "
+                            f"provider saturated (environment gap, not a quality "
+                            f"verdict). Skipping the remaining {remaining} paragraphs; "
+                            f"the score step will report unconfigured.",
+                            file=sys.stderr,
+                        )
+                        break
+                else:
+                    breaker_streak = 0
             else:
                 stats["failed_other"] += 1
                 results.append(p)
