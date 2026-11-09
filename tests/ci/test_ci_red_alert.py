@@ -67,6 +67,15 @@ def test_same_run_recorded_once():
     assert action == "skip" and cid == 100 and "already recorded" in reason
 
 
+def test_issue_body_checks_carry_run_id_for_idempotence():
+    """The open path records the run id in the issue body; the body-check the
+    runner does must treat that as 'already recorded' (suite#287 catch)."""
+    body = ci_red_alert.build_issue_body(
+        "fidelity", "main", 42589215258, "http://run", "a1c2c89", "cron", "job", "log",
+    )
+    assert "run: `42589215258`" in body
+
+
 def test_within_24h_merges_into_existing_comment():
     comments = [_bot_comment(3 * 60, f"{MARKER}\n- run `41` — job x — url\n")]
     action, cid, _ = ci_red_alert.throttle_decision(comments, 42, NOW)
@@ -77,6 +86,17 @@ def test_after_24h_posts_new_comment():
     comments = [_bot_comment(25 * 60, f"{MARKER}\n- run `41` — job x — url\n")]
     action, cid, _ = ci_red_alert.throttle_decision(comments, 42, NOW)
     assert action == "comment" and cid is None
+
+
+def test_run_id_in_older_comment_is_not_shadowed_by_newer_marker():
+    """suite#287 rehearsal catch: the newest marker comment (e.g. a keep-open
+    note) must not hide the older comment that already records the run."""
+    comments = [
+        _bot_comment(30, f"{MARKER}\n绿跑在案，保持开启。\n"),
+        _bot_comment(90, f"{MARKER}\n- run `42` — job x — url\n"),
+    ]
+    action, cid, reason = ci_red_alert.throttle_decision(comments, 42, NOW)
+    assert action == "skip" and cid == 100 and "already recorded" in reason
 
 
 def test_human_comments_do_not_count_toward_throttle():

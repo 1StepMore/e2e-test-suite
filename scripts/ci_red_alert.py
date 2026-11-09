@@ -123,20 +123,26 @@ def throttle_decision(
     """Decide how to record this failed run on an existing issue.
 
     Returns (action, comment_id, reason) where action is one of
-    "skip" (run already recorded), "edit" (append run id to the recent bot
-    comment), "comment" (24h window elapsed — new bot comment).
+    "skip" (run already recorded on ANY bot comment), "edit" (append run id
+    to the recent bot comment), "comment" (24h window elapsed — new bot
+    comment). The run-id scan covers every bot comment, newest first: a
+    newer marker comment without the run id (e.g. a keep-open note) must not
+    shadow the older comment that already records it.
     """
     window = timedelta(hours=24)
+    newest_marker: dict | None = None
     for comment in bot_comments:  # newest first
         body = comment.get("body") or ""
         if ALERT_MARKER not in body:
             continue
+        if newest_marker is None:
+            newest_marker = comment
         if re.search(rf"\brun `{run_id}\b", body) or f"run `{run_id}`" in body:
             return "skip", comment["id"], "run already recorded (same-run throttle)"
-        created = _parse_ts(comment.get("created_at"))
+    if newest_marker is not None:
+        created = _parse_ts(newest_marker.get("created_at"))
         if created is not None and now - created < window:
-            return "edit", comment["id"], "within 24h — merge into the existing bot comment"
-        break  # newest bot comment is older than the window
+            return "edit", newest_marker["id"], "within 24h — merge into the existing bot comment"
     return "comment", None, "no recent bot comment — posting one"
 
 
@@ -403,6 +409,13 @@ def handle_run(gh: GhClient, run_id: int, replay: bool = False) -> int:
         return 0
 
     num = existing["number"]
+    # Same-run idempotence covers the issue BODY too: the open path records
+    # the run id there (as `run: \`<id>\``), and only-comment checking would
+    # double-record the first replayed failure (suite#287 rehearsal catch).
+    issue_body = existing.get("body") or ""
+    if f"run `{run_id}`" in issue_body or f"run: `{run_id}`" in issue_body:
+        _summary(f"nightly-alert: run `{run_id}` already recorded on #{num} (issue body) — skip")
+        return 0
     comments = sorted(
         gh.issue_comments(num),
         key=lambda c: c.get("created_at") or "",
@@ -440,10 +453,12 @@ def _handle_green(
     merged = [pr for pr in gh.merged_prs() if pr.get("merged_at")]
     close, reason = close_decision(existing, labels, merged, info)
     if close:
-        gh.close_issue(num, f"{ALERT_MARKER}\n自动关闭：{reason}\n绿跑: {run_url}\n")
+        gh.close_issue(num, f"自动关闭：{reason}\n绿跑: {run_url}\n")
         _summary(f"nightly-alert: closed #{num} — {reason}")
     else:
-        gh.comment(num, f"{ALERT_MARKER}\n绿跑 `{run_id}` 在案，但未满足自动关条件：{reason}。保持开启。\n")
+        # No ALERT_MARKER here: green-run notes are not failure records and
+        # must not participate in the failure-throttle window.
+        gh.comment(num, f"绿跑 `{run_id}` 在案，但未满足自动关条件：{reason}。保持开启。\n")
         _summary(f"nightly-alert: kept #{num} open — {reason}")
     return 0
 
