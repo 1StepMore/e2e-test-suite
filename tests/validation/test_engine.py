@@ -605,10 +605,11 @@ steps:
 # ---------------------------------------------------------------------------
 
 
-def test_rate_limited_cli_step_status_throttled(tmp_path):
+def test_rate_limited_cli_step_status_throttled(tmp_path, monkeypatch):
     """A failed cli step whose stderr names a 429/RateLimitError is
     ``throttled``, not a bare assertion failure — and the scenario still
     fails (throttling is never a pass)."""
+    monkeypatch.setenv("OMNI_VALIDATION_THROTTLE_RETRIES", "0")
     _write(tmp_path, "throttled.yaml", """
 name: throttled
 description: "router exhausted the rate-limit retry chain"
@@ -633,6 +634,8 @@ def test_rate_limited_mcp_record_status_throttled(tmp_path, monkeypatch):
     """An in-process mcp step carries the exception text in ``error`` — a
     429 there is throttled too."""
     import omni_mcp.validation.engine as engine
+
+    monkeypatch.setenv("OMNI_VALIDATION_THROTTLE_RETRIES", "0")
 
     _write(tmp_path, "throttled-mcp.yaml", """
 name: throttled-mcp
@@ -1150,3 +1153,143 @@ def test_dirs_to_repo_keys_single_repo_run_stays_precise():
 
     assert _dirs_to_repo_keys(["Omni_Pre_Processor/scenarios"]) == ["suite", "opp"]
     assert _dirs_to_repo_keys(["Omni_Re_Formatter/scenarios"]) == ["suite", "orf"]
+
+
+# ---------------------------------------------------------------------------
+# Throttle retry policy (issue #270)
+# ---------------------------------------------------------------------------
+
+
+def _throttle_scenario(tmp_path):
+    _write(tmp_path, "retry.yaml", """
+name: retry
+description: "transient 429 on the judge step"
+steps:
+  - name: "judge under rate limit"
+    kind: mcp
+    tool: ping
+    arguments: {}
+    expect:
+      success: true
+""")
+
+
+def _step_result(step, *, success, error=None, duration=0.01):
+    return StepResult(
+        surface="mcp: ping",
+        real_call="ping({})",
+        expect=dict(step.get("expect") or {}),
+        actual={"success": success, **({"error": error} if error else {})},
+        artifact_to_show=None,
+        standard=step.get("standard"),
+        duration_seconds=duration,
+    )
+
+
+def test_throttled_step_retries_then_passes(tmp_path, monkeypatch):
+    """One transient 429 is retried with backoff; the step passes and the
+    retry is visible in the record."""
+    import omni_mcp.validation.engine as engine
+
+    _throttle_scenario(tmp_path)
+    calls = []
+
+    def fake_dispatch(step, env=None, step_timeout=None):
+        calls.append(1)
+        if len(calls) == 1:
+            return _step_result(
+                step, success=False,
+                error="litellm.RateLimitError: Error code: 429",
+            )
+        return _step_result(step, success=True)
+
+    sleeps = []
+    monkeypatch.setattr(engine, "dispatch_step", fake_dispatch)
+    monkeypatch.setattr(engine.time, "sleep", sleeps.append)
+
+    sc = run_scenarios(
+        tmp_path, persist=False,
+        env={
+            "OMNI_VALIDATION_THROTTLE_RETRIES": "2",
+            "OMNI_VALIDATION_THROTTLE_BACKOFF_SECONDS": "0.5",
+        },
+    ).scenarios[0]
+
+    rec = sc.steps[0]
+    assert len(calls) == 2
+    assert sleeps == [pytest.approx(0.5)]
+    assert rec["status"] == "passed"
+    assert rec["throttle_retries"] == 1
+    assert rec["throttle_backoff_seconds"] == [pytest.approx(0.5)]
+    assert sc.status == "passed"
+
+
+def test_throttled_step_exhausts_retries_then_reports_throttled(
+    tmp_path, monkeypatch
+):
+    """With the retry budget exhausted the step stays ``throttled`` — never
+    a pass — and every backoff delay is recorded."""
+    import omni_mcp.validation.engine as engine
+
+    _throttle_scenario(tmp_path)
+    calls = []
+
+    def fake_dispatch(step, env=None, step_timeout=None):
+        calls.append(1)
+        return _step_result(
+            step, success=False,
+            error="litellm.RateLimitError: Error code: 429",
+        )
+
+    sleeps = []
+    monkeypatch.setattr(engine, "dispatch_step", fake_dispatch)
+    monkeypatch.setattr(engine.time, "sleep", sleeps.append)
+
+    sc = run_scenarios(
+        tmp_path, persist=False,
+        env={
+            "OMNI_VALIDATION_THROTTLE_RETRIES": "2",
+            "OMNI_VALIDATION_THROTTLE_BACKOFF_SECONDS": "1.0",
+        },
+    ).scenarios[0]
+
+    rec = sc.steps[0]
+    assert len(calls) == 3
+    assert sleeps == [pytest.approx(1.0), pytest.approx(2.0)]
+    assert rec["status"] == "throttled"
+    assert rec["throttle_retries"] == 2
+    assert rec["throttle_backoff_seconds"] == [
+        pytest.approx(1.0), pytest.approx(2.0),
+    ]
+    assert sc.status == "failed"
+
+
+def test_non_throttle_failure_is_not_retried(tmp_path, monkeypatch):
+    """An ordinary assertion failure is never retried."""
+    import omni_mcp.validation.engine as engine
+
+    _throttle_scenario(tmp_path)
+    calls = []
+
+    def fake_dispatch(step, env=None, step_timeout=None):
+        calls.append(1)
+        return _step_result(step, success=False, error="assertion mismatch")
+
+    sleeps = []
+    monkeypatch.setattr(engine, "dispatch_step", fake_dispatch)
+    monkeypatch.setattr(engine.time, "sleep", sleeps.append)
+
+    sc = run_scenarios(
+        tmp_path, persist=False,
+        env={
+            "OMNI_VALIDATION_THROTTLE_RETRIES": "2",
+            "OMNI_VALIDATION_THROTTLE_BACKOFF_SECONDS": "0.5",
+        },
+    ).scenarios[0]
+
+    rec = sc.steps[0]
+    assert len(calls) == 1
+    assert sleeps == []
+    assert rec["status"] == "failed"
+    assert rec["throttle_retries"] == 0
+    assert sc.status == "failed"
