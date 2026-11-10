@@ -182,4 +182,5 @@ Configured in `.pre-commit-config.yaml` at the project root (14 hooks; the root 
 | User journeys (User role) | `docs/user/` |
 | Role contracts / expectations / audit trail | `.agents/` (`roles/`, `expectations/`, `audit/`) |
 | Retired docs (archive) | `docs/archive/` |
+| Debt ledger (accepted gaps; registered by suite#263) | `ACCEPTED_GAPS.md` |
 | Full change-impact map | `.opencode/skills/omni-docmap/SKILL.md` |
