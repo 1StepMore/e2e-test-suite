@@ -1,0 +1,83 @@
+name: chain-error-readability
+description: "Agent-level error readability: every wrong-parameter call answers with WHICH parameter is wrong AND how to fix it (param name in the message, valid values or the recovery hint), never a bare traceback."
+level: agent-user
+category: agent-surface
+tier: 1
+requires_env:
+  - MCP_ALLOWED_DIRECTORIES
+instructions: |
+  Issue e2e-test-suite#292, chain type 5: when an agent passes a wrong
+  parameter, the error must carry (a) which parameter/value was rejected and
+  (b) how to correct it — an agent cannot iterate on "Something went wrong".
+  Three real wrong calls across two modules, each asserted on its message
+  CONTENT: ORF apply_md with neither input_md nor content (the message names
+  both parameters and the two acceptable shapes), ORF apply_md with an
+  unsupported target_format (the message names the bad value, lists every
+  valid format, and says which flag to use), and OL translate_md_text with a
+  missing required field (pydantic names the field and the shape of the
+  problem). No step may leak a raw traceback.
+
+steps:
+  - name: 'ORF apply_md without input_md or content names both parameters and the fix'
+    kind: python
+    command: |-
+      import json, sys
+      sys.path.insert(0, "Omni_Re_Formatter/src")
+      from orf.mcp.server import apply_md
+      r = json.loads(apply_md(target_format="html", output_path="/tmp/omni-chain-readability/out.html"))
+      assert r.get("success") is False, "expected denial"
+      msg = json.dumps(r, ensure_ascii=False)
+      assert "input_md" in msg and "content" in msg, "message does not name the missing parameters: %s" % msg[:300]
+      assert "required" in msg, "message does not say what is required"
+      assert "Traceback" not in msg, "raw traceback leaked to the agent"
+      print("OK: MISSING_INPUT names input_md/content + requirement")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: MISSING_INPUT names input_md/content + requirement"]
+    standard: STANDARDS.md#error-clarity
+    instructions: 'Wrong call: neither input_md nor content given. The structured payload must name BOTH parameter names and state the requirement ("Either input_md (path) or content (inline markdown) is required") — the agent knows exactly what to add. Check: exit 0 + OK marker.'
+  - name: 'ORF apply_md with an unsupported format names the value, the parameter, and the valid list'
+    kind: python
+    command: |-
+      import json, os, sys
+      sys.path.insert(0, "Omni_Re_Formatter/src")
+      os.makedirs("/tmp/omni-chain-readability", exist_ok=True)
+      open("/tmp/omni-chain-readability/sample.md", "w", encoding="utf-8").write("# hello\n\nworld\n")
+      from orf.mcp.server import apply_md
+      r = json.loads(apply_md(input_md="/tmp/omni-chain-readability/sample.md", target_format="doc", output_path="/tmp/omni-chain-readability/out.html"))
+      assert r.get("success") is False, "expected denial"
+      msg = json.dumps(r, ensure_ascii=False)
+      assert "'doc' is not one of" in msg, "message does not name the rejected value: %s" % msg[:300]
+      assert "--target-format" in msg, "message does not name the offending parameter"
+      assert "docx" in msg and "html" in msg, "message does not carry the valid-format list"
+      assert "Traceback" not in msg, "raw traceback leaked to the agent"
+      print("OK: unsupported-format names value + parameter + valid list")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: unsupported-format names value + parameter + valid list"]
+    standard: STANDARDS.md#error-clarity
+    instructions: 'Wrong call: target_format="doc" (not a supported format; the real file lands the call at the CLI''s argument validation, which is what the MCP surface exposes). The error must name the rejected value (''doc'' is not one of ...), the offending parameter (--target-format), and carry the valid-format list. Check: exit 0 + OK marker.'
+  - name: 'OL translate_md_text with a missing required field names the field'
+    kind: python
+    command: |-
+      import sys
+      sys.path.insert(0, "Omni_Localizer/src")
+      from ol_mcp.tools import TranslateInput
+      try:
+          TranslateInput(source_lang="en", target_lang="zh")
+      except Exception as e:
+          text = str(e)
+          assert "Field required" in text, "pydantic did not flag the missing field: %s" % text[:200]
+          assert "content" in text, "the missing field name is not in the error: %s" % text[:200]
+          print("OK: pydantic names the missing 'content' field")
+          sys.exit(0)
+      print("ERROR: missing-field input was silently accepted")
+      sys.exit(1)
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: pydantic names the missing 'content' field"]
+    standard: STANDARDS.md#error-clarity
+    instructions: 'Wrong shape: TranslateInput without the required content field. The schema validation must reject it naming the field (pydantic "Field required" + field name), never silently default. Check: exit 0 + OK marker.'
