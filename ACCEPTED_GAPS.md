@@ -1,5 +1,11 @@
 # Accepted Gaps — Omni Suite
 
+> **Debt ledger（债务台账）— 正式登记（suite#263）**：本文件是 Omni Suite 的**债务台账**：
+> 每一条 consciously accepted tradeoff / known limitation（真债与结构性拒绝 alike）在此登记，
+> 表内 `Accepted` 列注明裁定来源与日期。报告口径（如 nightly `gap_units`、
+> `structural_refusals` 呈现桶）只做呈现，**债务核销必须以本文件的条目变动为准**。
+> 登记依据：e2e-test-suite#263 Owner 裁决「保留并在 docs/dev/ 或契约中显式登记为债务台账」。
+
 This file documents consciously accepted tradeoffs and known limitations.
 Anything NOT listed here is expected to have an automated invariant (test or CI gate).
 
