@@ -284,6 +284,20 @@ ci:
   status: active
   supersedes: ''
   note: tier-2/3; unconfigured without keys is a distinct status, never a pass
+- id: ci-red-alert
+  title: CI red alert (schedule failure -> deduped issue)
+  group: nightly-alert.yml
+  command: python scripts/ci_red_alert.py handle-run
+  files_scope: workflow_run/dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: 'suite#274/#275: alerts on schedule-triggered failures of the three monitored
+    workflows; environment-red failures stay summary-only; auto-close needs merged
+    fix PR + a later green run; pinned/on-hold/owner:master never auto-close'
 - id: fidelity-gate
   title: Fidelity gate
   group: fidelity.yml

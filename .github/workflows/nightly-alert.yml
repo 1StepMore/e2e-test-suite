@@ -1,0 +1,52 @@
+name: nightly-alert
+
+# suite#274 + #275: scheduled nightly failures must produce a deduped,
+# throttled tracker signal instead of staying red unnoticed. This workflow
+# watches the three scheduled workflows and runs scripts/ci_red_alert.py,
+# which owns every decision (dedupe / 24h throttle / environment-red filter /
+# evidence-gated auto-close). It carries no gate logic and changes nothing.
+
+on:
+  workflow_run:
+    workflows:
+      - "Validation Framework"
+      - "fidelity"
+      - "Omni Suite E2E Tests"
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run id to process — a failed schedule run opens/updates its [CI红] issue; a green run of a monitored workflow evaluates auto-close (controlled-failure testing, suite#274 DoD)"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  ci-red-alert:
+    name: CI red alert (dedupe/throttle/auto-close)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Process completed run (workflow_run event)
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python scripts/ci_red_alert.py handle-run "${{ github.event.workflow_run.id }}"
+      - name: Process dispatched run id (controlled replay)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python scripts/ci_red_alert.py handle-run "${{ inputs.run_id }}" --replay
