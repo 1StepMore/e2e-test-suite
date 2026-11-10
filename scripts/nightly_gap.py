@@ -84,6 +84,53 @@ def is_exempt(reason: str) -> bool:
     return any(pat in reason for pat in EXEMPT_SKIP_REASONS)
 
 
+# ---------------------------------------------------------------------------
+# 结构性拒绝（suite#293）——**只做呈现口径，不改任何判定**。
+#
+# 「结构性拒绝」= 按设计不可能做的格子：每一个 `xliff2*` converter 都是
+# same-container re-injector —— 读骨架、改文本节点、原容器重打包，骨架即
+# 目标格式，真跨格式需要"中性模型/渲染"阶段。依据：ACCEPTED_GAPS.md
+# 「Why the cross-format bucket is structural」节（2026-10-10 nightly 的
+# 58 格 = 29×2 通道全在此桶）。
+#
+# ⚠️ 这些格子**仍全额计入 needs_cleanup / gap_units**（退出码不变）——
+# 把它们挪进 EXEMPT_SKIP_REASONS 等于用指标变化掩盖真债（ACCEPTED_GAPS.md
+# 明确拒绝）。本分类只是把「结构性拒绝」和「真债」在报告里分开呈现，
+# 回答「这缺口该不该追」；真债（如 pandoc 缺装、缺生产者）**不得**进此桶。
+STRUCTURAL_REFUSAL_PATTERNS = (
+    "XLIFF cross-format not supported by ORF converters",
+)
+STRUCTURAL_REFUSAL_CITATION = "ACCEPTED_GAPS.md「Why the cross-format bucket is structural」"
+STRUCTURAL_REFUSAL_CORRECT_PATH = "orf apply-md --target-format <fmt>（MD 通道 16 输出即中性模型/渲染阶段）"
+
+
+def is_structural_refusal(reason: str) -> bool:
+    """跳过理由是否属于「按设计不可能做」的结构性拒绝（只影响呈现，不影响判定）。"""
+    return any(pat in reason for pat in STRUCTURAL_REFUSAL_PATTERNS)
+
+
+def collect_structural_refusals(cells: list) -> list[dict]:
+    """从 matrix.json cells 里收集结构性拒绝格子，逐格附原因与正确路径。
+
+    每项：{"inp", "outp", "path", "reason", "citation", "correct_path"}。
+    """
+    out: list[dict] = []
+    for c in cells:
+        if c.get("status") != "skip":
+            continue
+        reason = (c.get("skip_reason") or c.get("detail") or "").strip()
+        if is_structural_refusal(reason):
+            out.append({
+                "inp": c.get("inp"),
+                "outp": c.get("outp"),
+                "path": c.get("path"),
+                "reason": reason[:60],
+                "citation": STRUCTURAL_REFUSAL_CITATION,
+                "correct_path": STRUCTURAL_REFUSAL_CORRECT_PATH,
+            })
+    return out
+
+
 _NIGHTLY_BASE = REPO / "test_artifacts" / "nightly" / "base.json"
 
 # 账本新鲜度窗口（小时）：超过它说明跨仓编排的 base.json 已过期，
@@ -426,6 +473,12 @@ def main(argv: list[str] | None = None) -> int:
                 _ch_names[i], _ch_names[j])
     divergence = len(divergent_cells)
 
+    # —— 结构性拒绝（suite#293）：只做呈现口径。判定算式已在上文算完，
+    #    本分类不回写任何计数 —— needs_cleanup / gap_units 原样。 ——
+    structural_by_ch = {n: collect_structural_refusals(cells)
+                        for n, cells in _cells_by_ch.items()}
+    structural_total = sum(len(v) for v in structural_by_ch.values())
+
     # —— 两个口径，物理分开 ——
     # 1) DoD 口径（判定与退出码用它）：gap = fail 合计 + Σ_通道 (skipped − exempt)
     #    即「还需清理的跳过格子数」——夹具内容依赖的豁免项不算能力差距。
@@ -488,6 +541,17 @@ def main(argv: list[str] | None = None) -> int:
         "per_channel": per_channel,
         "exempt_skips": exempt_skips,
         "exempt_skip_reasons": exempt_reasons,
+        # —— 结构性拒绝（suite#293）：呈现口径。still_counted_in_gap_units
+        #    恒为 True —— 本字段绝不参与判定/退出码，只是把「按设计不可能做」
+        #    和「真债」在报告里分开（ACCEPTED_GAPS.md 拒绝挪入豁免表）。
+        "structural_refusals": {
+            "total": structural_total,
+            "still_counted_in_gap_units": True,
+            "citation": STRUCTURAL_REFUSAL_CITATION,
+            "correct_path": STRUCTURAL_REFUSAL_CORRECT_PATH,
+            "per_channel": {n: {"count": len(v), "cells": v}
+                            for n, v in structural_by_ch.items()},
+        },
         "run_options": {"subset": args.subset, "corpus": args.corpus,
                         "fidelity": args.fidelity},
         "channels": channels,
@@ -590,6 +654,20 @@ def main(argv: list[str] | None = None) -> int:
             detail = "、".join(f"{k} ×{v}" for k, v in
                               sorted(er.items(), key=lambda kv: -kv[1]))
             md.append(f"  - {name} 豁免明细：{detail}")
+    # —— 结构性拒绝（suite#293）：每格附原因与正确路径；不改判定 ——
+    if structural_total:
+        md.append("- 结构性拒绝（structural_refusals）："
+                  + " · ".join(f"{n} {len(structural_by_ch.get(n, []))}" for n in channels)
+                  + f" = **{structural_total} 格** —— 按设计不可能做：每一个 `xliff2*` "
+                  "converter 都是 same-container re-injector（骨架即目标格式，真跨格式需要"
+                  f"中性模型/渲染阶段），依据 {STRUCTURAL_REFUSAL_CITATION}。"
+                  "**仍全额计入 gap_units —— 本节只是呈现口径，不改判定与退出码**"
+                  f"（把这类格子挪进豁免表等于用指标变化掩盖真债）；"
+                  f"正确路径：{STRUCTURAL_REFUSAL_CORRECT_PATH}")
+        for name in channels:
+            for ref in structural_by_ch.get(name, []):
+                md.append(f"  - {name} `{ref['inp']}→{ref['outp']} ({ref['path']})`："
+                          f"{ref['reason']} → {ref['correct_path']}")
     for name, c in channels.items():
         sup = c.get("options_supported") or {}
         for opt in ("subset", "corpus", "fidelity"):
