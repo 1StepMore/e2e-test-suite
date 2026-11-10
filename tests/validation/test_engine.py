@@ -13,6 +13,7 @@ persistence (guide §3.1 phase 6, phase-6 persistence).
 import json
 import os
 import textwrap
+import time
 import uuid
 
 import pytest
@@ -1160,6 +1161,28 @@ def test_dirs_to_repo_keys_single_repo_run_stays_precise():
 # ---------------------------------------------------------------------------
 
 
+class _EngineClock:
+    """A stand-in for the ``time`` module as ``engine`` sees it.
+
+    ``monkeypatch.setattr(engine.time, "sleep", ...)`` patches the stdlib
+    ``time`` module for the WHOLE process (``engine.time`` *is* that
+    module), so a ``time.sleep`` call made by any unrelated thread or
+    library during the test window lands in the recorder and the
+    exact-sequence assertions below flake (suite#291). Replacing the
+    reference records only the sleeps the engine itself issues; every other
+    attribute (``strftime``) falls through to the real module.
+    """
+
+    def __init__(self):
+        self.sleeps: list[float] = []
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+
+    def __getattr__(self, name):
+        return getattr(time, name)
+
+
 def _throttle_scenario(tmp_path):
     _write(tmp_path, "retry.yaml", """
 name: retry
@@ -1203,9 +1226,9 @@ def test_throttled_step_retries_then_passes(tmp_path, monkeypatch):
             )
         return _step_result(step, success=True)
 
-    sleeps = []
+    clock = _EngineClock()
     monkeypatch.setattr(engine, "dispatch_step", fake_dispatch)
-    monkeypatch.setattr(engine.time, "sleep", sleeps.append)
+    monkeypatch.setattr(engine, "time", clock)
 
     sc = run_scenarios(
         tmp_path, persist=False,
@@ -1217,7 +1240,7 @@ def test_throttled_step_retries_then_passes(tmp_path, monkeypatch):
 
     rec = sc.steps[0]
     assert len(calls) == 2
-    assert sleeps == [pytest.approx(0.5)]
+    assert clock.sleeps == [pytest.approx(0.5)]
     assert rec["status"] == "passed"
     assert rec["throttle_retries"] == 1
     assert rec["throttle_backoff_seconds"] == [pytest.approx(0.5)]
@@ -1241,9 +1264,9 @@ def test_throttled_step_exhausts_retries_then_reports_throttled(
             error="litellm.RateLimitError: Error code: 429",
         )
 
-    sleeps = []
+    clock = _EngineClock()
     monkeypatch.setattr(engine, "dispatch_step", fake_dispatch)
-    monkeypatch.setattr(engine.time, "sleep", sleeps.append)
+    monkeypatch.setattr(engine, "time", clock)
 
     sc = run_scenarios(
         tmp_path, persist=False,
@@ -1255,7 +1278,7 @@ def test_throttled_step_exhausts_retries_then_reports_throttled(
 
     rec = sc.steps[0]
     assert len(calls) == 3
-    assert sleeps == [pytest.approx(1.0), pytest.approx(2.0)]
+    assert clock.sleeps == [pytest.approx(1.0), pytest.approx(2.0)]
     assert rec["status"] == "throttled"
     assert rec["throttle_retries"] == 2
     assert rec["throttle_backoff_seconds"] == [
@@ -1275,9 +1298,9 @@ def test_non_throttle_failure_is_not_retried(tmp_path, monkeypatch):
         calls.append(1)
         return _step_result(step, success=False, error="assertion mismatch")
 
-    sleeps = []
+    clock = _EngineClock()
     monkeypatch.setattr(engine, "dispatch_step", fake_dispatch)
-    monkeypatch.setattr(engine.time, "sleep", sleeps.append)
+    monkeypatch.setattr(engine, "time", clock)
 
     sc = run_scenarios(
         tmp_path, persist=False,
@@ -1289,7 +1312,27 @@ def test_non_throttle_failure_is_not_retried(tmp_path, monkeypatch):
 
     rec = sc.steps[0]
     assert len(calls) == 1
-    assert sleeps == []
+    assert clock.sleeps == []
     assert rec["status"] == "failed"
     assert rec["throttle_retries"] == 0
     assert sc.status == "failed"
+
+
+def test_throttle_clock_leaves_the_stdlib_time_module_alone(monkeypatch):
+    """Regression lock for suite#291.
+
+    The throttle tests must scope their recorder to ``engine``'s ``time``
+    reference. Patching ``time.sleep`` process-wide lets any concurrent
+    sleeper (a reader thread, a library retry loop) land in the recorder and
+    flake the exact-sequence assertions above.
+    """
+    import omni_mcp.validation.engine as engine
+
+    real_sleep = time.sleep
+    clock = _EngineClock()
+    monkeypatch.setattr(engine, "time", clock)
+
+    engine.time.sleep(0.5)
+
+    assert clock.sleeps == [pytest.approx(0.5)]
+    assert time.sleep is real_sleep, "the stdlib time module was mutated"
