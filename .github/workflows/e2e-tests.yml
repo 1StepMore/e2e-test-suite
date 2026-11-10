@@ -207,8 +207,9 @@ jobs:
   # -------------------------------------------------------------------------
   # Job 2: Nightly LLM tests (slow, requires real API keys).
   # Runs on a schedule + manual dispatch.
-  # Uses the canonical OL model-pool secrets: AMD_API_KEY (priority 1,
-  # DeepSeek-V4.1-Flash), ZHIPU_API_KEY (priority 2, glm-4.7-flash).
+  # Uses the canonical OL model-pool secrets: SPARK_API_KEY (priority 1,
+  # spark-x2.6, suite#282), AMD_API_KEY (priority 2, DeepSeek-V4.1-Flash),
+  # ZHIPU_API_KEY (priority 3, glm-4.7-flash).
   # -------------------------------------------------------------------------
   nightly-llm:
     name: Nightly LLM (real)
@@ -282,6 +283,7 @@ jobs:
         run: |
           mkdir -p Omni_Localizer/config
           cat > Omni_Localizer/.env <<EOF
+          SPARK_API_KEY=${{ secrets.SPARK_API_KEY }}
           AMD_API_KEY=${{ secrets.AMD_API_KEY }}
           ZHIPU_API_KEY=${{ secrets.ZHIPU_API_KEY }}
           EOF
