@@ -131,11 +131,17 @@ def fuzz_root(tmp_path_factory):
             link = root / "allowed" / Path(case.rel).name
             if case.allowlist_raw.startswith(".."):
                 target = root / "outside" / f"target_{case.case_id}.md"
+            elif case.allowlist_raw.startswith("missing_"):
+                # broken：目标从不落盘（suite#290 修复）。此前的条件
+                # `not startswith("..")` 把 broken 形态也当 inside 落了盘，
+                # "断链"域因此被架空 —— 40 个 case 全在测"目标存在的链接"，
+                # CI 上五方一致放行、模型应然 False，被误读成 opp_core 的
+                # lexists 漂移（见 _expected 的实证注记）。
+                target = root / "allowed" / case.allowlist_raw
             else:
                 target = root / "allowed" / case.allowlist_raw
-            target.parent.mkdir(parents=True, exist_ok=True)
-            if not case.allowlist_raw.startswith(".."):
                 target.write_text("x", encoding="utf-8")  # inside 目标必须真实存在
+            target.parent.mkdir(parents=True, exist_ok=True)
             try:
                 os.symlink(target, link)
             except (OSError, NotImplementedError):
@@ -153,27 +159,7 @@ def fuzz_root(tmp_path_factory):
 
 
 ALL_CASES = generate_cases()
-
-
-def _case_param(case: FuzzCase):
-    """broken-symlink case 携带 xfail(strict)（suite#290 真漂移钉子）。
-
-    CI 实证（run 42709435378）：opp_core 对指向 allowlist 内缺失文件的断链
-    返回 True（lexists 语义），与三个壳 + orchestrator 的存在性/解析语义
-    分歧。strict 保证 core 修复后 XPASS 顶红、强制摘除本标记。
-    """
-    if case.domain == "symlink" and case.allowlist_raw.startswith("missing_"):
-        return pytest.param(
-            case,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="suite#290: opp_core 把断链当存在（lexists），与壳层/orchestrator 漂移",
-            ),
-        )
-    return case
-
-
-CASE_PARAMS = [_case_param(c) for c in ALL_CASES]
+CASE_PARAMS = list(ALL_CASES)
 
 
 # ---------------------------------------------------------------------------
@@ -236,10 +222,14 @@ def _expected(impl: str, case: FuzzCase, exists: bool) -> bool:
     - 三个壳：白名单 ∩ 存在。
     - symlink：inside → True；outside/broken → False（解析后包含性，五方共享）。
       broken 的两处差异均有归因：orchestrator 只做解析后包含性（无存在性
-      检查，ADR 0007 Step 3b / FILE_NOT_FOUND 契约）→ 应然 True；**opp_core
-      把断链当存在（lexists 语义）→ 应然 False 但实然 True，属真漂移**
-      （suite#290，由 broken-symlink case 上的 xfail(strict) 钉住——core 修复
-      后 XPASS 会把本标记顶红，强制摘除）。
+      检查，ADR 0007 Step 3b / FILE_NOT_FOUND 契约）→ 应然 True；四个子模块
+      应然 False。
+      实证注记（suite#290 收口，POSIX/WSL Python 3.13 复核）：四个子模块对
+      真断链（目标不落盘）的实然判定全部为 False —— opp_core 的存在性检查
+      是跟随链接的 ``resolved.exists()``（生产代码无 lexists），与三个壳一致。
+      此前 CI（run 42709435378）的「opp_core 应然=False 实然=True」是 fixture
+      把 broken 目标误落盘所致（见 fuzz_root 内注记），修复 fixture 后本域
+      直接按上表断言，无 xfail 钉子。
     """
     if case.domain == "symlink":
         mode = _symlink_mode(case)
