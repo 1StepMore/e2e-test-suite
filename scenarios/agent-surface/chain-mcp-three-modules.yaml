@@ -1,0 +1,125 @@
+name: chain-mcp-three-modules
+description: "Agent-level chain over MCP tool functions (no CLI): extract_document payload's md_content feeds translate_md_text, whose output feeds apply_md — proving structured parameters survive the handoffs."
+level: agent-user
+family_override: agent-user
+family_override_reason: "Agent-level chain (issue #292 type 2): the job being proven is MCP parameter handoff across modules; the final gate reuses the #opens-docx human-quality anchor purely as the end-user artifact check."
+category: agent-surface
+tier: 2
+requires_env:
+  - MCP_ALLOWED_DIRECTORIES
+requires_env_any:
+  - AMD_API_KEY
+  - ZHIPU_API_KEY
+instructions: |
+  Issue e2e-test-suite#292, chain type 2: the same three-module job as the
+  CLI chain, but every hop is a real MCP tool FUNCTION call with structured
+  arguments — nothing is re-parsed from rendered markdown. What is asserted
+  is exactly the thing that breaks silently in agent use: the payload of
+  tool N must be accepted, unmodified, as the argument of tool N+1
+  (extract_document's ``md_content`` -> translate_md_text's ``content``;
+  the translation -> apply_md's ``content``). Final gate: ORF reports the
+  written output file and it exists on disk with non-empty content.
+
+steps:
+  - name: 'OPP extract_document (MCP) -> md_content'
+    kind: python
+    command: |-
+      import asyncio, json, os, sys
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      BASE = "/tmp/omni-chain-mcp"
+      os.makedirs(BASE, exist_ok=True)
+      from docx import Document
+      p = os.path.join(BASE, "source.docx")
+      if not os.path.exists(p):
+          d = Document()
+          d.add_heading("Meridian Robotics Maintenance Contract", level=1)
+          d.add_paragraph("The service window opens every Tuesday at nine.")
+          d.add_paragraph("Escalate unresolved faults to the duty engineer.")
+          d.save(p)
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import extract_document
+      r = asyncio.run(extract_document(file_path=p, output_formats="md", source_lang="en", target_lang="zh"))
+      assert r.get("success") is True, "extract_document failed: %s" % r
+      md = r["content"]["md_content"]
+      assert md and "Meridian" in md, "md_content empty or missing content"
+      open(os.path.join(BASE, "extracted.md"), "w", encoding="utf-8").write(md)
+      json.dump({"md_len": len(md)}, open(os.path.join(BASE, "hop1.json"), "w"))
+      print("OK: hop1 md_content len=%d" % len(md))
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: hop1 md_content len="]
+    standard: STANDARDS.md#tool-contract
+    instructions: 'Real MCP tool function extract_document (server state initialized exactly like `opp mcp` does). The structured payload (not a file) is the handoff artifact: md_content is written once and its length recorded. Check: exit 0 + hop1 marker with the md length.'
+  - name: 'OL translate_md_text (MCP) consumes extract_document md_content verbatim'
+    kind: python
+    command: |-
+      import asyncio, json, os, shutil, sys
+      BASE = "/tmp/omni-chain-mcp"
+      sys.path.insert(0, "Omni_Localizer/src")
+      md = open(os.path.join(BASE, "extracted.md"), encoding="utf-8").read()
+      hop1 = json.load(open(os.path.join(BASE, "hop1.json")))
+      assert len(md) == hop1["md_len"], "hop1->hop2 handoff lost bytes: %d != %d" % (len(md), hop1["md_len"])
+      cfg = os.path.join(BASE, "default.yaml")
+      if not os.path.exists(cfg):
+          shutil.copy("Omni_Localizer/config/default.yaml", cfg)
+      from ol_mcp.tools import TranslateInput, translate_md_text
+      r = asyncio.run(translate_md_text(params=TranslateInput(content=md, source_lang="en", target_lang="zh", config_path=cfg)))
+      payload = json.loads(r) if isinstance(r, str) else r
+      assert payload.get("success") is True, "translate_md_text failed: %s" % str(payload)[:400]
+      out = payload.get("content", {}).get("translated", "") or payload.get("translated", "")
+      assert out and out.strip(), "translation empty in payload keys=%s" % list(payload)
+      open(os.path.join(BASE, "translated.md"), "w", encoding="utf-8").write(out)
+      json.dump({"out_len": len(out)}, open(os.path.join(BASE, "hop2.json"), "w"))
+      print("OK: hop2 translated len=%d" % len(out))
+    timeout_seconds: 1200
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: hop2 translated len="]
+    standard: STANDARDS.md#tool-contract
+    instructions: 'The ENTIRE md_content from hop 1 goes into TranslateInput.content unchanged (length re-asserted from hop1.json — the handoff must not lose bytes). Real-LLM translation via the MCP tool function. The structured payload is inspected for the translation field, not scraped from prose. Check: exit 0 + hop2 marker with the translated length.'
+  - name: 'ORF apply_md (MCP) consumes the translation verbatim'
+    kind: python
+    command: |-
+      import json, os, sys
+      BASE = "/tmp/omni-chain-mcp"
+      sys.path.insert(0, "Omni_Re_Formatter/src")
+      out = open(os.path.join(BASE, "translated.md"), encoding="utf-8").read()
+      hop2 = json.load(open(os.path.join(BASE, "hop2.json")))
+      assert len(out) == hop2["out_len"], "hop2->hop3 handoff lost bytes: %d != %d" % (len(out), hop2["out_len"])
+      from orf.mcp.server import apply_md
+      target = os.path.join(BASE, "final.docx")
+      r = json.loads(apply_md(input_md=os.path.join(BASE, "translated.md"), target_format="docx", output_path=target))
+      payload = r
+      assert payload.get("success") is True, "apply_md failed: %s" % str(payload)[:400]
+      assert os.path.exists(target) and os.path.getsize(target) > 0, "output missing or empty"
+      print("OK: hop3 wrote %d bytes" % os.path.getsize(target))
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: hop3 wrote"]
+    standard: STANDARDS.md#tool-contract
+    instructions: 'The hop-2 translation payload is written to the allowlisted file byte-for-byte (length re-asserted from hop2.json) and the FILE PATH goes into apply_md.input_md — the MCP-structured call wraps a real file artifact, exactly how an agent bridges a payload too large for one argument. Check: exit 0 + hop3 marker with the byte count.'
+  - name: 'Final artifact opens and is non-empty'
+    kind: python
+    command: |-
+      import sys
+      from docx import Document
+      try:
+          doc = Document("/tmp/omni-chain-mcp/final.docx")
+      except Exception as e:
+          print("ERROR: final DOCX does not open: %s" % e)
+          sys.exit(1)
+      text = "\n".join(p.text for p in doc.paragraphs).strip()
+      if not text:
+          print("ERROR: final DOCX has no text content")
+          sys.exit(1)
+      print("OK: final DOCX opens, %d chars" % len(text))
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: final DOCX opens,"]
+    standard: STANDARDS.md#opens-docx
+    instructions: 'End-user gate on the MCP chain product: python-docx opens it, body non-empty. Check: exit 0 + OK marker.'

@@ -1,0 +1,85 @@
+name: chain-fail-closed-denials
+description: "Agent-level fail-closed chain: out-of-allowlist paths and unauthorized extensions are refused with structured error codes (never silent success, never a traceback) by all three modules' tool surfaces."
+level: agent-user
+category: agent-surface
+tier: 1
+requires_env:
+  - MCP_ALLOWED_DIRECTORIES
+instructions: |
+  Issue e2e-test-suite#292, chain type 3: an agent that mis-targets a path
+  must get a STRUCTURED refusal it can read and act on — an error code and a
+  message, not a raw traceback, and above all not a silent success. This
+  chain walks the same refusal through all three modules' tool surfaces:
+  ORF apply_md outside the allowlist, ORF apply_md on an executable
+  extension, and OPP extract_document outside the allowlist.
+
+steps:
+  - name: 'Provision a benign MD fixture and a blocked .exe fixture'
+    kind: python
+    command: |-
+      import os
+      BASE = "/tmp/omni-chain-failclosed"
+      os.makedirs(BASE, exist_ok=True)
+      open(os.path.join(BASE, "sample.md"), "w", encoding="utf-8").write("# Hello\n\nBody.\n")
+      open(os.path.join(BASE, "evil.exe"), "wb").write(b"MZ\x90\x00")
+      print("OK: fixtures ready")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: fixtures ready"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'Write the in-allowlist MD fixture and an executable-extension fixture under the sandbox. Check: exit 0 + OK marker.'
+  - name: 'ORF apply_md refuses a path outside the allowlist (PATH_NOT_ALLOWED)'
+    kind: python
+    command: |-
+      import json, sys
+      sys.path.insert(0, "Omni_Re_Formatter/src")
+      from orf.mcp.server import apply_md
+      r = json.loads(apply_md(input_md="/etc/hosts", target_format="html", output_path="/tmp/omni-chain-failclosed/out.html"))
+      assert r.get("success") is False, "denial expected, got success: %s" % str(r)[:200]
+      blob = json.dumps(r, ensure_ascii=False)
+      assert "Traceback" not in blob, "raw traceback leaked to the agent"
+      print("OK: denied, structured payload")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: denied, structured payload"]
+    standard: STANDARDS.md#path-security
+    instructions: 'apply_md aimed at /etc/hosts must come back success=false as a structured JSON payload (error code inside), with NO traceback text — the agent-readable refusal surface. Check: exit 0 + OK marker.'
+  - name: 'ORF apply_md refuses an executable extension'
+    kind: python
+    command: |-
+      import json, sys
+      sys.path.insert(0, "Omni_Re_Formatter/src")
+      from orf.mcp.server import apply_md
+      r = json.loads(apply_md(input_md="/tmp/omni-chain-failclosed/evil.exe", target_format="html", output_path="/tmp/omni-chain-failclosed/out.html"))
+      assert r.get("success") is False, "denial expected, got success: %s" % str(r)[:200]
+      blob = json.dumps(r, ensure_ascii=False)
+      assert "Traceback" not in blob, "raw traceback leaked to the agent"
+      print("OK: denied, structured payload")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: denied, structured payload"]
+    standard: STANDARDS.md#path-security
+    instructions: 'apply_md on a .exe input must be refused (unauthorized extension inside the allowlist) as a structured denial. Check: exit 0 + OK marker.'
+  - name: 'OPP extract_document refuses a path outside the allowlist'
+    kind: python
+    command: |-
+      import asyncio, json, sys
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import extract_document
+      r = asyncio.run(extract_document(file_path="/etc/hosts", output_formats="md"))
+      assert r.get("success") is False, "denial expected, got success: %s" % str(r)[:200]
+      blob = json.dumps(r, ensure_ascii=False)
+      assert "Traceback" not in blob, "raw traceback leaked to the agent"
+      print("OK: denied, structured payload")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: denied, structured payload"]
+    standard: STANDARDS.md#path-security
+    instructions: 'extract_document aimed at a system path must be denied with success=false in the structured payload, no traceback (server state initialized exactly like `opp mcp` does). Check: exit 0 + OK marker.'

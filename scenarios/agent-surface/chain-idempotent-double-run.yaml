@@ -1,0 +1,108 @@
+name: chain-idempotent-double-run
+description: "Agent-level idempotency: the same deterministic job run twice (OPP extract, ORF backfill) yields byte-identical artifacts, so an agent that retries after a lost response cannot corrupt state."
+level: agent-user
+category: agent-surface
+tier: 1
+requires_env:
+  - MCP_ALLOWED_DIRECTORIES
+instructions: |
+  Issue e2e-test-suite#292, chain type 6: agents retry. A retried job must
+  produce the SAME artifact shape or an agent cannot trust its own state.
+  This runs the deterministic halves of the chain — OPP extraction (no LLM)
+  and ORF MD->HTML backfill — twice on the identical input and asserts
+  byte-identical outputs (sha256 equality per artifact). The LLM-dependent
+  OL hop is deliberately excluded (non-deterministic by design; its
+  idempotency contract is the cache, covered by the CLI's own "Translated
+  (cached)" marker in the pipeline scenarios).
+
+steps:
+  - name: 'Provision the source DOCX'
+    kind: python
+    command: |-
+      import os
+      from docx import Document
+      BASE = "/tmp/omni-chain-idem"
+      os.makedirs(BASE, exist_ok=True)
+      p = os.path.join(BASE, "source.docx")
+      d = Document()
+      d.add_heading("Meridian Robotics Warranty Terms", level=1)
+      d.add_paragraph("Coverage begins on the delivery date recorded in the portal.")
+      d.add_paragraph("Consumables are excluded from the standard plan.")
+      d.save(p)
+      print("OK: fixture ready")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: fixture ready"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'One small DOCX under the sandbox. Check: exit 0 + OK marker.'
+  - name: 'OPP extraction, run 1'
+    kind: cli
+    command: opp /tmp/omni-chain-idem/source.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni-chain-idem/run1 -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'First extraction into run1/. Check: exit 0 + stderr marker.'
+  - name: 'OPP extraction, run 2 (identical input)'
+    kind: cli
+    command: opp /tmp/omni-chain-idem/source.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni-chain-idem/run2 -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'Second extraction of the SAME input into run2/. Check: exit 0 + stderr marker.'
+  - name: 'OPP run1 vs run2 artifacts are byte-identical'
+    kind: python
+    command: |-
+      import hashlib, sys
+      def h(p):
+          return hashlib.sha256(open(p, "rb").read()).hexdigest()
+      md_same = h("/tmp/omni-chain-idem/run1/source.md") == h("/tmp/omni-chain-idem/run2/source.md")
+      xlf_same = h("/tmp/omni-chain-idem/run1/source.xlf") == h("/tmp/omni-chain-idem/run2/source.xlf")
+      if not (md_same and xlf_same):
+          print("ERROR: extraction not idempotent (md_same=%s xlf_same=%s)" % (md_same, xlf_same))
+          sys.exit(1)
+      print("OK: OPP md+xlf byte-identical across runs")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: OPP md+xlf byte-identical across runs"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'sha256 of source.md and source.xlf from run1 vs run2 must match — a retried extraction must not drift. Check: exit 0 + OK marker.'
+  - name: 'ORF backfill, run 1'
+    kind: cli
+    command: orf apply-md /tmp/omni-chain-idem/run1/source.md --target-format html -o /tmp/omni-chain-idem/out1.html --no-cache
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni-chain-idem/out1.html"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'First backfill (fresh, --no-cache so run 1 cannot read stale cache). Check: exit 0 + "Created <path>".'
+  - name: 'ORF backfill, run 2'
+    kind: cli
+    command: orf apply-md /tmp/omni-chain-idem/run1/source.md --target-format html -o /tmp/omni-chain-idem/out2.html --no-cache
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["Created /tmp/omni-chain-idem/out2.html"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'Second backfill of the SAME md (--no-cache: both runs must truly convert, not serve one from cache — the strictest reading of idempotency). Check: exit 0 + "Created <path>".'
+  - name: 'ORF out1 vs out2 are byte-identical'
+    kind: python
+    command: |-
+      import hashlib, sys
+      a = hashlib.sha256(open("/tmp/omni-chain-idem/out1.html", "rb").read()).hexdigest()
+      b = hashlib.sha256(open("/tmp/omni-chain-idem/out2.html", "rb").read()).hexdigest()
+      if a != b:
+          print("ERROR: backfill not idempotent (sha %s vs %s)" % (a[:12], b[:12]))
+          sys.exit(1)
+      print("OK: ORF html byte-identical across runs")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: ORF html byte-identical across runs"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'sha256 of out1.html vs out2.html must match — two honest conversions of the same input are the same artifact. Check: exit 0 + OK marker.'

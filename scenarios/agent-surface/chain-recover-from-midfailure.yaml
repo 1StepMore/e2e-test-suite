@@ -1,0 +1,106 @@
+name: chain-recover-from-midfailure
+description: "Agent-level recovery chain: a batch referencing a nonexistent file is refused fail-closed with a structured OPP_PATH_DENIED + recovery hint (not a silent success, not a traceback); after the agent repairs the cause, the same job reruns to completion 3/3."
+level: agent-user
+category: agent-surface
+tier: 1
+requires_env:
+  - MCP_ALLOWED_DIRECTORIES
+instructions: |
+  Issue e2e-test-suite#292, chain type 4: real agent work hits a mid-job
+  failure and continues. This scenario dispatches the REAL batch_extract
+  with one nonexistent file among two valid DOCX. The shipped contract is
+  fail-closed: the whole call refuses upfront with a structured payload
+  (success=false, code OPP_PATH_DENIED, a recovery hint) — never a silent
+  partial success, never a traceback. The agent then acts on the cause
+  (creates the missing file at the intended path) and re-dispatches the
+  same job, which completes all three. Observed limitation recorded in the
+  issue (not asserted as a pass bar, not papered over): the refusal payload
+  does not name WHICH file failed validation — the agent must diff the
+  request itself; that is an agent-UX gap in OPP's batch refusal, filed as
+  an observation with this scenario's evidence.
+
+steps:
+  - name: 'Provision two healthy DOCX fixtures'
+    kind: python
+    command: |-
+      import os
+      from docx import Document
+      BASE = "/tmp/omni-chain-recover"
+      os.makedirs(BASE, exist_ok=True)
+      for i in (1, 2):
+          d = Document()
+          d.add_heading("Meridian Robotics Doc %d" % i, level=1)
+          d.add_paragraph("Section body %d with real content." % i)
+          d.save(os.path.join(BASE, "doc%d.docx" % i))
+      ghost = os.path.join(BASE, "doc3.docx")
+      if os.path.exists(ghost):
+          os.remove(ghost)
+      print("OK: 2 healthy; doc3 intentionally absent")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: 2 healthy; doc3 intentionally absent"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'Two valid DOCX under the sandbox; doc3 deliberately NOT created (it will be the mid-job failure). Check: exit 0 + OK marker.'
+  - name: 'batch_extract refuses the job fail-closed (structured denial, no silent partial)'
+    kind: python
+    command: |-
+      import asyncio, json, os, sys
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      BASE = "/tmp/omni-chain-recover"
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import batch_extract
+      r = asyncio.run(batch_extract(file_paths=[os.path.join(BASE, "doc%d.docx" % i) for i in (1, 2, 3)], output_formats="md"))
+      assert r.get("success") is False, "expected fail-closed refusal, got: %s" % str(r)[:200]
+      assert r.get("error", {}).get("code") == "OPP_PATH_DENIED", "wrong denial code: %s" % str(r)[:200]
+      hint = json.dumps(r.get("recovery", {}), ensure_ascii=False)
+      assert "use_allowed_path" in hint, "no recovery hint for the agent: %s" % hint[:200]
+      blob = json.dumps(r, ensure_ascii=False)
+      assert "Traceback" not in blob, "raw traceback leaked to the agent"
+      print("OK: fail-closed refusal with code + recovery hint")
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: fail-closed refusal with code + recovery hint"]
+    standard: STANDARDS.md#error-clarity
+    instructions: 'Real batch_extract over [doc1, doc2, doc3(absent)]: the call must refuse UPFRONT with success=false, code OPP_PATH_DENIED and a machine-readable recovery hint — the failure is explicit, the agent is not left guessing. Check: exit 0 + OK marker.'
+  - name: 'Repair the cause: create the missing DOCX at the intended path'
+    kind: python
+    command: |-
+      from docx import Document
+      p = "/tmp/omni-chain-recover/doc3.docx"
+      d = Document()
+      d.add_heading("Meridian Robotics Doc 3", level=1)
+      d.add_paragraph("Section body 3 with real content.")
+      d.save(p)
+      print("OK: doc3 created at the intended path")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: doc3 created at the intended path"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'The agent fixes what the refusal pointed at — the missing file is created at the SAME path from the refused request (no new job setup). Check: exit 0 + OK marker.'
+  - name: 'Re-dispatch the same job: all three entries succeed'
+    kind: python
+    command: |-
+      import asyncio, json, os, sys
+      sys.path.insert(0, "Omni_Pre_Processor/src")
+      BASE = "/tmp/omni-chain-recover"
+      from opp.mcp.config import load_config
+      from opp.mcp.common import _init_server
+      _init_server(load_config())
+      from opp.mcp.server import batch_extract
+      r = asyncio.run(batch_extract(file_paths=[os.path.join(BASE, "doc%d.docx" % i) for i in (1, 2, 3)], output_formats="md"))
+      assert r.get("success") is True, "rerun refused: %s" % str(r)[:300]
+      results = r.get("content", {}).get("results") or r.get("results") or []
+      statuses = [bool(x.get("success")) for x in results]
+      assert statuses == [True, True, True], "rerun did not complete: %s" % statuses
+      print("OK: rerun completed 3/3")
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: rerun completed 3/3"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'The SAME job re-dispatched after the repair must complete all three entries — recovery closes the loop, the earlier refusal did not poison the job. Check: exit 0 + OK marker.'

@@ -1,0 +1,97 @@
+name: chain-opp-ol-xliff-orf-full
+description: "Agent-level chain: one brief carried across all three modules via the XLIFF channel (OPP extract -> ol translate-xliff -> orf apply-xliff); the backfilled DOCX must open and carry non-empty translated text."
+level: agent-user
+family_override: agent-user
+family_override_reason: "Agent-level chain (issue #292 type 1): the job being proven is cross-module handoff; the final gate reuses the #opens-docx human-quality anchor purely as the end-user artifact check."
+category: agent-surface
+tier: 2
+requires_env:
+  - MCP_ALLOWED_DIRECTORIES
+requires_env_any:
+  - AMD_API_KEY
+  - ZHIPU_API_KEY
+instructions: |
+  Issue e2e-test-suite#292, chain type 1: prove an agent can carry ONE job
+  through the whole suite over the XLIFF channel — the per-module smokes
+  (tool-opp-*, tool-ol-*, tool-orf-*) each prove a tool answers, but nothing
+  proves the artifacts chain: OPP's XLIFF must be shaped so OL can translate
+  it, and OL's translated XLIFF + OPP's skeleton must be shaped so ORF can
+  backfill the original format. Every handoff is a real CLI run on real
+  files; the final gate is the user's: the DOCX opens and its body text is
+  non-empty (content assertions only — the human-quality bar lives in
+  scenarios/pipeline/*, this is the agent-surface bar).
+
+steps:
+  - name: 'Provision a small EN source DOCX fixture'
+    kind: python
+    command: |-
+      import os
+      from docx import Document
+      BASE = "/tmp/omni-chain-xliff"
+      os.makedirs(BASE, exist_ok=True)
+      p = os.path.join(BASE, "source.docx")
+      d = Document()
+      d.add_heading("Meridian Robotics Field Guide", level=1)
+      d.add_paragraph("The calibration wizard runs after every sensor swap.")
+      d.add_paragraph("Store the torque log in the maintenance console.")
+      d.save(p)
+      print("OK: fixture ready")
+    timeout_seconds: 120
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: fixture ready"]
+    standard: STANDARDS.md#exit-codes
+    instructions: 'Write a small English DOCX under the sandbox /tmp/omni-chain-xliff. Check: exit 0 + OK marker.'
+  - name: 'OPP extracts DOCX to MD + XLIFF (CLI)'
+    kind: cli
+    command: opp /tmp/omni-chain-xliff/source.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni-chain-xliff/opp_out -v
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+      stderr_has: ["[INFO] Generated:"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni-chain-xliff/opp_out/source.xlf
+    instructions: 'Real OPP CLI with --target-format both: the XLIFF half is what OL consumes next. Check: exit 0 + "[INFO] Generated:" on stderr (OPP -v marker).'
+  - name: 'OL translates the XLIFF with the real LLM'
+    kind: cli
+    command: ol translate-xliff /tmp/omni-chain-xliff/opp_out/source.xlf -s en -t zh -o /tmp/omni-chain-xliff/ol_out -c Omni_Localizer/config/default.yaml
+    timeout_seconds: 1200
+    expect:
+      exit_code: 0
+      stdout_has: ["Translated"]
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni-chain-xliff/ol_out/source.xlf
+    instructions: 'Real-LLM XLIFF translation (en -> zh) with the tracked OL config. Both fresh and cached runs print "Translated". Check: exit 0 + "Translated".'
+  - name: 'ORF backfills the translated XLIFF into the original DOCX (format-preserving)'
+    kind: cli
+    command: orf apply-xliff /tmp/omni-chain-xliff/source.docx -x /tmp/omni-chain-xliff/ol_out/source.xlf -o /tmp/omni-chain-xliff/out.docx
+    timeout_seconds: 300
+    expect:
+      exit_code: 0
+    standard: STANDARDS.md#exit-codes
+    collect_artifacts:
+      - path: /tmp/omni-chain-xliff/out.docx
+    instructions: 'Format-preserving XLIFF backfill: the original DOCX is the container (apply-xliff INPUT_FILE), the translated XLIFF comes via -x. Check: exit 0.'
+  - name: 'Backfilled DOCX opens and carries non-empty zh text'
+    kind: python
+    command: |-
+      import sys
+      from docx import Document
+      try:
+          doc = Document("/tmp/omni-chain-xliff/out.docx")
+      except Exception as e:
+          print("ERROR: output DOCX does not open: %s" % e)
+          sys.exit(1)
+      text = "\n".join(p.text for p in doc.paragraphs).strip()
+      if not text:
+          print("ERROR: output DOCX has no text content")
+          sys.exit(1)
+      print("OK: opens with %d chars of body text" % len(text))
+    timeout_seconds: 180
+    expect:
+      exit_code: 0
+      stdout_has: ["OK: opens with"]
+    standard: STANDARDS.md#opens-docx
+    instructions: 'End-user gate: python-docx opens the backfilled DOCX and its body carries non-empty text. Check: exit 0 + "OK: opens with N chars".'
