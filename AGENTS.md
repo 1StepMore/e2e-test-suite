@@ -99,7 +99,7 @@ Every scenario dispatches through the REAL shipped surface (no mocks; FAKE_LLM a
 
 ```bash
 python scripts/validation/run_validation.py --list                       # enumerate (no execution, no LLM)
-python scripts/validation/run_validation.py --scenario regression --tier 1   # one hermetic scenario
+python scripts/validation/run_validation.py --scenario agent-interaction-multiturn-context --tier 1   # one hermetic scenario (a wrong name exits 0 with zero scenarios run — --list first)
 python scripts/validation/run_validation.py --check                      # contract-lint the library
 python scripts/validation/coverage_audit.py                              # every live MCP tool exercised
 python scripts/validation/run_validation.py --repo orf --tier 1 --matrix --deliver   # report card + delivery zip

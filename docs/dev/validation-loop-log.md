@@ -77,9 +77,20 @@
 - [ ] **LQA 绿 ≠ 无夹带**——真模型 V1 译文出现 `manufacturingGovorun`，而长度比（3.58）、CJK 密度（0.00%）、中文标点（0）、`judge_overall`（4.85/5）四项门禁全部通过。LQA 判「整体质量」，不判「是否有源文与目标语言之外的孤立词」。要自动抓住这类缺陷，需要独立的「孤立词 / 非目标语言 token」断言；报告类证据必须保留人工通读摘录，不能只贴门禁分数。
 - [ ] **文件格式检测优先看后缀，再看内容嗅探**——`.eml` 里只要出现 `<html`，基于内容的嗅探就会把它判成 HTML（OPP `detect_format`），后续 extractor 校验直接拒收。凡「容器格式 + 内部载荷类型可能冲突」的输入（EML/MSG、HTML、EPUB），后缀守卫必须排在内容嗅探之前。
 
+### 2026-11-11 巡检轮新增
+
+- [ ] **`run_validation.py --scenario <不存在名>` 是 exit 0 的空跑**——"WARNING: no scenarios match" 只打一行 warning，退出码仍 0（2026-11-11 实测：AGENTS.md 示例名 `regression` 无对应场景，照抄即得 0 场景执行的"绿"）。凡脚本化调用 run_validation，先 `--list` 校验场景名存在，或判读时断言输出含 `Totals:` 且 passed ≥ 1。AGENTS.md 示例已随本条修正。
+- [ ] **Actions 普查必须按 event/workflow 过滤查询，别依赖单页时间窗**——`/actions/runs?per_page=100` 在高频仓只覆盖数小时，会把 schedule 轨误判为"从未点燃"（2026-11-11 实测：全量普查 0 条 schedule，改 `?event=schedule` 后 78 条，含 11-03..11-08 连红带与正确的警报记录）。普查口径：`event=schedule` 或按 workflow 名过滤，各自单独翻页。
+
 ## 循环事件（major events，newest on top）
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
+
+### 2026-11-11：发现模式巡检轮——全绿 + 夜跑红带核销确认 + 两处卫生
+
+- Date: 2026-11-11（06:0x +0800）；触发：goal-mode 维护提示词（本仓 agent-ready 队列为空 → 发现模式巡检；并行会话当时正在 AutoInfo 仓工作，未交叉）
+- Scope: 无产品代码改动。AGENTS.md Validation 示例场景名修正（`regression` → `agent-interaction-multiturn-context`，前者无对应场景 = exit-0 空跑坑，见上方两条新坑）；本地已合并分支清理（5 条 pre-rebase 残支 `git cherry` 等效验证后 archive tag + 删除）
+- Result: 巡检全绿——doc_inventory --check ✅ / run_validation --check ✅ / contract smoke 9 passed ✅ / coverage_audit 41/41 execution-backed PASS（WSL `.venv_ol`，Windows venv 报 ImportError 属声明过的平台边界）✅ / tier-1 点检 `agent-interaction-multiturn-context`、`tool-selection` 各 3/3 passed（run 20261111-061442、20261111-061633）✅ / main push-CI 四工作流 success ✅。夜跑红带核销：Validation 日更 11-03..11-08 连 6 天 failure、11-09 绿；E2E 周更与 fidelity 11-09 failure——确认已被 11-09/11-10 批次闭环（#274/#276/#279/#282/#285-287 全关，修复 #283/#284/#289/#295 已落 main；E2E 的 md2pptx 步已前置 `pip install python-pptx`）；11-10 日更夜跑 cancelled = 09:45Z push 触发运行按并发组取消（设计行为）。下一证明点：11-11 02:00 UTC 日更夜跑、11-16 周一 E2E 夜跑。#299/#300 补诊断评论（DCO 2 commit 未签 + 仓库缺 COPILOT_GITHUB_TOKEN secret → gh-aw activation 失败，配置属 Owner 前置）。本机 git push 通道不可用（github.com:443 阻断 + 本机 SSH key 为 AutoInfo deploy key），本轮文档推送经 GitHub API 完成。
 
 ### 2026-11-06（第五轮）：P3 立项 + 首里程碑（OL 术语审计 gate 接线）
 
