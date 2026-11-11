@@ -186,6 +186,19 @@ commit:
   note: Windows pytest exits 2 (omni_security namespace shadowing -> collection error); exit-code triage
     (0/1/2) planned in the SKIP-labeling commit
 ci:
+- id: governance-path-gate
+  title: Governance path approval gate (owner label substitute for code-owner review)
+  group: governance-path-gate.yml
+  command: scripts/check_governance_paths.py against changed files; requires governance-approved label
+  files_scope: pull_request
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: 'Suite#260: replaces require_code_owner_review, which deadlocks when the same
+    token owns the PR; the label needs write permission, i.e. owner approval.'
 - id: workflow-self-containment
   title: Contract-tests workflow self-containment
   group: contract-tests.yml
