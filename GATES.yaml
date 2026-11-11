@@ -272,18 +272,32 @@ ci:
   status: active
   supersedes: ''
   note: ''
-- id: nightly-llm
-  title: Nightly real-LLM suite
+- id: nightly-llm-preflight
+  title: Nightly real-LLM preflight (owner-local spark key)
   group: e2e-tests.yml
-  command: pytest -m nightly with real provider keys
-  files_scope: 'schedule/dispatch (needs: ci-suite)'
+  command: check secrets.SPARK_API_KEY; emit unconfigured + configured=false when absent
+  files_scope: schedule/dispatch
   evidence: execution
   windows: 'no'
   wsl: 'no'
   authoritative_executor: GitHub Actions (ubuntu runner)
   status: active
   supersedes: ''
-  note: tier-2/3; unconfigured without keys is a distinct status, never a pass
+  note: 'OL#183 (owner 2026-11-11): spark key is local-only; a missing key skips
+    nightly-llm explicitly, never an AMD/ZHIPU fallback'
+- id: nightly-llm
+  title: Nightly real-LLM suite
+  group: e2e-tests.yml
+  command: pytest -m nightly with real provider keys
+  files_scope: 'schedule/dispatch (needs: [ci-suite, nightly-llm-preflight])'
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: tier-2/3; gated by nightly-llm-preflight (owner-local spark key); unconfigured
+    is a distinct status, never a pass
 - id: ci-red-alert
   title: CI red alert (schedule failure -> deduped issue)
   group: nightly-alert.yml

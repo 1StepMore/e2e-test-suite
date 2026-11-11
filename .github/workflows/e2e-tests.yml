@@ -205,18 +205,45 @@ jobs:
           if-no-files-found: ignore
 
   # -------------------------------------------------------------------------
-  # Job 2: Nightly LLM tests (slow, requires real API keys).
-  # Runs on a schedule + manual dispatch.
-  # Uses the canonical OL model-pool secrets: SPARK_API_KEY (priority 1,
-  # spark-x2.6, suite#282), AMD_API_KEY (priority 2, DeepSeek-V4.1-Flash),
-  # ZHIPU_API_KEY (priority 3, glm-4.7-flash).
+  # Job 2: Nightly LLM preflight (the only usable real-LLM key is owner-local).
+  # SPARK_API_KEY is deliberately NOT a GitHub secret: the owner keeps it on
+  # the local machine (owner 2026-11-11, OL#183). CI therefore reports an
+  # explicit `unconfigured` and SKIPS the real-LLM job below. It must never
+  # fall back to the free AMD/ZHIPU tiers: both are rate-limited into
+  # worthless signals, and AMD is already dead (401).
+  # -------------------------------------------------------------------------
+  nightly-llm-preflight:
+    name: Nightly LLM preflight (spark key)
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    outputs:
+      configured: ${{ steps.spark.outputs.configured }}
+    steps:
+      - name: Check SPARK_API_KEY availability
+        id: spark
+        env:
+          SPARK_API_KEY: ${{ secrets.SPARK_API_KEY }}
+        run: |
+          if [ -z "${SPARK_API_KEY}" ]; then
+            echo "unconfigured: spark key is local-only (owner 2026-11-11)"
+            echo "Real-LLM validation runs on the owner's local machine (02:00 timer); CI keeps only the hermetic suite."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # -------------------------------------------------------------------------
+  # Job 3: Nightly LLM tests (slow, requires the owner-local spark key).
+  # Runs ONLY when nightly-llm-preflight found SPARK_API_KEY. A missing key is
+  # an explicit SKIP, never a pass and never an AMD/ZHIPU fallback.
   # -------------------------------------------------------------------------
   nightly-llm:
     name: Nightly LLM (real)
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    needs: ci-suite
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: [ci-suite, nightly-llm-preflight]
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.nightly-llm-preflight.outputs.configured == 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -281,11 +308,12 @@ jobs:
 
       - name: Configure LLM credentials
         run: |
+          # The spark key is the only real-LLM channel. AMD/ZHIPU are
+          # deliberately absent so a missing spark key can never fall back to
+          # a free tier (OL#183, owner 2026-11-11).
           mkdir -p Omni_Localizer/config
           cat > Omni_Localizer/.env <<EOF
           SPARK_API_KEY=${{ secrets.SPARK_API_KEY }}
-          AMD_API_KEY=${{ secrets.AMD_API_KEY }}
-          ZHIPU_API_KEY=${{ secrets.ZHIPU_API_KEY }}
           EOF
           cp Omni_Localizer/config/default.yaml Omni_Localizer/config/local.yaml
 

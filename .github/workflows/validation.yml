@@ -220,12 +220,11 @@ jobs:
       # workflow coupling. Anchoring states the dependency instead of implying it.
       OPP_CONFIG_PATH: ${{ github.workspace }}/Omni_Pre_Processor/config/default.yaml
       OL_CONFIG_PATH: ${{ github.workspace }}/Omni_Localizer/config/local.yaml
-      # Real LLM keys for the canonical OL model pool (single source of truth:
-      # Omni_Localizer/config/default.yaml — spark-x2.6 (SPARK_API_KEY,
-      # suite#282), DeepSeek-V4.1-Flash and glm-4.7-flash). `|| ''` is HONEST:
-      # a missing secret leaves the keyed scenarios `unconfigured` (never a
-      # pass, never a silent skip, never FAKE_LLM — D4).
-      SPARK_API_KEY: ${{ secrets.SPARK_API_KEY || '' }}
+      # Real LLM keys for the canonical OL model pool. The spark key is
+      # owner-local and deliberately NOT injected in CI (owner 2026-11-11,
+      # OL#183); CI never runs real-LLM scenarios through it. `|| ''` is
+      # HONEST: a missing secret leaves the keyed scenarios `unconfigured`
+      # (never a pass, never a silent skip, never FAKE_LLM — D4).
       AMD_API_KEY: ${{ secrets.AMD_API_KEY || '' }}
       ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY || '' }}
       # Liveness cap (#194): a cli/python step silent this long is classified
