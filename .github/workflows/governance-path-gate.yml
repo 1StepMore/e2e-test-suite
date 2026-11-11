@@ -1,0 +1,20 @@
+name: Governance path gate
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  governance-path-gate:
+    name: governance-path-gate      # ← this name is a required check; do not rename
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Changed files vs base
+        run: git diff --name-only "origin/${{ github.base_ref }}...HEAD" > /tmp/changed.txt
+      - name: Enforce governance approval
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: python3 scripts/check_governance_paths.py --files /tmp/changed.txt --labels "$LABELS"
