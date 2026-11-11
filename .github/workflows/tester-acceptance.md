@@ -6,6 +6,8 @@ on:
   pull_request:
     types: [opened, synchronize]
 permissions: read-all
+# 总开关（suite#299）：仓库变量未启用时整条 agentic 链 skip，activation 不再因缺 secret 而 fail
+if: vars.ENABLE_AGENTIC_WORKFLOWS == 'true'
 engine: copilot
 safe-outputs:
   add-comment:
