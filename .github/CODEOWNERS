@@ -1,0 +1,7 @@
+# Owner-gated surfaces (suite#260).
+# This file only requests owner review. "Require review from Code Owners"
+# stays OFF in the repository ruleset (owner 2026-11-11).
+/.agents/expectations/  @1StepMore
+/.agents/roles/         @1StepMore
+/scenarios/             @1StepMore
+/docs/dev/              @1StepMore
