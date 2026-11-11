@@ -4,3 +4,5 @@
 # would otherwise rewrite it to CRLF on Windows. AutoInfo/AutoMedia enforce
 # the same rule repo-wide (* text=auto eol=lf).
 docs/dev/agent-era-doc-architecture.md text eol=lf
+
+.github/workflows/*.lock.yml linguist-generated=true

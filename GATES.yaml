@@ -413,6 +413,91 @@ ci:
   status: active
   supersedes: ''
   note: ''
+# ── gh-aw agentic workflow job ids (suite#261, O-5 follow-up) ──────────────
+# The four .lock.yml files (tester-acceptance / coder-implement /
+# maintainer-patrol / user-journey) are COMPILED by `gh aw compile --strict`
+# (gh-aw v1.2.2) — do not hand-edit them; edit the .md source and recompile.
+# All four share the same six-job gh-aw scaffold, registered here so D-D's
+# bidirectional job-id check stays green. Writes are confined to the
+# safe_outputs job (workflow default permissions: {}; no contents:write).
+
+- id: pre_activation
+  title: gh-aw compiled pre_activation job (all four agentic workflows)
+  group: gh-aw locks
+  command: gh aw compile --strict
+  files_scope: .github/workflows/*.lock.yml
+  evidence: lock.yml
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: github-actions (gh-aw scaffold)
+  status: active
+  supersedes: ''
+  note: compiled artifact scaffold — edit sources, not locks
+
+- id: activation
+  title: gh-aw compiled activation job (all four agentic workflows)
+  group: gh-aw locks
+  command: gh aw compile --strict
+  files_scope: .github/workflows/*.lock.yml
+  evidence: lock.yml
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: github-actions (gh-aw scaffold)
+  status: active
+  supersedes: ''
+  note: compiled artifact scaffold — edit sources, not locks
+
+- id: detection
+  title: gh-aw compiled detection job (all four agentic workflows)
+  group: gh-aw locks
+  command: gh aw compile --strict
+  files_scope: .github/workflows/*.lock.yml
+  evidence: lock.yml
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: github-actions (gh-aw scaffold)
+  status: active
+  supersedes: ''
+  note: compiled artifact scaffold — edit sources, not locks
+
+- id: agent
+  title: gh-aw compiled agent job (all four agentic workflows)
+  group: gh-aw locks
+  command: gh aw compile --strict
+  files_scope: .github/workflows/*.lock.yml
+  evidence: lock.yml
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: github-actions (gh-aw scaffold)
+  status: active
+  supersedes: ''
+  note: compiled artifact scaffold — edit sources, not locks
+
+- id: safe_outputs
+  title: gh-aw compiled safe_outputs job (all four agentic workflows)
+  group: gh-aw locks
+  command: gh aw compile --strict
+  files_scope: .github/workflows/*.lock.yml
+  evidence: lock.yml
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: github-actions (gh-aw scaffold)
+  status: active
+  supersedes: ''
+  note: the ONLY job with write permissions (issues/pull-requests via safe-outputs; no contents:write)
+
+- id: conclusion
+  title: gh-aw compiled conclusion job (all four agentic workflows)
+  group: gh-aw locks
+  command: gh aw compile --strict
+  files_scope: .github/workflows/*.lock.yml
+  evidence: lock.yml
+  windows: n/a
+  wsl: n/a
+  authoritative_executor: github-actions (gh-aw scaffold)
+  status: active
+  supersedes: ''
+  note: compiled artifact scaffold — edit sources, not locks
 readiness:
 - id: '1.1'
   title: Suite `VERSION` file matches the "Suite" column in `COMPATIBILITY.md` table
