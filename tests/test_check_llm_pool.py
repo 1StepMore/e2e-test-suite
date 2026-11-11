@@ -144,12 +144,12 @@ class TestVerdictFollowsFloor:
         assert out["verdict"] == ("fail" if below else "pass"), out
         assert _rc == (1 if below else 0), out
 
-    def test_single_provider_key_is_below_a_floor_of_two(self, guard, monkeypatch):
-        """The e2e#125 shape: one provider key cannot keep two models per role."""
-        _rc, out = _run(guard, monkeypatch, {"ZHIPU_API_KEY": "z"}, "--min-per-role", "2")
+    def test_single_provider_key_is_below_a_floor_of_three(self, guard, monkeypatch):
+        """The canonical ZHIPU-only pool gives two models per role; floor three still fails."""
+        _rc, out = _run(guard, monkeypatch, {"ZHIPU_API_KEY": "z"}, "--min-per-role", "3")
         assert _rc == 1, out
         assert out["verdict"] == "fail"
-        assert all(n < 2 for n in out["usable_per_role"].values()), out["usable_per_role"]
+        assert all(n < 3 for n in out["usable_per_role"].values()), out["usable_per_role"]
 
     def test_no_provider_key_is_below_any_positive_floor(self, guard, monkeypatch):
         _rc, out = _run(guard, monkeypatch, {}, "--min-per-role", "1")
@@ -165,10 +165,10 @@ class TestVerdictFollowsFloor:
 
 class TestDiagnosis:
     def test_names_the_missing_env_var(self, guard, monkeypatch):
-        _rc, out = _run(guard, monkeypatch, {"ZHIPU_API_KEY": "z"}, "--min-per-role", "2")
-        assert out["skipped"], "expected the AMD-backed models to be reported as skipped"
+        _rc, out = _run(guard, monkeypatch, {}, "--min-per-role", "2")
+        assert out["skipped"], "expected the ZHIPU-backed models to be reported as skipped"
         missing = {name for entry in out["skipped"] for name in entry["missing_env"]}
-        assert missing == {"AMD_API_KEY"}
+        assert missing == {"ZHIPU_API_KEY"}
 
     def test_skipped_entries_name_role_model_and_provider(self, guard, monkeypatch):
         _rc, out = _run(guard, monkeypatch, {"ZHIPU_API_KEY": "z"})
