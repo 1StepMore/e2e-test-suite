@@ -160,6 +160,11 @@ ORF `apply-md` supports 16 output formats: DOCX, ODT, EPUB, HTML, RTF, PDF, PPTX
 
 Configured in `.pre-commit-config.yaml` at the project root (14 hooks; the root `GATES.yaml` registry is the authoritative ledger — hook id set and CI job set are asserted against it bidirectionally). Install: `pip install pre-commit && pre-commit install`. Run all: `pre-commit run --all-files` (the CI-equivalent gate). `make lint` is **not** equivalent and needs GNU make (absent on Windows): it runs the contract smoke test plus a whole-tree `ruff check .` and `mypy`. CI's blocking lint (`.github/workflows/lint.yml`) is changed-file scoped; the only whole-tree ruff step there covers the suite-owned dirs (`scripts tests omni_mcp omni_suite omni_metrics eval`, `lint.yml` "Blocking: whole-tree ruff"), not the full tree. Before citing any ruff/violation count, run and paste the raw `ruff check . --select F --statistics` output — historical counts rot (see the snapshot history in `lint.yml` comments). Hooks: gitleaks, check-added-large-files, check-merge-conflict, detect-private-key, end-of-file-fixer, trailing-whitespace, omni-contract-smoke (runs in both commit and manual stages — `stages: [commit, manual]`; `make smoke` runs it on demand), ruff (F-class, pinned to CI's 0.17.1), omni-version-alignment, omni-no-hardcoded-keys, omni-doc-inventory (now "doc truth + governance drift": absorbs the retired omni-version-docs-sync and omni-validation-check verdicts; runs on commit), omni-module-entry-check, omni-coverage-audit and omni-path-policy-parity (both `.venv_ol`-specific; on Windows they print classified `SKIP[...]` lines instead of a silent pass).
 
+**Mixed-staging caveat**: in a mixed staged/unstaged state, pre-commit's stash
+can restore the worktree to HEAD and make hooks read the wrong state. If a hook
+result looks impossible, run `pre-commit run --all-files` and rely on the PR CI
+blocking gate; a local hook pass alone is not sufficient evidence.
+
 ## Issue conventions
 
 - **`pinned` = 常开索引件, not a to-do.** A pinned issue is a roadmap pointer; do not close it or consume it as a work item. An accidental close is reverted by the pinned-guard workflow (this repo's issue #256).
