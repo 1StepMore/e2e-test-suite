@@ -284,3 +284,5 @@ PDF, JSON — per the CLI Choice at `orf/commands/apply_xliff.py:26-31`
 (not the stale README "5 formats" table); PDF backfill requires
 `--skeleton-html` (apply_xliff.py:70-76); JSON uses the `xliff2json`
 channel. `skeleton.zip` is produced by OPP only for DOCX/PPTX/EPUB.
+
+<!-- smoke: governance-path-gate expects this PR to go red without the governance-approved label -->
