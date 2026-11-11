@@ -159,6 +159,17 @@ docs(orf): update apply-md format table in README
 chore: pin ruff to 0.9.x in CI
 ```
 
+### Developer Certificate of Origin (DCO)
+
+Every commit must carry a `Signed-off-by` trailer. Sign off each commit:
+
+```bash
+git commit -s -m "type(scope): summary"
+```
+
+For an existing unsigned branch, run `git rebase --signoff origin/main` before
+opening the PR. The DCO check blocks a PR that contains any unsigned commit.
+
 ## Code Review
 
 All PRs need at least one review before merging. Reviewers check:
