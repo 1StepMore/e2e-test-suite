@@ -23,18 +23,30 @@
 - 验收：`Omni_Localizer/tests/test_quality_gates.py::TestGate2bTerminologyAudit`
   （3 用例；家族 126 passed）；配置沿用既有 `quality_gates.terminology` 开关，无新配置面。
 
-### M2（候选）：章节元信息增强 —— 归属 OPP 仓
+### M2（已完成 2026-11-12）：章节元信息增强 —— 归属 OPP 仓
 
 - 目标：章节边界置信度与连续性标注；`chapter_id` 贯穿 `ChunkMeta`，跨章节聚合可追溯。
 - 验收锚：chunker 单测覆盖跨章节聚合；MD 输出的 chapter 注释与 `ChunkMeta` 一致；
   不改变"边界由下游定"原则（只补结构信息）。
+- 落地（统合仓记录 ←→ OPP PR #131，commit c3ebced `feat/116-chapter-meta`）：
+  `ChunkMetaBuilder` 按文档序 run 切分（不连续章节不再被静默合并），新增 `ChapterMeta`
+  （`chapter_id` / `boundary_confidence` 纯注解存在性推导 / `continuity` /
+  `paragraph_count`），`chapter_id` 贯穿每个 `Chunk`；MD 输出零改动。验收锚由
+  `tests/test_chunker.py` 14 例锁定；顺带修复原测试文件缺 `test_` 前缀致 pytest
+  收集 0 例的死测试。证据与 DoD 实跑输出：OPP#116 评论（2026-11-12）。
 
-### M3（候选）：术语候选抽取（OPP 侧）—— 归属 OPP 仓
+### M3（已完成 2026-11-12）：术语候选抽取（OPP 侧）—— 归属 OPP 仓
 
 - 目标：抽取期输出术语**候选**结构（频次 / 首现位置 / 大小写变体 / 源文坐标系），
   供 OL `extract_terms` 消费；语义过滤与排序由 OL 决定（OPP 只出候选）。
 - 验收锚：`extract_document` 产物含 `terms.json` 候选列表 + 单测锁结构；不引入
   语义模型依赖。
+- 落地（统合仓记录 ←→ OPP PR #132，分支 `feat/116-term-candidates`）：新增
+  `src/opp/terms.py`（acronym / CamelCase / 专名序列三条互斥确定性 pattern，候选 =
+  term/频次/首现坐标/大小写变体，频次降序稳定排序）；`process_single_file` 产出
+  `<stem>_terms.json`（有内容才写，`OPP_TERMS_JSON=0` 关闭）；manifest 共享契约零
+  改动；零语义依赖（纯 re + 标准库）。验收锚由 `tests/test_terms.py` 12 例锁定
+  （含真实 extract 路径产物锚）。证据与 DoD 实跑输出：OPP#116 评论（2026-11-12）。
 
 ## 分工边界
 
