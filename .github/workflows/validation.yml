@@ -93,6 +93,22 @@ jobs:
             sudo apt-get install -y libgdk-pixbuf-2.0-0 || \
                         sudo apt-get install -y libgdk-pixbuf2.0-0
 
+      - name: uv lock --check (workspace lock vs member pyprojects — suite#315 tripwire)
+        env:
+          # Hermetic against any future uv.toml in the tree (e.g. a local
+          # mirror config leaking in): validate against the shipped lock
+          # and the default index, exactly like `uv sync --locked` below.
+          UV_NO_CONFIG: "1"
+        run: uv lock --check
+        # suite#315: OPP#133 edited a member pyproject without rebuilding the
+        # workspace uv.lock; nothing in THIS repo went red (the three module
+        # dirs are gitignored and cloned fresh above) until OPP's validate job
+        # died inside `uv sync --locked` with a cryptic error. This named step
+        # fires FIRST, on the exact same tree (suite root + freshly cloned
+        # member HEADs + in-tree omni_security), so cross-repo lock drift is
+        # reported here as a clearly labelled failure instead of as a red job
+        # in a module repo. `--check` never rewrites uv.lock.
+
       - name: uv sync (root workspace installs all 3 submodules via [tool.uv.workspace])
         run: uv sync --locked
 
