@@ -5,7 +5,7 @@ description = "Canonical path-security policy shared by the Omni Suite modules."
 requires-python = ">=3.13"
 # Leaf library: standard library only. The module validators and the suite
 # orchestrator depend on this package, never the other way round.
-dependencies = []
+dependencies = ["packaging>=24.0"]
 
 [build-system]
 requires = ["hatchling"]
