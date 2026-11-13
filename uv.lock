@@ -2929,6 +2929,15 @@ youtube = [
     { name = "markitdown", extra = ["youtube-transcription"] },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "fastmcp" },
+    { name = "mcp" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pyyaml" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12.0" },
@@ -2965,6 +2974,15 @@ requires-dist = [
     { name = "translate-toolkit", specifier = ">=3.0.0" },
 ]
 provides-extras = ["dev", "office", "web", "email", "ocr", "youtube", "audio", "notebook", "mcp", "all"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "fastmcp", specifier = ">=1.0.0" },
+    { name = "mcp", specifier = ">=1.0.0,<2" },
+    { name = "pytest", specifier = ">=9.0.0" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "pyyaml", specifier = ">=5.0.0" },
+]
 
 [[package]]
 name = "omni-re-formatter"
