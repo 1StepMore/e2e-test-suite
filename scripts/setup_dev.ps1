@@ -94,7 +94,50 @@ if (-not (Test-Path $VenvPy)) {
 if (-not $CheckOnly) {
     if (-not (Test-Path $VenvPy)) { exit 1 }
     Write-Info "安装根工程与子仓库（editable）…"
+
+    # pip 24+ 默认经 truststore 用 Windows 证书库（Schannel）做 TLS。实测部分
+    # Windows 机器上该路径吞吐仅 ~12 kB/s，大型索引页（如 rapidfuzz 的 /simple
+    # 页 5.6 MB）在解析阶段无法完成 ⇒ 整批 ResolutionImpossible（#320 后半段）。
+    # 改用 certifi CA bundle（OpenSSL 栈）实测 5.3 MB/s。bundle 路径由 python
+    # 写入临时文件、再以显式 UTF-8 读回——不能走管道 stdout：中文 Windows 控制台
+    # 码页（gb2312）会把路径里的非 ASCII 字符解码成 mojibake，Test-Path 必 False
+    # （实测踩坑）。任一步探测失败则不设 PIP_CERT，保持 pip 默认（不硬编码路径）。
+    # pip 升级会原地替换 pip 包目录，故升级前后各刷新一次 PIP_CERT。
+    function Set-PipCertBundle {
+        param([string]$Interpreter)
+        $CaTmp = Join-Path $env:TEMP 'omni_suite_pip_cert_path.txt'
+        & $Interpreter -c "import sys; from pip._vendor import certifi; open(sys.argv[1], 'w', encoding='utf-8').write(certifi.where())" $CaTmp 2>$null
+        if ($LASTEXITCODE -ne 0) { return $false }
+        $CaBundle = ''
+        if (Test-Path -LiteralPath $CaTmp) {
+            $CaBundle = (Get-Content -LiteralPath $CaTmp -Encoding UTF8 -Raw).Trim()
+        }
+        Remove-Item -LiteralPath $CaTmp -ErrorAction SilentlyContinue
+        if ($CaBundle -and (Test-Path -LiteralPath $CaBundle)) {
+            $env:PIP_CERT = $CaBundle
+            return $true
+        }
+        return $false
+    }
+
+    if (Set-PipCertBundle -Interpreter $VenvPy) {
+        Write-Info "PIP_CERT -> certifi bundle（绕开 truststore 慢路径，#320）"
+    } else {
+        Write-Warn2 "未取得 certifi CA bundle，PIP_CERT 不设置（沿用 pip 默认 truststore）。"
+    }
     & $VenvPy -m pip install --upgrade pip setuptools wheel -q
+    if (Set-PipCertBundle -Interpreter $VenvPy) {
+        Write-Info "PIP_CERT 已随 pip 升级刷新"
+    }
+    # uv workspace 成员必须先于根工程 editable 安装：根 pyproject.toml 依赖
+    # omni-security，其源映射声明在 [tool.uv.sources]（workspace = true），pip
+    # 不认识该映射——同批解析时会去 PyPI 找 omni-security ⇒ 整批 editable 安装
+    # 在解析阶段即失败、什么都没装上（#320 前半段）。setup_dev.sh 走 `uv sync`，
+    # 由 uv.lock 解析本地成员，所以 Linux/WSL 不暴露此问题。omni_security 是
+    # 零依赖 leaf，先装上后，后续整批解析时该依赖已被满足。
+    Write-Info "安装 workspace 成员 omni_security（先于根工程，pip 才能解析）…"
+    & $VenvPy -m pip install -e (Join-Path $ProjectRoot 'omni_security')
+    if ($LASTEXITCODE -ne 0) { Write-Err "workspace 成员 omni_security 安装失败"; exit 1 }
     $InstallArgs = @()
     # 根工程（omni_suite / omni_mcp / omni_metrics）必须一并安装：它的运行时依赖
     # （mcp / anyio，见 pyproject.toml 的 mcp extra 与 dependencies）不在三个子仓库的
