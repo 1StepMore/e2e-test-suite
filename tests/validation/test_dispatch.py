@@ -36,6 +36,7 @@ from omni_mcp.validation.dispatch import (
     DEFAULT_TIMEOUT_SECONDS,
     STALL_TIMEOUT_ENV,
     STEP_TIMEOUT_ENV,
+    VENV_BIN,
     DispatchError,
     StepResult,
     build_cli_env,
@@ -43,7 +44,6 @@ from omni_mcp.validation.dispatch import (
     resolve_stall_timeout,
     resolve_step_timeout,
     suite_python,
-    VENV_BIN,
 )
 
 # ---------------------------------------------------------------------------
