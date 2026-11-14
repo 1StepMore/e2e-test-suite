@@ -12,7 +12,7 @@ requires_env: []
 instructions: |
   What to do:
   1. Remove the scenario dir; build a valid source DOCX with python-docx and
-     a truncated XLIFF at /tmp/omni_val/t14-orf-xliff-trunc/trunc.xlf (the
+     a truncated XLIFF at $OMNI_TMPDIR/omni_val/t14-orf-xliff-trunc/trunc.xlf (the
      bytes up to but not including the root <xliff> element).
   2. Run the real `orf apply-xliff` CLI with --json --no-cache: expect exit 1
      and a single JSON object with success false whose errors carry the
@@ -28,7 +28,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil
-      d = pathlib.Path("/tmp/omni_val/t14-orf-xliff-trunc")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-orf-xliff-trunc")
       shutil.rmtree(d, ignore_errors=True)
       d.mkdir(parents=True)
       from docx import Document
@@ -62,7 +62,7 @@ steps:
       root <xliff> element, so no XML parser can resolve it.
   - name: apply-xliff rejects the truncated XLIFF with a typed CONVERSION_ERROR
     kind: cli
-    command: orf apply-xliff /tmp/omni_val/t14-orf-xliff-trunc/src.docx --xliff /tmp/omni_val/t14-orf-xliff-trunc/trunc.xlf -o /tmp/omni_val/t14-orf-xliff-trunc/out.docx --no-cache --json
+    command: orf apply-xliff $OMNI_TMPDIR/omni_val/t14-orf-xliff-trunc/src.docx --xliff $OMNI_TMPDIR/omni_val/t14-orf-xliff-trunc/trunc.xlf -o $OMNI_TMPDIR/omni_val/t14-orf-xliff-trunc/out.docx --no-cache --json
     timeout_seconds: 180
     expect:
       exit_code: 1
@@ -77,11 +77,11 @@ steps:
     kind: python
     command: |
       import json, pathlib, subprocess, sys
-      out = pathlib.Path("/tmp/omni_val/t14-orf-xliff-trunc/out.docx")
+      out = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-orf-xliff-trunc/out.docx")
       proc = subprocess.run(
           ["orf", "apply-xliff",
-           "/tmp/omni_val/t14-orf-xliff-trunc/src.docx",
-           "--xliff", "/tmp/omni_val/t14-orf-xliff-trunc/trunc.xlf",
+           "$OMNI_TMPDIR/omni_val/t14-orf-xliff-trunc/src.docx",
+           "--xliff", "$OMNI_TMPDIR/omni_val/t14-orf-xliff-trunc/trunc.xlf",
            "-o", str(out), "--no-cache", "--json"],
           capture_output=True, text=True,
       )
@@ -121,7 +121,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni_val/t14-orf-xliff-trunc", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/t14-orf-xliff-trunc", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

@@ -18,7 +18,7 @@ steps:
     command: |
       import os, shutil, sys
       sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "$OMNI_TMPDIR/omni-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       import json as _json
       from docx import Document
@@ -47,14 +47,14 @@ steps:
       success: true
       exit_code: 0
     standard: STANDARDS.md#tool-contract
-    instructions: 'Write the hermetic fixture set (sample.docx, sample.xlf, ...) under /tmp/omni-agent-surface.'
+    instructions: 'Write the hermetic fixture set (sample.docx, sample.xlf, ...) under $OMNI_TMPDIR/omni-agent-surface.'
   - name: 'apply_xliff backfills the XLIFF fixture into the DOCX'
     kind: mcp
     tool: orf.mcp.server.apply_xliff
     arguments:
-      input_file: /tmp/omni-agent-surface/sample.docx
-      xliff_path: /tmp/omni-agent-surface/sample.xlf
-      output_path: /tmp/omni-agent-surface/backfilled.docx
+      input_file: $OMNI_TMPDIR/omni-agent-surface/sample.docx
+      xliff_path: $OMNI_TMPDIR/omni-agent-surface/sample.xlf
+      output_path: $OMNI_TMPDIR/omni-agent-surface/backfilled.docx
       format: docx
     timeout_seconds: 120
     expect:
@@ -63,14 +63,14 @@ steps:
     standard: STANDARDS.md#tool-contract
     instructions: 'Call apply_xliff with the DOCX fixture and the translated XLIFF fixture; expect success with output_path.'
     collect_artifacts:
-      - path: '/tmp/omni-agent-surface/backfilled.docx'
+      - path: '$OMNI_TMPDIR/omni-agent-surface/backfilled.docx'
   - name: 'apply_xliff denies a nonexistent XLIFF path'
     kind: mcp
     tool: orf.mcp.server.apply_xliff
     arguments:
-      input_file: /tmp/omni-agent-surface/sample.docx
+      input_file: $OMNI_TMPDIR/omni-agent-surface/sample.docx
       xliff_path: /nonexistent/x.xlf
-      output_path: /tmp/omni-agent-surface/bad.docx
+      output_path: $OMNI_TMPDIR/omni-agent-surface/bad.docx
       format: docx
     timeout_seconds: 120
     expect:

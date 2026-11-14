@@ -18,9 +18,9 @@ tier: 1
 level: agent-user
 instructions: |
   What to do:
-  1. Build /tmp/omni-val-red-team/bomb.docx (a DEFLATE zip whose
+  1. Build $OMNI_TMPDIR/omni-val-red-team/bomb.docx (a DEFLATE zip whose
      word/document.xml is ~5 MB of repeated bytes but whose on-disk size is
-     a few KB) and /tmp/omni-val-red-team/big.md (~0.6 MB).
+     a few KB) and $OMNI_TMPDIR/omni-val-red-team/big.md (~0.6 MB).
   2. Run OPP extract_document on the bomb with OPP_MCP_MAX_FILE_SIZE=1000:
      expect a typed OPP_PATH_DENIED rejection, not an unbounded expansion.
   3. Run ORF apply_md on big.md with max_file_size_mb=0.001: expect a
@@ -35,7 +35,7 @@ steps:
       import os
       import zipfile
 
-      out_dir = "/tmp/omni-val-red-team"
+      out_dir = "$OMNI_TMPDIR/omni-val-red-team"
       os.makedirs(out_dir, exist_ok=True)
       bomb = os.path.join(out_dir, "bomb.docx")
       with zipfile.ZipFile(bomb, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -76,7 +76,7 @@ steps:
       import os
       import sys
 
-      os.environ["OPP_MCP_ALLOWED_DIRS"] = "/tmp"
+      os.environ["OPP_MCP_ALLOWED_DIRS"] = "$OMNI_TMPDIR"
       os.environ["OPP_MCP_MAX_FILE_SIZE"] = "1000"
       sys.path.insert(0, "Omni_Pre_Processor/src")
       from opp.mcp.config import load_config
@@ -86,7 +86,7 @@ steps:
 
       result = asyncio.run(
           extract_document(
-              file_path="/tmp/omni-val-red-team/bomb.docx", output_formats="md"
+              file_path="$OMNI_TMPDIR/omni-val-red-team/bomb.docx", output_formats="md"
           )
       )
       print(json.dumps(result, ensure_ascii=False))
@@ -108,16 +108,16 @@ steps:
       import os
       import sys
 
-      os.environ["ORF_MCP_ALLOWED_DIRS"] = "/tmp"
+      os.environ["ORF_MCP_ALLOWED_DIRS"] = "$OMNI_TMPDIR"
       sys.path.insert(0, "Omni_Re_Formatter/src")
       import orf.mcp.common as common
       common.reset_config_and_validator()
       from orf.mcp.tools.apply_md import apply_md
 
       result = apply_md(
-          input_md="/tmp/omni-val-red-team/big.md",
+          input_md="$OMNI_TMPDIR/omni-val-red-team/big.md",
           target_format="html",
-          output_path="/tmp/omni-val-red-team/big.html",
+          output_path="$OMNI_TMPDIR/omni-val-red-team/big.html",
           max_file_size_mb=0.001,
       )
       print(result)
@@ -138,7 +138,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni-val-red-team", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni-val-red-team", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

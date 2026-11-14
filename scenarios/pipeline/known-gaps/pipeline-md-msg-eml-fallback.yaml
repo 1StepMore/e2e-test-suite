@@ -54,7 +54,7 @@ steps:
     kind: python
     command: |-
       import pathlib
-      d = pathlib.Path("/tmp/omni_val/pipeline-md-msg")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-md-msg")
       d.mkdir(parents=True, exist_ok=True)
       md = """---
       source_lang: zh
@@ -87,7 +87,7 @@ steps:
       Check: exit 0 + "OK: msg fixture written".
   - name: MSG target degrades to the documented fallback with a MISSING_DEPENDENCY warning
     kind: cli
-    command: orf apply-md /tmp/omni_val/pipeline-md-msg/in.md --target-format msg -o /tmp/omni_val/pipeline-md-msg/out.msg --json
+    command: orf apply-md $OMNI_TMPDIR/omni_val/pipeline-md-msg/in.md --target-format msg -o $OMNI_TMPDIR/omni_val/pipeline-md-msg/out.msg --json
     timeout_seconds: 180
     expect:
       exit_code: 0
@@ -104,9 +104,9 @@ steps:
     command: |-
       import json, subprocess, sys
       from pathlib import Path
-      out = Path("/tmp/omni_val/pipeline-md-msg/out2.msg")
+      out = Path("$OMNI_TMPDIR/omni_val/pipeline-md-msg/out2.msg")
       proc = subprocess.run(
-          ["orf", "apply-md", "/tmp/omni_val/pipeline-md-msg/in.md",
+          ["orf", "apply-md", "$OMNI_TMPDIR/omni_val/pipeline-md-msg/in.md",
            "--target-format", "msg", "-o", str(out), "--json"],
           capture_output=True, text=True, timeout=180,
       )

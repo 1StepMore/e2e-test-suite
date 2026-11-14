@@ -6,7 +6,7 @@ description: >-
   Proves three things about commit 458c88c's shipped CLI: (1) --dry-run
   exits 0 and prints the full [1/3]/[2/3]/[3/3] would-run command plan
   (OPP --target-format both, ol translate-md, orf apply-md) WITHOUT
-  creating the /tmp/omni-suite-pipeline/<stem>/ directory; (2) --gates-only
+  creating the $OMNI_TMPDIR/omni-suite-pipeline/<stem>/ directory; (2) --gates-only
   is NOT stopped by the LLM-key gate (_validate_env require_llm=True does
   not block this subcommand — it reaches real execution) yet fails cleanly
   with exit 1 and a clear stderr error when the input file does not exist;
@@ -14,7 +14,7 @@ description: >-
   full-execution paths (gates-only/keep-intermediate with keys) are already
   covered by tests/test_omni_suite_cli.py and intentionally NOT duplicated
   here — they are not hermetic. Cleanup step removes any gates-only temp
-  residue under /tmp/omni-suite-pipeline/.
+  residue under $OMNI_TMPDIR/omni-suite-pipeline/.
 level: agent-user
 category: pipeline
 tier: 1
@@ -34,7 +34,7 @@ instructions: |-
      and does NOT exit) — that is shipped behavior, not a failure; the
      scenario deliberately does NOT assert stdout_not_has on it.
   2. A python step proves dry-run created NOTHING: the
-     /tmp/omni-suite-pipeline/<stem>/ directory must not exist (dry-run
+     $OMNI_TMPDIR/omni-suite-pipeline/<stem>/ directory must not exist (dry-run
      returns before any mkdir; the --help text itself promises "creates no
      files").
   3. Run `omni-suite pipeline <missing input> --gates-only`. Expected:
@@ -49,7 +49,7 @@ instructions: |-
      note `omni-suite pipeline --help` prints only a short usage line
      WITHOUT the flag descriptions, so the full help is the contract).
   5. Cleanup step (best-effort, never graded into the verdict): remove any
-     /tmp/omni-suite-pipeline/<missing-stem>/ residue the gates-only
+     $OMNI_TMPDIR/omni-suite-pipeline/<missing-stem>/ residue the gates-only
      failure left behind (the CLI keeps intermediates on failure by
      design).
 
@@ -82,11 +82,11 @@ steps:
       "No LLM provider keys found" warning on stdout is shipped behavior
       (_validate_env with require_llm=False prints to stdout and returns)
       and must NOT be treated as failure.
-  - name: Dry-run creates no /tmp/omni-suite-pipeline/<stem> directory
+  - name: Dry-run creates no $OMNI_TMPDIR/omni-suite-pipeline/<stem> directory
     kind: python
     command: |-
       import pathlib, sys
-      stem_dir = pathlib.Path("/tmp/omni-suite-pipeline/meridian_robotics")
+      stem_dir = pathlib.Path("$OMNI_TMPDIR/omni-suite-pipeline/meridian_robotics")
       if stem_dir.exists():
           print("ERROR: dry-run created %s (must create nothing)" % stem_dir)
           sys.exit(1)
@@ -98,14 +98,14 @@ steps:
     standard: STANDARDS.md#exit-codes
     instructions: |-
       The --help text promises dry-run "executes nothing, creates no
-      files". Check: /tmp/omni-suite-pipeline/meridian_robotics (the stem
+      files". Check: $OMNI_TMPDIR/omni-suite-pipeline/meridian_robotics (the stem
       of the fixture from step 1) does not exist after the dry-run —
       dry-run returns before any mkdir. Scoped to the exact stem (the
-      parent /tmp/omni-suite-pipeline/ may legitimately hold residue from
+      parent $OMNI_TMPDIR/omni-suite-pipeline/ may legitimately hold residue from
       other runs). Check: exit 0 + "OK: dry-run created no temp dir".
   - name: Gates-only is not blocked by the key gate and fails cleanly on missing input
     kind: cli
-    command: omni-suite pipeline /tmp/omni_val/suite-pipeline-flags/does-not-exist.docx --gates-only
+    command: omni-suite pipeline $OMNI_TMPDIR/omni_val/suite-pipeline-flags/does-not-exist.docx --gates-only
     timeout_seconds: 120
     expect:
       exit_code: 1
@@ -148,8 +148,8 @@ cleanup_steps:
     kind: python
     command: |-
       import shutil
-      shutil.rmtree("/tmp/omni-suite-pipeline/does-not-exist", ignore_errors=True)
-      shutil.rmtree("/tmp/omni-suite-pipeline/meridian_robotics", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni-suite-pipeline/does-not-exist", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni-suite-pipeline/meridian_robotics", ignore_errors=True)
       print("OK: pipeline temp residue removed")
     timeout_seconds: 120
     expect:
@@ -158,6 +158,6 @@ cleanup_steps:
     standard: STANDARDS.md#exit-codes
     instructions: |-
       Best-effort cleanup of the temp dirs this scenario may have created
-      under /tmp/omni-suite-pipeline/ (the gates-only failure keeps
+      under $OMNI_TMPDIR/omni-suite-pipeline/ (the gates-only failure keeps
       intermediates by design; the stem dir is defensive). Cleanup steps
       are never graded into the scenario verdict (loader.py guide §2.6).

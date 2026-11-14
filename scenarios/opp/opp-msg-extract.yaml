@@ -28,7 +28,7 @@ steps:
       fixture = os.environ["MSG_FIXTURE"]
       proc = subprocess.run(["opp", fixture,
                              "--target-format", "md",
-                             "--output-dir", "/tmp/omni_val/opp-msg", "-v"],
+                             "--output-dir", "$OMNI_TMPDIR/omni_val/opp-msg", "-v"],
                             capture_output=True, text=True)
       sys.stdout.write(proc.stdout)
       sys.stdout.write(proc.stderr)

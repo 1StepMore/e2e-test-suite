@@ -40,7 +40,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil
-      d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-midstage")
+      d = pathlib.Path("$OMNI_TMPDIR/omni-suite-pipeline/r05-resume-midstage")
       shutil.rmtree(d, ignore_errors=True)
       md = (
           "---\nsource_lang: en\ntarget_lang: zh\n---\n\n"
@@ -61,7 +61,7 @@ steps:
       seed is deterministic and needs no LLM.
   - name: Pipeline with an injected invalid target fails at ORF and saves the checkpoint
     kind: cli
-    command: omni-suite pipeline scenarios/_fixtures/meridian_robotics.docx --resume-from orf --run-id r05-resume-midstage --target-format bogus --output /tmp/omni-suite-pipeline/r05-resume-midstage/out.html --fake-llm
+    command: omni-suite pipeline scenarios/_fixtures/meridian_robotics.docx --resume-from orf --run-id r05-resume-midstage --target-format bogus --output $OMNI_TMPDIR/omni-suite-pipeline/r05-resume-midstage/out.html --fake-llm
     timeout_seconds: 180
     expect:
       exit_code: 0
@@ -71,7 +71,7 @@ steps:
         kind: python
         command: |
           import json, os, pathlib, subprocess, sys
-          d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-midstage")
+          d = pathlib.Path("$OMNI_TMPDIR/omni-suite-pipeline/r05-resume-midstage")
           mpath = d / "manifest.json"
           if not mpath.exists():
               print("ERROR: injected failure saved no checkpoint manifest")
@@ -142,7 +142,7 @@ steps:
     kind: python
     command: |
       import json, pathlib, sys
-      d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-midstage")
+      d = pathlib.Path("$OMNI_TMPDIR/omni-suite-pipeline/r05-resume-midstage")
       out = d / "out.html"
       ok = False
       if out.exists() and out.stat().st_size > 0:
@@ -165,8 +165,8 @@ steps:
       stdout_has: ["FINAL OK", "manifest=complete"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni-suite-pipeline/r05-resume-midstage/out.html
-      - path: /tmp/omni-suite-pipeline/r05-resume-midstage/manifest.json
+      - path: $OMNI_TMPDIR/omni-suite-pipeline/r05-resume-midstage/out.html
+      - path: $OMNI_TMPDIR/omni-suite-pipeline/r05-resume-midstage/manifest.json
     instructions: >-
       Independent final observation: the recovered out.html is a real HTML
       document (structural markers), the manifest is `complete` with no failed
@@ -176,7 +176,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni-suite-pipeline/r05-resume-midstage", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni-suite-pipeline/r05-resume-midstage", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

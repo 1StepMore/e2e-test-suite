@@ -20,7 +20,7 @@ level: agent-user
 tier: 1
 instructions: |
   What to do:
-  1. Build a small DOCX in a stable /tmp workspace and enable OTel tracing
+  1. Build a small DOCX in a stable $OMNI_TMPDIR workspace and enable OTel tracing
      (OMNI_TRACING_ENABLED=1, OMNI_TRACES_DIR=<workspace>/traces).
   2. Call the REAL OPP extract_document (in-process live tool), read the
      traceparent it returns, and stash its trace_id.
@@ -43,7 +43,7 @@ steps:
     kind: python
     command: |-
       import os, sys, json, re, time, pathlib
-      BASE = pathlib.Path("/tmp/omni_val/trace-pipeline-correlation-id")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/trace-pipeline-correlation-id")
       BASE.mkdir(parents=True, exist_ok=True)
       SUITE = "/mnt/d/贯维/Omni_Suite"
       os.environ.update({
@@ -176,7 +176,7 @@ steps:
       stdout_has: ['TRACE_CORRELATION_OK', '"correlation_id"', '"stages"']
       stderr_not_has: ["Traceback (most recent call last)"]
     collect_artifacts:
-      - path: /tmp/omni_val/trace-pipeline-correlation-id/summary.json
+      - path: $OMNI_TMPDIR/omni_val/trace-pipeline-correlation-id/summary.json
     standard: STANDARDS.md#tool-contract
     instructions: >-
       Runs the real OPP/OL/ORF in-process tool functions with one traceparent
@@ -187,7 +187,7 @@ steps:
     command: |-
       import json, pathlib, sys
       s = json.loads(
-          pathlib.Path("/tmp/omni_val/trace-pipeline-correlation-id/summary.json")
+          pathlib.Path("$OMNI_TMPDIR/omni_val/trace-pipeline-correlation-id/summary.json")
           .read_text(encoding="utf-8")
       )
       stages = s.get("stages", {})
@@ -213,7 +213,7 @@ steps:
       stdout_has: ['"same_trace": true', '"correlation_id"', '"opp"', '"ol"', '"orf"']
       stderr_not_has: ["Traceback (most recent call last)"]
     collect_artifacts:
-      - path: /tmp/omni_val/trace-pipeline-correlation-id/summary.json
+      - path: $OMNI_TMPDIR/omni_val/trace-pipeline-correlation-id/summary.json
     standard: STANDARDS.md#tool-contract
     instructions: >-
       Reads the artifact the previous step produced and re-derives the
@@ -224,7 +224,7 @@ cleanup_steps:
     kind: python
     command: |-
       import shutil
-      shutil.rmtree("/tmp/omni_val/trace-pipeline-correlation-id", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/trace-pipeline-correlation-id", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

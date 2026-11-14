@@ -32,7 +32,7 @@ instructions: |
 steps:
   - name: Extract IPYNB to Markdown via the real OPP CLI
     kind: cli
-    command: opp Omni_Pre_Processor/tests/fixtures/ipynb/sample.ipynb --target-format md --output-dir /tmp/omni_val/opp-ipynb -v
+    command: opp Omni_Pre_Processor/tests/fixtures/ipynb/sample.ipynb --target-format md --output-dir $OMNI_TMPDIR/omni_val/opp-ipynb -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -48,7 +48,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-ipynb/sample_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("$OMNI_TMPDIR/omni_val/opp-ipynb/sample_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
     expect:

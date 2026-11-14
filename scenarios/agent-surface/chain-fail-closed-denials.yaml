@@ -18,7 +18,7 @@ steps:
     kind: python
     command: |-
       import os
-      BASE = "/tmp/omni-chain-failclosed"
+      BASE = "$OMNI_TMPDIR/omni-chain-failclosed"
       os.makedirs(BASE, exist_ok=True)
       open(os.path.join(BASE, "sample.md"), "w", encoding="utf-8").write("# Hello\n\nBody.\n")
       open(os.path.join(BASE, "evil.exe"), "wb").write(b"MZ\x90\x00")
@@ -35,7 +35,7 @@ steps:
       import json, sys
       sys.path.insert(0, "Omni_Re_Formatter/src")
       from orf.mcp.server import apply_md
-      r = json.loads(apply_md(input_md="/etc/hosts", target_format="html", output_path="/tmp/omni-chain-failclosed/out.html"))
+      r = json.loads(apply_md(input_md="/etc/hosts", target_format="html", output_path="$OMNI_TMPDIR/omni-chain-failclosed/out.html"))
       assert r.get("success") is False, "denial expected, got success: %s" % str(r)[:200]
       blob = json.dumps(r, ensure_ascii=False)
       assert "Traceback" not in blob, "raw traceback leaked to the agent"
@@ -52,7 +52,7 @@ steps:
       import json, sys
       sys.path.insert(0, "Omni_Re_Formatter/src")
       from orf.mcp.server import apply_md
-      r = json.loads(apply_md(input_md="/tmp/omni-chain-failclosed/evil.exe", target_format="html", output_path="/tmp/omni-chain-failclosed/out.html"))
+      r = json.loads(apply_md(input_md="$OMNI_TMPDIR/omni-chain-failclosed/evil.exe", target_format="html", output_path="$OMNI_TMPDIR/omni-chain-failclosed/out.html"))
       assert r.get("success") is False, "denial expected, got success: %s" % str(r)[:200]
       blob = json.dumps(r, ensure_ascii=False)
       assert "Traceback" not in blob, "raw traceback leaked to the agent"

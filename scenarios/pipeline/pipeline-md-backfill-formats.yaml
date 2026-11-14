@@ -65,7 +65,7 @@ steps:
     command: |-
       import pathlib, shutil
       from docx import Document
-      BASE = pathlib.Path("/tmp/omni_val/pipeline-md-formats")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-md-formats")
       shutil.rmtree(BASE, ignore_errors=True)
       BASE.mkdir(parents=True)
       doc = Document()
@@ -99,14 +99,14 @@ steps:
       written".
   - name: Extract DOCX to MD via real OPP CLI
     kind: cli
-    command: opp /tmp/omni_val/pipeline-md-formats/source.docx --target-format md --source-lang zh --target-lang en --output-dir /tmp/omni_val/pipeline-md-formats/opp_out -v
+    command: opp $OMNI_TMPDIR/omni_val/pipeline-md-formats/source.docx --target-format md --source-lang zh --target-lang en --output-dir $OMNI_TMPDIR/omni_val/pipeline-md-formats/opp_out -v
     timeout_seconds: 300
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-md-formats/opp_out/source.md
+      - path: $OMNI_TMPDIR/omni_val/pipeline-md-formats/opp_out/source.md
     instructions: |-
       Run the real OPP CLI: `opp source.docx --target-format md -s zh -t en
       -o opp_out/ -v`. OPP writes source.md (with a markdown table, verified).
@@ -115,14 +115,14 @@ steps:
       STANDARDS.md#exit-codes).
   - name: Translate MD with real LLM (ol translate-md)
     kind: cli
-    command: ol translate-md /tmp/omni_val/pipeline-md-formats/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-md-formats/ol_out -c Omni_Localizer/config/default.yaml
+    command: ol translate-md $OMNI_TMPDIR/omni_val/pipeline-md-formats/opp_out/source.md -s zh -t en -o $OMNI_TMPDIR/omni_val/pipeline-md-formats/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 1200
     expect:
       exit_code: 0
       stdout_has: ["Translated"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-md-formats/ol_out/source.md
+      - path: $OMNI_TMPDIR/omni_val/pipeline-md-formats/ol_out/source.md
     instructions: |-
       Real-LLM translation of the extracted MD (zh -> en) with the tracked
       OL config (config/default.yaml; the requires_env gate guarantees the
@@ -134,7 +134,7 @@ steps:
     command: |-
       import sys
       from scripts.validation.artifact_assertions import untranslated_units_violation_at
-      msg = untranslated_units_violation_at("/tmp/omni_val/pipeline-md-formats/ol_out/source.md")
+      msg = untranslated_units_violation_at("$OMNI_TMPDIR/omni_val/pipeline-md-formats/ol_out/source.md")
       if msg:
           print("ERROR: " + msg)
           sys.exit(1)
@@ -158,7 +158,7 @@ steps:
       import csv, json, subprocess, sys, zipfile
       import xml.etree.ElementTree as ET
       from pathlib import Path
-      BASE = Path("/tmp/omni_val/pipeline-md-formats")
+      BASE = Path("$OMNI_TMPDIR/omni_val/pipeline-md-formats")
       md = BASE / "ol_out" / "source.md"
       outdir = BASE / "out"
       outdir.mkdir(parents=True, exist_ok=True)
@@ -218,7 +218,7 @@ steps:
       stdout_has: ["OK: 11/11 MD-path formats"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-md-formats/out/source.odt
+      - path: $OMNI_TMPDIR/omni_val/pipeline-md-formats/out/source.odt
     instructions: |-
       Loop the real `orf apply-md` CLI over the 11 table-bearing targets
       with --no-cache and assert each artifact is non-empty and carries its
@@ -233,7 +233,7 @@ steps:
     command: |-
       import re, sys
       from pathlib import Path
-      text = Path("/tmp/omni_val/pipeline-md-formats/ol_out/source.md").read_text(encoding="utf-8")
+      text = Path("$OMNI_TMPDIR/omni_val/pipeline-md-formats/ol_out/source.md").read_text(encoding="utf-8")
       if not text.strip():
           print("ERROR: translated MD empty")
           sys.exit(1)
@@ -257,7 +257,7 @@ steps:
     kind: python
     command: |-
       import json, pathlib
-      BASE = pathlib.Path("/tmp/omni_val/pipeline-md-formats/json_src")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-md-formats/json_src")
       BASE.mkdir(parents=True, exist_ok=True)
       data = {"产品": [{"名称": "阿尔法", "数值": 100}, {"名称": "贝塔", "数值": 200}]}
       (BASE / "source.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -275,14 +275,14 @@ steps:
       fixture written".
   - name: Extract JSON to MD via real OPP CLI
     kind: cli
-    command: opp /tmp/omni_val/pipeline-md-formats/json_src/source.json --target-format md --source-lang zh --target-lang en --output-dir /tmp/omni_val/pipeline-md-formats/opp_json -v
+    command: opp $OMNI_TMPDIR/omni_val/pipeline-md-formats/json_src/source.json --target-format md --source-lang zh --target-lang en --output-dir $OMNI_TMPDIR/omni_val/pipeline-md-formats/opp_json -v
     timeout_seconds: 300
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-md-formats/opp_json/source.md
+      - path: $OMNI_TMPDIR/omni_val/pipeline-md-formats/opp_json/source.md
     instructions: |-
       Run the real OPP CLI on the JSON source: `opp source.json
       --target-format md -s zh -t en -o opp_json/ -v`. OPP writes source.md
@@ -290,14 +290,14 @@ steps:
       "[INFO] Generated:".
   - name: Translate JSON-derived MD with real LLM
     kind: cli
-    command: ol translate-md /tmp/omni_val/pipeline-md-formats/opp_json/source.md -s zh -t en -o /tmp/omni_val/pipeline-md-formats/ol_json -c Omni_Localizer/config/default.yaml
+    command: ol translate-md $OMNI_TMPDIR/omni_val/pipeline-md-formats/opp_json/source.md -s zh -t en -o $OMNI_TMPDIR/omni_val/pipeline-md-formats/ol_json -c Omni_Localizer/config/default.yaml
     timeout_seconds: 1200
     expect:
       exit_code: 0
       stdout_has: ["Translated"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-md-formats/ol_json/source.md
+      - path: $OMNI_TMPDIR/omni_val/pipeline-md-formats/ol_json/source.md
     instructions: |-
       Real-LLM translation of the JSON-derived MD (zh -> en). OL shields code
       fences, so the ```json block survives translation and remains the
@@ -307,7 +307,7 @@ steps:
     command: |-
       import sys
       from scripts.validation.artifact_assertions import untranslated_units_violation_at
-      msg = untranslated_units_violation_at("/tmp/omni_val/pipeline-md-formats/ol_json/source.md")
+      msg = untranslated_units_violation_at("$OMNI_TMPDIR/omni_val/pipeline-md-formats/ol_json/source.md")
       if msg:
           print("ERROR: " + msg)
           sys.exit(1)
@@ -328,8 +328,8 @@ steps:
     command: |-
       import json, subprocess, sys
       from pathlib import Path
-      md = "/tmp/omni_val/pipeline-md-formats/ol_json/source.md"
-      out = Path("/tmp/omni_val/pipeline-md-formats/out/source.json")
+      md = "$OMNI_TMPDIR/omni_val/pipeline-md-formats/ol_json/source.md"
+      out = Path("$OMNI_TMPDIR/omni_val/pipeline-md-formats/out/source.json")
       proc = subprocess.run(
           ["orf", "apply-md", md, "--target-format", "json", "-o", str(out), "--no-cache"],
           capture_output=True, text=True, timeout=300,
@@ -347,7 +347,7 @@ steps:
       stdout_has: ["OK: json"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-md-formats/out/source.json
+      - path: $OMNI_TMPDIR/omni_val/pipeline-md-formats/out/source.json
     instructions: |-
       Run the real `orf apply-md --target-format json` on the translated
       JSON-derived MD and assert the output parses as a non-empty dict/list

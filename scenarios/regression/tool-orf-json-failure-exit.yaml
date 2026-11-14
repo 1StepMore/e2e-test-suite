@@ -22,7 +22,7 @@ regression_issue: "agent-oriented-gap-register.md#T-01"
 tier: 1
 instructions: |
   What to do:
-  1. Write a minimal translated MD at /tmp/omni_val/orf-json-failure-exit/in.md
+  1. Write a minimal translated MD at $OMNI_TMPDIR/omni_val/orf-json-failure-exit/in.md
      (no frontmatter needed for the HTML path).
   2. Run the real `orf apply-md` CLI with --json, targeting a missing
      output directory so the HTML converter deterministically fails to
@@ -39,7 +39,7 @@ steps:
     kind: python
     command: |-
       import pathlib
-      d = pathlib.Path("/tmp/omni_val/orf-json-failure-exit")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/orf-json-failure-exit")
       d.mkdir(parents=True, exist_ok=True)
       (d / "in.md").write_text("# Hello\n\nworld\n", encoding="utf-8")
       print(f"wrote {d / 'in.md'}")
@@ -52,7 +52,7 @@ steps:
       converter engine.
   - name: ORF apply-md --json on a failed conversion exits 1 with a JSON error object
     kind: cli
-    command: orf apply-md /tmp/omni_val/orf-json-failure-exit/in.md --target-format html -o /tmp/omni_val/orf-json-failure-exit/missing_dir/out.html --json
+    command: orf apply-md $OMNI_TMPDIR/omni_val/orf-json-failure-exit/in.md --target-format html -o $OMNI_TMPDIR/omni_val/orf-json-failure-exit/missing_dir/out.html --json
     timeout_seconds: 120
     expect:
       exit_code: 1
@@ -70,9 +70,9 @@ steps:
       import json, subprocess, sys
       cmd = [
           "orf", "apply-md",
-          "/tmp/omni_val/orf-json-failure-exit/in.md",
+          "$OMNI_TMPDIR/omni_val/orf-json-failure-exit/in.md",
           "--target-format", "html",
-          "-o", "/tmp/omni_val/orf-json-failure-exit/missing_dir/out.html",
+          "-o", "$OMNI_TMPDIR/omni_val/orf-json-failure-exit/missing_dir/out.html",
           "--json",
       ]
       proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -102,7 +102,7 @@ cleanup_steps:
     kind: python
     command: |-
       import shutil
-      shutil.rmtree("/tmp/omni_val/orf-json-failure-exit", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/orf-json-failure-exit", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

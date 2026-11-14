@@ -16,7 +16,7 @@ level: agent-user
 tier: 1
 instructions: |
   What to do:
-  1. Use a stable /tmp workspace and set ORF_MCP_ALLOWED_DIRS to it (the ORF
+  1. Use a stable $OMNI_TMPDIR workspace and set ORF_MCP_ALLOWED_DIRS to it (the ORF
      tool is fail-CLOSED without an allowlist).
   2. Import the REAL ORF MCP tool (orf.mcp.server.apply_md) and call it with
      an MD fixture, target_format=html, and an output path inside the
@@ -35,7 +35,7 @@ steps:
     kind: python
     command: |-
       import hashlib, json, os, pathlib, sys
-      BASE = pathlib.Path("/tmp/omni_val/mutation-transparency-x03")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/mutation-transparency-x03")
       BASE.mkdir(parents=True, exist_ok=True)
       SUITE = "/mnt/d/贯维/Omni_Suite"
       os.environ.update({
@@ -83,7 +83,7 @@ steps:
       stdout_has: ["MANIFEST_MATCH"]
       stderr_not_has: ["Traceback (most recent call last)"]
     collect_artifacts:
-      - path: /tmp/omni_val/mutation-transparency-x03/manifest.json
+      - path: $OMNI_TMPDIR/omni_val/mutation-transparency-x03/manifest.json
     standard: STANDARDS.md#json-parseable
     instructions: >-
       Calls the real in-process ORF apply_md tool and checks the returned
@@ -93,7 +93,7 @@ steps:
     kind: python
     command: |-
       import hashlib, json, pathlib, sys
-      BASE = pathlib.Path("/tmp/omni_val/mutation-transparency-x03")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/mutation-transparency-x03")
       artifact = json.loads((BASE / "manifest.json").read_text(encoding="utf-8"))
       returned = artifact["returned"]
       on_disk = artifact["on_disk"]
@@ -111,7 +111,7 @@ steps:
       stdout_has: ['"bytes"', '"sha256"']
       stderr_not_has: ["Traceback (most recent call last)"]
     collect_artifacts:
-      - path: /tmp/omni_val/mutation-transparency-x03/manifest.json
+      - path: $OMNI_TMPDIR/omni_val/mutation-transparency-x03/manifest.json
     standard: STANDARDS.md#json-parseable
     instructions: >-
       Re-reads the persisted manifest and recomputes the disk hash; exits
@@ -121,7 +121,7 @@ cleanup_steps:
     kind: python
     command: |-
       import shutil
-      shutil.rmtree("/tmp/omni_val/mutation-transparency-x03", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/mutation-transparency-x03", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

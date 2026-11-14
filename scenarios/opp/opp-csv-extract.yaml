@@ -23,7 +23,7 @@ steps:
               ["Widget A", "Electronics", "19.99", "150"],
               ["Widget B", "Household", "9.50", "300"],
               ["Gadget X", "Electronics", "49.99", "75"]]
-      out = pathlib.Path("/tmp/omni_val/opp-csv/in.csv")
+      out = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-csv/in.csv")
       out.parent.mkdir(parents=True, exist_ok=True)
       with open(out, "w", newline="", encoding="utf-8") as f:
           csv.writer(f).writerows(rows)
@@ -37,7 +37,7 @@ steps:
       a failure means the fixture could not be produced.
   - name: Extract CSV to Markdown via the real OPP CLI
     kind: cli
-    command: opp /tmp/omni_val/opp-csv/in.csv --target-format md --output-dir /tmp/omni_val/opp-csv -v
+    command: opp $OMNI_TMPDIR/omni_val/opp-csv/in.csv --target-format md --output-dir $OMNI_TMPDIR/omni_val/opp-csv -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -50,7 +50,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-csv/in_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("$OMNI_TMPDIR/omni_val/opp-csv/in_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("format=" + m["source"]["format"])
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
@@ -71,7 +71,7 @@ steps:
     kind: python
     command: |
       import pathlib
-      md = pathlib.Path("/tmp/omni_val/opp-csv/in.md").read_text(encoding="utf-8")
+      md = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-csv/in.md").read_text(encoding="utf-8")
       print("header-found" if "| Product | Category |" in md else "no-header")
       print("row-found" if "Widget A" in md else "no-row")
     expect:

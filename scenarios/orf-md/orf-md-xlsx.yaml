@@ -8,13 +8,13 @@ category: orf-md
 tier: 1
 requires_env: []
 instructions: |-
-  Prove ORF apply-md backfills a translated MD to XLSX with the real surface ('orf apply-md ... --target-format xlsx'). 1) the write step creates the synthetic translated MD at /tmp/omni_val/orf-md-xlsx/in.md; 2) the CLI step runs the real backfill to /tmp/omni_val/orf-md-xlsx/out.xlsx and must exit 0; 3) the assert step reads the output and checks the XLSX signature: loads with openpyxl and exposes >= 1 sheet. No LLM, no FAKE_LLM, no fixtures — hermetic and deterministic (tier 1).
+  Prove ORF apply-md backfills a translated MD to XLSX with the real surface ('orf apply-md ... --target-format xlsx'). 1) the write step creates the synthetic translated MD at $OMNI_TMPDIR/omni_val/orf-md-xlsx/in.md; 2) the CLI step runs the real backfill to $OMNI_TMPDIR/omni_val/orf-md-xlsx/out.xlsx and must exit 0; 3) the assert step reads the output and checks the XLSX signature: loads with openpyxl and exposes >= 1 sheet. No LLM, no FAKE_LLM, no fixtures — hermetic and deterministic (tier 1).
 steps:
   - name: Write synthetic translated MD
     kind: python
     command: |-
       import pathlib
-      d = pathlib.Path("/tmp/omni_val/orf-md-xlsx")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/orf-md-xlsx")
       d.mkdir(parents=True, exist_ok=True)
       md = """---
       source_lang: en
@@ -65,30 +65,30 @@ steps:
       For more information, please contact support@example.com.
       """
       (d / "in.md").write_text(md, encoding="utf-8")
-      print("WROTE /tmp/omni_val/orf-md-xlsx/in.md")
+      print("WROTE $OMNI_TMPDIR/omni_val/orf-md-xlsx/in.md")
     expect:
       exit_code: 0
-      stdout_has: ["WROTE /tmp/omni_val/orf-md-xlsx/in.md"]
+      stdout_has: ["WROTE $OMNI_TMPDIR/omni_val/orf-md-xlsx/in.md"]
     standard: STANDARDS.md#exit-codes
     instructions: |-
-      Generate the translated-MD input for this scenario at run time (no committed fixture). The file must carry a YAML frontmatter with the 6 metadata keys (source_lang, target_lang, original_file, processor, version, translated_at) and a body with a heading, a list, a table, a JSON code fence and a code fence — the same shape the suite's _create_synthetic_md fixture uses (tests/test_cross_format_e2e.py:282-334). Check: the snippet exits 0 and prints the WROTE marker naming /tmp/omni_val/orf-md-xlsx/in.md.
+      Generate the translated-MD input for this scenario at run time (no committed fixture). The file must carry a YAML frontmatter with the 6 metadata keys (source_lang, target_lang, original_file, processor, version, translated_at) and a body with a heading, a list, a table, a JSON code fence and a code fence — the same shape the suite's _create_synthetic_md fixture uses (tests/test_cross_format_e2e.py:282-334). Check: the snippet exits 0 and prints the WROTE marker naming $OMNI_TMPDIR/omni_val/orf-md-xlsx/in.md.
   - name: Backfill to XLSX with orf apply-md
     kind: cli
-    command: orf apply-md /tmp/omni_val/orf-md-xlsx/in.md --target-format xlsx -o /tmp/omni_val/orf-md-xlsx/out.xlsx
+    command: orf apply-md $OMNI_TMPDIR/omni_val/orf-md-xlsx/in.md --target-format xlsx -o $OMNI_TMPDIR/omni_val/orf-md-xlsx/out.xlsx
     timeout_seconds: 180
     expect:
       exit_code: 0
-      stdout_has: ["Created /tmp/omni_val/orf-md-xlsx/out.xlsx"]
+      stdout_has: ["Created $OMNI_TMPDIR/omni_val/orf-md-xlsx/out.xlsx"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/orf-md-xlsx/out.xlsx
+      - path: $OMNI_TMPDIR/omni_val/orf-md-xlsx/out.xlsx
     instructions: |-
-      Run the REAL orf CLI backfill: `orf apply-md /tmp/omni_val/orf-md-xlsx/in.md --target-format xlsx -o /tmp/omni_val/orf-md-xlsx/out.xlsx`. Engine: openpyxl. Check: exit code 0 (STANDARDS.md#exit-codes) and stdout announces the created file (both fresh conversions and cached ones print `Created <path>`). The assertion on the output file is the next step.
+      Run the REAL orf CLI backfill: `orf apply-md $OMNI_TMPDIR/omni_val/orf-md-xlsx/in.md --target-format xlsx -o $OMNI_TMPDIR/omni_val/orf-md-xlsx/out.xlsx`. Engine: openpyxl. Check: exit code 0 (STANDARDS.md#exit-codes) and stdout announces the created file (both fresh conversions and cached ones print `Created <path>`). The assertion on the output file is the next step.
   - name: Assert XLSX structural invariant
     kind: python
     command: |-
       import sys
-      p = "/tmp/omni_val/orf-md-xlsx/out.xlsx"
+      p = "$OMNI_TMPDIR/omni_val/orf-md-xlsx/out.xlsx"
       try:
           from openpyxl import load_workbook
           wb = load_workbook(p, read_only=True)
@@ -102,6 +102,6 @@ steps:
       stdout_has: ["OK:"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/orf-md-xlsx/out.xlsx
+      - path: $OMNI_TMPDIR/omni_val/orf-md-xlsx/out.xlsx
     instructions: |-
-      Read /tmp/omni_val/orf-md-xlsx/out.xlsx and verify the XLSX structural invariant: loads with openpyxl and exposes >= 1 sheet. The snippet exits 0 with an OK: message when the invariant holds, or exits 1 naming the problem otherwise (per-step instructions; exit-code contract).
+      Read $OMNI_TMPDIR/omni_val/orf-md-xlsx/out.xlsx and verify the XLSX structural invariant: loads with openpyxl and exposes >= 1 sheet. The snippet exits 0 with an OK: message when the invariant holds, or exits 1 naming the problem otherwise (per-step instructions; exit-code contract).

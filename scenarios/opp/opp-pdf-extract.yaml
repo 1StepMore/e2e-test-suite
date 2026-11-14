@@ -22,7 +22,7 @@ instructions: |
 steps:
   - name: Extract PDF to Markdown via the real OPP CLI
     kind: cli
-    command: opp Omni_Pre_Processor/batch_test/phase0_office/normal.pdf --target-format md --output-dir /tmp/omni_val/opp-pdf -v
+    command: opp Omni_Pre_Processor/batch_test/phase0_office/normal.pdf --target-format md --output-dir $OMNI_TMPDIR/omni_val/opp-pdf -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -36,7 +36,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-pdf/normal_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("$OMNI_TMPDIR/omni_val/opp-pdf/normal_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("format=" + m["source"]["format"])
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])

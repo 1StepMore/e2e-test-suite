@@ -28,7 +28,7 @@ steps:
       ws2 = wb.create_sheet("Summary")
       ws2.append(["Metric", "Value"])
       ws2.append(["Total Products", 2])
-      out = pathlib.Path("/tmp/omni_val/opp-xlsx/in.xlsx")
+      out = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-xlsx/in.xlsx")
       out.parent.mkdir(parents=True, exist_ok=True)
       wb.save(str(out))
       print("written")
@@ -43,7 +43,7 @@ steps:
       meaningless.
   - name: Extract XLSX to Markdown via the real OPP CLI
     kind: cli
-    command: opp /tmp/omni_val/opp-xlsx/in.xlsx --target-format md --output-dir /tmp/omni_val/opp-xlsx -v
+    command: opp $OMNI_TMPDIR/omni_val/opp-xlsx/in.xlsx --target-format md --output-dir $OMNI_TMPDIR/omni_val/opp-xlsx -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -56,7 +56,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-xlsx/in_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("$OMNI_TMPDIR/omni_val/opp-xlsx/in_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("format=" + m["source"]["format"])
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
@@ -77,7 +77,7 @@ steps:
     kind: python
     command: |
       import pathlib
-      md = pathlib.Path("/tmp/omni_val/opp-xlsx/in.md").read_text(encoding="utf-8")
+      md = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-xlsx/in.md").read_text(encoding="utf-8")
       print("sheet-products" if "Sheet: Products" in md else "no-products-sheet")
       print("sheet-summary" if "Sheet: Summary" in md else "no-summary-sheet")
       print("header-found" if "Product | Category" in md else "no-header")

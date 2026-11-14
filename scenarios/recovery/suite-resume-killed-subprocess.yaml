@@ -45,7 +45,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil
-      d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-kill")
+      d = pathlib.Path("$OMNI_TMPDIR/omni-suite-pipeline/r05-resume-kill")
       shutil.rmtree(d, ignore_errors=True)
       para = ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 20 + "\n\n")
       md = "---\nsource_lang: en\ntarget_lang: zh\n---\n\n# Killed subprocess\n\n" + para * 12000
@@ -73,7 +73,7 @@ steps:
           except Exception:
               return []
 
-      d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-kill")
+      d = pathlib.Path("$OMNI_TMPDIR/omni-suite-pipeline/r05-resume-kill")
       exe = pathlib.Path(sys.executable).parent / "omni-suite"
       para = ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 20 + "\n\n")
 
@@ -180,7 +180,7 @@ steps:
         kind: python
         command: |
           import json, os, pathlib, subprocess, sys
-          d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-kill")
+          d = pathlib.Path("$OMNI_TMPDIR/omni-suite-pipeline/r05-resume-kill")
           text = (d / "kill_run_stdout.txt").read_text(encoding="utf-8")
           summary = None
           for line in text.splitlines():
@@ -254,7 +254,7 @@ steps:
     kind: python
     command: |
       import json, pathlib, sys
-      d = pathlib.Path("/tmp/omni-suite-pipeline/r05-resume-kill")
+      d = pathlib.Path("$OMNI_TMPDIR/omni-suite-pipeline/r05-resume-kill")
       out = d / "out.html"
       if not (out.exists() and out.stat().st_size > 0):
           print("ERROR: recovered HTML artifact missing: %s" % out)
@@ -277,8 +277,8 @@ steps:
       stdout_has: ["FINAL OK", "manifest=complete"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni-suite-pipeline/r05-resume-kill/out.html
-      - path: /tmp/omni-suite-pipeline/r05-resume-kill/manifest.json
+      - path: $OMNI_TMPDIR/omni-suite-pipeline/r05-resume-kill/out.html
+      - path: $OMNI_TMPDIR/omni-suite-pipeline/r05-resume-kill/manifest.json
     instructions: >-
       Independent final observation: the recovered artifact is a real HTML
       document, the manifest completed with no failed stage, and no fake-echo
@@ -288,7 +288,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni-suite-pipeline/r05-resume-kill", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni-suite-pipeline/r05-resume-kill", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

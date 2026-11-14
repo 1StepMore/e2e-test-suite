@@ -501,3 +501,44 @@ def test_grade_result_structure():
     assert result.passed is False
     assert all(isinstance(c, CheckResult) for c in result.checks)
     assert isinstance(result.reason, str)
+
+
+# ---------------------------------------------------------------------------
+# Path-separator canonicalised substring matching (e2e-test-suite#322)
+# ---------------------------------------------------------------------------
+
+
+def test_stdout_has_matches_path_with_other_separator():
+    """A token written with forward slashes matches a CLI echo that Path-
+    normalised it to backslashes — the asserted path CONTENT is identical,
+    only the echo site's separator form differs (Windows behaviour; on
+    POSIX the canonicalisation is identity)."""
+    result = grade_step(
+        {"stdout_has": ["Created /tmp/omni_val/x/out.csv"]},
+        {"success": True, "exit_code": 0,
+         "stdout": r"Created \tmp\omni_val\x\out.csv (cached)" + "\n", "stderr": ""},
+    )
+
+    assert result.passed is True
+
+
+def test_stdout_not_has_catches_path_with_other_separator():
+    """The negative form tightens correspondingly: a backslash-rendered
+    occurrence of the forbidden path IS found (raw match + canonical
+    fallback both count as present)."""
+    result = grade_step(
+        {"stdout_not_has": ["/tmp/leaked/secret"]},
+        {"success": True, "stdout": r"egress at \tmp\leaked\secret" + "\n", "stderr": ""},
+    )
+
+    assert result.passed is False
+
+
+def test_stdout_has_without_separators_is_unchanged():
+    """Needles and text without backslashes take the raw-match path — the
+    canonical fallback never alters non-path assertions."""
+    result = grade_step(
+        {"stdout_has": "registered"}, {"success": True, "stdout": "user registered", "stderr": ""}
+    )
+
+    assert result.passed is True

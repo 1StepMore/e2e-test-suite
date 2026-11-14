@@ -18,14 +18,14 @@ steps:
     command: |
       import os, sys
       sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "$OMNI_TMPDIR/omni-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       if not os.path.exists(os.path.join(FIXT, "memory.tmx")):
           open(os.path.join(FIXT, "memory.tmx"), "w").write('<?xml version="1.0"?><tmx version="1.4"><body><tu><tuv xml:lang="en"><seg>Click the button</seg></tuv><tuv xml:lang="zh"><seg>点击按钮</seg></tuv></tu></body></tmx>')
       import asyncio, json, sys
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import TMAddInput, add_tm_entries
-      r = asyncio.run(add_tm_entries(params=TMAddInput(tmx_path="/tmp/omni-agent-surface/memory.tmx", entries=[{"source": "Save", "target": "保存", "source_lang": "en", "target_lang": "zh"}])))
+      r = asyncio.run(add_tm_entries(params=TMAddInput(tmx_path="$OMNI_TMPDIR/omni-agent-surface/memory.tmx", entries=[{"source": "Save", "target": "保存", "source_lang": "en", "target_lang": "zh"}])))
       print(r)
     timeout_seconds: 120
     expect:
@@ -33,9 +33,9 @@ steps:
       exit_code: 0
       stdout_has: ['"success": true', 'entries_added']
     standard: STANDARDS.md#tool-contract
-    instructions: 'Provision the TMX fixture under /tmp, construct TMAddInput (TMEntry list) and call the REAL add_tm_entries; expect success with entries_added.'
+    instructions: 'Provision the TMX fixture under $OMNI_TMPDIR, construct TMAddInput (TMEntry list) and call the REAL add_tm_entries; expect success with entries_added.'
     collect_artifacts:
-      - path: '/tmp/omni-agent-surface/memory.tmx'
+      - path: '$OMNI_TMPDIR/omni-agent-surface/memory.tmx'
   - name: 'add_tm_entries returns a clean path denial for a nonexistent TMX'
     kind: python
     command: |
