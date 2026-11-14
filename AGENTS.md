@@ -189,3 +189,16 @@ blocking gate; a local hook pass alone is not sufficient evidence.
 | Retired docs (archive) | `docs/archive/` |
 | Debt ledger (accepted gaps; registered by suite#263) | `ACCEPTED_GAPS.md` |
 | Full change-impact map | `.opencode/skills/omni-docmap/SKILL.md` |
+
+## 运行环境与门禁速查（harness 用 · 2026-11-14 核对）
+
+| 项 | 内容 |
+|:--|:--|
+| 范围 | **本仓 + 三个模块仓**（`Omni_Pre_Processor` / `Omni_Localizer` / `Omni_Re_Formatter`）——这是唯一允许跨仓执行的工作空间 |
+| 解释器 | 套件根 `uv sync --all-extras`；Windows 原生 `powershell -ExecutionPolicy Bypass -File scripts/setup_dev.ps1`（建 `.venv_win/`，加 `-CheckOnly` 只校验不装） |
+| 必需密钥 | 默认不需要：`FAKE_LLM` 走确定性零成本输出。要验真模型质量才需要真 key |
+| DoD 顺序 | `make doctor` → `make test`（赶时间用 `make test-quick`） |
+| 已知坑 | ① Git Bash 下 `setup_dev.sh --check-only` **按设计 fail-closed**，不要"修"它；② `FAKE_LLM` 只能验 plumbing / schema / 退出码，**不能当人类质量证据**；③ 验证引擎硬编码 `.venv_ol`（#321）⇒ Windows 上改 `.venv_win` 前先确认；④ Git Bash 的 PATH 里可能没有 `make`，用 `Makefile` 背后的等价命令 |
+| 队列 | `gh issue list -l agent-ready --state open` |
+
+> 本块是**本仓运行事实的唯一真身**（Owner 侧的通用执行提示词不写具体仓信息）。通用规则（边界 / 权限 / 合并判定）见 Owner 侧提示词，不入库。
