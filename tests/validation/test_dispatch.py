@@ -5,8 +5,10 @@ The dispatch phase turns one step into one REAL call on a surface — never a
 mock (guide §4.1).  Three adapters:
 
 - ``kind: cli``    -> subprocess against the real module CLIs (``opp``,
-                      ``ol``, ``orf``, ``omni-mcp`` console scripts in
-                      ``.venv_ol/bin/``)
+                      ``ol``, ``orf``, ``omni-mcp`` console scripts in the
+                      suite venv bin dir — platform-aware since
+                      e2e-test-suite#321: ``.venv_ol/bin`` on POSIX,
+                      ``.venv_win/Scripts`` on native Windows)
 - ``kind: mcp``    -> in-process call of the REAL module tool functions
                       (``opp.mcp.server.*``, ``ol_mcp.tools.*``,
                       ``orf.mcp.server.*`` — the same functions the MCP
@@ -34,6 +36,7 @@ from omni_mcp.validation.dispatch import (
     DEFAULT_TIMEOUT_SECONDS,
     STALL_TIMEOUT_ENV,
     STEP_TIMEOUT_ENV,
+    VENV_BIN,
     DispatchError,
     StepResult,
     build_cli_env,
@@ -185,7 +188,7 @@ def test_cli_env_never_injects_fake_llm():
     assert "OMNI_TEST_FAKE_LLM" not in env
     assert "OPP_ALLOWED_DIRECTORIES" not in env
     # sanity: the venv bin dir is on PATH so bare console names resolve
-    assert ".venv_ol/bin" in env.get("PATH", "")
+    assert str(VENV_BIN) in env.get("PATH", "")
 
 
 def test_cli_honest_exit_code_for_unknown_flag():
@@ -211,7 +214,7 @@ def test_cli_timeout_records_failure_and_timeout():
     """A step exceeding timeout_seconds is a failed step with the timeout
     recorded in actual (guide §3.1 phase 2 / §2.2 timeout_seconds)."""
     result = dispatch_step(
-        _cli_step(".venv_ol/bin/python -c \"import time; time.sleep(30)\"",
+        _cli_step(f'"{suite_python()}" -c "import time; time.sleep(30)"',
                   timeout_seconds=1)
     )
 
@@ -404,7 +407,9 @@ def test_mcp_tool_exception_is_captured_not_raised():
 
 def test_python_snippet_runs_in_suite_venv():
     """A kind: python step runs the snippet as a subprocess and captures
-    stdout; the interpreter is the suite venv python (.venv_ol/bin/python)."""
+    stdout; the interpreter is the suite venv python (platform-aware:
+    ``.venv_ol/bin/python`` on POSIX, ``.venv_win/Scripts/python.exe`` on
+    native Windows — e2e-test-suite#321)."""
     result = dispatch_step(
         _python_step("import sys; print('python-ok', sys.version.split()[0])")
     )
@@ -412,7 +417,7 @@ def test_python_snippet_runs_in_suite_venv():
     assert result.actual["exit_code"] == 0
     assert "python-ok" in result.actual["stdout"]
     assert result.surface == "python: import sys; print('python-ok', sys.version.split()[0])"
-    assert result.actual["python"].endswith(".venv_ol/bin/python")
+    assert result.actual["python"] == suite_python()
 
 
 def test_python_failing_snippet_records_exit_code():
@@ -455,9 +460,15 @@ def test_default_timeout_is_a_positive_number():
 
 def test_suite_python_resolves_to_venv():
     """suite_python() points at the suite venv interpreter used for
-    python-kind snippets (the task requirement)."""
+    python-kind snippets (the task requirement) — layout is platform-aware
+    (e2e-test-suite#321): ``bin/python`` on POSIX, ``Scripts\\python.exe``
+    on native Windows."""
     p = suite_python()
-    assert p.endswith(".venv_ol/bin/python")
+    if os.name == "nt":
+        assert p.endswith(".venv_win\\Scripts\\python.exe")
+    else:
+        assert p.endswith(".venv_ol/bin/python")
+    assert str(VENV_BIN) in p
 
 
 # ---------------------------------------------------------------------------
@@ -542,7 +553,7 @@ def test_resolve_stall_timeout_dict_env_beats_os_environ(monkeypatch):
 def test_cli_stall_detected_and_json_serializable():
     """A silent cli step is killed at the stall window (not the 10s cap) and
     records ``stalled`` with a clear error naming the window."""
-    command = f'{suite_python()} -c "import time; time.sleep(5)"'
+    command = f'"{suite_python()}" -c "import time; time.sleep(5)"'
     result = dispatch._run_cli_step(
         _cli_step(command, timeout_seconds=10),
         {STALL_TIMEOUT_ENV: "1"},
@@ -584,7 +595,7 @@ def test_streaming_heartbeat_keeps_talkative_process_alive():
         "import time,sys; "
         "[(print('tick', flush=True), time.sleep(0.3)) for _ in range(6)]"
     )
-    command = f'{suite_python()} -S -c "{snippet}"'
+    command = f'"{suite_python()}" -S -c "{snippet}"'
     result = dispatch._run_cli_step(
         _cli_step(command, timeout_seconds=10),
         {STALL_TIMEOUT_ENV: "1"},
@@ -600,7 +611,7 @@ def test_stall_window_not_below_timeout_uses_wall_clock_timeout():
     """When the stall window is >= the step cap it cannot fire earlier than
     the wall-clock timeout, so the plain path classifies the step `timeout`,
     never `stalled` (#194 nightly refinement)."""
-    command = f'{suite_python()} -S -c "import time; time.sleep(5)"'
+    command = f'"{suite_python()}" -S -c "import time; time.sleep(5)"'
     result = dispatch._run_cli_step(
         _cli_step(command, timeout_seconds=1),
         {STALL_TIMEOUT_ENV: "1"},

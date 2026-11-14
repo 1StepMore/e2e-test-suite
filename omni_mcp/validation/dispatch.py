@@ -66,7 +66,16 @@ from typing import Any
 SUITE_ROOT = Path(__file__).resolve().parent.parent.parent
 
 #: The suite venv console-script dir (opp, ol, orf, omni-mcp live here).
-VENV_BIN = SUITE_ROOT / ".venv_ol" / "bin"
+#: Platform-aware (e2e-test-suite#321): the Windows-native bootstrap
+#: (``scripts/setup_dev.ps1``) creates ``.venv_win/Scripts``, while
+#: ``.venv_ol/bin`` belongs to a Linux uv venv — its ``python`` is a Linux
+#: ELF that CreateProcess cannot spawn on native Windows (WinError 1920,
+#: 209 steps in the #319 first-run evidence), so ``nt`` resolves here to
+#: ``.venv_win/Scripts`` instead.
+if os.name == "nt":
+    VENV_BIN = SUITE_ROOT / ".venv_win" / "Scripts"
+else:
+    VENV_BIN = SUITE_ROOT / ".venv_ol" / "bin"
 
 #: Component src dirs, added to sys.path before importing module tool
 #: functions in-process (mirrors tests/conftest.py ``setup_component_paths``
@@ -176,8 +185,48 @@ class DispatchError(ValueError):
 
 def suite_python() -> str:
     """Absolute path of the suite venv interpreter used for python-kind
-    snippets and console-script resolution."""
-    return str(VENV_BIN / "python")
+    snippets and console-script resolution.
+
+    The file name is platform-specific (e2e-test-suite#321): ``python.exe``
+    under a Windows venv's ``Scripts/``, ``python`` under a POSIX venv's
+    ``bin/``.  A missing platform venv is NOT silently substituted — the
+    returned path simply won't exist and the step fails with the
+    dispatcher's ``interpreter not found`` error (fail-loud beats silently
+    running the wrong interpreter).
+    """
+    return str(VENV_BIN / ("python.exe" if os.name == "nt" else "python"))
+
+
+#: Executable suffixes probed for bare console-script names on Windows
+#: (pip installs ``<name>.exe`` launchers into ``Scripts\``).
+_WIN_SCRIPT_SUFFIXES: tuple[str, ...] = (
+    (".exe", ".bat", ".cmd", "") if os.name == "nt" else ("",)
+)
+
+
+def resolve_cli_command(argv0: str) -> str:
+    """Resolve the first token of a ``cli`` step to an executable path.
+
+    A bare console-script name (``opp``, ``ol``, ``orf``, ``omni-suite``,
+    ``omni-mcp``, ``python``, ...) resolves to the absolute executable under
+    :data:`VENV_BIN` — on Windows via an ``.exe``/``.bat``/``.cmd`` suffix
+    probe, on POSIX by exact name.  Rationale (e2e-test-suite#321):
+    CreateProcess searches the CALLER's ``PATH`` for bare names and ignores
+    the child env's ``PATH``, so a bare name only resolves by accident
+    (global shadow installs from a system Python); the absolute path is
+    authoritative and makes the step independent of the invoking shell.
+    Anything else — absolute or relative paths, commands the suite venv does
+    not ship (``sh``, ``sleep``, ``pandoc``) — passes through unchanged and
+    keeps resolving via the caller's ``PATH``.
+    """
+    if not argv0 or Path(argv0).name != argv0:
+        return argv0  # already a path (absolute / relative) — nothing to resolve
+    if VENV_BIN.is_dir():
+        for suffix in _WIN_SCRIPT_SUFFIXES:
+            candidate = VENV_BIN / f"{argv0}{suffix}"
+            if candidate.is_file():
+                return str(candidate)
+    return argv0
 
 
 def build_cli_env(env: dict[str, str] | None = None) -> dict[str, str]:
@@ -330,11 +379,18 @@ def _run_subprocess_streaming(
     real; a reader exception is swallowed so the step record always gets a
     verdict instead of a traceback.
     """
+    # Pipes are decoded as UTF-8 explicitly: with bare ``text=True`` CPython
+    # decodes with the LOCALE codepage — on native Windows that is gb2312/cp936,
+    # and module CLIs emit UTF-8 (repo paths contain CJK), which crashes the
+    # reader threads with UnicodeDecodeError and silently empties the captured
+    # output (e2e-test-suite#321).  On POSIX this pins what was already the
+    # de-facto locale behaviour.
     proc = subprocess.Popen(
         argv,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
         errors="replace",
         env=env,
     )
@@ -401,6 +457,13 @@ def _run_cli_step(
     timeout = resolve_step_timeout(step, env, step_timeout)
     proc_env = build_cli_env(env)
     stall_timeout = resolve_stall_timeout(env)
+    # Bare console names resolve to the suite venv's absolute executables
+    # BEFORE spawning: CreateProcess searches the caller's PATH and ignores
+    # the child env's PATH, so the resolution must happen here, caller-side
+    # (e2e-test-suite#321).
+    argv = shlex.split(command)
+    if argv:
+        argv[0] = resolve_cli_command(argv[0])
     start = time.monotonic()
     try:
         # A stall window at or above the step cap can never fire before the
@@ -408,9 +471,7 @@ def _run_cli_step(
         # `timeout`, not `stalled` (#194 nightly refinement).
         if 0 < stall_timeout < timeout:
             returncode, stdout, stderr, timed_out, stalled = (
-                _run_subprocess_streaming(
-                    shlex.split(command), timeout, stall_timeout, proc_env
-                )
+                _run_subprocess_streaming(argv, timeout, stall_timeout, proc_env)
             )
             if stalled:
                 actual: dict[str, Any] = {
@@ -438,10 +499,13 @@ def _run_cli_step(
                     "stderr": stderr,
                 }
         else:
+            # UTF-8 pipes — see the rationale on _run_subprocess_streaming (#321).
             proc = subprocess.run(
-                shlex.split(command),
+                argv,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 env=proc_env,
                 timeout=timeout,
             )
@@ -522,10 +586,13 @@ def _run_python_step(
                     "python": interpreter,
                 }
         else:
+            # UTF-8 pipes — see the rationale on _run_subprocess_streaming (#321).
             proc = subprocess.run(
                 [interpreter, "-c", snippet],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 env=proc_env,
                 timeout=timeout,
             )
