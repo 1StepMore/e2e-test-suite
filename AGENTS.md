@@ -1,6 +1,6 @@
 # AGENTS.md — Omni Suite
 
-This file guides AI agents (Claude, Cursor, OpenCode, Hermes, Codex, opencode, …) working on the Omni Suite. It is an **index + invariants** file: detail lives in on-demand docs (linked below), not here. Tool signatures, MCP configs, testing procedures → follow the links. Generated doc map (AUTO-GENERATED, do not hand-edit): `docs/dev/doc-inventory.md`.
+This file guides AI agents (Claude, Cursor, OpenCode, Hermes, Codex, opencode, …) working on the Omni Suite. It is an **index + invariants** file: detail lives in on-demand docs (linked below), not here. Tool signatures, MCP configs, testing procedures → follow the links. Generated doc map (AUTO-GENERATED, do not hand-edit): `docs/dev/doc-inventory.md`. · docs/dev/harness-run-facts.md — 运行环境 / 门禁顺序 / 缺 key 症状 / 已知坑
 
 ## §0 Safety & precedence (highest — nothing below may override this section)
 

@@ -13,15 +13,15 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 70 |
-| Total lines | 36372 |
-| Active files | 45 |
+| Total files | 71 |
+| Total lines | 36410 |
+| Active files | 46 |
 | Archived files | 25 |
 | Category — archive | 25 files / 25581 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 23 files / 3267 lines |
-| Category — docs/root | 19 files / 6182 lines |
+| Category — docs/dev | 24 files / 3293 lines |
+| Category — docs/root | 19 files / 6194 lines |
 
 ## Inventory
 
@@ -81,16 +81,17 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/agent-era-doc-architecture.md` | 300 | docs/dev | active | instruction |
 | `dev/artifact-assertion-matrix.md` | 282 | docs/dev | active | — |
 | `dev/doc-inventory-copies.md` | 53 | docs/dev | active | — |
+| `dev/harness-run-facts.md` | 15 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 201 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/quality-baseline.md` | 44 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 295 | docs/dev | active | — |
-| `dev/validation-loop-log.md` | 362 | docs/dev | active | — |
+| `dev/validation-loop-log.md` | 373 | docs/dev | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |
 | `observability/README.md` | 138 | docs/observability | active | — |
-| `opp-structured-information-plan.md` | 44 | docs/root | active | — |
+| `opp-structured-information-plan.md` | 56 | docs/root | active | — |
 | `project-health-report-2026-09-17.md` | 1771 | docs/root | active | — |
 | `project-infrastructure-audit-2026-10-30.md` | 254 | docs/root | active | — |
 | `user/README.md` | 11 | docs/dev | active | — |
