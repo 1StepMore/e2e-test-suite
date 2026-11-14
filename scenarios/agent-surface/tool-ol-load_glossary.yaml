@@ -18,7 +18,7 @@ steps:
     command: |
       import os, sys
       sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "$OMNI_TMPDIR/omni-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       import json as _json
       if not os.path.exists(os.path.join(FIXT, "glossary.json")):
@@ -26,7 +26,7 @@ steps:
       import asyncio, json, sys
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import LoadGlossaryInput, load_glossary
-      r = asyncio.run(load_glossary(params=LoadGlossaryInput(path="/tmp/omni-agent-surface/glossary.json")))
+      r = asyncio.run(load_glossary(params=LoadGlossaryInput(path="$OMNI_TMPDIR/omni-agent-surface/glossary.json")))
       print(r)
     timeout_seconds: 120
     expect:
@@ -34,9 +34,9 @@ steps:
       exit_code: 0
       stdout_has: ['"success": true', '"glossary"', 'term_count']
     standard: STANDARDS.md#tool-contract
-    instructions: 'Provision the glossary fixture under /tmp, construct LoadGlossaryInput and call the REAL load_glossary; expect success with glossary and term_count keys.'
+    instructions: 'Provision the glossary fixture under $OMNI_TMPDIR, construct LoadGlossaryInput and call the REAL load_glossary; expect success with glossary and term_count keys.'
     collect_artifacts:
-      - path: '/tmp/omni-agent-surface/glossary.json'
+      - path: '$OMNI_TMPDIR/omni-agent-surface/glossary.json'
   - name: 'load_glossary returns a clean path denial for a bad path'
     kind: python
     command: |

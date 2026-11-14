@@ -13,7 +13,7 @@ requires_env: []
 instructions: |
   What to do:
   1. Remove the scenario dir; build a valid DOCX skeleton and a valid
-     translated XLIFF at /tmp/omni_val/t14-orf-xliff-cross/.
+     translated XLIFF at $OMNI_TMPDIR/omni_val/t14-orf-xliff-cross/.
   2. Run `orf apply-xliff src.docx --xliff trans.xlf --format pptx` (no
      --force) with --json --no-cache: expect a non-zero exit (2) and a clear
      error on stderr naming the '.docx' skeleton vs the 'pptx' target.
@@ -27,7 +27,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil
-      d = pathlib.Path("/tmp/omni_val/t14-orf-xliff-cross")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-orf-xliff-cross")
       shutil.rmtree(d, ignore_errors=True)
       d.mkdir(parents=True)
       from docx import Document
@@ -58,7 +58,7 @@ steps:
       requested cross-format target, isolating the format-preservation guard.
   - name: apply-xliff rejects DOCX-to-PPTX without --force
     kind: cli
-    command: orf apply-xliff /tmp/omni_val/t14-orf-xliff-cross/src.docx --xliff /tmp/omni_val/t14-orf-xliff-cross/trans.xlf --format pptx -o /tmp/omni_val/t14-orf-xliff-cross/out.pptx --no-cache --json
+    command: orf apply-xliff $OMNI_TMPDIR/omni_val/t14-orf-xliff-cross/src.docx --xliff $OMNI_TMPDIR/omni_val/t14-orf-xliff-cross/trans.xlf --format pptx -o $OMNI_TMPDIR/omni_val/t14-orf-xliff-cross/out.pptx --no-cache --json
     timeout_seconds: 120
     expect:
       exit_code: 2
@@ -75,11 +75,11 @@ steps:
     kind: python
     command: |
       import pathlib, subprocess, sys
-      out = pathlib.Path("/tmp/omni_val/t14-orf-xliff-cross/out.pptx")
+      out = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-orf-xliff-cross/out.pptx")
       proc = subprocess.run(
           ["orf", "apply-xliff",
-           "/tmp/omni_val/t14-orf-xliff-cross/src.docx",
-           "--xliff", "/tmp/omni_val/t14-orf-xliff-cross/trans.xlf",
+           "$OMNI_TMPDIR/omni_val/t14-orf-xliff-cross/src.docx",
+           "--xliff", "$OMNI_TMPDIR/omni_val/t14-orf-xliff-cross/trans.xlf",
            "--format", "pptx", "-o", str(out), "--no-cache", "--json"],
           capture_output=True, text=True,
       )
@@ -108,7 +108,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni_val/t14-orf-xliff-cross", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/t14-orf-xliff-cross", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

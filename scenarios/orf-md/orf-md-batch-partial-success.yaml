@@ -37,7 +37,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil
-      d = pathlib.Path("/tmp/omni_val/t21-orf-batch-partial")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/t21-orf-batch-partial")
       shutil.rmtree(d, ignore_errors=True)
       src = d / "src"
       out = d / "out"
@@ -63,7 +63,7 @@ steps:
       conversion raises and is counted as failed (not a crash).
   - name: Partial batch with --allow-partial exits 0 and reports partial
     kind: cli
-    command: orf convert-batch /tmp/omni_val/t21-orf-batch-partial/src --target-format html --output-dir /tmp/omni_val/t21-orf-batch-partial/out --json --allow-partial
+    command: orf convert-batch $OMNI_TMPDIR/omni_val/t21-orf-batch-partial/src --target-format html --output-dir $OMNI_TMPDIR/omni_val/t21-orf-batch-partial/out --json --allow-partial
     timeout_seconds: 120
     expect:
       exit_code: 0
@@ -75,7 +75,7 @@ steps:
       stdout is exactly one JSON object (T-03); human lines go to stderr.
   - name: Partial batch without --allow-partial exits non-zero, counts unchanged
     kind: cli
-    command: orf convert-batch /tmp/omni_val/t21-orf-batch-partial/src --target-format html --output-dir /tmp/omni_val/t21-orf-batch-partial/out --json
+    command: orf convert-batch $OMNI_TMPDIR/omni_val/t21-orf-batch-partial/src --target-format html --output-dir $OMNI_TMPDIR/omni_val/t21-orf-batch-partial/out --json
     timeout_seconds: 120
     expect:
       exit_code: 1
@@ -88,7 +88,7 @@ steps:
       flag may move.
   - name: "Invalid member conversion fails cleanly and leaves no artifact"
     kind: cli
-    command: orf apply-md /tmp/omni_val/t21-orf-batch-partial/src/bad.md --target-format html -o /tmp/omni_val/t21-orf-batch-partial/out/bad.html
+    command: orf apply-md $OMNI_TMPDIR/omni_val/t21-orf-batch-partial/src/bad.md --target-format html -o $OMNI_TMPDIR/omni_val/t21-orf-batch-partial/out/bad.html
     timeout_seconds: 120
     expect:
       exit_code: 1
@@ -114,9 +114,9 @@ steps:
       import json, os, subprocess, sys
       cmd = [
           "orf", "convert-batch",
-          "/tmp/omni_val/t21-orf-batch-partial/src",
+          "$OMNI_TMPDIR/omni_val/t21-orf-batch-partial/src",
           "--target-format", "html",
-          "--output-dir", "/tmp/omni_val/t21-orf-batch-partial/out",
+          "--output-dir", "$OMNI_TMPDIR/omni_val/t21-orf-batch-partial/out",
           "--json", "--allow-partial",
       ]
       proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -125,7 +125,7 @@ steps:
       except Exception as e:
           print("MISMATCH: stdout is not a single JSON object: %s" % e)
           sys.exit(1)
-      out = "/tmp/omni_val/t21-orf-batch-partial/out"
+      out = "$OMNI_TMPDIR/omni_val/t21-orf-batch-partial/out"
       artifacts = sorted(os.listdir(out))
       ok = (
           proc.returncode == 0
@@ -158,7 +158,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni_val/t21-orf-batch-partial", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/t21-orf-batch-partial", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

@@ -26,14 +26,14 @@ category: orf-xliff
 tier: 1
 requires_env: []
 instructions: |-
-  Prove ORF apply-xliff has no working cross-format path (36-paths 34-35). 1) the copy step stages the 8 committed fixture files into /tmp/omni_val/orf-xliff-cross-format-force-rejected/; 2) the skeleton step runs the real OPP CLI to generate the DOCX skeleton.zip at run time (`opp source.docx --target-format both`) into skel/; 3) the pptx step runs `orf apply-xliff <docx skeleton.zip> --xliff <translated xlf> --format pptx --force --no-cache` and must exit 2 with the content-level rejection, "not implemented", and the `orf apply-md` pointer — never "Created"; 4) the epub step does the same for `--format epub`; 5) the control step backfills the SAME skeleton and SAME flag to its own format (`--format docx`) and must exit 0 with "Created"; 6) a python-pptx step asserts NO produced file in the work dir is a valid PPTX (the old disguised cross.pptx would be rejected by python-pptx, so only a real conversion would pass — existence alone is NOT evidence); 7) a zipfile step asserts NO produced file satisfies the EPUB requirements (`mimetype` + META-INF/container.xml); 8) a python-docx step asserts the control DOCX opens with >= 1 paragraph AND carries the translated target 水星机器人, proving the backfill still works exactly as before with --force. No LLM, no FAKE_LLM — hermetic (tier 1).
+  Prove ORF apply-xliff has no working cross-format path (36-paths 34-35). 1) the copy step stages the 8 committed fixture files into $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/; 2) the skeleton step runs the real OPP CLI to generate the DOCX skeleton.zip at run time (`opp source.docx --target-format both`) into skel/; 3) the pptx step runs `orf apply-xliff <docx skeleton.zip> --xliff <translated xlf> --format pptx --force --no-cache` and must exit 2 with the content-level rejection, "not implemented", and the `orf apply-md` pointer — never "Created"; 4) the epub step does the same for `--format epub`; 5) the control step backfills the SAME skeleton and SAME flag to its own format (`--format docx`) and must exit 0 with "Created"; 6) a python-pptx step asserts NO produced file in the work dir is a valid PPTX (the old disguised cross.pptx would be rejected by python-pptx, so only a real conversion would pass — existence alone is NOT evidence); 7) a zipfile step asserts NO produced file satisfies the EPUB requirements (`mimetype` + META-INF/container.xml); 8) a python-docx step asserts the control DOCX opens with >= 1 paragraph AND carries the translated target 水星机器人, proving the backfill still works exactly as before with --force. No LLM, no FAKE_LLM — hermetic (tier 1).
 steps:
   - name: Stage committed translated fixture pair
     kind: python
     command: |-
       import pathlib, shutil
       src = pathlib.Path("scenarios/_fixtures/translated_pair")
-      d = pathlib.Path("/tmp/omni_val/orf-xliff-cross-format-force-rejected")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected")
       d.mkdir(parents=True, exist_ok=True)
       files = [f for f in src.iterdir() if f.is_file()]
       for f in files:
@@ -44,10 +44,10 @@ steps:
       stdout_has: ["COPIED 8 fixture files"]
     standard: STANDARDS.md#exit-codes
     instructions: |-
-      Copy the committed fixture pair (8 files incl. source.docx + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-cross-format-force-rejected/. Check: exit 0 and "COPIED 8 fixture files".
+      Copy the committed fixture pair (8 files incl. source.docx + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/. Check: exit 0 and "COPIED 8 fixture files".
   - name: Generate DOCX skeleton.zip at run time via OPP
     kind: cli
-    command: opp /tmp/omni_val/orf-xliff-cross-format-force-rejected/source.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/orf-xliff-cross-format-force-rejected/skel -v
+    command: opp $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/source.docx --target-format both --source-lang en --target-lang zh --output-dir $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/skel -v
     timeout_seconds: 300
     expect:
       exit_code: 0
@@ -57,7 +57,7 @@ steps:
       Generate the DOCX skeleton.zip at run time with the REAL OPP CLI: `opp source.docx --target-format both -s en -t zh -o skel/ -v`. The skeleton preserves the DOCX zip structure — layout, not input content — generated at run time, never committed. This is the cross-format INPUT: it carries DOCX content while the cross-format steps target pptx/epub. Check: exit code 0 and the OPP -v marker "[INFO] Generated:" on stderr.
   - name: Cross-format DOCX XLIFF to PPTX with --force is rejected
     kind: cli
-    command: orf apply-xliff /tmp/omni_val/orf-xliff-cross-format-force-rejected/skel/source.skeleton.zip --xliff /tmp/omni_val/orf-xliff-cross-format-force-rejected/source.xlf --output /tmp/omni_val/orf-xliff-cross-format-force-rejected/cross.pptx --format pptx --force --no-cache
+    command: orf apply-xliff $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/skel/source.skeleton.zip --xliff $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/source.xlf --output $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/cross.pptx --format pptx --force --no-cache
     timeout_seconds: 300
     expect:
       exit_code: 2
@@ -72,7 +72,7 @@ steps:
       Run the REAL orf CLI cross-format backfill with --force (36-path 34): `orf apply-xliff <docx skeleton.zip> --xliff <translated xlf> --output cross.pptx --format pptx --force --no-cache`. --force must NOT be a bypass: the command must exit 2 (click BadParameter) with the content-level rejection naming the detected DOCX skeleton and the requested pptx target, state that cross-format XLIFF backfill is not implemented, and point at `orf apply-md --target-format pptx`. Before #64 this exited 0 with "Created" and a FORCE MODE warning. Check: exit 2, all three stderr fragments, and no "Created" on stdout.
   - name: Cross-format DOCX XLIFF to EPUB with --force is rejected
     kind: cli
-    command: orf apply-xliff /tmp/omni_val/orf-xliff-cross-format-force-rejected/skel/source.skeleton.zip --xliff /tmp/omni_val/orf-xliff-cross-format-force-rejected/source.xlf --output /tmp/omni_val/orf-xliff-cross-format-force-rejected/cross.epub --format epub --force --no-cache
+    command: orf apply-xliff $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/skel/source.skeleton.zip --xliff $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/source.xlf --output $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/cross.epub --format epub --force --no-cache
     timeout_seconds: 300
     expect:
       exit_code: 2
@@ -87,21 +87,21 @@ steps:
       Same request for the epub target (36-path 35). The message must be actionable for an agent-user without reading ORF's source: it names the failing command's source format (DOCX), the offending --format value (epub), why the request cannot be honoured (cross-format XLIFF backfill is not implemented), and the alternative that does work (`orf apply-md --target-format epub`). Check: exit 2, all three stderr fragments, and no "Created" on stdout.
   - name: "Control: same-format DOCX backfill with --force still succeeds"
     kind: cli
-    command: orf apply-xliff /tmp/omni_val/orf-xliff-cross-format-force-rejected/skel/source.skeleton.zip --xliff /tmp/omni_val/orf-xliff-cross-format-force-rejected/source.xlf --output /tmp/omni_val/orf-xliff-cross-format-force-rejected/same.docx --format docx --force --no-cache
+    command: orf apply-xliff $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/skel/source.skeleton.zip --xliff $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/source.xlf --output $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/same.docx --format docx --force --no-cache
     timeout_seconds: 300
     expect:
       exit_code: 0
-      stdout_has: ["Created /tmp/omni_val/orf-xliff-cross-format-force-rejected/same.docx"]
+      stdout_has: ["Created $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/same.docx"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/orf-xliff-cross-format-force-rejected/same.docx
+      - path: $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/same.docx
     instructions: |-
       The control half of the contract: the SAME skeleton, the SAME XLIFF and the SAME --force flag, backfilled to its own format, must still exit 0 and produce output. --force remains an accepted flag that is harmless on a format-preserving request (only the cross-format bypass is gone). This step is also what gives the next steps teeth — the format-validity probes accept a real DOCX while rejecting the disguised cross-format artifacts. Check: exit 0 and "Created <path>" on stdout.
   - name: Assert no produced file is a valid PPTX
     kind: python
     command: |-
       import pathlib, sys
-      d = pathlib.Path("/tmp/omni_val/orf-xliff-cross-format-force-rejected")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected")
       staged = {"source.docx", "source.epub", "source.html", "source.json",
                 "source.odt", "source.pdf", "source.pptx", "source.xlf"}
       produced = [p for p in d.iterdir() if p.is_file() and p.name not in staged]
@@ -132,7 +132,7 @@ steps:
     kind: python
     command: |-
       import pathlib, sys, zipfile
-      d = pathlib.Path("/tmp/omni_val/orf-xliff-cross-format-force-rejected")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected")
       staged = {"source.docx", "source.epub", "source.html", "source.json",
                 "source.odt", "source.pdf", "source.pptx", "source.xlf"}
       produced = [p for p in d.iterdir() if p.is_file() and p.name not in staged]
@@ -163,7 +163,7 @@ steps:
     command: |-
       import pathlib, sys
       from docx import Document
-      p = "/tmp/omni_val/orf-xliff-cross-format-force-rejected/same.docx"
+      p = "$OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/same.docx"
       try:
           doc = Document(p)
           paras = [x.text for x in doc.paragraphs]
@@ -181,7 +181,7 @@ steps:
       stderr_not_has: ["Traceback (most recent call last)"]
     standard: STANDARDS.md#opens-docx
     collect_artifacts:
-      - path: /tmp/omni_val/orf-xliff-cross-format-force-rejected/same.docx
+      - path: $OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected/same.docx
     instructions: |-
       Proves the format-preserving path with --force is untouched: the output opens in python-docx (STANDARDS.md#opens-docx) with >= 1 paragraph AND carries the translated target 水星机器人 from the committed XLIFF — so the backfill really ran, it is not an empty shell. Together with the two previous steps this makes the scenario falsifiable in both directions: a real artifact of the requested format is accepted here, while the disguised cross-format artifacts would have been rejected by python-pptx / the EPUB checks. Check: exit 0 and the OK: line.
 cleanup_steps:
@@ -189,7 +189,7 @@ cleanup_steps:
     kind: python
     command: |-
       import shutil
-      shutil.rmtree("/tmp/omni_val/orf-xliff-cross-format-force-rejected", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/orf-xliff-cross-format-force-rejected", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

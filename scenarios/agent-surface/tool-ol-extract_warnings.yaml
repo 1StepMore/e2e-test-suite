@@ -18,14 +18,14 @@ steps:
     command: |
       import os, sys
       sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "$OMNI_TMPDIR/omni-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       if not os.path.exists(os.path.join(FIXT, "warn.md")):
           open(os.path.join(FIXT, "warn.md"), "w").write("# Hi\n<!-- OL_WARN:missing_shields key1 -->\nbody\n")
       import asyncio, json, sys
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import ExtractWarningsInput, extract_warnings
-      r = asyncio.run(extract_warnings(params=ExtractWarningsInput(file_path="/tmp/omni-agent-surface/warn.md")))
+      r = asyncio.run(extract_warnings(params=ExtractWarningsInput(file_path="$OMNI_TMPDIR/omni-agent-surface/warn.md")))
       print(r)
     timeout_seconds: 120
     expect:
@@ -33,9 +33,9 @@ steps:
       exit_code: 0
       stdout_has: ['"success": true', '"warnings"']
     standard: STANDARDS.md#tool-contract
-    instructions: 'Provision an MD file carrying an OL_WARN marker under /tmp, construct ExtractWarningsInput and call the REAL extract_warnings; expect success with a warnings list.'
+    instructions: 'Provision an MD file carrying an OL_WARN marker under $OMNI_TMPDIR, construct ExtractWarningsInput and call the REAL extract_warnings; expect success with a warnings list.'
     collect_artifacts:
-      - path: '/tmp/omni-agent-surface/warn.md'
+      - path: '$OMNI_TMPDIR/omni-agent-surface/warn.md'
   - name: 'extract_warnings returns a clean path denial for a bad path'
     kind: python
     command: |

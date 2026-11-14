@@ -27,7 +27,7 @@ instructions: |
 steps:
   - name: Extract the .url shortcut to Markdown via the real OPP CLI
     kind: cli
-    command: opp Omni_Pre_Processor/batch_test/phase8_media/short.url --target-format md --output-dir /tmp/omni_val/opp-youtube -v
+    command: opp Omni_Pre_Processor/batch_test/phase8_media/short.url --target-format md --output-dir $OMNI_TMPDIR/omni_val/opp-youtube -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -43,7 +43,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-youtube/short_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("$OMNI_TMPDIR/omni_val/opp-youtube/short_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
     expect:

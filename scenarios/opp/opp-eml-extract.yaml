@@ -19,7 +19,7 @@ instructions: |
 steps:
   - name: Extract EML to Markdown via the real OPP CLI
     kind: cli
-    command: opp eval/reference/email_mixed/email_mixed_01_source.eml --target-format md --output-dir /tmp/omni_val/opp-eml -v
+    command: opp eval/reference/email_mixed/email_mixed_01_source.eml --target-format md --output-dir $OMNI_TMPDIR/omni_val/opp-eml -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -32,7 +32,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-eml/email_mixed_01_source_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("$OMNI_TMPDIR/omni_val/opp-eml/email_mixed_01_source_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("format=" + m["source"]["format"])
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
@@ -53,7 +53,7 @@ steps:
     kind: python
     command: |
       import pathlib
-      md = pathlib.Path("/tmp/omni_val/opp-eml/email_mixed_01_source.md").read_text(encoding="utf-8")
+      md = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-eml/email_mixed_01_source.md").read_text(encoding="utf-8")
       print("body-found" if "Hi team" in md else "no-body")
     expect:
       exit_code: 0

@@ -25,7 +25,7 @@ steps:
     command: |-
       import os
       from docx import Document
-      BASE = "/tmp/omni-chain-recover"
+      BASE = "$OMNI_TMPDIR/omni-chain-recover"
       os.makedirs(BASE, exist_ok=True)
       for i in (1, 2):
           d = Document()
@@ -47,7 +47,7 @@ steps:
     command: |-
       import asyncio, json, os, sys
       sys.path.insert(0, "Omni_Pre_Processor/src")
-      BASE = "/tmp/omni-chain-recover"
+      BASE = "$OMNI_TMPDIR/omni-chain-recover"
       from opp.mcp.config import load_config
       from opp.mcp.common import _init_server
       _init_server(load_config())
@@ -70,7 +70,7 @@ steps:
     kind: python
     command: |-
       from docx import Document
-      p = "/tmp/omni-chain-recover/doc3.docx"
+      p = "$OMNI_TMPDIR/omni-chain-recover/doc3.docx"
       d = Document()
       d.add_heading("Meridian Robotics Doc 3", level=1)
       d.add_paragraph("Section body 3 with real content.")
@@ -87,7 +87,7 @@ steps:
     command: |-
       import asyncio, json, os, sys
       sys.path.insert(0, "Omni_Pre_Processor/src")
-      BASE = "/tmp/omni-chain-recover"
+      BASE = "$OMNI_TMPDIR/omni-chain-recover"
       from opp.mcp.config import load_config
       from opp.mcp.common import _init_server
       _init_server(load_config())

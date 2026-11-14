@@ -71,7 +71,7 @@ steps:
     command: |-
       import pathlib, shutil, sys
       from pptx import Presentation
-      BASE = pathlib.Path("/tmp/omni_val/pipeline-pptx")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-pptx")
       shutil.rmtree(BASE, ignore_errors=True)
       BASE.mkdir(parents=True)
       prs = Presentation()
@@ -95,15 +95,15 @@ steps:
       the snippet exits 0 and prints the OK marker.
   - name: Extract PPTX to MD + XLIFF via real OPP CLI
     kind: cli
-    command: opp /tmp/omni_val/pipeline-pptx/source.pptx --target-format both --source-lang zh --target-lang en --output-dir /tmp/omni_val/pipeline-pptx/opp_out -v
+    command: opp $OMNI_TMPDIR/omni_val/pipeline-pptx/source.pptx --target-format both --source-lang zh --target-lang en --output-dir $OMNI_TMPDIR/omni_val/pipeline-pptx/opp_out -v
     timeout_seconds: 300
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-pptx/opp_out/source.md
-      - path: /tmp/omni_val/pipeline-pptx/opp_out/source.xlf
+      - path: $OMNI_TMPDIR/omni_val/pipeline-pptx/opp_out/source.md
+      - path: $OMNI_TMPDIR/omni_val/pipeline-pptx/opp_out/source.xlf
     instructions: |-
       Run the real OPP CLI on the generated fixture with --target-format
       both (MD + XLIFF in one pass; XLIFF is the LQA evidence input) and
@@ -112,7 +112,7 @@ steps:
       -v stderr marker is the success signal, STANDARDS.md#exit-codes).
   - name: Translate MD with real LLM (ol translate-md)
     kind: cli
-    command: ol translate-md /tmp/omni_val/pipeline-pptx/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-pptx/ol_out -c Omni_Localizer/config/default.yaml
+    command: ol translate-md $OMNI_TMPDIR/omni_val/pipeline-pptx/opp_out/source.md -s zh -t en -o $OMNI_TMPDIR/omni_val/pipeline-pptx/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 1200
     expect:
       exit_code: 0
@@ -130,7 +130,7 @@ steps:
     command: |-
       import sys
       from scripts.validation.artifact_assertions import untranslated_units_violation_at
-      msg = untranslated_units_violation_at("/tmp/omni_val/pipeline-pptx/ol_out/source.md")
+      msg = untranslated_units_violation_at("$OMNI_TMPDIR/omni_val/pipeline-pptx/ol_out/source.md")
       if msg:
           print("ERROR: " + msg)
           sys.exit(1)
@@ -150,14 +150,14 @@ steps:
       Check: exit 0 + OK marker.
   - name: Translate XLIFF with real LLM (LQA evidence)
     kind: cli
-    command: ol translate-xliff /tmp/omni_val/pipeline-pptx/opp_out/source.xlf -s zh -t en -o /tmp/omni_val/pipeline-pptx/ol_out -c Omni_Localizer/config/default.yaml
+    command: ol translate-xliff $OMNI_TMPDIR/omni_val/pipeline-pptx/opp_out/source.xlf -s zh -t en -o $OMNI_TMPDIR/omni_val/pipeline-pptx/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 1200
     expect:
       exit_code: 0
       stdout_has: ["Translated"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-pptx/ol_out/source.xlf
+      - path: $OMNI_TMPDIR/omni_val/pipeline-pptx/ol_out/source.xlf
     instructions: |-
       Translate the XLIFF with the same real-LLM config. The translated
       XLIFF (ol_out/source.xlf) is the LQA step's input — omo_loop Q2
@@ -165,14 +165,14 @@ steps:
       (scripts/omo_loop.py:302-396). Check: exit 0 + "Translated:".
   - name: Backfill translated MD to PPTX via real ORF CLI
     kind: cli
-    command: orf apply-md /tmp/omni_val/pipeline-pptx/ol_out/source.md --target-format pptx -o /tmp/omni_val/pipeline-pptx/out.pptx --no-cache
+    command: orf apply-md $OMNI_TMPDIR/omni_val/pipeline-pptx/ol_out/source.md --target-format pptx -o $OMNI_TMPDIR/omni_val/pipeline-pptx/out.pptx --no-cache
     timeout_seconds: 300
     expect:
       exit_code: 0
-      stdout_has: ["Created /tmp/omni_val/pipeline-pptx/out.pptx"]
+      stdout_has: ["Created $OMNI_TMPDIR/omni_val/pipeline-pptx/out.pptx"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-pptx/out.pptx
+      - path: $OMNI_TMPDIR/omni_val/pipeline-pptx/out.pptx
     instructions: |-
       Real ORF backfill of the translated MD to PPTX. md2pptx is
       typically absent or a broken symlink, so ORF's pandoc fallback is
@@ -184,7 +184,7 @@ steps:
       import sys
       from pptx import Presentation
       try:
-          prs = Presentation("/tmp/omni_val/pipeline-pptx/out.pptx")
+          prs = Presentation("$OMNI_TMPDIR/omni_val/pipeline-pptx/out.pptx")
       except Exception as e:
           print("ERROR: python-pptx open failed: %s" % e)
           sys.exit(1)
@@ -214,8 +214,8 @@ steps:
       def count_paras(p):
           prs = Presentation(p)
           return sum(len([x for x in sh.text_frame.paragraphs if x.text.strip()]) for s in prs.slides for sh in s.shapes if sh.has_text_frame)
-      src_n = count_paras("/tmp/omni_val/pipeline-pptx/source.pptx")
-      out_n = count_paras("/tmp/omni_val/pipeline-pptx/out.pptx")
+      src_n = count_paras("$OMNI_TMPDIR/omni_val/pipeline-pptx/source.pptx")
+      out_n = count_paras("$OMNI_TMPDIR/omni_val/pipeline-pptx/out.pptx")
       if src_n == 0:
           print("ERROR: source has 0 paragraphs")
           sys.exit(1)
@@ -240,7 +240,7 @@ steps:
     command: |-
       import re, sys
       from pptx import Presentation
-      texts = [x.text for s in Presentation("/tmp/omni_val/pipeline-pptx/out.pptx").slides for sh in s.shapes if sh.has_text_frame for x in sh.text_frame.paragraphs if x.text.strip()]
+      texts = [x.text for s in Presentation("$OMNI_TMPDIR/omni_val/pipeline-pptx/out.pptx").slides for sh in s.shapes if sh.has_text_frame for x in sh.text_frame.paragraphs if x.text.strip()]
       text = "\n".join(texts)
       if not text.strip():
           print("ERROR: PPTX text empty")
@@ -266,7 +266,7 @@ steps:
     command: |-
       import re, sys
       from pptx import Presentation
-      texts = [x.text for s in Presentation("/tmp/omni_val/pipeline-pptx/out.pptx").slides for sh in s.shapes if sh.has_text_frame for x in sh.text_frame.paragraphs if x.text.strip()]
+      texts = [x.text for s in Presentation("$OMNI_TMPDIR/omni_val/pipeline-pptx/out.pptx").slides for sh in s.shapes if sh.has_text_frame for x in sh.text_frame.paragraphs if x.text.strip()]
       text = "\n".join(texts)
       hits = re.findall(r"[\u201c\u201d\u2018\u2019\uff0c\u3002\uff1a\uff1b\uff01\uff1f]", text)
       if hits:
@@ -292,7 +292,7 @@ steps:
     command: |-
       import os, re, sys, asyncio
       os.environ["OMNI_RATE_LIMIT_RPM"] = "0"
-      xlf_text = open("/tmp/omni_val/pipeline-pptx/ol_out/source.xlf", encoding="utf-8").read()
+      xlf_text = open("$OMNI_TMPDIR/omni_val/pipeline-pptx/ol_out/source.xlf", encoding="utf-8").read()
       pairs = []
       for m in re.finditer(r'<trans-unit[^>]*id="([^"]+)"[^>]*>.*?<source[^>]*>(.*?)</source>\s*<target[^>]*>(.*?)</target>', xlf_text, re.DOTALL):
           src = re.sub(r"<[^>]+>", "", m.group(2)).strip()

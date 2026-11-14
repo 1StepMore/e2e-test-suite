@@ -45,7 +45,7 @@ steps:
       import json, os, sys
       for _p in ("Omni_Pre_Processor/src", "Omni_Localizer/src", "Omni_Re_Formatter/src"):
           sys.path.insert(0, _p)
-      os.environ.setdefault("MCP_ALLOWED_DIRECTORIES", "/tmp")
+      os.environ.setdefault("MCP_ALLOWED_DIRECTORIES", "$OMNI_TMPDIR")
 
       from opp.mcp.server import _TOOL_SCHEMAS as opp_schemas
       from ol_mcp.tools import TOOL_REGISTRY as ol_registry
@@ -125,7 +125,7 @@ steps:
       import json, os, sys
       for _p in ("Omni_Pre_Processor/src", "Omni_Localizer/src", "Omni_Re_Formatter/src"):
           sys.path.insert(0, _p)
-      os.environ.setdefault("MCP_ALLOWED_DIRECTORIES", "/tmp")
+      os.environ.setdefault("MCP_ALLOWED_DIRECTORIES", "$OMNI_TMPDIR")
 
       from ol_mcp.tools import TOOL_REGISTRY as ol_registry
       from ol_mcp.tools import TranslateFileInput

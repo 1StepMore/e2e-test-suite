@@ -18,7 +18,7 @@ steps:
     command: |
       import os, shutil, sys
       sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "$OMNI_TMPDIR/omni-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       if not os.path.exists(os.path.join(FIXT, "sample.xlf")):
           open(os.path.join(FIXT, "sample.xlf"), "w").write('<?xml version="1.0" encoding="utf-8"?><xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2"><file original="sample.md" source-language="en" target-language="zh"><body><trans-unit id="1"><source>Hello World</source><target>你好世界</target></trans-unit></body></file></xliff>')
@@ -27,7 +27,7 @@ steps:
       import asyncio, json, sys
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import TranslateXliffInput, translate_xliff
-      r = asyncio.run(translate_xliff(params=TranslateXliffInput(input_path="/tmp/omni-agent-surface/sample.xlf", output_path="/tmp/omni-agent-surface/out.xlf", source_lang="en", target_lang="zh", config_path="/tmp/omni-agent-surface/default.yaml")))
+      r = asyncio.run(translate_xliff(params=TranslateXliffInput(input_path="$OMNI_TMPDIR/omni-agent-surface/sample.xlf", output_path="$OMNI_TMPDIR/omni-agent-surface/out.xlf", source_lang="en", target_lang="zh", config_path="$OMNI_TMPDIR/omni-agent-surface/default.yaml")))
       print(r)
     timeout_seconds: 600
     expect:
@@ -42,7 +42,7 @@ steps:
       import asyncio, json, sys
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import translate_xliff
-      r = asyncio.run(translate_xliff(params={'input_path': '/tmp/x.xlf'}))
+      r = asyncio.run(translate_xliff(params={'input_path': '$OMNI_TMPDIR/x.xlf'}))
       print(r)
     timeout_seconds: 120
     expect:

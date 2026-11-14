@@ -17,7 +17,7 @@ steps:
     kind: python
     command: |
       import os, sys
-      FIXT = "/tmp/omni-batch-convert-fixture"
+      FIXT = "$OMNI_TMPDIR/omni-batch-convert-fixture"
       os.makedirs(FIXT, exist_ok=True)
       target = os.path.join(FIXT, "sample_fm.md")
       if not os.path.exists(target):
@@ -28,12 +28,12 @@ steps:
       success: true
       exit_code: 0
     standard: STANDARDS.md#tool-contract
-    instructions: "Write ONE frontmatter-marked .md under a directory dedicated to this scenario. It must not be /tmp/omni-agent-surface: 22 agent-surface scenarios share that directory, `orf convert-batch` scans recursively (rglob *.md) and counts every file carrying frontmatter, so any sibling scenario that translates into the shared dir silently changes this scenario's `succeeded` count. That happened — the 2026-10-06..11 nightlies all reported succeeded 2 instead of 1 because a tier-2 OL scenario ran first in the all-tier pass and dropped a translated .md beside the fixture."
+    instructions: "Write ONE frontmatter-marked .md under a directory dedicated to this scenario. It must not be $OMNI_TMPDIR/omni-agent-surface: 22 agent-surface scenarios share that directory, `orf convert-batch` scans recursively (rglob *.md) and counts every file carrying frontmatter, so any sibling scenario that translates into the shared dir silently changes this scenario's `succeeded` count. That happened — the 2026-10-06..11 nightlies all reported succeeded 2 instead of 1 because a tier-2 OL scenario ran first in the all-tier pass and dropped a translated .md beside the fixture."
   - name: 'batch_convert converts the fixture dir and reports structured success'
     kind: mcp
     tool: orf.mcp.server.batch_convert
     arguments:
-      input_dir: /tmp/omni-batch-convert-fixture
+      input_dir: $OMNI_TMPDIR/omni-batch-convert-fixture
       target_format: html
     timeout_seconds: 120
     expect:

@@ -18,7 +18,7 @@ requires_env: []
 instructions: |
   What to do:
   1. Initialize the real OPP MCP server in-process with
-     OPP_MCP_ALLOWED_DIRS=/tmp, then call the real `batch_extract` tool with
+     OPP_MCP_ALLOWED_DIRS=$OMNI_TMPDIR, then call the real `batch_extract` tool with
      51 file paths — one more than the shipped MAX_BATCH_FILES bound (50).
   2. Expect a typed resource-bound refusal: success=false, error.code ==
      OPP_RESOURCE_EXHAUSTED, and recovery.strategy == reduce_input (the
@@ -42,7 +42,7 @@ steps:
       import os
       import sys
 
-      os.environ["OPP_MCP_ALLOWED_DIRS"] = "/tmp"
+      os.environ["OPP_MCP_ALLOWED_DIRS"] = "$OMNI_TMPDIR"
       sys.path.insert(0, "Omni_Pre_Processor/src")
       from opp.mcp.config import load_config
       from opp.mcp.common import _init_server
@@ -51,7 +51,7 @@ steps:
       from opp.mcp.server import batch_extract
 
       LIMIT = 50
-      paths = ["/tmp/omni-val-r08/f%03d.md" % i for i in range(LIMIT + 1)]
+      paths = ["$OMNI_TMPDIR/omni-val-r08/f%03d.md" % i for i in range(LIMIT + 1)]
       r = asyncio.run(batch_extract(file_paths=paths, output_formats="md"))
 
       code = (r.get("error") or {}).get("code")

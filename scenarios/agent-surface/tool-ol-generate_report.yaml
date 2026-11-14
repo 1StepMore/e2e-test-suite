@@ -19,7 +19,7 @@ steps:
       import asyncio, json, sys
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import GenerateReportInput, generate_report
-      r = asyncio.run(generate_report(params=GenerateReportInput(output_dir="/tmp/omni-agent-surface", job_id="agent-surface")))
+      r = asyncio.run(generate_report(params=GenerateReportInput(output_dir="$OMNI_TMPDIR/omni-agent-surface", job_id="agent-surface")))
       print(r)
     timeout_seconds: 120
     expect:

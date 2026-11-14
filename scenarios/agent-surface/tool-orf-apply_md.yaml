@@ -18,7 +18,7 @@ steps:
     command: |
       import os, shutil, sys
       sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "$OMNI_TMPDIR/omni-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       import json as _json
       from docx import Document
@@ -47,14 +47,14 @@ steps:
       success: true
       exit_code: 0
     standard: STANDARDS.md#tool-contract
-    instructions: 'Write the hermetic fixture set (sample.md, sample.docx, sample.xlf, glossary.json, memory.tmx) under /tmp/omni-agent-surface so the tool steps have real files inside the allowlist.'
+    instructions: 'Write the hermetic fixture set (sample.md, sample.docx, sample.xlf, glossary.json, memory.tmx) under $OMNI_TMPDIR/omni-agent-surface so the tool steps have real files inside the allowlist.'
   - name: 'apply_md converts the MD fixture to HTML'
     kind: mcp
     tool: orf.mcp.server.apply_md
     arguments:
-      input_md: /tmp/omni-agent-surface/sample.md
+      input_md: $OMNI_TMPDIR/omni-agent-surface/sample.md
       target_format: html
-      output_path: /tmp/omni-agent-surface/applied.html
+      output_path: $OMNI_TMPDIR/omni-agent-surface/applied.html
     timeout_seconds: 120
     expect:
       success: true
@@ -62,7 +62,7 @@ steps:
     standard: STANDARDS.md#tool-contract
     instructions: 'Call apply_md with the MD fixture, target format html and an output path inside the allowlist; expect success with output_path.'
     collect_artifacts:
-      - path: '/tmp/omni-agent-surface/applied.html'
+      - path: '$OMNI_TMPDIR/omni-agent-surface/applied.html'
   - name: 'apply_md rejects a call with no input'
     kind: mcp
     tool: orf.mcp.server.apply_md

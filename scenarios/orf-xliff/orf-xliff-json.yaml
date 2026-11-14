@@ -13,14 +13,14 @@ category: orf-xliff
 tier: 1
 requires_env: []
 instructions: |-
-  Prove ORF apply-xliff runs the JSON backfill channel (xliff2json) on the committed pair. 1) the copy step stages the 8 committed fixture files into /tmp/omni_val/orf-xliff-json/; 2) the CLI step runs `orf apply-xliff <committed source.json> --xliff <translated xlf> --format json` and must exit 0 with a Created announcement; 3) the assert step json.loads the output and checks: xliff_units is a list of 18 units, every unit has a non-empty target, and unit 1's target carries the Chinese translation 水星机器人. No skeleton.zip, no --original-json — the channel derives the unit array from the XLIFF itself. No LLM, no FAKE_LLM — hermetic (tier 1).
+  Prove ORF apply-xliff runs the JSON backfill channel (xliff2json) on the committed pair. 1) the copy step stages the 8 committed fixture files into $OMNI_TMPDIR/omni_val/orf-xliff-json/; 2) the CLI step runs `orf apply-xliff <committed source.json> --xliff <translated xlf> --format json` and must exit 0 with a Created announcement; 3) the assert step json.loads the output and checks: xliff_units is a list of 18 units, every unit has a non-empty target, and unit 1's target carries the Chinese translation 水星机器人. No skeleton.zip, no --original-json — the channel derives the unit array from the XLIFF itself. No LLM, no FAKE_LLM — hermetic (tier 1).
 steps:
   - name: Stage committed translated fixture pair
     kind: python
     command: |-
       import pathlib, shutil
       src = pathlib.Path("scenarios/_fixtures/translated_pair")
-      d = pathlib.Path("/tmp/omni_val/orf-xliff-json")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/orf-xliff-json")
       d.mkdir(parents=True, exist_ok=True)
       files = [f for f in src.iterdir() if f.is_file()]
       for f in files:
@@ -31,24 +31,24 @@ steps:
       stdout_has: ["COPIED 8 fixture files"]
     standard: STANDARDS.md#exit-codes
     instructions: |-
-      Copy the committed fixture pair (8 files incl. source.json + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into /tmp/omni_val/orf-xliff-json/. Check: exit 0 and "COPIED 8 fixture files".
+      Copy the committed fixture pair (8 files incl. source.json + the pre-translated source.xlf) from scenarios/_fixtures/translated_pair/ into $OMNI_TMPDIR/omni_val/orf-xliff-json/. Check: exit 0 and "COPIED 8 fixture files".
   - name: Backfill translated XLIFF to JSON with orf apply-xliff
     kind: cli
-    command: orf apply-xliff /tmp/omni_val/orf-xliff-json/source.json --xliff /tmp/omni_val/orf-xliff-json/source.xlf --output /tmp/omni_val/orf-xliff-json/out.json --format json
+    command: orf apply-xliff $OMNI_TMPDIR/omni_val/orf-xliff-json/source.json --xliff $OMNI_TMPDIR/omni_val/orf-xliff-json/source.xlf --output $OMNI_TMPDIR/omni_val/orf-xliff-json/out.json --format json
     timeout_seconds: 300
     expect:
       exit_code: 0
-      stdout_has: ["Created /tmp/omni_val/orf-xliff-json/out.json"]
+      stdout_has: ["Created $OMNI_TMPDIR/omni_val/orf-xliff-json/out.json"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/orf-xliff-json/out.json
+      - path: $OMNI_TMPDIR/omni_val/orf-xliff-json/out.json
     instructions: |-
       Run the REAL orf CLI backfill: `orf apply-xliff <committed source.json> --xliff <committed translated source.xlf> --output out.json --format json`. The JSON channel (xliff2json) parses the XLIFF and writes the unit array (id/source/target) to the output; the committed source.json is the input skeleton per the CLI signature (no skeleton.zip, no --original-json needed for the unit-array channel). Check: exit code 0 (STANDARDS.md#exit-codes) and stdout announces "Created <path>". The assertion on the output content is the next step.
   - name: Assert JSON parseable with translated targets present
     kind: python
     command: |-
       import sys, json
-      p = "/tmp/omni_val/orf-xliff-json/out.json"
+      p = "$OMNI_TMPDIR/omni_val/orf-xliff-json/out.json"
       try:
           data = json.loads(open(p, encoding="utf-8").read())
           units = data.get("xliff_units", [])
@@ -65,6 +65,6 @@ steps:
       stdout_has: ["OK:"]
     standard: STANDARDS.md#json-parseable
     collect_artifacts:
-      - path: /tmp/omni_val/orf-xliff-json/out.json
+      - path: $OMNI_TMPDIR/omni_val/orf-xliff-json/out.json
     instructions: |-
-      Read /tmp/omni_val/orf-xliff-json/out.json and verify: (1) json.loads succeeds (STANDARDS.md#json-parseable — an agent-user's json.loads must never fail on the suite's own output); (2) the xliff_units array holds exactly 18 units; (3) every unit's target is non-empty; (4) unit 1's target carries the Chinese translation 水星机器人 (the xlf target for unit id=1 is "水星机器人 — 产品概述" — the xliff2json channel writes targets by construction). The snippet exits 0 with an OK: message when all hold, or exits 1 naming the problem otherwise.
+      Read $OMNI_TMPDIR/omni_val/orf-xliff-json/out.json and verify: (1) json.loads succeeds (STANDARDS.md#json-parseable — an agent-user's json.loads must never fail on the suite's own output); (2) the xliff_units array holds exactly 18 units; (3) every unit's target is non-empty; (4) unit 1's target carries the Chinese translation 水星机器人 (the xlf target for unit id=1 is "水星机器人 — 产品概述" — the xliff2json channel writes targets by construction). The snippet exits 0 with an OK: message when all hold, or exits 1 naming the problem otherwise.

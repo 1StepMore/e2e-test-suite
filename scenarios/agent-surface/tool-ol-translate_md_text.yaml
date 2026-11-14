@@ -18,14 +18,14 @@ steps:
     command: |
       import os, shutil, sys
       sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "$OMNI_TMPDIR/omni-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       if not os.path.exists(os.path.join(FIXT, "default.yaml")):
           shutil.copy("Omni_Localizer/config/default.yaml", os.path.join(FIXT, "default.yaml"))
       import asyncio, json, sys
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import TranslateInput, translate_md_text
-      r = asyncio.run(translate_md_text(params=TranslateInput(content="# Hello World\n\nThis is a test.", source_lang="en", target_lang="zh", config_path="/tmp/omni-agent-surface/default.yaml")))
+      r = asyncio.run(translate_md_text(params=TranslateInput(content="# Hello World\n\nThis is a test.", source_lang="en", target_lang="zh", config_path="$OMNI_TMPDIR/omni-agent-surface/default.yaml")))
       print(r)
     timeout_seconds: 600
     expect:

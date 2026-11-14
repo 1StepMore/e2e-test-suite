@@ -13,7 +13,7 @@ requires_env: []
 instructions: |
   What to do:
   1. Remove the scenario dir, then write a minimal translated MD at
-     /tmp/omni_val/t14-orf-md-bogus/in.md.
+     $OMNI_TMPDIR/omni_val/t14-orf-md-bogus/in.md.
   2. Run the real `orf apply-md` CLI with --target-format bogus. Click's
      Choice must reject it at parse time: exit code 2, an error on stderr
      naming the invalid value, nothing on stdout.
@@ -28,7 +28,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil
-      d = pathlib.Path("/tmp/omni_val/t14-orf-md-bogus")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-orf-md-bogus")
       shutil.rmtree(d, ignore_errors=True)
       d.mkdir(parents=True)
       (d / "in.md").write_text("# Hello\n\nworld\n", encoding="utf-8")
@@ -43,7 +43,7 @@ steps:
       artifact can be mistaken for this run's output.
   - name: apply-md rejects the unsupported target format
     kind: cli
-    command: orf apply-md /tmp/omni_val/t14-orf-md-bogus/in.md --target-format bogus -o /tmp/omni_val/t14-orf-md-bogus/out.bogus --json
+    command: orf apply-md $OMNI_TMPDIR/omni_val/t14-orf-md-bogus/in.md --target-format bogus -o $OMNI_TMPDIR/omni_val/t14-orf-md-bogus/out.bogus --json
     timeout_seconds: 120
     expect:
       exit_code: 2
@@ -60,9 +60,9 @@ steps:
     kind: python
     command: |
       import pathlib, subprocess, sys
-      out = pathlib.Path("/tmp/omni_val/t14-orf-md-bogus/out.bogus")
+      out = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-orf-md-bogus/out.bogus")
       proc = subprocess.run(
-          ["orf", "apply-md", "/tmp/omni_val/t14-orf-md-bogus/in.md",
+          ["orf", "apply-md", "$OMNI_TMPDIR/omni_val/t14-orf-md-bogus/in.md",
            "--target-format", "bogus", "-o", str(out), "--json"],
           capture_output=True, text=True,
       )
@@ -93,7 +93,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni_val/t14-orf-md-bogus", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/t14-orf-md-bogus", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

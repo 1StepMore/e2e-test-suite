@@ -26,7 +26,7 @@ steps:
     command: |-
       import asyncio, json, os, sys
       sys.path.insert(0, "Omni_Pre_Processor/src")
-      BASE = "/tmp/omni-chain-mcp"
+      BASE = "$OMNI_TMPDIR/omni-chain-mcp"
       os.makedirs(BASE, exist_ok=True)
       from docx import Document
       p = os.path.join(BASE, "source.docx")
@@ -57,7 +57,7 @@ steps:
     kind: python
     command: |-
       import asyncio, json, os, shutil, sys
-      BASE = "/tmp/omni-chain-mcp"
+      BASE = "$OMNI_TMPDIR/omni-chain-mcp"
       sys.path.insert(0, "Omni_Localizer/src")
       md = open(os.path.join(BASE, "extracted.md"), encoding="utf-8").read()
       hop1 = json.load(open(os.path.join(BASE, "hop1.json")))
@@ -84,7 +84,7 @@ steps:
     kind: python
     command: |-
       import json, os, sys
-      BASE = "/tmp/omni-chain-mcp"
+      BASE = "$OMNI_TMPDIR/omni-chain-mcp"
       sys.path.insert(0, "Omni_Re_Formatter/src")
       out = open(os.path.join(BASE, "translated.md"), encoding="utf-8").read()
       hop2 = json.load(open(os.path.join(BASE, "hop2.json")))
@@ -108,7 +108,7 @@ steps:
       import sys
       from docx import Document
       try:
-          doc = Document("/tmp/omni-chain-mcp/final.docx")
+          doc = Document("$OMNI_TMPDIR/omni-chain-mcp/final.docx")
       except Exception as e:
           print("ERROR: final DOCX does not open: %s" % e)
           sys.exit(1)

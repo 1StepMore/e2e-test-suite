@@ -12,7 +12,7 @@ category: orf-xliff
 tier: 1
 requires_env: []
 instructions: |-
-  Prove the EML XLIFF round trip survives real CLIs end to end. 1) a python step writes a deterministic multipart EML (multipart/alternative inside multipart/mixed, base64 text/plain, quoted-printable text/html, one binary attachment, CRLF, Subject long enough to fold) to /tmp/omni_val/orf-xliff-eml/in.eml; 2) `opp in.eml --target-format both` must exit 0 and write in.skeleton.zip (message.eml + eml_map.json); 3) a python step copies every <source> into <target> with a 译: prefix; 4) `orf apply-xliff <skeleton> --xliff translated.xlf --format eml` must exit 0 and announce Created; 5) a python step asserts the top-level header block is byte-identical, the selected text/plain part carries the translated paragraphs, and the unselected text/html alternative plus the attachment are unchanged. The alternative part is deliberately NOT translated — only the part named by eml_map.json is rewritten.
+  Prove the EML XLIFF round trip survives real CLIs end to end. 1) a python step writes a deterministic multipart EML (multipart/alternative inside multipart/mixed, base64 text/plain, quoted-printable text/html, one binary attachment, CRLF, Subject long enough to fold) to $OMNI_TMPDIR/omni_val/orf-xliff-eml/in.eml; 2) `opp in.eml --target-format both` must exit 0 and write in.skeleton.zip (message.eml + eml_map.json); 3) a python step copies every <source> into <target> with a 译: prefix; 4) `orf apply-xliff <skeleton> --xliff translated.xlf --format eml` must exit 0 and announce Created; 5) a python step asserts the top-level header block is byte-identical, the selected text/plain part carries the translated paragraphs, and the unselected text/html alternative plus the attachment are unchanged. The alternative part is deliberately NOT translated — only the part named by eml_map.json is rewritten.
 steps:
   - name: Build deterministic multipart EML fixture
     kind: python
@@ -20,7 +20,7 @@ steps:
       import pathlib
       from email import policy
       from email.message import EmailMessage
-      d = pathlib.Path("/tmp/omni_val/orf-xliff-eml")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/orf-xliff-eml")
       d.mkdir(parents=True, exist_ok=True)
       m = EmailMessage()
       m["From"] = "Alice Example <alice@example.com>"
@@ -38,17 +38,17 @@ steps:
       stdout_has: ["WROTE"]
     standard: STANDARDS.md#exit-codes
     instructions: |-
-      Write /tmp/omni_val/orf-xliff-eml/in.eml with a folded Subject, a base64 text/plain body of two paragraphs, a quoted-printable text/html alternative and one base64 attachment, all CRLF. Check: exit 0 and a WROTE line; the separator assertion proves the header block is splittable.
+      Write $OMNI_TMPDIR/omni_val/orf-xliff-eml/in.eml with a folded Subject, a base64 text/plain body of two paragraphs, a quoted-printable text/html alternative and one base64 attachment, all CRLF. Check: exit 0 and a WROTE line; the separator assertion proves the header block is splittable.
 
   - name: Extract the EML with OPP
     kind: cli
-    command: opp /tmp/omni_val/orf-xliff-eml/in.eml --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/orf-xliff-eml -v
+    command: opp $OMNI_TMPDIR/omni_val/orf-xliff-eml/in.eml --target-format both --source-lang en --target-lang zh --output-dir $OMNI_TMPDIR/omni_val/orf-xliff-eml -v
     timeout_seconds: 300
     expect:
       exit_code: 0
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/orf-xliff-eml/in.skeleton.zip
+      - path: $OMNI_TMPDIR/omni_val/orf-xliff-eml/in.skeleton.zip
     instructions: |-
       Run the real OPP CLI on the fixture (`-v` so the run is auditable). Check: exit 0 (STANDARDS.md#exit-codes). The presence of in.skeleton.zip with message.eml plus eml_map.json is asserted by the next step, which is stronger evidence than a log line.
 
@@ -58,7 +58,7 @@ steps:
       import pathlib
       from lxml import etree
       import zipfile
-      d = pathlib.Path("/tmp/omni_val/orf-xliff-eml")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/orf-xliff-eml")
       skeleton = d / "in.skeleton.zip"
       assert skeleton.is_file(), "OPP wrote no skeleton at %s" % skeleton
       with zipfile.ZipFile(skeleton) as zf:
@@ -88,14 +88,14 @@ steps:
 
   - name: Backfill translated XLIFF into the EML skeleton
     kind: cli
-    command: orf apply-xliff /tmp/omni_val/orf-xliff-eml/in.skeleton.zip --xliff /tmp/omni_val/orf-xliff-eml/translated.xlf --output /tmp/omni_val/orf-xliff-eml/out.eml --format eml
+    command: orf apply-xliff $OMNI_TMPDIR/omni_val/orf-xliff-eml/in.skeleton.zip --xliff $OMNI_TMPDIR/omni_val/orf-xliff-eml/translated.xlf --output $OMNI_TMPDIR/omni_val/orf-xliff-eml/out.eml --format eml
     timeout_seconds: 300
     expect:
       exit_code: 0
-      stdout_has: ["Created /tmp/omni_val/orf-xliff-eml/out.eml"]
+      stdout_has: ["Created $OMNI_TMPDIR/omni_val/orf-xliff-eml/out.eml"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/orf-xliff-eml/out.eml
+      - path: $OMNI_TMPDIR/omni_val/orf-xliff-eml/out.eml
     instructions: |-
       Run the real ORF CLI: `orf apply-xliff <skeleton.zip> --xliff translated.xlf --output out.eml --format eml`. Check: exit 0 (STANDARDS.md#exit-codes) and stdout announces Created <path>.
 
@@ -106,7 +106,7 @@ steps:
       from email import policy
       from email.parser import BytesParser
       try:
-          d = pathlib.Path("/tmp/omni_val/orf-xliff-eml")
+          d = pathlib.Path("$OMNI_TMPDIR/omni_val/orf-xliff-eml")
           raw_in = (d / "in.eml").read_bytes()
           raw_out = (d / "out.eml").read_bytes()
           sep = b"\r\n\r\n"

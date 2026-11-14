@@ -48,7 +48,7 @@ steps:
     kind: python
     command: |-
       import pathlib, shutil
-      BASE = pathlib.Path("/tmp/omni_val/pipeline-xliff-docx")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-xliff-docx")
       shutil.rmtree(BASE, ignore_errors=True)
       BASE.mkdir(parents=True)
       shutil.copy2("scenarios/_fixtures/translated_pair/source.docx", BASE / "source.docx")
@@ -61,19 +61,19 @@ steps:
     standard: STANDARDS.md#exit-codes
     instructions: |-
       Stage the committed Meridian DOCX (38 KB, English source) into
-      /tmp/omni_val/pipeline-xliff-docx/source.docx via shutil.copy2. Check:
+      $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/source.docx via shutil.copy2. Check:
       exit 0 + "OK: DOCX fixture staged"; the size assertion pins a
       non-trivial fixture (a truncated copy fails).
   - name: Extract DOCX to XLIFF + skeleton via real OPP CLI
     kind: cli
-    command: opp /tmp/omni_val/pipeline-xliff-docx/source.docx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/pipeline-xliff-docx/opp_out -v
+    command: opp $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/source.docx --target-format both --source-lang en --target-lang zh --output-dir $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/opp_out -v
     timeout_seconds: 300
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:", "Skeleton saved:"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-xliff-docx/opp_out/source.xlf
+      - path: $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/opp_out/source.xlf
     instructions: |-
       Run the real OPP CLI with --target-format both: it writes source.xlf
       (untranslated units) AND source.skeleton.zip (the layout skeleton).
@@ -82,14 +82,14 @@ steps:
       "Skeleton saved:" (OPP's -v markers on stderr).
   - name: Translate XLIFF with real LLM (ol translate-xliff)
     kind: cli
-    command: ol translate-xliff /tmp/omni_val/pipeline-xliff-docx/opp_out/source.xlf -s en -t zh -o /tmp/omni_val/pipeline-xliff-docx/ol_out -c Omni_Localizer/config/default.yaml
+    command: ol translate-xliff $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/opp_out/source.xlf -s en -t zh -o $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 1200
     expect:
       exit_code: 0
       stdout_has: ["Translated"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-xliff-docx/ol_out/source.xlf
+      - path: $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/ol_out/source.xlf
     instructions: |-
       Real-LLM XLIFF translation (en -> zh) with the tracked OL config
       (config/default.yaml; the requires_env gate guarantees the keys are
@@ -99,7 +99,7 @@ steps:
     kind: python
     command: |-
       import re, sys
-      p = "/tmp/omni_val/pipeline-xliff-docx/ol_out/source.xlf"
+      p = "$OMNI_TMPDIR/omni_val/pipeline-xliff-docx/ol_out/source.xlf"
       try:
           s = open(p, encoding="utf-8").read()
           targets = re.findall(r"<target\b[^>]*>(.*?)</target>", s, re.S)
@@ -127,14 +127,14 @@ steps:
       DOCX error (e2e-test-suite#270).
   - name: Backfill translated XLIFF into the skeleton via orf apply-xliff
     kind: cli
-    command: orf apply-xliff /tmp/omni_val/pipeline-xliff-docx/opp_out/source.skeleton.zip --xliff /tmp/omni_val/pipeline-xliff-docx/ol_out/source.xlf --output /tmp/omni_val/pipeline-xliff-docx/out.docx --format docx
+    command: orf apply-xliff $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/opp_out/source.skeleton.zip --xliff $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/ol_out/source.xlf --output $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/out.docx --format docx
     timeout_seconds: 300
     expect:
       exit_code: 0
-      stdout_has: ["Created /tmp/omni_val/pipeline-xliff-docx/out.docx"]
+      stdout_has: ["Created $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/out.docx"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-xliff-docx/out.docx
+      - path: $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/out.docx
     instructions: |-
       Run the real ORF backfill: the OPP-generated skeleton.zip is the
       positional source, the translated XLIFF supplies the <target> units,
@@ -145,7 +145,7 @@ steps:
     command: |-
       import re, sys, zipfile
       from docx import Document
-      p = "/tmp/omni_val/pipeline-xliff-docx/out.docx"
+      p = "$OMNI_TMPDIR/omni_val/pipeline-xliff-docx/out.docx"
       try:
           doc = Document(p)
           assert len(doc.paragraphs) >= 1, "python-docx opens with zero paragraphs"
@@ -161,7 +161,7 @@ steps:
       stdout_has: ["OK: DOCX opens"]
     standard: STANDARDS.md#opens-docx
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-xliff-docx/out.docx
+      - path: $OMNI_TMPDIR/omni_val/pipeline-xliff-docx/out.docx
     instructions: |-
       Read out.docx and verify: (1) python-docx opens it with >= 1 paragraph
       (STANDARDS.md#opens-docx — scripts/omo_loop.py Q1 functional floor);

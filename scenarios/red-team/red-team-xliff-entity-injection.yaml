@@ -21,7 +21,7 @@ tier: 1
 level: agent-user
 instructions: |
   What to do:
-  1. Write /tmp/omni-val-red-team/xxe.xlf: an XLIFF whose DOCTYPE declares
+  1. Write $OMNI_TMPDIR/omni-val-red-team/xxe.xlf: an XLIFF whose DOCTYPE declares
      an external SYSTEM entity pointing at file:///etc/passwd and whose
      first trans-unit source is &xxe;.
   2. OPP validate_xliff with the inline content: expect is_valid=false and
@@ -38,7 +38,7 @@ steps:
     command: |
       import os
 
-      out_dir = "/tmp/omni-val-red-team"
+      out_dir = "$OMNI_TMPDIR/omni-val-red-team"
       os.makedirs(out_dir, exist_ok=True)
       path = os.path.join(out_dir, "xxe.xlf")
       xxe = (
@@ -70,7 +70,7 @@ steps:
       import os
       import sys
 
-      os.environ["OPP_MCP_ALLOWED_DIRS"] = "/tmp"
+      os.environ["OPP_MCP_ALLOWED_DIRS"] = "$OMNI_TMPDIR"
       sys.path.insert(0, "Omni_Pre_Processor/src")
       from opp.mcp.config import load_config
       from opp.mcp.common import _init_server
@@ -78,7 +78,7 @@ steps:
       from opp.mcp.server import validate_xliff
 
       with open(
-          "/tmp/omni-val-red-team/xxe.xlf", encoding="utf-8"
+          "$OMNI_TMPDIR/omni-val-red-team/xxe.xlf", encoding="utf-8"
       ) as fh:
           malicious = fh.read()
       result = asyncio.run(validate_xliff(xliff_content=malicious))
@@ -102,7 +102,7 @@ steps:
       import os
       import sys
 
-      os.environ["OPP_MCP_ALLOWED_DIRS"] = "/tmp"
+      os.environ["OPP_MCP_ALLOWED_DIRS"] = "$OMNI_TMPDIR"
       sys.path.insert(0, "Omni_Pre_Processor/src")
       from opp.mcp.config import load_config
       from opp.mcp.common import _init_server
@@ -110,7 +110,7 @@ steps:
       from opp.mcp.server import validate_xliff
 
       result = asyncio.run(
-          validate_xliff(file_path="/tmp/omni-val-red-team/xxe.xlf")
+          validate_xliff(file_path="$OMNI_TMPDIR/omni-val-red-team/xxe.xlf")
       )
       print(json.dumps(result, ensure_ascii=False))
     timeout_seconds: 120
@@ -131,11 +131,11 @@ steps:
       import sys
       import zipfile
 
-      os.environ["ORF_MCP_ALLOWED_DIRS"] = "/tmp"
+      os.environ["ORF_MCP_ALLOWED_DIRS"] = "$OMNI_TMPDIR"
       sys.path.insert(0, "Omni_Re_Formatter/src")
       from docx import Document
 
-      out_dir = "/tmp/omni-val-red-team"
+      out_dir = "$OMNI_TMPDIR/omni-val-red-team"
       src = os.path.join(out_dir, "source.docx")
       doc = Document()
       doc.add_heading("Source", level=1)
@@ -197,7 +197,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni-val-red-team", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni-val-red-team", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0
