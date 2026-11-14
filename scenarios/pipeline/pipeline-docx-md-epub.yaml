@@ -79,7 +79,7 @@ steps:
       import io, pathlib, shutil, sys, zipfile
       from docx import Document
       from docx.shared import Inches
-      BASE = pathlib.Path("/tmp/omni_val/pipeline-epub")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-epub")
       shutil.rmtree(BASE, ignore_errors=True)
       BASE.mkdir(parents=True)
       doc = Document()
@@ -110,15 +110,15 @@ steps:
       OK marker naming the written file.
   - name: Extract DOCX to MD + XLIFF via real OPP CLI
     kind: cli
-    command: opp /tmp/omni_val/pipeline-epub/source.docx --target-format both --source-lang zh --target-lang en --output-dir /tmp/omni_val/pipeline-epub/opp_out -v
+    command: opp $OMNI_TMPDIR/omni_val/pipeline-epub/source.docx --target-format both --source-lang zh --target-lang en --output-dir $OMNI_TMPDIR/omni_val/pipeline-epub/opp_out -v
     timeout_seconds: 300
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-epub/opp_out/source.md
-      - path: /tmp/omni_val/pipeline-epub/opp_out/source.xlf
+      - path: $OMNI_TMPDIR/omni_val/pipeline-epub/opp_out/source.md
+      - path: $OMNI_TMPDIR/omni_val/pipeline-epub/opp_out/source.xlf
     instructions: |-
       Run the real OPP CLI on the generated fixture with --target-format
       both (MD + XLIFF in one pass; XLIFF is the LQA evidence input) and
@@ -129,7 +129,7 @@ steps:
     kind: python
     command: |-
       import pathlib, shutil, sys
-      BASE = pathlib.Path("/tmp/omni_val/pipeline-epub")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-epub")
       (BASE / "ol_out").mkdir(parents=True, exist_ok=True)
       shutil.copytree(BASE / "opp_out" / "source_images", BASE / "ol_out" / "source_images", dirs_exist_ok=True)
       print("OK: images staged next to OL output")
@@ -145,7 +145,7 @@ steps:
       Check: exit 0 + OK marker.
   - name: Translate MD with real LLM (ol translate-md)
     kind: cli
-    command: ol translate-md /tmp/omni_val/pipeline-epub/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-epub/ol_out -c Omni_Localizer/config/default.yaml
+    command: ol translate-md $OMNI_TMPDIR/omni_val/pipeline-epub/opp_out/source.md -s zh -t en -o $OMNI_TMPDIR/omni_val/pipeline-epub/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 1200
     expect:
       exit_code: 0
@@ -164,7 +164,7 @@ steps:
     command: |-
       import sys
       from scripts.validation.artifact_assertions import untranslated_units_violation_at
-      msg = untranslated_units_violation_at("/tmp/omni_val/pipeline-epub/ol_out/source.md")
+      msg = untranslated_units_violation_at("$OMNI_TMPDIR/omni_val/pipeline-epub/ol_out/source.md")
       if msg:
           print("ERROR: " + msg)
           sys.exit(1)
@@ -186,7 +186,7 @@ steps:
     kind: python
     command: |-
       import pathlib, re, sys
-      BASE = pathlib.Path("/tmp/omni_val/pipeline-epub")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-epub")
       md = BASE / "ol_out" / "source.md"
       staged = list((BASE / "ol_out" / "source_images").iterdir())
       fixed = 0
@@ -221,14 +221,14 @@ steps:
       refs normalized".
   - name: Translate XLIFF with real LLM (LQA evidence)
     kind: cli
-    command: ol translate-xliff /tmp/omni_val/pipeline-epub/opp_out/source.xlf -s zh -t en -o /tmp/omni_val/pipeline-epub/ol_out -c Omni_Localizer/config/default.yaml
+    command: ol translate-xliff $OMNI_TMPDIR/omni_val/pipeline-epub/opp_out/source.xlf -s zh -t en -o $OMNI_TMPDIR/omni_val/pipeline-epub/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 1200
     expect:
       exit_code: 0
       stdout_has: ["Translated"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-epub/ol_out/source.xlf
+      - path: $OMNI_TMPDIR/omni_val/pipeline-epub/ol_out/source.xlf
     instructions: |-
       Translate the XLIFF with the same real-LLM config. The translated
       XLIFF (ol_out/source.xlf) is the LQA step's input — omo_loop Q2
@@ -236,14 +236,14 @@ steps:
       (scripts/omo_loop.py:302-396). Check: exit 0 + "Translated:".
   - name: Backfill translated MD to EPUB via real ORF CLI
     kind: cli
-    command: orf apply-md /tmp/omni_val/pipeline-epub/ol_out/source.md --target-format epub -o /tmp/omni_val/pipeline-epub/out.epub --no-separate-images --no-cache
+    command: orf apply-md $OMNI_TMPDIR/omni_val/pipeline-epub/ol_out/source.md --target-format epub -o $OMNI_TMPDIR/omni_val/pipeline-epub/out.epub --no-separate-images --no-cache
     timeout_seconds: 300
     expect:
       exit_code: 0
-      stdout_has: ["Created /tmp/omni_val/pipeline-epub/out.epub"]
+      stdout_has: ["Created $OMNI_TMPDIR/omni_val/pipeline-epub/out.epub"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-epub/out.epub
+      - path: $OMNI_TMPDIR/omni_val/pipeline-epub/out.epub
     instructions: |-
       Real ORF backfill of the translated MD to EPUB. --no-separate-images
       keeps image references in the markdown so pandoc embeds them into
@@ -253,7 +253,7 @@ steps:
     kind: python
     command: |-
       import sys, zipfile
-      p = "/tmp/omni_val/pipeline-epub/out.epub"
+      p = "$OMNI_TMPDIR/omni_val/pipeline-epub/out.epub"
       try:
           z = zipfile.ZipFile(p)
           names = z.namelist()
@@ -279,8 +279,8 @@ steps:
     command: |-
       import re, sys, zipfile
       from docx import Document
-      src_n = len(Document("/tmp/omni_val/pipeline-epub/source.docx").paragraphs)
-      z = zipfile.ZipFile("/tmp/omni_val/pipeline-epub/out.epub")
+      src_n = len(Document("$OMNI_TMPDIR/omni_val/pipeline-epub/source.docx").paragraphs)
+      z = zipfile.ZipFile("$OMNI_TMPDIR/omni_val/pipeline-epub/out.epub")
       html = "\n".join(z.read(n).decode("utf-8", errors="ignore") for n in z.namelist() if n.endswith(".xhtml") and not n.endswith("nav.xhtml"))
       p_count = len(re.findall(r"<p[ >]", html))
       heads = [h for h in re.findall(r"<h[1-6][^>]*>(.*?)</h[1-6]>", html, re.DOTALL) if h.strip()]
@@ -309,7 +309,7 @@ steps:
     kind: python
     command: |-
       import re, sys, zipfile
-      z = zipfile.ZipFile("/tmp/omni_val/pipeline-epub/out.epub")
+      z = zipfile.ZipFile("$OMNI_TMPDIR/omni_val/pipeline-epub/out.epub")
       html = "\n".join(z.read(n).decode("utf-8", errors="ignore") for n in z.namelist() if n.endswith(".xhtml"))
       text = re.sub(r"<[^>]+>", " ", html)
       if not text.strip():
@@ -335,7 +335,7 @@ steps:
     kind: python
     command: |-
       import re, sys, zipfile
-      z = zipfile.ZipFile("/tmp/omni_val/pipeline-epub/out.epub")
+      z = zipfile.ZipFile("$OMNI_TMPDIR/omni_val/pipeline-epub/out.epub")
       html = "\n".join(z.read(n).decode("utf-8", errors="ignore") for n in z.namelist() if n.endswith(".xhtml"))
       text = re.sub(r"<[^>]+>", " ", html)
       full = re.findall(r"[\uff0c\u3002\uff1a\uff1b\uff01\uff1f]", text)
@@ -365,7 +365,7 @@ steps:
     command: |-
       import os, re, sys, asyncio
       os.environ["OMNI_RATE_LIMIT_RPM"] = "0"
-      xlf_text = open("/tmp/omni_val/pipeline-epub/ol_out/source.xlf", encoding="utf-8").read()
+      xlf_text = open("$OMNI_TMPDIR/omni_val/pipeline-epub/ol_out/source.xlf", encoding="utf-8").read()
       pairs = []
       for m in re.finditer(r'<trans-unit[^>]*id="([^"]+)"[^>]*>.*?<source[^>]*>(.*?)</source>\s*<target[^>]*>(.*?)</target>', xlf_text, re.DOTALL):
           src = re.sub(r"<[^>]+>", "", m.group(2)).strip()

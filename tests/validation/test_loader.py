@@ -7,6 +7,7 @@ raises ``ScenarioError`` naming the file and the rule violated — never
 silently skipped, never counted as coverage.
 """
 
+import os
 import textwrap
 
 import pytest
@@ -803,3 +804,77 @@ def test_tier_field_must_be_an_integer_in_1_2_3(tmp_path):
         with pytest.raises(ScenarioError) as ei:
             load_scenarios(case_dir)
         assert "tier" in str(ei.value)
+
+
+# ---------------------------------------------------------------------------
+# OS temp-root placeholder substitution (e2e-test-suite#322)
+# ---------------------------------------------------------------------------
+
+
+def test_load_substitutes_tmpdir_placeholders(tmp_path):
+    """``$OMNI_TMPDIR`` (forward slashes: python-source and shlex safe) and
+    ``$OMNI_TMPDIR_NATIVE`` (``str(gettempdir())``: module CLIs echo paths
+    through ``Path`` normalisation, so full-path stdout tokens must match
+    that form) both resolve to the same root the runner's sandbox default
+    is built from — ``tempfile.gettempdir()`` (e2e-test-suite#322).  On
+    POSIX the two forms are identical, so pre-#322 behaviour is unchanged
+    there."""
+    import tempfile
+
+    _write(tmp_path, "tmpdir.yaml", """
+        name: tmpdir-substitution
+        description: "placeholders resolve to the OS temp root"
+        steps:
+          - name: "python step"
+            kind: python
+            command: |
+              import pathlib
+              p = pathlib.Path("$OMNI_TMPDIR/omni_val/x")
+              print(p)
+            expect:
+              success: true
+              exit_code: 0
+              stdout_has: ["$OMNI_TMPDIR_NATIVE/omni_val/x"]
+          - name: "cli step"
+            kind: cli
+            command: 'opp "$OMNI_TMPDIR/omni_val/x" --dry-run'
+            expect:
+              success: true
+        cleanup_steps:
+          - name: "cleanup"
+            kind: python
+            command: 'print("clean $OMNI_TMPDIR")'
+            expect:
+              success: true
+    """)
+
+    (scenario,) = load_scenarios(tmp_path)
+    py_cmd = scenario["steps"][0]["command"]
+    cli_cmd = scenario["steps"][1]["command"]
+    cleanup_cmd = scenario["cleanup_steps"][0]["command"]
+
+    forward = tempfile.gettempdir().replace("\\", "/")
+    native = str(tempfile.gettempdir())
+    assert "$OMNI_TMPDIR" not in py_cmd
+    assert forward in py_cmd
+    assert forward in cli_cmd
+    assert forward in cleanup_cmd
+    # expect renders the WHOLE path natively (root + segments via os.sep):
+    # module CLIs echo paths through Path normalisation, so only a fully
+    # native token substring-matches the echo (e2e-test-suite#322).
+    expect_token = scenario["steps"][0]["expect"]["stdout_has"][0]
+    assert "$OMNI_TMPDIR" not in expect_token
+    assert expect_token.endswith(
+        "omni_val" + os.sep + "x"
+    ) or expect_token.endswith("omni_val/x")
+    assert expect_token.startswith(native)
+
+
+def test_load_leaves_strings_without_placeholders_untouched(tmp_path):
+    """A scenario without the placeholders loads exactly as before — the
+    substitution never rewrites unrelated content (a literal ``/tmp`` in
+    prose stays prose)."""
+    _write(tmp_path, "plain.yaml", VALID_SCENARIO)
+
+    (scenario,) = load_scenarios(tmp_path)
+    assert scenario["steps"][0]["command"] == "opp --version"

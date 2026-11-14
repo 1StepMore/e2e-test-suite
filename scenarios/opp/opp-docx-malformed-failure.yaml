@@ -14,7 +14,7 @@ requires_env: []
 instructions: |
   What to do:
   1. Remove the scenario dir (stale-state guard), then write
-     /tmp/omni_val/t14-opp-malformed/bad.docx containing bytes that are not
+     $OMNI_TMPDIR/omni_val/t14-opp-malformed/bad.docx containing bytes that are not
      a ZIP archive. This is the malformed DOCX the CLI must reject.
   2. Run the real `opp` CLI with --json: expect a non-zero exit and a single
      JSON object with success false whose error names the extraction failure.
@@ -30,7 +30,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil
-      d = pathlib.Path("/tmp/omni_val/t14-opp-malformed")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-opp-malformed")
       shutil.rmtree(d, ignore_errors=True)
       d.mkdir(parents=True)
       (d / "bad.docx").write_bytes(b"this is not an OOXML container at all\n" * 4)
@@ -46,7 +46,7 @@ steps:
       run's output.
   - name: OPP rejects the malformed DOCX with a non-zero exit and JSON failure
     kind: cli
-    command: opp /tmp/omni_val/t14-opp-malformed/bad.docx --target-format md --output-dir /tmp/omni_val/t14-opp-malformed/out --json
+    command: opp $OMNI_TMPDIR/omni_val/t14-opp-malformed/bad.docx --target-format md --output-dir $OMNI_TMPDIR/omni_val/t14-opp-malformed/out --json
     timeout_seconds: 120
     expect:
       exit_code: 1
@@ -54,7 +54,7 @@ steps:
       stderr_not_has: ["Traceback (most recent call last)"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/t14-opp-malformed/bad.docx
+      - path: $OMNI_TMPDIR/omni_val/t14-opp-malformed/bad.docx
     instructions: >-
       The real CLI must exit 1 (not 0) and emit one JSON object with
       success=false. "Extraction failed" is the stable English reason token;
@@ -63,9 +63,9 @@ steps:
     kind: python
     command: |
       import json, pathlib, subprocess, sys
-      out_dir = pathlib.Path("/tmp/omni_val/t14-opp-malformed/out")
+      out_dir = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-opp-malformed/out")
       proc = subprocess.run(
-          ["opp", "/tmp/omni_val/t14-opp-malformed/bad.docx",
+          ["opp", "$OMNI_TMPDIR/omni_val/t14-opp-malformed/bad.docx",
            "--target-format", "md", "--output-dir", str(out_dir), "--json"],
           capture_output=True, text=True,
       )
@@ -107,7 +107,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni_val/t14-opp-malformed", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/t14-opp-malformed", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

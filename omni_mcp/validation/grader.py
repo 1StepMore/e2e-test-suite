@@ -210,6 +210,26 @@ def _collect_strings(value: Any) -> list[str] | None:
     return None
 
 
+def _has_substring(needle: str, text: str) -> bool:
+    """Substring match with a path-separator-canonicalised fallback.
+
+    The raw match is tried first — the fallback never un-matches anything,
+    so pre-existing verdicts are preserved verbatim.  The fallback exists
+    because scenario tokens are written with forward slashes while module
+    CLIs echo paths through ``Path`` normalisation, whose separator form is
+    OS-dependent (backslashes on native Windows): the same echoed path
+    reads ``C:/Temp/x`` or ``C:\\Temp\\x`` depending on which print site
+    emitted it.  Canonicalising both sides to ``/`` matches the path
+    content regardless of the echo site.  On POSIX neither side contains a
+    backslash, so the fallback is byte-identical to the raw match there
+    (e2e-test-suite#322 — platform-correct matching, not a loosened bar:
+    the asserted path content is unchanged).
+    """
+    if needle in text:
+        return True
+    return needle.replace("\\", "/") in text.replace("\\", "/")
+
+
 def _check_text_has(
     key: str, value: Any, text: str, stream: str
 ) -> CheckResult:
@@ -251,7 +271,7 @@ def _check_text_has(
             expected=value, actual=text,
         )
     for needle in needles:
-        if needle not in text:
+        if not _has_substring(needle, text):
             return _fail(
                 key, f"expected {needle!r} in {stream}, not found",
                 expected=value, actual=text,
@@ -272,7 +292,7 @@ def _check_text_not_has(
             expected=value, actual=text,
         )
     for needle in needles:
-        if needle in text:
+        if _has_substring(needle, text):
             return _fail(
                 key, f"expected {needle!r} NOT in {stream}, but it was found",
                 expected=value, actual=text,
@@ -290,7 +310,7 @@ def _check_data_has(expected: Any, actual: dict[str, Any]) -> CheckResult:
         )
     dump = _json_dump(actual.get("data"))
     for needle in needles:
-        if needle not in dump:
+        if not _has_substring(needle, dump):
             return _fail(
                 "data_has", f"expected {needle!r} in data JSON, not found",
                 expected=expected, actual=dump,

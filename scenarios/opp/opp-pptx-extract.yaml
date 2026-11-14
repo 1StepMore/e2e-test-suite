@@ -19,7 +19,7 @@ instructions: |
 steps:
   - name: Extract PPTX to Markdown and XLIFF via the real OPP CLI
     kind: cli
-    command: opp scenarios/_fixtures/meridian_q1.pptx --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-pptx -v
+    command: opp scenarios/_fixtures/meridian_q1.pptx --target-format both --source-lang en --target-lang zh --output-dir $OMNI_TMPDIR/omni_val/opp-pptx -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -32,7 +32,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-pptx/meridian_q1_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("$OMNI_TMPDIR/omni_val/opp-pptx/meridian_q1_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("format=" + m["source"]["format"])
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
@@ -53,8 +53,8 @@ steps:
     kind: python
     command: |
       import pathlib, re
-      md = pathlib.Path("/tmp/omni_val/opp-pptx/meridian_q1.md").read_text(encoding="utf-8")
-      xlf = pathlib.Path("/tmp/omni_val/opp-pptx/meridian_q1.xlf").read_text(encoding="utf-8")
+      md = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-pptx/meridian_q1.md").read_text(encoding="utf-8")
+      xlf = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-pptx/meridian_q1.xlf").read_text(encoding="utf-8")
       print("heading-found" if "# Meridian Robotics" in md else "no-heading")
       print("content-found" if "Financial Highlights" in md else "no-content")
       print("units-found" if len(re.findall(r"<trans-unit", xlf)) > 0 else "no-units")

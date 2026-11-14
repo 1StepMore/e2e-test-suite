@@ -88,7 +88,7 @@ steps:
       import io, pathlib, shutil, sys, zipfile
       from docx import Document
       from docx.shared import Inches
-      BASE = pathlib.Path("/tmp/omni_val/pipeline-docx")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-docx")
       shutil.rmtree(BASE, ignore_errors=True)
       BASE.mkdir(parents=True)
       doc = Document()
@@ -119,15 +119,15 @@ steps:
       OK marker naming the written file.
   - name: Extract DOCX to MD + XLIFF via real OPP CLI
     kind: cli
-    command: opp /tmp/omni_val/pipeline-docx/source.docx --target-format both --source-lang zh --target-lang en --output-dir /tmp/omni_val/pipeline-docx/opp_out -v
+    command: opp $OMNI_TMPDIR/omni_val/pipeline-docx/source.docx --target-format both --source-lang zh --target-lang en --output-dir $OMNI_TMPDIR/omni_val/pipeline-docx/opp_out -v
     timeout_seconds: 300
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-docx/opp_out/source.md
-      - path: /tmp/omni_val/pipeline-docx/opp_out/source.xlf
+      - path: $OMNI_TMPDIR/omni_val/pipeline-docx/opp_out/source.md
+      - path: $OMNI_TMPDIR/omni_val/pipeline-docx/opp_out/source.xlf
     instructions: |-
       Run the real OPP CLI on the generated fixture with --target-format
       both (MD + XLIFF in one pass; XLIFF is the LQA evidence input) and
@@ -138,7 +138,7 @@ steps:
     kind: python
     command: |-
       import pathlib, shutil, sys
-      BASE = pathlib.Path("/tmp/omni_val/pipeline-docx")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-docx")
       (BASE / "ol_out").mkdir(parents=True, exist_ok=True)
       shutil.copytree(BASE / "opp_out" / "source_images", BASE / "ol_out" / "source_images", dirs_exist_ok=True)
       print("OK: images staged next to OL output")
@@ -154,7 +154,7 @@ steps:
       Check: exit 0 + OK marker.
   - name: Translate MD with real LLM (ol translate-md)
     kind: cli
-    command: ol translate-md /tmp/omni_val/pipeline-docx/opp_out/source.md -s zh -t en -o /tmp/omni_val/pipeline-docx/ol_out -c Omni_Localizer/config/default.yaml
+    command: ol translate-md $OMNI_TMPDIR/omni_val/pipeline-docx/opp_out/source.md -s zh -t en -o $OMNI_TMPDIR/omni_val/pipeline-docx/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 1200
     expect:
       exit_code: 0
@@ -173,7 +173,7 @@ steps:
     command: |-
       import sys
       from scripts.validation.artifact_assertions import untranslated_units_violation_at
-      msg = untranslated_units_violation_at("/tmp/omni_val/pipeline-docx/ol_out/source.md")
+      msg = untranslated_units_violation_at("$OMNI_TMPDIR/omni_val/pipeline-docx/ol_out/source.md")
       if msg:
           print("ERROR: " + msg)
           sys.exit(1)
@@ -195,7 +195,7 @@ steps:
     kind: python
     command: |-
       import pathlib, re, sys
-      BASE = pathlib.Path("/tmp/omni_val/pipeline-docx")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/pipeline-docx")
       md = BASE / "ol_out" / "source.md"
       text = md.read_text(encoding="utf-8")
       staged = list((BASE / "ol_out" / "source_images").iterdir())
@@ -231,14 +231,14 @@ steps:
       refs normalized".
   - name: Translate XLIFF with real LLM (LQA evidence)
     kind: cli
-    command: ol translate-xliff /tmp/omni_val/pipeline-docx/opp_out/source.xlf -s zh -t en -o /tmp/omni_val/pipeline-docx/ol_out -c Omni_Localizer/config/default.yaml
+    command: ol translate-xliff $OMNI_TMPDIR/omni_val/pipeline-docx/opp_out/source.xlf -s zh -t en -o $OMNI_TMPDIR/omni_val/pipeline-docx/ol_out -c Omni_Localizer/config/default.yaml
     timeout_seconds: 1200
     expect:
       exit_code: 0
       stdout_has: ["Translated"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-docx/ol_out/source.xlf
+      - path: $OMNI_TMPDIR/omni_val/pipeline-docx/ol_out/source.xlf
     instructions: |-
       Translate the XLIFF with the same real-LLM config. The translated
       XLIFF (ol_out/source.xlf) is the LQA step's input — omo_loop Q2
@@ -246,14 +246,14 @@ steps:
       (scripts/omo_loop.py:302-396). Check: exit 0 + "Translated:".
   - name: Backfill translated MD to DOCX via real ORF CLI
     kind: cli
-    command: orf apply-md /tmp/omni_val/pipeline-docx/ol_out/source.md --target-format docx -o /tmp/omni_val/pipeline-docx/out.docx --no-separate-images --no-cache
+    command: orf apply-md $OMNI_TMPDIR/omni_val/pipeline-docx/ol_out/source.md --target-format docx -o $OMNI_TMPDIR/omni_val/pipeline-docx/out.docx --no-separate-images --no-cache
     timeout_seconds: 300
     expect:
       exit_code: 0
-      stdout_has: ["Created /tmp/omni_val/pipeline-docx/out.docx"]
+      stdout_has: ["Created $OMNI_TMPDIR/omni_val/pipeline-docx/out.docx"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/pipeline-docx/out.docx
+      - path: $OMNI_TMPDIR/omni_val/pipeline-docx/out.docx
     instructions: |-
       Real ORF backfill of the translated MD to DOCX. --no-separate-images
       is REQUIRED: the default --separate-images strips image references
@@ -267,7 +267,7 @@ steps:
       import sys
       from docx import Document
       try:
-          doc = Document("/tmp/omni_val/pipeline-docx/out.docx")
+          doc = Document("$OMNI_TMPDIR/omni_val/pipeline-docx/out.docx")
           n = len(doc.paragraphs)
       except Exception as e:
           print("ERROR: python-docx open failed: %s" % e)
@@ -297,8 +297,8 @@ steps:
                   return z.read("word/document.xml").decode("utf-8", errors="ignore").count("<w:drawing")
           except Exception:
               return 0
-      src = _count_drawings("/tmp/omni_val/pipeline-docx/source.docx")
-      out = _count_drawings("/tmp/omni_val/pipeline-docx/out.docx")
+      src = _count_drawings("$OMNI_TMPDIR/omni_val/pipeline-docx/source.docx")
+      out = _count_drawings("$OMNI_TMPDIR/omni_val/pipeline-docx/out.docx")
       if src == 0:
           print("ERROR: source has 0 drawings; cannot compare")
           sys.exit(1)
@@ -342,8 +342,8 @@ steps:
     command: |-
       import sys
       from docx import Document
-      src_n = len(Document("/tmp/omni_val/pipeline-docx/source.docx").paragraphs)
-      out_n = len(Document("/tmp/omni_val/pipeline-docx/out.docx").paragraphs)
+      src_n = len(Document("$OMNI_TMPDIR/omni_val/pipeline-docx/source.docx").paragraphs)
+      out_n = len(Document("$OMNI_TMPDIR/omni_val/pipeline-docx/out.docx").paragraphs)
       if src_n == 0:
           print("ERROR: source has 0 paragraphs")
           sys.exit(1)
@@ -366,7 +366,7 @@ steps:
     command: |-
       import re, sys
       from docx import Document
-      text = "\n".join(p.text for p in Document("/tmp/omni_val/pipeline-docx/out.docx").paragraphs)
+      text = "\n".join(p.text for p in Document("$OMNI_TMPDIR/omni_val/pipeline-docx/out.docx").paragraphs)
       if not text.strip():
           print("ERROR: output text empty")
           sys.exit(1)
@@ -391,7 +391,7 @@ steps:
     command: |-
       import re, sys
       from docx import Document
-      text = "\n".join(p.text for p in Document("/tmp/omni_val/pipeline-docx/out.docx").paragraphs)
+      text = "\n".join(p.text for p in Document("$OMNI_TMPDIR/omni_val/pipeline-docx/out.docx").paragraphs)
       hits = re.findall(r"[\u201c\u201d\u2018\u2019\uff0c\u3002\uff1a\uff1b\uff01\uff1f]", text)
       if hits:
           print("ERROR: %d Chinese punctuation chars in English output" % len(hits))
@@ -414,7 +414,7 @@ steps:
     command: |-
       import os, re, sys, asyncio
       os.environ["OMNI_RATE_LIMIT_RPM"] = "0"
-      xlf_text = open("/tmp/omni_val/pipeline-docx/ol_out/source.xlf", encoding="utf-8").read()
+      xlf_text = open("$OMNI_TMPDIR/omni_val/pipeline-docx/ol_out/source.xlf", encoding="utf-8").read()
       pairs = []
       for m in re.finditer(r'<trans-unit[^>]*id="([^"]+)"[^>]*>.*?<source[^>]*>(.*?)</source>\s*<target[^>]*>(.*?)</target>', xlf_text, re.DOTALL):
           src = re.sub(r"<[^>]+>", "", m.group(2)).strip()

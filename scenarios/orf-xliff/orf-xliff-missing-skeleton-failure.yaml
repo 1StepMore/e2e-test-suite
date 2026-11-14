@@ -13,7 +13,7 @@ instructions: |
   What to do:
   1. Remove the scenario dir; write a valid translated XLIFF and an EMPTY
      skeleton.zip (a readable ZIP with no word/document.xml / ppt structure)
-     at /tmp/omni_val/t14-orf-xliff-noskel/.
+     at $OMNI_TMPDIR/omni_val/t14-orf-xliff-noskel/.
   2. Run `orf apply-xliff skeleton.zip --xliff trans.xlf --format docx`
      with --json --no-cache: expect exit 1 and a JSON success=false whose
      errors carry CONVERSION_ERROR and a "Skeleton is unknown format" reason.
@@ -28,7 +28,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil, zipfile
-      d = pathlib.Path("/tmp/omni_val/t14-orf-xliff-noskel")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-orf-xliff-noskel")
       shutil.rmtree(d, ignore_errors=True)
       d.mkdir(parents=True)
       valid = (
@@ -61,7 +61,7 @@ steps:
       skeleton.zip. The assertions pin the fixture's defining property.
   - name: apply-xliff fails closed on the missing skeleton structure
     kind: cli
-    command: orf apply-xliff /tmp/omni_val/t14-orf-xliff-noskel/skeleton.zip --xliff /tmp/omni_val/t14-orf-xliff-noskel/trans.xlf --format docx -o /tmp/omni_val/t14-orf-xliff-noskel/out.docx --no-cache --json
+    command: orf apply-xliff $OMNI_TMPDIR/omni_val/t14-orf-xliff-noskel/skeleton.zip --xliff $OMNI_TMPDIR/omni_val/t14-orf-xliff-noskel/trans.xlf --format docx -o $OMNI_TMPDIR/omni_val/t14-orf-xliff-noskel/out.docx --no-cache --json
     timeout_seconds: 180
     expect:
       exit_code: 1
@@ -76,11 +76,11 @@ steps:
     kind: python
     command: |
       import json, pathlib, subprocess, sys
-      out = pathlib.Path("/tmp/omni_val/t14-orf-xliff-noskel/out.docx")
+      out = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-orf-xliff-noskel/out.docx")
       proc = subprocess.run(
           ["orf", "apply-xliff",
-           "/tmp/omni_val/t14-orf-xliff-noskel/skeleton.zip",
-           "--xliff", "/tmp/omni_val/t14-orf-xliff-noskel/trans.xlf",
+           "$OMNI_TMPDIR/omni_val/t14-orf-xliff-noskel/skeleton.zip",
+           "--xliff", "$OMNI_TMPDIR/omni_val/t14-orf-xliff-noskel/trans.xlf",
            "--format", "docx", "-o", str(out), "--no-cache", "--json"],
           capture_output=True, text=True,
       )
@@ -121,7 +121,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni_val/t14-orf-xliff-noskel", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/t14-orf-xliff-noskel", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

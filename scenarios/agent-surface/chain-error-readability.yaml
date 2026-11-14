@@ -24,7 +24,7 @@ steps:
       import json, sys
       sys.path.insert(0, "Omni_Re_Formatter/src")
       from orf.mcp.server import apply_md
-      r = json.loads(apply_md(target_format="html", output_path="/tmp/omni-chain-readability/out.html"))
+      r = json.loads(apply_md(target_format="html", output_path="$OMNI_TMPDIR/omni-chain-readability/out.html"))
       assert r.get("success") is False, "expected denial"
       msg = json.dumps(r, ensure_ascii=False)
       assert "input_md" in msg and "content" in msg, "message does not name the missing parameters: %s" % msg[:300]
@@ -42,10 +42,10 @@ steps:
     command: |-
       import json, os, sys
       sys.path.insert(0, "Omni_Re_Formatter/src")
-      os.makedirs("/tmp/omni-chain-readability", exist_ok=True)
-      open("/tmp/omni-chain-readability/sample.md", "w", encoding="utf-8").write("# hello\n\nworld\n")
+      os.makedirs("$OMNI_TMPDIR/omni-chain-readability", exist_ok=True)
+      open("$OMNI_TMPDIR/omni-chain-readability/sample.md", "w", encoding="utf-8").write("# hello\n\nworld\n")
       from orf.mcp.server import apply_md
-      r = json.loads(apply_md(input_md="/tmp/omni-chain-readability/sample.md", target_format="doc", output_path="/tmp/omni-chain-readability/out.html"))
+      r = json.loads(apply_md(input_md="$OMNI_TMPDIR/omni-chain-readability/sample.md", target_format="doc", output_path="$OMNI_TMPDIR/omni-chain-readability/out.html"))
       assert r.get("success") is False, "expected denial"
       msg = json.dumps(r, ensure_ascii=False)
       assert "'doc' is not one of" in msg, "message does not name the rejected value: %s" % msg[:300]

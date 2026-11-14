@@ -18,7 +18,7 @@ instructions: |
   What to do:
   1. Turn 1 — extract a real DOCX with the OPP CLI (deterministic) and
      persist {document_path, document_name, markdown_path, source_format}
-     to /tmp/omni_val/agent-interaction-context/context.json.
+     to $OMNI_TMPDIR/omni_val/agent-interaction-context/context.json.
   2. Turn 2 — read the context in a NEW process; consume ONLY the stored
      markdown_path (never re-derived) and convert it to HTML with the ORF
      CLI; add output_path/output_format WITHOUT dropping turn-1 fields.
@@ -35,7 +35,7 @@ steps:
       import json, os, subprocess, sys
       from pathlib import Path
 
-      session = Path("/tmp/omni_val/agent-interaction-context")
+      session = Path("$OMNI_TMPDIR/omni_val/agent-interaction-context")
       work = session / "work"
       work.mkdir(parents=True, exist_ok=True)
       doc = "scenarios/_fixtures/meridian_robotics.docx"
@@ -90,14 +90,14 @@ steps:
       format. The turn is the context PRODUCER — later turns fail if this
       state is absent.
     collect_artifacts:
-      - path: /tmp/omni_val/agent-interaction-context/context.json
+      - path: $OMNI_TMPDIR/omni_val/agent-interaction-context/context.json
   - name: 'Turn 2: load the turn-1 context and backfill the stored markdown to HTML'
     kind: python
     command: |
       import json, os, subprocess, sys
       from pathlib import Path
 
-      session = Path("/tmp/omni_val/agent-interaction-context")
+      session = Path("$OMNI_TMPDIR/omni_val/agent-interaction-context")
       context = json.loads(session.joinpath("context.json").read_text(encoding="utf-8"))
       assert context.get("turn") == 1, "turn-2 did not receive the turn-1 context"
 
@@ -148,14 +148,14 @@ steps:
       markdown fields. If context were lost, the assert fires and the step
       is RED.
     collect_artifacts:
-      - path: /tmp/omni_val/agent-interaction-context/out/translated.html
+      - path: $OMNI_TMPDIR/omni_val/agent-interaction-context/out/translated.html
   - name: 'Turn 3: resolve the turn-2 output from context and confirm document identity survived'
     kind: python
     command: |
       import json, os, subprocess, sys
       from pathlib import Path
 
-      session = Path("/tmp/omni_val/agent-interaction-context")
+      session = Path("$OMNI_TMPDIR/omni_val/agent-interaction-context")
       context = json.loads(session.joinpath("context.json").read_text(encoding="utf-8"))
       out = Path(context["output_path"])
       assert out.is_file() and out.stat().st_size > 0, "turn-3 lost the turn-2 output context"

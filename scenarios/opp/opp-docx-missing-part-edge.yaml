@@ -12,7 +12,7 @@ tier: 1
 requires_env: []
 instructions: |
   What to do:
-  1. Remove the scenario dir, then build /tmp/omni_val/t14-opp-edge/edge.docx
+  1. Remove the scenario dir, then build $OMNI_TMPDIR/omni_val/t14-opp-edge/edge.docx
      as a VALID ZIP archive (zipfile can read it) that contains
      [Content_Types].xml but is missing the required word/document.xml part.
   2. Run the real `opp` CLI with --json: expect a non-zero exit and a single
@@ -28,7 +28,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil, zipfile
-      d = pathlib.Path("/tmp/omni_val/t14-opp-edge")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-opp-edge")
       shutil.rmtree(d, ignore_errors=True)
       d.mkdir(parents=True)
       with zipfile.ZipFile(d / "edge.docx", "w") as zf:
@@ -53,7 +53,7 @@ steps:
       edge case from the corrupt-container failure case.
   - name: OPP rejects the missing-part DOCX with a non-zero exit and JSON failure
     kind: cli
-    command: opp /tmp/omni_val/t14-opp-edge/edge.docx --target-format md --output-dir /tmp/omni_val/t14-opp-edge/out --json
+    command: opp $OMNI_TMPDIR/omni_val/t14-opp-edge/edge.docx --target-format md --output-dir $OMNI_TMPDIR/omni_val/t14-opp-edge/out --json
     timeout_seconds: 120
     expect:
       exit_code: 1
@@ -61,7 +61,7 @@ steps:
       stderr_not_has: ["Traceback (most recent call last)"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/t14-opp-edge/edge.docx
+      - path: $OMNI_TMPDIR/omni_val/t14-opp-edge/edge.docx
     instructions: >-
       A readable ZIP with no document part must still fail honestly: exit 1
       and a JSON success=false body. Any 0 exit or success=true would mean
@@ -70,9 +70,9 @@ steps:
     kind: python
     command: |
       import json, pathlib, subprocess, sys
-      out_dir = pathlib.Path("/tmp/omni_val/t14-opp-edge/out")
+      out_dir = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-opp-edge/out")
       proc = subprocess.run(
-          ["opp", "/tmp/omni_val/t14-opp-edge/edge.docx",
+          ["opp", "$OMNI_TMPDIR/omni_val/t14-opp-edge/edge.docx",
            "--target-format", "md", "--output-dir", str(out_dir), "--json"],
           capture_output=True, text=True,
       )
@@ -112,7 +112,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni_val/t14-opp-edge", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/t14-opp-edge", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

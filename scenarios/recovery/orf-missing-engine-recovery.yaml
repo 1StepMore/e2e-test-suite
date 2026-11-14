@@ -35,7 +35,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil
-      d = pathlib.Path("/tmp/omni_val/r05-missing-engine")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/r05-missing-engine")
       shutil.rmtree(d, ignore_errors=True)
       d.mkdir(parents=True)
       (d / "in.md").write_text(
@@ -55,7 +55,7 @@ steps:
     kind: python
     command: |
       import json, pathlib, subprocess, sys
-      d = pathlib.Path("/tmp/omni_val/r05-missing-engine")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/r05-missing-engine")
       proc = subprocess.run(
           ["orf", "apply-md", str(d / "in.md"), "--target-format", "msg",
            "-o", str(d / "out.msg"), "--json"],
@@ -90,7 +90,7 @@ steps:
         kind: python
         command: |
           import json, pathlib, subprocess, sys
-          d = pathlib.Path("/tmp/omni_val/r05-missing-engine")
+          d = pathlib.Path("$OMNI_TMPDIR/omni_val/r05-missing-engine")
           proc = subprocess.run(
               ["orf", "apply-md", str(d / "in.md"), "--target-format", "eml",
                "-o", str(d / "out.eml"), "--json"],
@@ -132,7 +132,7 @@ steps:
     kind: python
     command: |
       import pathlib, sys
-      d = pathlib.Path("/tmp/omni_val/r05-missing-engine")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/r05-missing-engine")
       eml = d / "out.eml"
       msg = d / "out.msg"
       if eml.exists() and eml.stat().st_size > 0:
@@ -148,7 +148,7 @@ steps:
       stdout_has: ["FINAL OK"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/r05-missing-engine/out.eml
+      - path: $OMNI_TMPDIR/omni_val/r05-missing-engine/out.eml
     instructions: >-
       Independent final observation: after recovery there is a non-empty
       artifact at the requested path — the recovered `.eml` when the optional
@@ -158,7 +158,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni_val/r05-missing-engine", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/r05-missing-engine", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

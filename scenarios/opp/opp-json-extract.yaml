@@ -23,7 +23,7 @@ steps:
                           "features": [{"id": 1, "name": "Auto-save"},
                                        {"id": 2, "name": "Cloud sync"}],
                           "metadata": {"author": "Test Team", "license": "MIT"}}}
-      out = pathlib.Path("/tmp/omni_val/opp-json/in.json")
+      out = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-json/in.json")
       out.parent.mkdir(parents=True, exist_ok=True)
       out.write_text(json.dumps(data, indent=2), encoding="utf-8")
       print("written")
@@ -36,7 +36,7 @@ steps:
       a failure means the fixture could not be produced.
   - name: Extract JSON to Markdown via the real OPP CLI
     kind: cli
-    command: opp /tmp/omni_val/opp-json/in.json --target-format md --output-dir /tmp/omni_val/opp-json -v
+    command: opp $OMNI_TMPDIR/omni_val/opp-json/in.json --target-format md --output-dir $OMNI_TMPDIR/omni_val/opp-json -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -49,7 +49,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-json/in_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("$OMNI_TMPDIR/omni_val/opp-json/in_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("format=" + m["source"]["format"])
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
@@ -70,7 +70,7 @@ steps:
     kind: python
     command: |
       import pathlib
-      md = pathlib.Path("/tmp/omni_val/opp-json/in.md").read_text(encoding="utf-8")
+      md = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-json/in.md").read_text(encoding="utf-8")
       print("codeblock-found" if "```json" in md else "no-codeblock")
       print("payload-found" if "Synthetic Widget" in md else "no-payload")
     expect:

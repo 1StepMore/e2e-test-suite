@@ -14,7 +14,7 @@ requires_env: []
 instructions: |
   What to do:
   1. Remove the scenario dir, then write a plain MD with NO manifest and NO
-     frontmatter at /tmp/omni_val/t14-orf-md-auto/in.md.
+     frontmatter at $OMNI_TMPDIR/omni_val/t14-orf-md-auto/in.md.
   2. Run `orf apply-md in.md --target-format auto -o out.md --no-cache`.
      Auto-detection resolves MD -> 'md', which the output whitelist does not
      include, so the CLI must raise before conversion: non-zero exit and a
@@ -29,7 +29,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil
-      d = pathlib.Path("/tmp/omni_val/t14-orf-md-auto")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-orf-md-auto")
       shutil.rmtree(d, ignore_errors=True)
       d.mkdir(parents=True)
       (d / "in.md").write_text("# Hello\n\nworld\n", encoding="utf-8")
@@ -44,7 +44,7 @@ steps:
       auto-detection cannot map to a real backfill target.
   - name: apply-md auto-detects 'md' and fails closed on the unsupported target
     kind: cli
-    command: orf apply-md /tmp/omni_val/t14-orf-md-auto/in.md --target-format auto -o /tmp/omni_val/t14-orf-md-auto/out.md --no-cache --json
+    command: orf apply-md $OMNI_TMPDIR/omni_val/t14-orf-md-auto/in.md --target-format auto -o $OMNI_TMPDIR/omni_val/t14-orf-md-auto/out.md --no-cache --json
     timeout_seconds: 120
     expect:
       exit_code: 1
@@ -60,9 +60,9 @@ steps:
     kind: python
     command: |
       import pathlib, subprocess, sys
-      out = pathlib.Path("/tmp/omni_val/t14-orf-md-auto/out.md")
+      out = pathlib.Path("$OMNI_TMPDIR/omni_val/t14-orf-md-auto/out.md")
       proc = subprocess.run(
-          ["orf", "apply-md", "/tmp/omni_val/t14-orf-md-auto/in.md",
+          ["orf", "apply-md", "$OMNI_TMPDIR/omni_val/t14-orf-md-auto/in.md",
            "--target-format", "auto", "-o", str(out), "--no-cache", "--json"],
           capture_output=True, text=True,
       )
@@ -91,7 +91,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni_val/t14-orf-md-auto", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/t14-orf-md-auto", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

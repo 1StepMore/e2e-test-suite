@@ -17,7 +17,7 @@ level: agent-user
 tier: 1
 instructions: |
   What to do:
-  1. Use a stable /tmp workspace, set OMNI_LOG_FORMAT=json, and import the
+  1. Use a stable $OMNI_TMPDIR workspace, set OMNI_LOG_FORMAT=json, and import the
      REAL ORF logging module (src/orf/logging).
   2. Configure ORF logging (setup_logger, the documented entry-point call),
      obtain the audit logger (get_audit_logger), and bind the documented
@@ -35,7 +35,7 @@ steps:
     kind: python
     command: |-
       import os, sys, json, pathlib
-      BASE = pathlib.Path("/tmp/omni_val/trace-audit-entry")
+      BASE = pathlib.Path("$OMNI_TMPDIR/omni_val/trace-audit-entry")
       BASE.mkdir(parents=True, exist_ok=True)
       os.chdir(BASE)
       os.environ["OMNI_LOG_FORMAT"] = "json"
@@ -66,7 +66,7 @@ steps:
       stdout_has: ["AUDIT_WRITTEN"]
       stderr_not_has: ["Traceback (most recent call last)"]
     collect_artifacts:
-      - path: /tmp/omni_val/trace-audit-entry/audit.jsonl
+      - path: $OMNI_TMPDIR/omni_val/trace-audit-entry/audit.jsonl
     standard: STANDARDS.md#json-parseable
     instructions: >-
       Uses the shipped ORF audit logger with OMNI_LOG_FORMAT=json and the
@@ -76,7 +76,7 @@ steps:
     kind: python
     command: |-
       import json, pathlib, sys
-      p = pathlib.Path("/tmp/omni_val/trace-audit-entry/audit.jsonl")
+      p = pathlib.Path("$OMNI_TMPDIR/omni_val/trace-audit-entry/audit.jsonl")
       entries = []
       for line in p.read_text(encoding="utf-8").splitlines():
           if line.strip():
@@ -108,7 +108,7 @@ steps:
         - '"result": "success"'
       stderr_not_has: ["Traceback (most recent call last)"]
     collect_artifacts:
-      - path: /tmp/omni_val/trace-audit-entry/audit.jsonl
+      - path: $OMNI_TMPDIR/omni_val/trace-audit-entry/audit.jsonl
     standard: STANDARDS.md#json-parseable
     instructions: >-
       Strict JSONL parse of the real audit file; the step exits non-zero when
@@ -119,7 +119,7 @@ cleanup_steps:
     kind: python
     command: |-
       import shutil
-      shutil.rmtree("/tmp/omni_val/trace-audit-entry", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/trace-audit-entry", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

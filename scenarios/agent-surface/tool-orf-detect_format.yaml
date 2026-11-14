@@ -18,7 +18,7 @@ steps:
     command: |
       import os, shutil, sys
       sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "$OMNI_TMPDIR/omni-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       import json as _json
       from docx import Document
@@ -47,12 +47,12 @@ steps:
       success: true
       exit_code: 0
     standard: STANDARDS.md#tool-contract
-    instructions: 'Write the hermetic fixture set including sample.docx under /tmp/omni-agent-surface.'
+    instructions: 'Write the hermetic fixture set including sample.docx under $OMNI_TMPDIR/omni-agent-surface.'
   - name: 'detect_format detects the DOCX fixture'
     kind: mcp
     tool: orf.mcp.server.detect_format
     arguments:
-      file_path: /tmp/omni-agent-surface/sample.docx
+      file_path: $OMNI_TMPDIR/omni-agent-surface/sample.docx
     timeout_seconds: 120
     expect:
       success: true
@@ -60,7 +60,7 @@ steps:
     standard: STANDARDS.md#tool-contract
     instructions: 'Call detect_format with the DOCX fixture; expect success with format DOCX and a confidence score.'
     collect_artifacts:
-      - path: '/tmp/omni-agent-surface/sample.docx'
+      - path: '$OMNI_TMPDIR/omni-agent-surface/sample.docx'
   - name: 'detect_format denies a system-directory path'
     kind: mcp
     tool: orf.mcp.server.detect_format

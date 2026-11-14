@@ -28,7 +28,7 @@ steps:
     kind: python
     command: |
       import pathlib, shutil
-      d = pathlib.Path("/tmp/omni_val/t21-orf-recovery")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/t21-orf-recovery")
       shutil.rmtree(d, ignore_errors=True)
       (d / "out").mkdir(parents=True)
       (d / "in.md").write_text(
@@ -46,22 +46,22 @@ steps:
       the temp dir, so no stale artifact can be mistaken for this run's output.
   - name: apply-md with an invalid target fails, then recovery retries with html
     kind: cli
-    command: orf apply-md /tmp/omni_val/t21-orf-recovery/in.md --target-format bogus -o /tmp/omni_val/t21-orf-recovery/out/out.html
+    command: orf apply-md $OMNI_TMPDIR/omni_val/t21-orf-recovery/in.md --target-format bogus -o $OMNI_TMPDIR/omni_val/t21-orf-recovery/out/out.html
     timeout_seconds: 120
     expect:
       exit_code: 0
-      stdout_has: ["Created /tmp/omni_val/t21-orf-recovery/out/out.html"]
+      stdout_has: ["Created $OMNI_TMPDIR/omni_val/t21-orf-recovery/out/out.html"]
     recovery_steps:
       - name: Recover - retry with the supported html format
         kind: cli
-        command: orf apply-md /tmp/omni_val/t21-orf-recovery/in.md --target-format html -o /tmp/omni_val/t21-orf-recovery/out/out.html
+        command: orf apply-md $OMNI_TMPDIR/omni_val/t21-orf-recovery/in.md --target-format html -o $OMNI_TMPDIR/omni_val/t21-orf-recovery/out/out.html
         timeout_seconds: 120
         expect:
           exit_code: 0
-          stdout_has: ["Created /tmp/omni_val/t21-orf-recovery/out/out.html"]
+          stdout_has: ["Created $OMNI_TMPDIR/omni_val/t21-orf-recovery/out/out.html"]
         standard: STANDARDS.md#exit-codes
         collect_artifacts:
-          - path: /tmp/omni_val/t21-orf-recovery/out/out.html
+          - path: $OMNI_TMPDIR/omni_val/t21-orf-recovery/out/out.html
         instructions: >-
           The recovery call: retry the same conversion with a supported format.
           When it passes, the engine marks the primary step `recovered` while
@@ -75,7 +75,7 @@ steps:
     kind: python
     command: |
       import sys
-      p = "/tmp/omni_val/t21-orf-recovery/out/out.html"
+      p = "$OMNI_TMPDIR/omni_val/t21-orf-recovery/out/out.html"
       try:
           data = open(p, encoding="utf-8").read()
           assert "<html" in data, "missing <html> element"
@@ -90,7 +90,7 @@ steps:
       stdout_has: ["OK recovered output present"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/t21-orf-recovery/out/out.html
+      - path: $OMNI_TMPDIR/omni_val/t21-orf-recovery/out/out.html
     instructions: >-
       Prove the recovery produced a real artifact, not just a green envelope:
       read the recovered output and assert the HTML structural invariant.
@@ -99,7 +99,7 @@ cleanup_steps:
     kind: python
     command: |
       import shutil
-      shutil.rmtree("/tmp/omni_val/t21-orf-recovery", ignore_errors=True)
+      shutil.rmtree("$OMNI_TMPDIR/omni_val/t21-orf-recovery", ignore_errors=True)
       print("cleaned")
     expect:
       exit_code: 0

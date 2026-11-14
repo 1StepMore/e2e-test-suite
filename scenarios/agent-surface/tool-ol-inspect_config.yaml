@@ -18,14 +18,14 @@ steps:
     command: |
       import os, shutil, sys
       sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "$OMNI_TMPDIR/omni-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       if not os.path.exists(os.path.join(FIXT, "default.yaml")):
           shutil.copy("Omni_Localizer/config/default.yaml", os.path.join(FIXT, "default.yaml"))
       import asyncio, json, sys
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import InspectConfigInput, inspect_config
-      r = asyncio.run(inspect_config(params=InspectConfigInput(config_path="/tmp/omni-agent-surface/default.yaml")))
+      r = asyncio.run(inspect_config(params=InspectConfigInput(config_path="$OMNI_TMPDIR/omni-agent-surface/default.yaml")))
       print(r)
     timeout_seconds: 120
     expect:
@@ -33,9 +33,9 @@ steps:
       exit_code: 0
       stdout_has: ['"success": true', 'config_path', 'project_id']
     standard: STANDARDS.md#tool-contract
-    instructions: 'Provision a copy of the OL config under /tmp, construct InspectConfigInput with that path and call the REAL inspect_config; expect success with config_path and project_id.'
+    instructions: 'Provision a copy of the OL config under $OMNI_TMPDIR, construct InspectConfigInput with that path and call the REAL inspect_config; expect success with config_path and project_id.'
     collect_artifacts:
-      - path: '/tmp/omni-agent-surface/default.yaml'
+      - path: '$OMNI_TMPDIR/omni-agent-surface/default.yaml'
   - name: 'inspect_config returns a clean path denial for a bad config path'
     kind: python
     command: |

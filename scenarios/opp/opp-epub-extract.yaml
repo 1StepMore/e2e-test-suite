@@ -38,7 +38,7 @@ steps:
       chapter1 = ('<?xml version="1.0" encoding="UTF-8"?>\n'
                   '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter</title></head>'
                   '<body><h1>Chapter Title</h1><p>Content.</p></body></html>')
-      out = pathlib.Path("/tmp/omni_val/opp-epub/book.epub")
+      out = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-epub/book.epub")
       out.parent.mkdir(parents=True, exist_ok=True)
       with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
           zf.writestr("mimetype", "application/epub+zip")
@@ -55,7 +55,7 @@ steps:
       a failure means the fixture could not be produced.
   - name: Extract EPUB to Markdown and XLIFF via the real OPP CLI
     kind: cli
-    command: opp /tmp/omni_val/opp-epub/book.epub --target-format both --source-lang en --target-lang zh --output-dir /tmp/omni_val/opp-epub -v
+    command: opp $OMNI_TMPDIR/omni_val/opp-epub/book.epub --target-format both --source-lang en --target-lang zh --output-dir $OMNI_TMPDIR/omni_val/opp-epub -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -68,7 +68,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-epub/book_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("$OMNI_TMPDIR/omni_val/opp-epub/book_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("format=" + m["source"]["format"])
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
@@ -89,8 +89,8 @@ steps:
     kind: python
     command: |
       import pathlib, re
-      md = pathlib.Path("/tmp/omni_val/opp-epub/book.md").read_text(encoding="utf-8")
-      xlf = pathlib.Path("/tmp/omni_val/opp-epub/book.xlf").read_text(encoding="utf-8")
+      md = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-epub/book.md").read_text(encoding="utf-8")
+      xlf = pathlib.Path("$OMNI_TMPDIR/omni_val/opp-epub/book.xlf").read_text(encoding="utf-8")
       print("chapter-found" if "Chapter Title" in md else "no-chapter")
       print("units-found" if len(re.findall(r"<trans-unit", xlf)) > 0 else "no-units")
       print("target-zh" if 'target-language="zh"' in xlf else "no-target-zh")

@@ -8,13 +8,13 @@ category: orf-md
 tier: 1
 requires_env: []
 instructions: |-
-  Prove ORF apply-md backfills a translated MD to SRT with the real surface ('orf apply-md ... --target-format srt'). 1) the write step creates the synthetic translated MD at /tmp/omni_val/orf-md-srt/in.md; 2) the CLI step runs the real backfill to /tmp/omni_val/orf-md-srt/out.srt and must exit 0; 3) the assert step reads the output and checks the SRT signature: non-empty passthrough of the MD content (no timing blocks in the input). No LLM, no FAKE_LLM, no fixtures — hermetic and deterministic (tier 1).
+  Prove ORF apply-md backfills a translated MD to SRT with the real surface ('orf apply-md ... --target-format srt'). 1) the write step creates the synthetic translated MD at $OMNI_TMPDIR/omni_val/orf-md-srt/in.md; 2) the CLI step runs the real backfill to $OMNI_TMPDIR/omni_val/orf-md-srt/out.srt and must exit 0; 3) the assert step reads the output and checks the SRT signature: non-empty passthrough of the MD content (no timing blocks in the input). No LLM, no FAKE_LLM, no fixtures — hermetic and deterministic (tier 1).
 steps:
   - name: Write synthetic translated MD
     kind: python
     command: |-
       import pathlib
-      d = pathlib.Path("/tmp/omni_val/orf-md-srt")
+      d = pathlib.Path("$OMNI_TMPDIR/omni_val/orf-md-srt")
       d.mkdir(parents=True, exist_ok=True)
       md = """---
       source_lang: en
@@ -65,30 +65,30 @@ steps:
       For more information, please contact support@example.com.
       """
       (d / "in.md").write_text(md, encoding="utf-8")
-      print("WROTE /tmp/omni_val/orf-md-srt/in.md")
+      print("WROTE $OMNI_TMPDIR/omni_val/orf-md-srt/in.md")
     expect:
       exit_code: 0
-      stdout_has: ["WROTE /tmp/omni_val/orf-md-srt/in.md"]
+      stdout_has: ["WROTE $OMNI_TMPDIR/omni_val/orf-md-srt/in.md"]
     standard: STANDARDS.md#exit-codes
     instructions: |-
-      Generate the translated-MD input for this scenario at run time (no committed fixture). The file must carry a YAML frontmatter with the 6 metadata keys (source_lang, target_lang, original_file, processor, version, translated_at) and a body with a heading, a list, a table, a JSON code fence and a code fence — the same shape the suite's _create_synthetic_md fixture uses (tests/test_cross_format_e2e.py:282-334). Check: the snippet exits 0 and prints the WROTE marker naming /tmp/omni_val/orf-md-srt/in.md.
+      Generate the translated-MD input for this scenario at run time (no committed fixture). The file must carry a YAML frontmatter with the 6 metadata keys (source_lang, target_lang, original_file, processor, version, translated_at) and a body with a heading, a list, a table, a JSON code fence and a code fence — the same shape the suite's _create_synthetic_md fixture uses (tests/test_cross_format_e2e.py:282-334). Check: the snippet exits 0 and prints the WROTE marker naming $OMNI_TMPDIR/omni_val/orf-md-srt/in.md.
   - name: Backfill to SRT with orf apply-md
     kind: cli
-    command: orf apply-md /tmp/omni_val/orf-md-srt/in.md --target-format srt -o /tmp/omni_val/orf-md-srt/out.srt
+    command: orf apply-md $OMNI_TMPDIR/omni_val/orf-md-srt/in.md --target-format srt -o $OMNI_TMPDIR/omni_val/orf-md-srt/out.srt
     timeout_seconds: 180
     expect:
       exit_code: 0
-      stdout_has: ["Created /tmp/omni_val/orf-md-srt/out.srt"]
+      stdout_has: ["Created $OMNI_TMPDIR/omni_val/orf-md-srt/out.srt"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/orf-md-srt/out.srt
+      - path: $OMNI_TMPDIR/omni_val/orf-md-srt/out.srt
     instructions: |-
-      Run the REAL orf CLI backfill: `orf apply-md /tmp/omni_val/orf-md-srt/in.md --target-format srt -o /tmp/omni_val/orf-md-srt/out.srt`. Engine: srt lib — no SRT timing blocks in the MD input, so the channel passes the content through. Check: exit code 0 (STANDARDS.md#exit-codes) and stdout announces the created file (both fresh conversions and cached ones print `Created <path>`). The assertion on the output file is the next step.
+      Run the REAL orf CLI backfill: `orf apply-md $OMNI_TMPDIR/omni_val/orf-md-srt/in.md --target-format srt -o $OMNI_TMPDIR/omni_val/orf-md-srt/out.srt`. Engine: srt lib — no SRT timing blocks in the MD input, so the channel passes the content through. Check: exit code 0 (STANDARDS.md#exit-codes) and stdout announces the created file (both fresh conversions and cached ones print `Created <path>`). The assertion on the output file is the next step.
   - name: Assert SRT structural invariant
     kind: python
     command: |-
       import sys
-      p = "/tmp/omni_val/orf-md-srt/out.srt"
+      p = "$OMNI_TMPDIR/omni_val/orf-md-srt/out.srt"
       try:
           data = open(p, encoding="utf-8").read()
           assert len(data.strip()) > 0, "srt output is empty"
@@ -102,6 +102,6 @@ steps:
       stdout_has: ["OK:"]
     standard: STANDARDS.md#exit-codes
     collect_artifacts:
-      - path: /tmp/omni_val/orf-md-srt/out.srt
+      - path: $OMNI_TMPDIR/omni_val/orf-md-srt/out.srt
     instructions: |-
-      Read /tmp/omni_val/orf-md-srt/out.srt and verify the SRT structural invariant: non-empty passthrough of the MD content (no timing blocks in the input). The snippet exits 0 with an OK: message when the invariant holds, or exits 1 naming the problem otherwise (per-step instructions; exit-code contract).
+      Read $OMNI_TMPDIR/omni_val/orf-md-srt/out.srt and verify the SRT structural invariant: non-empty passthrough of the MD content (no timing blocks in the input). The snippet exits 0 with an OK: message when the invariant holds, or exits 1 naming the problem otherwise (per-step instructions; exit-code contract).

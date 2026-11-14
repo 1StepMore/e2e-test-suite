@@ -26,7 +26,7 @@ instructions: |
 steps:
   - name: Extract the PNG image to Markdown via the real OPP CLI
     kind: cli
-    command: opp Omni_Pre_Processor/batch_test/phase7_email_image/normal.png --target-format md --output-dir /tmp/omni_val/opp-ocr -v
+    command: opp Omni_Pre_Processor/batch_test/phase7_email_image/normal.png --target-format md --output-dir $OMNI_TMPDIR/omni_val/opp-ocr -v
     expect:
       exit_code: 0
       stderr_has: ["[INFO] Generated:"]
@@ -42,7 +42,7 @@ steps:
     kind: python
     command: |
       import json, pathlib
-      m = json.loads(pathlib.Path("/tmp/omni_val/opp-ocr/normal_manifest.json").read_text(encoding="utf-8"))
+      m = json.loads(pathlib.Path("$OMNI_TMPDIR/omni_val/opp-ocr/normal_manifest.json").read_text(encoding="utf-8"))
       print(",".join(sorted(m.keys())))
       print("md-path=" + m["extraction"]["outputs"]["markdown"]["path"])
     expect:

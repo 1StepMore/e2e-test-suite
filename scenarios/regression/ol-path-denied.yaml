@@ -57,7 +57,7 @@ steps:
           os.environ.pop(_k, None)
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import LoadGlossaryInput, load_glossary
-      r = asyncio.run(load_glossary(params=LoadGlossaryInput(path="/tmp/glossary.json")))
+      r = asyncio.run(load_glossary(params=LoadGlossaryInput(path="$OMNI_TMPDIR/glossary.json")))
       print(r)
     timeout_seconds: 120
     expect:
@@ -68,7 +68,7 @@ steps:
     standard: STANDARDS.md#path-security
     instructions: >-
       Clear MCP_ALLOWED_DIRECTORIES / OL_MCP_ALLOWED_DIRS /
-      OL_ALLOWED_DIRECTORIES and call load_glossary on /tmp/glossary.json.
+      OL_ALLOWED_DIRECTORIES and call load_glossary on $OMNI_TMPDIR/glossary.json.
       Fail-closed means the validator refuses without an allowlist: expect a
       clean JSON denial (success false) and no traceback — a silent success
       (the old cwd + /tmp default) is the regression this locks out.

@@ -16,6 +16,9 @@ Only Python 3.13 stdlib + PyYAML — no other dependencies (guide §3.6).
 
 from __future__ import annotations
 
+import os
+import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +69,77 @@ _SCENARIO_FIELDS = frozenset(
 #: coerced).  ``level`` has no default while T-19 is outstanding, so
 #: scenarios that predate it still load; T-19 flips it to required.
 LEVELS = frozenset({"agent-user", "human-quality"})
+
+# ---------------------------------------------------------------------------
+# OS temp-root substitution (e2e-test-suite#322)
+# ---------------------------------------------------------------------------
+
+#: Placeholder replaced at load time with the run's OS temp root (the same
+#: root the runner's sandbox default is built from — ``tempfile.gettempdir()``,
+#: see ``cli.py``).  Scenario steps must not hardcode POSIX ``/tmp``: on
+#: native Windows a literal ``/tmp`` resolves to the *current drive root*
+#: (``D:\tmp``), which lies outside that allowlist, so PathValidator denies
+#: every such step before its own assertions can run (49/50 residual
+#: failures in the #319/#321 Windows first runs).  On POSIX
+#: ``tempfile.gettempdir()`` *is* ``/tmp`` (absent ``$TMPDIR``), so the
+#: substitution is byte-identical to the previous behaviour there.
+#:
+#: Two spellings, because the contexts need different separators:
+#:
+#: - ``$OMNI_TMPDIR``  → forward-slash form (``C:/Users/.../Temp``).  Safe
+#:   inside Python snippet sources (a raw backslash before ``U`` would form
+#:   a ``\U`` unicode escape and break compilation) and inside shlex-split
+#:   CLI commands; Windows accepts forward-slash paths natively.  Also used
+#:   for ``collect_artifacts`` paths and mcp ``arguments`` — both are
+#:   consumed through ``Path()``, which normalizes either separator.
+#: - ``$OMNI_TMPDIR_NATIVE`` → ``str(tempfile.gettempdir())`` unmodified
+#:   (backslashes on Windows).  For ``expect`` assertions: module CLIs echo
+#:   paths through ``Path`` normalisation, so the printed form is native,
+#:   and a full-path ``stdout_has`` token must match that form.  When the
+#:   token is followed by forward-slash path segments
+#:   (``$OMNI_TMPDIR_NATIVE/omni_val/x``), the *whole path* — root and
+#:   segments — is re-joined with ``os.sep``: on Windows the CLI prints
+#:   ``Temp\omni_val\x`` (``Path`` normalises every separator), so only a
+#:   fully native token can substring-match it.  On POSIX ``os.sep`` is
+#:   ``/`` and the rendering is byte-identical to the pre-#322 text.
+TMPDIR_PLACEHOLDER = "$OMNI_TMPDIR"
+TMPDIR_PLACEHOLDER_NATIVE = "$OMNI_TMPDIR_NATIVE"
+
+#: ``$OMNI_TMPDIR_NATIVE`` followed by at least one forward-slash path
+#: segment — rendered through ``os.sep`` end-to-end (see above).
+_TMPDIR_NATIVE_PATH_RE = re.compile(r"\$OMNI_TMPDIR_NATIVE(?:/[\w.%@+-]+)+")
+
+
+def _substitute_tmpdir(value: Any) -> Any:
+    """Recursively replace the temp-root placeholders in every string.
+
+    Dicts, lists and strings are walked; non-container values pass through.
+    Strings without either placeholder are returned as-is (a new object is
+    still allocated for containers, which is fine — the loaded scenario is
+    not aliased anywhere).
+    """
+    forward = Path(tempfile.gettempdir()).as_posix()
+    native = str(tempfile.gettempdir())
+
+    def _native_path(match: re.Match[str]) -> str:
+        rest = match.group(0)[len(TMPDIR_PLACEHOLDER_NATIVE):]
+        return native + rest.replace("/", os.sep)
+
+    if isinstance(value, str):
+        if "$OMNI_TMPDIR_NATIVE" in value:
+            # Whole-path render first: the bare-token replace below would
+            # otherwise leave the trailing ``/segment`` in forward form.
+            value = _TMPDIR_NATIVE_PATH_RE.sub(_native_path, value)
+            value = value.replace(TMPDIR_PLACEHOLDER_NATIVE, native)
+        if TMPDIR_PLACEHOLDER in value:
+            # Only after the NATIVE token: ``$OMNI_TMPDIR`` is a prefix of it.
+            value = value.replace(TMPDIR_PLACEHOLDER, forward)
+        return value
+    if isinstance(value, list):
+        return [_substitute_tmpdir(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _substitute_tmpdir(item) for key, item in value.items()}
+    return value
 
 #: Allowed per-step fields (guide §2.2 + §2.4 + D12).  ``expect`` is the
 #: mandatory heart of every step; ``standard`` is an opaque citation string
@@ -444,6 +518,6 @@ def load_scenarios(scenarios_dir: str | Path = "scenarios") -> list[dict[str, An
             raise ScenarioError(yaml_path, f"failed to parse YAML: {exc}") from exc
         if data is None:
             raise ScenarioError(yaml_path, "empty YAML file — expected a scenario mapping")
-        scenarios.append(validate_scenario(data, yaml_path))
+        scenarios.append(_substitute_tmpdir(validate_scenario(data, yaml_path)))
 
     return scenarios

@@ -21,7 +21,7 @@ steps:
     command: |
       import os, sys
       sys.path.insert(0, "Omni_Localizer/src")
-      FIXT = "/tmp/omni-agent-surface"
+      FIXT = "$OMNI_TMPDIR/omni-agent-surface"
       os.makedirs(FIXT, exist_ok=True)
       from docx import Document
       p = os.path.join(FIXT, "sample.docx")
@@ -33,7 +33,7 @@ steps:
       import asyncio
       from ol_mcp.tools import TranslateFileInput, translate_file
       r = asyncio.run(translate_file(params=TranslateFileInput(
-          file_path="/tmp/omni-agent-surface/sample.docx",
+          file_path="$OMNI_TMPDIR/omni-agent-surface/sample.docx",
           source_lang="en", target_lang="zh",
           output_format="docx", pipeline="md", timeout=840)))
       print(r)
@@ -46,14 +46,14 @@ steps:
     standard: STANDARDS.md#tool-contract
     instructions: "Happy contract: translate_file drives OPP -> OL -> ORF on the fixture and returns the structured success envelope naming the backfilled output_path and the pipeline it used, with no traceback. HISTORY: this step used to pin two KNOWN DEFECTS (the md path looked for <temp>/<stem>.translated.md while `ol translate-md` writes <temp>/<stem>.md, and the xliff path passed --target-format to `orf apply-xliff` whose real option is --format). Both were fixed in Omni_Localizer by `a18b882` (OL#83) — see translate_file.py:223 `_find_output_file(...)` and the --format/--xliff args at :233-238. The assertion was flipped to the success contract so it tracks the fixed product instead of the defect; do not re-pin the old error. Keep stdout_not_has on the traceback: a failure here must still surface as a clean JSON envelope, never stack-trace soup."
     collect_artifacts:
-      - path: "/tmp/omni-agent-surface/sample.docx"
+      - path: "$OMNI_TMPDIR/omni-agent-surface/sample.docx"
   - name: "translate_file returns a clean error for wrong-shaped params"
     kind: python
     command: |
       import asyncio, sys
       sys.path.insert(0, "Omni_Localizer/src")
       from ol_mcp.tools import translate_file
-      r = asyncio.run(translate_file(params={'file_path': '/tmp/x.docx'}))
+      r = asyncio.run(translate_file(params={'file_path': '$OMNI_TMPDIR/x.docx'}))
       print(r)
     timeout_seconds: 120
     expect:
