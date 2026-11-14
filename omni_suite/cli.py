@@ -8,6 +8,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -234,7 +235,12 @@ def _run_pipeline(args: list[str]) -> dict[str, Any]:
         env["OMNI_TEST_FAKE_LLM"] = "1"
 
     stem = Path(file_path).stem
-    temp_dir = Path("/tmp/omni-suite-pipeline") / run_id
+    # Default run root: the OS temp dir (e2e-test-suite#328).  A literal
+    # /tmp resolves to the *current drive root* on native Windows (D:\tmp),
+    # outside the validation sandbox, and out of sync with the scenario
+    # library's temp root (#322) — resume flows then look for checkpoints
+    # in a different root than the one the artifacts were written to.
+    temp_dir = Path(tempfile.gettempdir()) / "omni-suite-pipeline" / run_id
     opp_dir = temp_dir / "opp"
     ol_dir = temp_dir / "ol"
     # T-02: the auto-generated output must NOT live inside temp_dir — the
@@ -671,9 +677,10 @@ def _print_usage() -> None:
     print("                         print extract-warnings; skips ORF backfill")
     print("    --resume-from STAGE  Resume a partial run (opp|ol|orf): reuse")
     print("                         intermediates of prior stages and continue")
-    print("    --run-id ID          Run directory name under /tmp/omni-suite-pipeline")
-    print("                         (default: input file stem); targets a prior run")
-    print("    --keep-intermediate  Keep /tmp/omni-suite-pipeline/<stem> after run")
+    print("    --run-id ID          Run directory name under the OS temp dir")
+    print("                         (omni-suite-pipeline/<run-id>; default: input")
+    print("                         file stem); targets a prior run")
+    print("    --keep-intermediate  Keep the run directory after finish")
     print("")
     print("  Pipeline path selection:")
     print("    MD path (default):   omni-suite translate <file> --target-format <fmt>")
