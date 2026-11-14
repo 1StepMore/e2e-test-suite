@@ -16,7 +16,22 @@ from . import cli_json, run_manifest
 
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
 _COMPAT_FILE = Path(__file__).parent.parent / "COMPATIBILITY.md"
-_VENV_BIN = Path(__file__).parent.parent / ".venv_ol" / "bin"
+
+#: The suite venv console-script dir (opp, ol, orf live here).
+#: Platform-aware (e2e-test-suite#328, mirroring dispatch.py's #321 fix):
+#: the Windows-native bootstrap creates ``.venv_win/Scripts`` while
+#: ``.venv_ol/bin`` is a Linux venv — spawning its launchers fails with
+#: WinError 193 ("%1 is not a valid Win32 application").
+if os.name == "nt":
+    _VENV_BIN = Path(__file__).parent.parent / ".venv_win" / "Scripts"
+else:
+    _VENV_BIN = Path(__file__).parent.parent / ".venv_ol" / "bin"
+
+#: Executable suffixes probed for bare console-script names (pip installs
+#: ``<name>.exe`` launchers into ``Scripts\`` on Windows).
+_WIN_SCRIPT_SUFFIXES: tuple[str, ...] = (
+    (".exe", ".bat", ".cmd", "") if os.name == "nt" else ("",)
+)
 
 # The three sub-repos, in report order. Single source of truth for both
 # `check` (which runs their test suites) and `status` (which reads their
@@ -182,10 +197,17 @@ def _dispatch(argv: list[str]) -> dict[str, Any]:
 
 def _resolve_tool(name: str) -> str:
     """Prefer the suite venv's tool: pip-installed copies (e.g. ~/.local/bin)
-    run without the repo config context and fail on config resolution."""
-    venv_tool = _VENV_BIN / name
-    if venv_tool.exists():
-        return str(venv_tool)
+    run without the repo config context and fail on config resolution.
+
+    The venv layout is platform-aware (#328): on Windows the launcher is
+    ``<name>.exe`` under ``.venv_win/Scripts``; on POSIX the bare name under
+    ``.venv_ol/bin``.  An extensionless Linux launcher must never be picked
+    on Windows — it exists as a file but spawning it raises WinError 193.
+    """
+    for suffix in _WIN_SCRIPT_SUFFIXES:
+        venv_tool = _VENV_BIN / f"{name}{suffix}"
+        if venv_tool.is_file():
+            return str(venv_tool)
     return shutil.which(name) or name
 
 
