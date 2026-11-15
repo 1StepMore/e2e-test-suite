@@ -247,7 +247,14 @@ class _HeavyImportBlocker:
 sys.meta_path.insert(0, _HeavyImportBlocker())
 
 
-_VENV_BIN = Path(__file__).resolve().parents[1] / ".venv_ol" / "bin"
+# Platform-aware (e2e-test-suite#332, mirroring dispatch.py's #321 fix):
+# on native Windows the Linux-venv .venv_ol/bin holds POSIX launchers that
+# CreateProcess cannot execute (WinError 1920/193); the Windows bootstrap
+# (setup_dev.ps1) creates .venv_win/Scripts instead.
+if os.name == "nt":
+    _VENV_BIN = Path(__file__).resolve().parents[1] / ".venv_win" / "Scripts"
+else:
+    _VENV_BIN = Path(__file__).resolve().parents[1] / ".venv_ol" / "bin"
 if _VENV_BIN.exists() and _VENV_BIN.is_dir():
     _venv_bin_str = str(_VENV_BIN)
     if _venv_bin_str not in os.environ.get("PATH", ""):

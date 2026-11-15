@@ -35,7 +35,13 @@ from mcp.client.session import ClientSession
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent.parent
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
-VENV_PYTHON = SUITE_ROOT / ".venv_ol" / "bin" / "python"
+# Platform-aware (e2e-test-suite#332, mirroring dispatch.py's #321 fix):
+# .venv_ol/bin/python is a Linux ELF on native Windows (WinError 1920/193);
+# the Windows bootstrap creates .venv_win/Scripts/python.exe.
+if os.name == "nt":
+    VENV_PYTHON = SUITE_ROOT / ".venv_win" / "Scripts" / "python.exe"
+else:
+    VENV_PYTHON = SUITE_ROOT / ".venv_ol" / "bin" / "python"
 PYTHONPATH_SEP = ";" if sys.platform == "win32" else ":"
 
 OPP_SRC = SUITE_ROOT / "Omni_Pre_Processor" / "src"

@@ -40,10 +40,19 @@ from pathlib import Path
 import pytest
 
 SUITE_ROOT = Path(__file__).resolve().parents[2]
-PYTHON = SUITE_ROOT / ".venv_ol" / "bin" / "python"
-OPP_BIN = SUITE_ROOT / ".venv_ol" / "bin" / "opp"
-OL_BIN = SUITE_ROOT / ".venv_ol" / "bin" / "ol"
-ORF_BIN = SUITE_ROOT / ".venv_ol" / "bin" / "orf"
+# Platform-aware venv bin dir (e2e-test-suite#332, mirroring dispatch.py's
+# #321 fix): .venv_ol/bin launchers are Linux ELF on native Windows
+# (WinError 1920/193); the Windows bootstrap creates .venv_win/Scripts.
+if os.name == "nt":
+    _VENV_BIN = SUITE_ROOT / ".venv_win" / "Scripts"
+    _EXE = ".exe"
+else:
+    _VENV_BIN = SUITE_ROOT / ".venv_ol" / "bin"
+    _EXE = ""
+PYTHON = _VENV_BIN / f"python{_EXE}"
+OPP_BIN = _VENV_BIN / f"opp{_EXE}"
+OL_BIN = _VENV_BIN / f"ol{_EXE}"
+ORF_BIN = _VENV_BIN / f"orf{_EXE}"
 
 # Subprocess base env.  All 3 modules need OMNI_TEST_FAKE_LLM=1 to
 # skip the real LLM; ORF needs OMNI_TEST_FAKE_PANDOC=1 to skip
@@ -65,7 +74,7 @@ _BASE_ENV: dict[str, str] = {
 }
 _BASE_ENV["OMNI_TEST_FAKE_LLM"] = "1"
 _BASE_ENV["OMNI_TEST_FAKE_PANDOC"] = "1"
-_BASE_ENV["PATH"] = str(SUITE_ROOT / ".venv_ol" / "bin") + ":" + _BASE_ENV.get("PATH", "")
+_BASE_ENV["PATH"] = str(_VENV_BIN) + os.pathsep + _BASE_ENV.get("PATH", "")
 
 
 def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
@@ -303,7 +312,7 @@ class TestOLAPIKeyMissing:
         f.write_text("# x\n")
         env = dict(_BASE_ENV)
         env.pop("OMNI_TEST_FAKE_LLM", None)
-        env["PATH"] = str(SUITE_ROOT / ".venv_ol" / "bin") + ":" + env.get("PATH", "")
+        env["PATH"] = str(_VENV_BIN) + os.pathsep + env.get("PATH", "")
         result = subprocess.run(
             [str(OL_BIN), "translate-md", str(f), "-s", "en", "-t", "zh",
              "-o", str(tmp_workdir)],

@@ -16,6 +16,7 @@ Each scenario:
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -26,14 +27,22 @@ from scripts.fidelity_checker import compute_fidelity  # noqa: E402  (issue #223
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent.parent
 PYTHON = sys.executable
+# Platform-aware venv site-packages + PYTHONPATH separator
+# (e2e-test-suite#332): the POSIX layout .venv_ol/lib/python3.13/site-packages
+# does not exist on native Windows — the bootstrap venv is .venv_win/Lib/
+# site-packages — and PYTHONPATH must be os.pathsep-joined.
+if os.name == "nt":
+    _VENV_SITE_PKGS = SUITE_ROOT / ".venv_win" / "Lib" / "site-packages"
+else:
+    _VENV_SITE_PKGS = SUITE_ROOT / ".venv_ol" / "lib" / "python3.13" / "site-packages"
 ENV = dict(
     OMNI_TEST_FAKE_LLM="1",
     OMNI_TEST_FAKE_PANDOC="1",
-    PYTHONPATH=":".join(filter(None, [
+    PYTHONPATH=os.pathsep.join(filter(None, [
         str(SUITE_ROOT / "src" / "Omni_Pre_Processor" / "src"),
         str(SUITE_ROOT / "src" / "Omni_Localizer" / "src"),
         str(SUITE_ROOT / "src" / "Omni_Re_Formatter" / "src"),
-        str(SUITE_ROOT / ".venv_ol" / "lib" / "python3.13" / "site-packages"),
+        str(_VENV_SITE_PKGS),
     ])),
 )
 
