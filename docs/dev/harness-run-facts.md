@@ -13,3 +13,14 @@
 **陷阱**：Git Bash 下 setup_dev.sh --check-only 按设计 fail-closed，不要"修"它；FAKE_LLM 只能验 plumbing / schema / 退出码，不能当人类质量证据；验证引擎硬编码 .venv_ol（#321）⇒ Windows 上先确认再改；Git Bash 的 PATH 里可能没有 make，用 Makefile 背后的等价命令。
 
 **队列**：`gh issue list -l agent-ready --state open`。
+
+**依赖探针与能力需求**（需求侧 · 跨机器成立；本机结果不入库）
+
+- 探针入口：`bash scripts/check_deps.sh`（与 `make doctor` 同源，`--json` 取机器可读结果）。只检测：不联网、不安装、不改状态。
+- 本仓需要哪些能力（由代码决定，与机器无关）：
+  - 文本产出/校验 ← 仓库 venv（Python 3.13）+ pandoc（`pypandoc-binary` 内置，PATH 无 pandoc 属预期）
+  - 文档渲染校验 ← weasyprint + GTK 系统库（缺 ⇒ PDF 通道记 blocked，不算 bug）
+  - 浏览器链路 ← chrome / chromium / playwright（缺 ⇒ 相关场景 blocked，不算 bug）
+  - 音频/视频产物 ← 外部音视频工具 + 渲染器（缺 ⇒ 该线活交回具备该能力的机器复验，不在本机修）
+- 判定结果怎么写：本机"有/没有"属**机器事实**，逐机器不同且会过期 ⇒ 写到仓外或已被 gitignore 的 `.scratch/`，
+  每轮报告「环境」段带出；**禁止把 ✓/✗ 结果提交进本文件**。本文件只回答"这个仓需要什么"，不回答"这台机器有什么"。
