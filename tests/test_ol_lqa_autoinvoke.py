@@ -9,12 +9,37 @@ MCP tools (translate_md_text / translate_xliff).
 """
 
 import asyncio
+import os
 import textwrap
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 # All LQA tests in this module use MagicMock/AsyncMock for both the LLM pool
 # and the JudgeService seam, so they run in regular CI (no API keys needed).
+
+# ``# Test\n\nHello world.`` is split into two translatable units by the MD
+# extractor: heading ``md_1`` ("Test") and paragraph ``md_2``
+# ("Hello world."). ``pool.translate`` is called once per unit per attempt,
+# never once per document.
+UNITS = 2
+
+_SOURCE_COPY_RETRY_MARKERS = (
+    "SOURCE_COPY",
+    "retranslation request",
+    "上一次输出与源文完全相同",
+)
+
+
+@pytest.fixture(autouse=True)
+def _require_fake_llm_seam() -> None:
+    """Fail loudly when the FAKE_LLM seam is not active for this module."""
+    if os.environ.get("OMNI_TEST_FAKE_LLM") != "1":
+        pytest.fail(
+            "本地跑本文件必须 OMNI_TEST_FAKE_LLM=1，否则会走真实 ModelPool "
+            "并报与本测试无关的 `Router() takes no arguments`"
+        )
 
 
 def _write_config(tmp_path: Path, *, enable_lqa: bool, threshold: float = 7.0, max_retries: int = 2) -> Path:
@@ -75,14 +100,32 @@ def _write_input_md(tmp_path: Path, content: str = "# Test\n\nHello world.") -> 
 
 
 def _mock_pool_with_translations(translations: list[str]) -> MagicMock:
-    """Create a mock ModelPool whose .translate returns successive translations."""
+    """Create a mock ModelPool whose .translate returns successive translations.
+
+    Once the list is exhausted the last translation is repeated, so per-unit
+    translation (2 units by default) can never raise ``StopAsyncIteration``
+    and silently fall back to the source text.
+    """
+    if not translations:
+        raise ValueError("translations must not be empty")
     pool = MagicMock()
-    pool.translate = AsyncMock(side_effect=translations)
+    calls = {"index": 0}
+
+    async def _translate(*_args, **_kwargs) -> str:
+        index = min(calls["index"], len(translations) - 1)
+        calls["index"] += 1
+        return translations[index]
+
+    pool.translate = AsyncMock(side_effect=_translate)
     return pool
 
 
 def _mock_judge_with_scores(scores: list[float]) -> MagicMock:
-    """Create a mock JudgeService whose .judge returns successive scores."""
+    """Create a mock JudgeService whose .judge returns successive scores.
+
+    Like the translation fixture, the last score repeats instead of raising
+    ``StopAsyncIteration`` when the list is exhausted.
+    """
     from ol_core.dataclass import EvaluationResult
 
     def make_result(score: float) -> EvaluationResult:
@@ -96,9 +139,35 @@ def _mock_judge_with_scores(scores: list[float]) -> MagicMock:
             },
         )
 
+    if not scores:
+        raise ValueError("scores must not be empty")
+    results = [make_result(s) for s in scores]
+    calls = {"index": 0}
+
+    async def _judge(*_args, **_kwargs) -> EvaluationResult:
+        index = min(calls["index"], len(results) - 1)
+        calls["index"] += 1
+        return results[index]
+
     judge = MagicMock()
-    judge.judge = AsyncMock(side_effect=[make_result(s) for s in scores])
+    judge.judge = AsyncMock(side_effect=_judge)
     return judge
+
+
+def _assert_no_source_copy_retry(pool: MagicMock) -> None:
+    """Assert no translate call carried OL#189's source-copy retry instruction."""
+    for call in pool.translate.call_args_list:
+        instruction = call.kwargs.get("extra_instruction") or ""
+        assert not any(
+            marker in instruction for marker in _SOURCE_COPY_RETRY_MARKERS
+        ), (
+            "pool.translate received a SOURCE_COPY retry instruction; the "
+            f"fixture is manufacturing a source-copy retry: {instruction!r}"
+        )
+        assert instruction == "", (
+            "pool.translate received an unexpected extra_instruction: "
+            f"{instruction!r}"
+        )
 
 
 def _run_translate_md_async(
@@ -146,11 +215,11 @@ def _run_translate_md_async(
 
 class TestOLLQAAutoInvoke:
     def test_lqa_disabled_by_default_single_translate_call(self, tmp_path: Path):
-        """When enable_lqa=False (default), pool.translate is called exactly once
-        and the result is used directly without retry."""
+        """When enable_lqa=False (default), pool.translate is called once per
+        unit and the result is used directly without retry."""
         config_path = _write_config(tmp_path, enable_lqa=False)
         md_path = _write_input_md(tmp_path)
-        pool = _mock_pool_with_translations(["# Test\n\n你好世界。"])
+        pool = _mock_pool_with_translations(["测试", "你好世界。"])
 
         result = _run_translate_md_async(
             config_path=config_path,
@@ -159,19 +228,20 @@ class TestOLLQAAutoInvoke:
             pool=pool,
         )
 
-        assert pool.translate.call_count == 1, (
-            f"Expected 1 translate call (no LQA retry), got {pool.translate.call_count}"
+        # 2 units × 1 attempt = 2 translate calls
+        assert pool.translate.call_count == UNITS, (
+            f"Expected {UNITS} translate calls (one per unit, no LQA retry), "
+            f"got {pool.translate.call_count}"
         )
         assert "你好世界" in Path(result).read_text(encoding="utf-8")
+        _assert_no_source_copy_retry(pool)
 
     def test_lqa_enabled_passes_first_attempt_no_retry(self, tmp_path: Path):
         """When enable_lqa=True and first judge score >= threshold, no retry."""
         config_path = _write_config(tmp_path, enable_lqa=True, threshold=7.0, max_retries=2)
         md_path = _write_input_md(tmp_path)
-        pool = _mock_pool_with_translations([
-            "# Test\n\n你好。",  # First (and only) translation
-        ])
-        judge = _mock_judge_with_scores([8.0])  # Above threshold
+        pool = _mock_pool_with_translations(["测试", "你好。"])
+        judge = _mock_judge_with_scores([8.0, 8.0])  # Above threshold
 
         _run_translate_md_async(
             config_path=config_path,
@@ -181,10 +251,13 @@ class TestOLLQAAutoInvoke:
             judge=judge,
         )
 
-        assert pool.translate.call_count == 1, (
-            f"Expected 1 translate call (first attempt passed), got {pool.translate.call_count}"
+        # 2 units × 1 attempt = 2 translate calls, each judged once
+        assert pool.translate.call_count == UNITS, (
+            f"Expected {UNITS} translate calls (first attempt passed), "
+            f"got {pool.translate.call_count}"
         )
-        assert judge.judge.call_count == 1
+        assert judge.judge.call_count == UNITS
+        _assert_no_source_copy_retry(pool)
 
     def test_lqa_enabled_retries_when_score_below_threshold(self, tmp_path: Path):
         """When enable_lqa=True and first judge score < threshold, retry happens."""
@@ -193,11 +266,14 @@ class TestOLLQAAutoInvoke:
         )
         md_path = _write_input_md(tmp_path)
         pool = _mock_pool_with_translations([
-            "# Test\n\nattempt1",  # First attempt (bad)
-            "# Test\n\nattempt2",  # Second attempt (still bad)
-            "# Test\n\nattempt3",  # Third attempt (best, also bad)
+            "单元1尝试1",  # md_1 attempt 1 (bad)
+            "单元1尝试2",  # md_1 attempt 2 (still bad)
+            "单元1尝试3",  # md_1 attempt 3 (best, also bad)
+            "单元2尝试1",  # md_2 attempt 1 (bad)
+            "单元2尝试2",  # md_2 attempt 2 (still bad)
+            "单元2尝试3",  # md_2 attempt 3 (best, also bad)
         ])
-        judge = _mock_judge_with_scores([5.0, 6.0, 6.5])  # All below 7.0
+        judge = _mock_judge_with_scores([5.0, 5.5, 6.0, 5.0, 5.5, 6.5])
 
         result = _run_translate_md_async(
             config_path=config_path,
@@ -207,24 +283,31 @@ class TestOLLQAAutoInvoke:
             judge=judge,
         )
 
-        assert pool.translate.call_count == 3, (
-            f"Expected 3 translate calls (initial + 2 retries), got {pool.translate.call_count}"
+        # 2 units × (1 initial + 2 retries) = 6
+        assert pool.translate.call_count == UNITS * 3, (
+            f"Expected {UNITS * 3} translate calls (initial + 2 retries per "
+            f"unit), got {pool.translate.call_count}"
         )
-        assert judge.judge.call_count == 3
-        # Best translation (attempt3 with score 6.5) should be in output
-        assert "attempt3" in Path(result).read_text(encoding="utf-8")
+        assert judge.judge.call_count == UNITS * 3
+        # Each unit's best translation (attempt 3, highest score) is in output.
+        output = Path(result).read_text(encoding="utf-8")
+        assert "单元1尝试3" in output
+        assert "单元2尝试3" in output
+        _assert_no_source_copy_retry(pool)
 
     def test_lqa_enabled_returns_best_of_n(self, tmp_path: Path):
-        """When the 2nd retry scores above threshold, retry returns immediately."""
+        """When the 2nd attempt scores above threshold, retry returns immediately."""
         config_path = _write_config(
             tmp_path, enable_lqa=True, threshold=7.0, max_retries=3
         )
         md_path = _write_input_md(tmp_path)
         pool = _mock_pool_with_translations([
-            "# Test\n\nattempt1",
-            "# Test\n\nattempt2",
+            "单元1尝试1",  # md_1 attempt 1 (bad)
+            "单元1尝试2",  # md_1 attempt 2 (passes)
+            "单元2尝试1",  # md_2 attempt 1 (bad)
+            "单元2尝试2",  # md_2 attempt 2 (passes)
         ])
-        judge = _mock_judge_with_scores([4.0, 9.0])
+        judge = _mock_judge_with_scores([4.0, 9.0, 4.0, 9.0])
 
         result = _run_translate_md_async(
             config_path=config_path,
@@ -234,8 +317,13 @@ class TestOLLQAAutoInvoke:
             judge=judge,
         )
 
-        assert pool.translate.call_count == 2
-        assert "attempt2" in Path(result).read_text(encoding="utf-8")
+        # 2 units × 2 attempts (fail then pass) = 4
+        assert pool.translate.call_count == UNITS * 2
+        assert judge.judge.call_count == UNITS * 2
+        output = Path(result).read_text(encoding="utf-8")
+        assert "单元1尝试2" in output
+        assert "单元2尝试2" in output
+        _assert_no_source_copy_retry(pool)
 
     def test_lqa_enabled_all_attempts_fail_uses_best_of_n(self, tmp_path: Path):
         """When all attempts fail, the best-scored translation is used (best-of-N)."""
@@ -244,12 +332,16 @@ class TestOLLQAAutoInvoke:
         )
         md_path = _write_input_md(tmp_path)
         pool = _mock_pool_with_translations([
-            "# Test\n\nattempt1",
-            "# Test\n\nattempt2",
-            "# Test\n\nattempt3",
-            "# Test\n\nattempt4",
+            "单元1尝试1",
+            "单元1尝试2",
+            "单元1尝试3",
+            "单元1尝试4",
+            "单元2尝试1",
+            "单元2尝试2",
+            "单元2尝试3",
+            "单元2尝试4",
         ])
-        judge = _mock_judge_with_scores([4.0, 6.5, 5.0, 6.0])
+        judge = _mock_judge_with_scores([4.0, 6.5, 5.0, 6.0, 4.0, 6.5, 5.0, 6.0])
 
         result = _run_translate_md_async(
             config_path=config_path,
@@ -259,8 +351,14 @@ class TestOLLQAAutoInvoke:
             judge=judge,
         )
 
-        assert pool.translate.call_count == 4
-        assert "attempt2" in Path(result).read_text(encoding="utf-8")
+        # 2 units × (1 initial + 3 retries) = 8
+        assert pool.translate.call_count == UNITS * 4
+        assert judge.judge.call_count == UNITS * 4
+        # Each unit's best-scored attempt is attempt 2.
+        output = Path(result).read_text(encoding="utf-8")
+        assert "单元1尝试2" in output
+        assert "单元2尝试2" in output
+        _assert_no_source_copy_retry(pool)
 
     def test_lqa_max_retries_zero_equivalent_to_disabled(self, tmp_path: Path):
         """When max_retries=0, only 1 attempt is made (initial)."""
@@ -269,9 +367,10 @@ class TestOLLQAAutoInvoke:
         )
         md_path = _write_input_md(tmp_path)
         pool = _mock_pool_with_translations([
-            "# Test\n\nonly_attempt",
+            "单元1仅一次",
+            "单元2仅一次",
         ])
-        judge = _mock_judge_with_scores([5.0])  # Below threshold but no retry
+        judge = _mock_judge_with_scores([5.0, 5.0])  # Below threshold but no retry
 
         _run_translate_md_async(
             config_path=config_path,
@@ -281,9 +380,13 @@ class TestOLLQAAutoInvoke:
             judge=judge,
         )
 
-        assert pool.translate.call_count == 1, (
-            f"Expected 1 translate call (max_retries=0 = no retry), got {pool.translate.call_count}"
+        # 2 units × 1 attempt (max_retries=0 = no retry) = 2
+        assert pool.translate.call_count == UNITS * 1, (
+            f"Expected {UNITS * 1} translate calls (max_retries=0 = no retry), "
+            f"got {pool.translate.call_count}"
         )
+        assert judge.judge.call_count == UNITS * 1
+        _assert_no_source_copy_retry(pool)
 
     def test_lqa_enabled_with_all_good_scores_no_retry(self, tmp_path: Path):
         """When enable_lqa=True and all scores are high, retry never happens."""
@@ -292,9 +395,10 @@ class TestOLLQAAutoInvoke:
         )
         md_path = _write_input_md(tmp_path)
         pool = _mock_pool_with_translations([
-            "# Test\n\nonly_attempt",
+            "单元1一次",
+            "单元2一次",
         ])
-        judge = _mock_judge_with_scores([9.0])  # High score, no retry needed
+        judge = _mock_judge_with_scores([9.0, 9.0])  # High score, no retry needed
 
         _run_translate_md_async(
             config_path=config_path,
@@ -304,5 +408,7 @@ class TestOLLQAAutoInvoke:
             judge=judge,
         )
 
-        assert pool.translate.call_count == 1
-        assert judge.judge.call_count == 1
+        # 2 units × 1 attempt (all scores pass) = 2
+        assert pool.translate.call_count == UNITS
+        assert judge.judge.call_count == UNITS
+        _assert_no_source_copy_retry(pool)
