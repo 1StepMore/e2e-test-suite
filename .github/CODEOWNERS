@@ -1,7 +1,4 @@
-# Owner-gated surfaces (suite#260).
-# This file only requests owner review. "Require review from Code Owners"
-# stays OFF in the repository ruleset (owner 2026-11-11).
-/.agents/expectations/  @1StepMore
-/.agents/roles/         @1StepMore
-/scenarios/             @1StepMore
-/docs/dev/              @1StepMore
+# 敏感路径：必须 Owner(1StepMore) 批准
+/.github/                @1StepMore
+/governance*             @1StepMore
+/docs/dev/*governance*   @1StepMore

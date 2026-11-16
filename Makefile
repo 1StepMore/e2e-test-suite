@@ -25,7 +25,21 @@
 
 .PHONY: setup test test-quick test-opp test-ol test-orf test-contract test-contract-cli test-contract-mcp test-logs test-metrics test-tracing test-distributed-tracing test-health test-error-scenarios fidelity fidelity-unit fidelity-nightly smoke security-scan lint matrix matrix-subset validate validate-nightly validate-coverage clean clean-artifacts doctor help e2e e2e-help doc-inventory doc-inventory-check entry-check
 
+# Platform-aware interpreter (suite#330, mirrors #321/#328): on Windows-native
+# shells (Git Bash/MSYS) the Linux-venv launcher .venv_ol/bin/python cannot be
+# executed (Error 127) — its ELF target is a WSL-side interpreter. The Windows
+# bootstrap (setup_dev.ps1) creates .venv_win/Scripts instead. Detection
+# mirrors scripts/setup_dev.sh (uname -s case); POSIX/CI/WSL keep .venv_ol.
+UNAME_S := $(shell uname -s 2>/dev/null)
+ifeq ($(findstring MINGW,$(UNAME_S)),MINGW)
+PYTHON := .venv_win/Scripts/python.exe
+else ifeq ($(findstring MSYS,$(UNAME_S)),MSYS)
+PYTHON := .venv_win/Scripts/python.exe
+else ifeq ($(findstring CYGWIN,$(UNAME_S)),CYGWIN)
+PYTHON := .venv_win/Scripts/python.exe
+else
 PYTHON := .venv_ol/bin/python
+endif
 PYTEST := $(PYTHON) -m pytest
 FAKE_ENV := OMNI_TEST_FAKE_LLM=1 OMNI_TEST_FAKE_PANDOC=1
 # E2E tests use real LLM calls — never set FAKE_LLM. Still bypass pandoc
