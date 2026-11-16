@@ -259,14 +259,20 @@ Content {i}.
             text=True,
             timeout=180,
             env=env,
+            # Isolate CWD in tmp_path (suite#340): the default output root is
+            # the literal "--output-dir" directory relative to CWD; without
+            # cwd isolation it lands in the repo root and trips the
+            # doc-inventory suite-root-artifact gate on every run.
+            cwd=str(tmp_path),
         )
 
         assert result.returncode == 0, (
             f"ol_cli exited {result.returncode}\n"
             f"stdout: {result.stdout[:500]}\nstderr: {result.stderr[:500]}"
         )
-        # CLI writes to literal --output-dir/real.md by default
-        default_out = Path("--output-dir") / "real.md"
+        # CLI writes to literal --output-dir/real.md by default (under the
+        # isolated CWD, i.e. tmp_path)
+        default_out = tmp_path / "--output-dir" / "real.md"
         assert default_out.exists(), f"Expected output at {default_out}"
         content = default_out.read_text(encoding="utf-8")
         assert len(content) > 0
