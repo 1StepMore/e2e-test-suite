@@ -27,6 +27,14 @@ Your role comes from the Owner's explicit assignment. Read the contract first an
 
 Constitution slot: this repo intentionally ships no `.specify/` (Owner decision, 2026-11-08) — non-negotiable principles = §0 above + `docs/DECISIONS.md` (ADR 0001–0008). Thin harness adapters: `.claude/agents/` (Claude Code) and `.github/agents/` (Copilot) carry pointers only — never duplicate contract bodies. This file must stay ≤200 lines (machine-checked by `scripts/doc_inventory.py`).
 
+## Autonomy (lease → select → claim)
+
+Self-drive after cloning: read `docs/dev/autonomy.md`, run `python3 scripts/agent/autonomy.py selfcheck`.
+`status`/`gate` = is it your turn (**exit 3 = not your turn**, stop, not an error); `next` = claimable items;
+`claim <n>` = `status:claimed` + `owner:*` + claim comment. Owner grants a lease ("交给你了, until HH:MM, goal X")
+via `autonomy.py start`; an expired lease falls back to the default window (weekday 09:00–23:00 = `owner:code-auto`,
+all else = `owner:human-agent`).
+
 ## What is this?
 
 A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translate) → **ORF** (backfill). Each module is a standalone sub-repo with its own CLI, MCP server, and test suite.
