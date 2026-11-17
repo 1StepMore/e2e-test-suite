@@ -26,7 +26,16 @@
 # 用法：
 #   bash scripts/pre_commit_python.sh scripts/doc_inventory.py --check
 #   bash scripts/pre_commit_python.sh -m pytest tests/security -q
+#   零参数 ⇒ exit 2（与第 2 层「venv 存在但不可执行 ⇒ exit 1」并列，形成 fail-closed 谱系）
 set -u
+
+# 零参数 = 调用方 bug：空参数列表交给解释器会进交互式 REPL
+# （stdin EOF ⇒ 静默 exit 0 伪绿；活动 stdin ⇒ 永久阻塞）。必须 fail-closed。
+if [ "$#" -eq 0 ]; then
+    echo "FAIL: pre_commit_python.sh requires a command to run (got 0 args)" >&2
+    echo "      usage: bash scripts/pre_commit_python.sh <script.py> [args...] | -m <module> [args...] | -c '<code>'" >&2
+    exit 2
+fi
 
 # 候选是否真的可执行：存在（command -v）+ 真能解释一行代码。
 _omni_runnable() {
