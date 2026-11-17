@@ -82,9 +82,34 @@
 - [ ] **`run_validation.py --scenario <不存在名>` 是 exit 0 的空跑**——"WARNING: no scenarios match" 只打一行 warning，退出码仍 0（2026-11-11 实测：AGENTS.md 示例名 `regression` 无对应场景，照抄即得 0 场景执行的"绿"）。凡脚本化调用 run_validation，先 `--list` 校验场景名存在，或判读时断言输出含 `Totals:` 且 passed ≥ 1。AGENTS.md 示例已随本条修正。
 - [ ] **Actions 普查必须按 event/workflow 过滤查询，别依赖单页时间窗**——`/actions/runs?per_page=100` 在高频仓只覆盖数小时，会把 schedule 轨误判为"从未点燃"（2026-11-11 实测：全量普查 0 条 schedule，改 `?event=schedule` 后 78 条，含 11-03..11-08 连红带与正确的警报记录）。普查口径：`event=schedule` 或按 workflow 名过滤，各自单独翻页。
 
+### 2026-11-17 夜间全能力验证轮新增（任务书驱动）
+
+- [ ] **WSL 下单次 `pgrep` 空结果 ≠ 进程已死**——/proc 枚举存在抖动，本轮连续三次把活着的 run_validation 误判为死亡（pid 实测一直在跑）。判活必须 `ps aux` 全列表 + 子进程 cmdline 交叉确认；"进程消失"结论需两次独立观测。
+- [ ] **与主长跑并行的"轻量"检查在 9p 上不轻**——coverage_audit 会 spawn 41 个 MCP server、doc_inventory/ruff 全树扫描都是 IO 大户；本轮它们与全库 run 并行，把首场景拖到 31 分钟零完成。主 run 期间禁并行任何 spawn 型检查，轻量门禁一律放在长跑间隙或收尾。
+- [ ] **跑矩阵前必须断言 `which pandoc` 命中 `.venv_ol/bin`**——验证器对 pandoc/md2pptx 的探测依赖环境 PATH；PATH 缺 venv bin 时 73×2 格报 `pandoc not installed` 假 skip（pandoc 实际在 venv 内）。`nightly_gap.py` 探活闸只查 opp/orf/ol_pool import，不查外部二进制的 PATH 可达性。修法 = 运行环境 `PATH=.venv_ol/bin:$PATH`（等价历史 activate 语义）；gate 化建议见当轮事件 G-2。
+- [ ] **pipeline 场景的 `ol translate-xliff -c Omni_Localizer/config/default.yaml`（跟踪镜像池，纯 Zhipu）要求进程环境有 ZHIPU_API_KEY**——OL#195 空键自检 fail-closed，报错清晰（"This pool expects: ZHIPU_API_KEY"）。local.yaml（AMD 主 + Zhipu 备）只被进程内 MCP 路径用到；ZHIPU_API_KEY 本机不存在（Omni_Localizer/.env 为空壳注释 + ~/.hermes/.env 已消失）⇒ 5 个 pipeline/chain 场景在本机结构性跑不通，凭证属 Owner-gated 前置。改场景 `-c` = 改判据，禁止。
+- [ ] **renanzai40 fine-grained PAT 对 1StepMore/* 缺 Issues:write 与 Contents:write**——GraphQL addComment / REST comments / git push 三路 403（协作者 API 权限 push:true 但 token 权限不足）。夜间报告的 issue 评论交付与真 bug 修复 PR 通道全部卡此前置；Owner 补权限前，报告只能落仓内文件。
+- [ ] **场景库冷启动首场景在 9p 上可慢至 ~15 分钟（ping 级场景）**，之后恢复常态节奏——不要按首场景速度外推全程判"卡死"；同理 `timeout_seconds: 1200` 的翻译步骤在 provider 瘫痪夜会吃满 20 分钟（配 `--step-timeout 600` 的强制传导是否覆盖所有 dispatch 路径待复核，见当轮事件 B-CAND-1）。
+
 ## 循环事件（major events，newest on top）
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
+
+### 2026-11-17：夜间全能力验证轮（Owner 任务书驱动；身份 renanzai40）
+
+- Date: 2026-11-17（03:19–08:xx +0800）；触发：Owner 夜间任务书（全能力验证，报告原定 → issue #352）
+- Scope: 无产品代码改动、无判据/阈值/断言改动。唯一仓内变更 = 本文件（坑清单 + 本事件）。运行面：make test 三模块段 / 契约 63 / smoke 9 / 矩阵 402 格 ×2 轮 / 场景库 127 全走（tier-1 113 + tier-2 13 + tier-3 1）/ 轻量门禁 4 项 / 产物抽查
+- Result:
+  - **tier-1 全库** run `20261117-070232` = **113 场景：103 passed / 0 failed / 5 unconfigured / 4 recovered / 1 known-gap**，exit 0（unconfigured = aspose/OCR/YOUTUBE/MSG/TM 网络类客观缺省，与基线同族）
+  - **矩阵 402 格** run2 = 每通道 **125 passed / 0 failed / 76 skipped**（豁免 34 + 需清理 42），channel_divergence **0**，gap_units 84（基线 82 + 2 = md2pptx 17 格/通道 dotnet 未装），regression_gap 18 全为 skip 超额无 fail 无分叉；run1（PATH 缺 venv bin）73×2 格假 skip 已归档为反面教材
+  - **tier-2** run2 = 8 passed / 5 failed（全 ENV：ZHIPU_API_KEY 本机不存在，pipeline 场景 -c default.yaml 纯 Zhipu 池 fail-closed）；run3 = 7/6（translate_file 单步 provider 拥塞超时，波动族）。真实 LLM 质量证据（LQA/e2e）本轮未能产出，见 E 节
+  - tier-3 = 1 unconfigured（YOUTUBE_NETWORK）；契约 63/63、smoke 9/9、coverage_audit 41/41 execution-backed、doc-inventory ✓、entry-check ✓、ruff F 类 0 违规
+  - 产物抽查：orf-xliff-docx/out.docx 18 段全中文（水星机器人 — 产品概述，与 08-16 基线读数一致）；orf-xliff-epub en 方向 CJK=0 语义正确；矩阵证据 + /tmp 产物已拷回 scratch（tmpfs 防丢失）
+  - **交付受阻**：renanzai40 PAT 缺 Issues:write/Contents:write → #352 评论与 PR 通道 403；报告全文落 `99-Tools/validation-scratch/omni-suite/nightly-20261117/NIGHT-REPORT.md`
+  - make validate-diff 未跑：昨日 latest（20261116-025359）仅 1 条点检，形状不匹配，跑了只会产出误导性 diff
+- Conclusion: 机器可判面全绿（0 failed 贯穿全部已跑面）；真正的缺口 = ZHIPU_API_KEY 凭证（Owner 前置）+ PAT 写权限（Owner 前置）+ md2pptx/dotnet（可装）+ 根套件段/e2e/LQA 待 provider 与窗口补跑。本机 /mnt/d 9p 是夜间窗口的结构性瓶颈（建议 ext4 检出，见报告 G-3）
+
+
 
 ### 2026-11-11：发现模式巡检轮——全绿 + 夜跑红带核销确认 + 两处卫生
 
