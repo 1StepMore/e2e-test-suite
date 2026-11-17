@@ -80,7 +80,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `archive/system_improvements_v2.md` | 503 | archive | archived | — |
 | `dev/agent-era-doc-architecture.md` | 300 | docs/dev | active | instruction |
 | `dev/artifact-assertion-matrix.md` | 282 | docs/dev | active | — |
-| `dev/autonomy.md` | 122 | docs/dev | active | — |
+| `dev/autonomy.md` | 126 | docs/dev | active | — |
 | `dev/doc-inventory-copies.md` | 53 | docs/dev | active | — |
 | `dev/goals.md` | 36 | docs/dev | active | — |
 | `dev/harness-run-facts.md` | 41 | docs/dev | active | — |

@@ -69,6 +69,10 @@ agent-ready  ∧  无任何 owner:* 标签  ∧  无 status:claimed  ∧  没有
 
 当前目标写在 `docs/dev/goals.md`，其中 `<!-- goal-cmd: … -->` 是**判据命令**，`exit 0 = 达标`。
 
+**不需要谁记得单独跑它**：`gate`（开工闸）和 `next`（选活）会自动跑一遍并缓存 10 分钟 ——
+`ACHIEVED` ⇒ 退出码 **5**（停手走四步）；`ERROR` ⇒ 退出码 **6**（判据跑不起来是环境问题，先修环境）；
+`ACTIVE` ⇒ 照常干。`goal` 子命令只是给人看详情用的。
+
 每班开工先跑：
 
 ```bash
