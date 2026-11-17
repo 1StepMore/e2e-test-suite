@@ -29,7 +29,7 @@ Constitution slot: this repo intentionally ships no `.specify/` (Owner decision,
 
 ## Autonomy (lease → select → claim)
 
-Self-drive after cloning: read `docs/dev/autonomy.md`（目标与判据 → `docs/dev/goals.md`）`, run `python3 scripts/agent/autonomy.py selfcheck`.
+Self-drive after cloning: read `docs/dev/autonomy.md` (goals and criteria: `docs/dev/goals.md`), then run `python3 scripts/agent/autonomy.py gate` before any work — **exit 3 = not your turn (stop, not an error)**, **5 = goal achieved (stop and ask the Owner for the next stage)**, **6 = criteria cannot run (fix the env, do not push on)**; `selfcheck` reports what this machine is missing.
 `status`/`gate` = is it your turn (**exit 3 = not your turn**, stop, not an error); `next` = claimable items;
 `claim <n>` = `status:claimed` + `owner:*` + claim comment. Owner grants a lease ("交给你了, until HH:MM, goal X")
 via `autonomy.py start`; an expired lease falls back to the default window (weekday 09:00–23:00 = `owner:code-auto`,
