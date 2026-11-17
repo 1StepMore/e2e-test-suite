@@ -13,14 +13,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 72 |
-| Total lines | 36540 |
-| Active files | 47 |
+| Total files | 73 |
+| Total lines | 36594 |
+| Active files | 48 |
 | Archived files | 25 |
 | Category — archive | 25 files / 25581 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 25 files / 3423 lines |
+| Category — docs/dev | 26 files / 3477 lines |
 | Category — docs/root | 19 files / 6194 lines |
 
 ## Inventory
@@ -80,8 +80,9 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `archive/system_improvements_v2.md` | 503 | archive | archived | — |
 | `dev/agent-era-doc-architecture.md` | 300 | docs/dev | active | instruction |
 | `dev/artifact-assertion-matrix.md` | 282 | docs/dev | active | — |
-| `dev/autonomy.md` | 104 | docs/dev | active | — |
+| `dev/autonomy.md` | 122 | docs/dev | active | — |
 | `dev/doc-inventory-copies.md` | 53 | docs/dev | active | — |
+| `dev/goals.md` | 36 | docs/dev | active | — |
 | `dev/harness-run-facts.md` | 41 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 201 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
