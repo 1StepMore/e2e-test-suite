@@ -1,4 +1,4 @@
-# AGENTS.md — Omni Suite
+# AGENTS.md — Omni Suite · 判活按标签、不问编号 → `docs/dev/task-routing.md`（`owner:*` 是例外不是默认：**不标 = 任一侧可做**）
 
 This file guides AI agents (Claude, Cursor, OpenCode, Hermes, Codex, opencode, …) working on the Omni Suite. It is an **index + invariants** file: detail lives in on-demand docs (linked below), not here. Tool signatures, MCP configs, testing procedures → follow the links. Generated doc map (AUTO-GENERATED, do not hand-edit): `docs/dev/doc-inventory.md`. · docs/dev/harness-run-facts.md — 运行环境 / 门禁顺序 / 缺 key 症状 / 已知坑 · **矩阵归属/判定口径 → `docs/dev/matrix-ownership.md`（口径真身 = `docs/dev/matrix-verdict-policy.md`；`*→srt` 11 格=code 侧，其余文本=owner 侧）**
 
