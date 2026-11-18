@@ -121,7 +121,7 @@
 - 补充（04:1x，owner 提供 Spark key 后的接线与首破）:
   - **Spark 主通道接线**（owner 直接指令）：`local.yaml`（gitignored 机器本地）四角色重排 = spark-x2.6 P1 + AMD P2 + Zhipu P3（模板 local.example.yaml 预置形态，12 档 = 3/role，恰好对齐 test_e2e_real_llm.py:44 断言）；`ol doctor` 结构全绿；PR #366 把 3 个进程内 MCP 场景（tool-ol-translate_file/judge_text/batch_translate_texts，唯一走 local.yaml 默认链的 tier-2 面）的 requires_env_any 加入 SPARK_API_KEY，明确不动 11 个钉死 default.yaml 的场景
   - **tier-2 真实 LLM 首破（本机历史首次）**：3 场景 2/2 全绿 —— tool-ol-judge_text（run 20261118-035357）/ tool-ol-batch_translate_texts（20261118-035649）/ tool-ol-translate_file（20261118-040130）。配方 = 套件根 .env 的 ZHIPU key（litellm cwd autoload 意外发现，见新坑清单）+ `OL_CONFIG_PATH` 绝对路径；跑在 Zhipu 通道（Spark key 尚困于 bashrc 交互守卫，等 owner 移入 ~/.profile 后复测 Spark P1 优先级）
-  - **nightly real-LLM**（test_e2e_real_llm + xliff_lqa_image_placement）后台在跑，结果交接时补记或由下一班收尾（Zhipu 额度内）
+  - **nightly real-LLM**（test_e2e_real_llm + xliff_lqa_image_placement，04:02–04:32）= **22 failed / 3 passed**，定性 **ENV/凭证族非代码回归**：同一代码路径 03:51 真实绿（judge_text 2/2）、04:41 起 401 `Invalid bearer token`（bigmodel 拒 July key——免费档配额被 30 分钟章节级翻译烧穿，正是 owner「免费档撑不起长程任务」判断的实证）；22 个失败全部死在 OL 翻译步（失败 run 只有 OPP 产物、无 OL/LQA 层）。解药 = Spark key 可见化（owner `~/.profile` 一行，P1 主通道接管）或带额度的新 key；代码零缺陷嫌疑
 - Conclusion: 环境面修复闭环（exit 6 → exit 0），矩阵读数与基线一致；#333 残余面以双平台证据交付 PR #363（draft）；tier-2 真实 LLM 面本机首次点亮（3 场景全绿）。遗留：Spark key 可见性（owner ~/.profile 一行）、md2pptx/dotnet（可装）、parity POSIX 字面量（issue #365 已修待 POSIX 复验 + PR）、11 个 default.yaml 钉死场景（owner-gated 判据池决策）、PAT 写权限（owner 前置不变）
 
 ### 2026-11-17：夜间全能力验证轮（Owner 任务书驱动；身份 renanzai40）
