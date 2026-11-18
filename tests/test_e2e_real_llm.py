@@ -129,11 +129,12 @@ def use_real_llm(monkeypatch):
         monkeypatch.setenv("OL_CONFIG_PATH", str(local_yaml))
 
     if not any(
-        os.environ.get(k) for k in ["AMD_API_KEY", "ZHIPU_API_KEY"]
+        os.environ.get(k)
+        for k in ["AMD_API_KEY", "ZHIPU_API_KEY", "SPARK_API_KEY"]
     ):
         pytest.skip(
             "Tier 3 LQA test requires a real LLM API key. "
-            "Set AMD_API_KEY or ZHIPU_API_KEY in "
+            "Set SPARK_API_KEY, AMD_API_KEY or ZHIPU_API_KEY in "
             "Omni_Localizer/.env, or in the test environment. Run `make e2e-help` "
             "for setup instructions."
         )
