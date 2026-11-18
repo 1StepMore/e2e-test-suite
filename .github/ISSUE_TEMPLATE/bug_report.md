@@ -12,6 +12,15 @@ scenario in scenarios/regression/ — the flywheel depends on it.
 Fill every section; delete nothing. Keep reproduction steps executable.
 -->
 
+## 归属（owner）
+
+- [ ] **任一侧可做**（默认 —— 不打 `owner:*` 标签）
+- [ ] 只有本机侧能做：重依赖模态（视频/音频/图片渲染）→ `owner:code-auto`
+- [ ] 只有主人侧能做：Windows 原生 / 需要他的账号额度或外部动作 → `owner:human-agent`
+
+> 判据见 `docs/dev/autonomy.md`：可做名单 = `agent-ready` ∧ 无 `owner:*` ∧ 无 `status:claimed` ∧ 未被 open PR 认领。
+> **不标 `owner:*` 就是「任一侧可做」，这是默认，不是遗漏。**
+
 ## Title
 
 One-line summary of the bug.
