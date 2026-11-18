@@ -82,6 +82,20 @@
 - [ ] **`run_validation.py --scenario <不存在名>` 是 exit 0 的空跑**——"WARNING: no scenarios match" 只打一行 warning，退出码仍 0（2026-11-11 实测：AGENTS.md 示例名 `regression` 无对应场景，照抄即得 0 场景执行的"绿"）。凡脚本化调用 run_validation，先 `--list` 校验场景名存在，或判读时断言输出含 `Totals:` 且 passed ≥ 1。AGENTS.md 示例已随本条修正。
 - [ ] **Actions 普查必须按 event/workflow 过滤查询，别依赖单页时间窗**——`/actions/runs?per_page=100` 在高频仓只覆盖数小时，会把 schedule 轨误判为"从未点燃"（2026-11-11 实测：全量普查 0 条 schedule，改 `?event=schedule` 后 78 条，含 11-03..11-08 连红带与正确的警报记录）。普查口径：`event=schedule` 或按 workflow 名过滤，各自单独翻页。
 
+- [ ] **`~/.bashrc` 的交互守卫让 `bash -lc` 看不到守卫之后的 export**——`case $- in *i*) ;; *) return;; esac` 在非交互登录壳里提前 return，owner 机器的 key（SPARK/AMD/APIGOTO）export 全部只在交互 shell 可见，`wsl bash -lc` 自动化一律吃不到。修法：key export 放 `~/.profile`（登录壳必读、无守卫）或 bashrc 守卫之前。2026-11-18 实测：SPARK_KEY=MISSING 但 bashrc 确有该行。
+- [ ] **套件根 `.env` 被 litellm cwd-relative autoload——所有 OL 池进程静默继承 7 月的旧 key 集**——`import litellm`（ol_pool 导入链）触发 `load_dotenv()` 搜**当前目录**：套件根 `.env`（2026-07-03，ZHIPU/OPENAI/AGNES/MINIMAX/NVIDIA_NIM 等一把旧 key）在 cwd=套件根的任何池进程里生效。这推翻了 11-17「ZHIPU_API_KEY 本机不存在」的定性——当时只查了 `Omni_Localizer/.env` 与 `~/.hermes/.env`，漏了套件根这个 litellm 装载点。诊断口径：分阶段查 `os.environ`（stage0 fresh → stage1 `import router` → stage2 `load_config`），2026-11-18 实测 stage1 即出现。
+- [ ] **tier-2 场景的 AND 变量（OL_CONFIG_PATH 等）被 OR 满足豁免门控，但运行时仍须环境提供**——tool-ol 家族不设 `OL_CONFIG_PATH` 时进程内工具按 cwd 找 `config/default.yaml`（套件根下不存在）→ `OL_JUDGE_FAILED: Config file not found`。tier-2 跑配方：`export OL_CONFIG_PATH=<绝对路径>` + OR 组 key primed；allowlist 类 AND 变量（MCP_ALLOWED_DIRECTORIES 等）**别手动设**（引擎智能默认优先，坑清单 2026-11-06 条）。
+- [ ] **套件根 `.env` 含模板占位行（`MINIMAX_API_KEY=<your-minimax-api-key>`），litellm dotenv 容忍、bash source 语法炸**——需要值时用 `sed -n 's/^VAR=//p' ./.env | tr -d "\r"` 单变量提取，别 `set -a; . ./.env`。
+
+### 2026-11-18 夜班新增（gate exit 6 修环境 + suite#333 残余面）
+
+- [ ] **goal 判据的矩阵缓存是"双坐标"落盘：生产在 WSL /tmp，gate 读在 Windows `D:\tmp`**——`nightly_gap.py --skip-run`（gate goal-cmd）跑在 harness 的 Windows Python，`Path("/tmp/omni-nightly")` 解析为 `<当前盘>:\tmp\omni-nightly`（D:\tmp）；而矩阵本身必须 WSL 生产（`.venv_ol/bin/python`），cells 工作区放 WSL tmpfs（9p 会拖死 402 格）。修法：WSL 跑 `nightly_gap.py --out-dir /tmp/omni-nightly`，完成后**同一 WSL 会话内**把两份 `matrix.json` 拷到 `/mnt/d/tmp/omni-nightly/{cli,mcp}/`（= D:\tmp）。只做一半 ⇒ gate 永远 exit 6。2026-11-18 实测重建后 CLI/MCP 各 125/0/76、gap_units 84，与 11-17 run2 逐项一致。
+- [ ] **验证器 cells 目录数 ≠ 格子总数**——`ls cells/ | wc -l` 只数实际落盘工作区（本实测 CLI 135 个目录 vs total=201），skip/无产出的格子不落目录；判读进度/健康度一律以 `matrix.json` 的 total/passed/failed/skipped 为准，别拿目录数外推"提前退出"。
+- [ ] **allowlist 的 ADR-0007 分隔符收敛在"测试 fixture 里"仍有残余面**——`test_e2e_pipeline_full.py::patched_opp_mcp_paths` 用 POSIX `":".join(["/tmp", ...])`，Windows 上整串被解析成单个非法路径 → allowlist 等效失效全拒（suite#333 ×9）。同族排查口径：`grep -rn '":".join\|"/tmp"' tests/ --include="*.py"`；修法 = `os.pathsep` + `tempfile.gettempdir()`。
+- [ ] **MCP 通道链路测试需要真 pandoc，且这是治理设计不是缺陷**——ORF MCP 有意 scrub `OMNI_TEST_FAKE_PANDOC`（`orf/mcp/common.py MCP_SCRUB_ENV_KEYS`，防 MCP 通道静默产假产物）。Linux CI 镜像自带 pandoc 掩盖了 Windows 原生的缺位；修法 = conftest 用套件自身依赖 `pypandoc_binary` 的捆绑 pandoc 前置 PATH（**真 pandoc**，严禁绕 seam 或往 MCP subprocess 里塞 FAKE 变量）。PR #363。
+- [ ] **Windows 原生跑 `pre-commit run --all-files`：首次会带出一批 hook 卫生改动 + 一个既有红**——end-of-file-fixer / trailing-whitespace 对历史 tracked 文件逐个补换行/裁尾空格（本实测 8 个文件），属正当修复应随当轮 PR 提交（否则 worktree 永远脏）；`omni-path-policy-parity` 在 Windows 原生红是**既有的**（`test_path_policy_parity.py:468` 断言 POSIX 字面量 `"/a"`，Windows `Path("/a")`→`\a`），stash 基线复跑同样红可证。判定纪律：先 stash 基线复证"既有红"，再继续。
+- [ ] **Git Bash 传中文路径名给 `git add` 会 pathspec 不匹配**（Win32 参数编码）——中文文件名的 tracked 文件改动用 `git add -u`（按状态暂存）绕过，别跟引号/编码死磕。
+
 ### 2026-11-17 夜间全能力验证轮新增（任务书驱动）
 
 - [ ] **WSL 下单次 `pgrep` 空结果 ≠ 进程已死**——/proc 枚举存在抖动，本轮连续三次把活着的 run_validation 误判为死亡（pid 实测一直在跑）。判活必须 `ps aux` 全列表 + 子进程 cmdline 交叉确认；"进程消失"结论需两次独立观测。
@@ -94,6 +108,21 @@
 ## 循环事件（major events，newest on top）
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
+
+### 2026-11-18：夜班——goal 判据缓存重建（exit 6 修环境）+ suite#333 残余面修复（lane=owner:human-agent）
+
+- Date: 2026-11-18（01:34–05:xx +0800）；触发：Owner 夜间任务书（AUTONOMY_LANE=owner:human-agent，gate exit 6 ⇒ 修环境，自驱到 06:00）
+- Scope: 无产品代码改动、无判据/阈值/断言改动。仓内变更 = PR #363（tests/ 测试基建 + 8 个 tracked 文件的 hook 卫生）+ 本文件（坑清单 + 本事件）
+- Result:
+  - **gate exit 6 定性**：goal 判据 `nightly_gap.py --skip-run` 取不到矩阵——WSL tmpfs `/tmp/omni-nightly/{cli,mcp}/matrix.json` 被 VM 重启清空（既有坑），而 gate 的 goal-cmd 跑在 Windows Python（读 `D:\tmp\omni-nightly`）⇒ 缓存重建必须**双坐标**落盘（见新坑清单第 1 条）
+  - **矩阵 402 格重建**（WSL .venv_ol + `PATH=.venv_ol/bin:$PATH`，cells 工作区放 WSL /tmp tmpfs）：CLI 2463s + MCP ~11min，**CLI/MCP 各 125 passed / 0 failed / 76 skipped（豁免 34 + 需清理 42），分叉 0，gap_units 84，护栏 18** —— 与 11-17 run2 读数逐项一致，零回归；`--skip-run` 判据恢复 exit 1（ACTIVE），gate 恢复 exit 0
+  - **suite#333 残余面**（next 解锁后 claim）：issue 主红面（两 ORF 文件）在 main 已绿（64 passed）；根 tests/ ×9 实测仍红，两层根因（fixture POSIX `":".join` allowlist + 被 OPP 拒绝掩盖的真 pandoc 缺失）⇒ PR #363 修复，Windows 90 passed / 0 failed + WSL 90 passed / 0 failed 双平台，反向实证贴 issue 评论；pre-commit 13/14（parity 红为既有、基线复证）
+  - make validate-diff 未跑：本轮 validation-runs 无新全库 run（矩阵跑不走 run_validation.py），无 diff 形状可比
+- 补充（04:1x，owner 提供 Spark key 后的接线与首破）:
+  - **Spark 主通道接线**（owner 直接指令）：`local.yaml`（gitignored 机器本地）四角色重排 = spark-x2.6 P1 + AMD P2 + Zhipu P3（模板 local.example.yaml 预置形态，12 档 = 3/role，恰好对齐 test_e2e_real_llm.py:44 断言）；`ol doctor` 结构全绿；PR #366 把 3 个进程内 MCP 场景（tool-ol-translate_file/judge_text/batch_translate_texts，唯一走 local.yaml 默认链的 tier-2 面）的 requires_env_any 加入 SPARK_API_KEY，明确不动 11 个钉死 default.yaml 的场景
+  - **tier-2 真实 LLM 首破（本机历史首次）**：3 场景 2/2 全绿 —— tool-ol-judge_text（run 20261118-035357）/ tool-ol-batch_translate_texts（20261118-035649）/ tool-ol-translate_file（20261118-040130）。配方 = 套件根 .env 的 ZHIPU key（litellm cwd autoload 意外发现，见新坑清单）+ `OL_CONFIG_PATH` 绝对路径；跑在 Zhipu 通道（Spark key 尚困于 bashrc 交互守卫，等 owner 移入 ~/.profile 后复测 Spark P1 优先级）
+  - **nightly real-LLM**（test_e2e_real_llm + xliff_lqa_image_placement，04:02–04:32）= **22 failed / 3 passed**，定性 **ENV/凭证族非代码回归**：同一代码路径 03:51 真实绿（judge_text 2/2）、04:41 起 401 `Invalid bearer token`（bigmodel 拒 July key——免费档配额被 30 分钟章节级翻译烧穿，正是 owner「免费档撑不起长程任务」判断的实证）；22 个失败全部死在 OL 翻译步（失败 run 只有 OPP 产物、无 OL/LQA 层）。解药 = Spark key 可见化（owner `~/.profile` 一行，P1 主通道接管）或带额度的新 key；代码零缺陷嫌疑
+- Conclusion: 环境面修复闭环（exit 6 → exit 0），矩阵读数与基线一致；#333 残余面以双平台证据交付 PR #363（draft）；tier-2 真实 LLM 面本机首次点亮（3 场景全绿）。遗留：Spark key 可见性（owner ~/.profile 一行）、md2pptx/dotnet（可装）、parity POSIX 字面量（issue #365 已修待 POSIX 复验 + PR）、11 个 default.yaml 钉死场景（owner-gated 判据池决策）、PAT 写权限（owner 前置不变）
 
 ### 2026-11-17：夜间全能力验证轮（Owner 任务书驱动；身份 renanzai40）
 
