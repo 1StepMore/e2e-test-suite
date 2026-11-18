@@ -13,14 +13,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 73 |
-| Total lines | 36652 |
-| Active files | 48 |
+| Total files | 75 |
+| Total lines | 36719 |
+| Active files | 50 |
 | Archived files | 25 |
 | Category — archive | 25 files / 25581 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 26 files / 3535 lines |
+| Category — docs/dev | 28 files / 3602 lines |
 | Category — docs/root | 19 files / 6194 lines |
 
 ## Inventory
@@ -84,6 +84,8 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/doc-inventory-copies.md` | 53 | docs/dev | active | — |
 | `dev/goals.md` | 36 | docs/dev | active | — |
 | `dev/harness-run-facts.md` | 41 | docs/dev | active | — |
+| `dev/matrix-ownership.md` | 37 | docs/dev | active | — |
+| `dev/matrix-verdict-policy.md` | 30 | docs/dev | active | — |
 | `dev/per-repo-validation-delivery.md` | 201 | docs/dev | active | — |
 | `dev/pypi-release-checklist.md` | 91 | docs/dev | active | — |
 | `dev/quality-baseline.md` | 44 | docs/dev | active | — |
