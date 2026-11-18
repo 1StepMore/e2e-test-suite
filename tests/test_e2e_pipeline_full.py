@@ -47,6 +47,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,10 +56,13 @@ from typing import Any, Literal
 import pytest
 from lxml import etree
 
-# ORF MCP validates paths against ORF_MCP_ALLOWED_DIRS; set it early to
-# prevent PATH_NOT_ALLOWED errors on all ORF MCP tool invocations.
-os.environ.setdefault("ORF_MCP_ALLOWED_DIRS", "/tmp:/mnt/d/贯维/Omni_Suite")
-
+# ---------------------------------------------------------------------------
+# ORF/OPP/OL MCP allowlists are owned by tests/conftest.py (platform-correct
+# ``os.pathsep`` join of the OS temp dir + suite root). Do NOT setdefault
+# allowlist env vars at module level: pytest imports every test module before
+# running any test, so a module-level value silently overrides the conftest
+# baseline process-wide (e2e#56 family), and a POSIX ``:`` join mangles
+# Windows drive-letter paths (suite#333).
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -547,13 +551,22 @@ def patched_opp_mcp_paths(monkeypatch):
     """Allow OPP MCP to read inputs from arbitrary paths.
 
     OPP MCP enforces PathValidator on input paths. For the E2E test we
-    need the Haier DOCX / Meridian PPTX paths (under /mnt/d/贯维/Omni_Suite)
-    plus any temp path we generate. The default config loads allowed
-    dirs from OPP_MCP_ALLOWED_DIRS or opp_mcp_config.yaml; we set the
-    env var to allow /tmp and the suite root.
+    need the suite fixtures (Haier DOCX / Meridian PPTX under the suite
+    root) plus any temp path we generate. The default config loads
+    allowed dirs from OPP_MCP_ALLOWED_DIRS or opp_mcp_config.yaml; we
+    set the env var to allow the OS temp dir and the suite root.
+
+    The join must use ``os.pathsep`` (suite#333): OPP's
+    ``_parse_allowed_dirs`` splits on ``os.pathsep`` + comma (ADR 0007),
+    so a POSIX ``:`` join on Windows makes the whole string one bogus
+    entry and the allowlist fails closed on every path.
     """
-    allowed = ["/tmp", str(SUITE_ROOT), str(SUITE_ROOT / "test_artifacts")]
-    monkeypatch.setenv("OPP_MCP_ALLOWED_DIRS", ":".join(allowed))
+    allowed = [
+        tempfile.gettempdir(),
+        str(SUITE_ROOT),
+        str(SUITE_ROOT / "test_artifacts"),
+    ]
+    monkeypatch.setenv("OPP_MCP_ALLOWED_DIRS", os.pathsep.join(allowed))
 
     from opp.mcp import server as _opp_mcp_server
     from opp.mcp.config import load_config
