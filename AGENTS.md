@@ -122,6 +122,23 @@ Every run persists `run_meta` (suite/opp/ol/orf versions + git SHAs). Reading re
 | **agent-user conformance** | every agent-facing tool/CLI works as an agent would use it (AGENT-SURFACE anchors: `#tool-contract`, `#json-parseable`, `#error-clarity`, `#path-security`, `#exit-codes`) |
 | **human-quality conformance** | pipeline output satisfies human end-users (HUMAN-QUALITY anchors: `#lqa-threshold`, `#para-ratio`, `#cjk-density`, `#untranslated-units`, `#punct-hygiene`, `#drawing-count`, `#opens-docx`) |
 
+
+### 交叉审计的产物中转（MUST · 2026-11-19）
+
+质量通过不能靠口头，必须**产物入库 + git 中转**：两侧机器不共享磁盘，唯一通道是 GitHub 仓库。
+协议真身：workspace 根 `99-Tools/methodology/cross-audit-evidence-protocol.md`；本仓落点与规则：`docs/dev/cross-audit-evidence.md`
+
+- 一次性中间件 ⇒ `99-Tools/validation-scratch/` 或 `.scratch/`（不入库）；**要交叉审的产物 ⇒ `docs/dev/validation-evidence/<matrix>/<run-date>/` + `manifest.json`，必须 commit**。
+- `test_artifacts/`、`validation-runs/` 都是 gitignored 本机临时区，**不是交付通道**（对方机器读不到）。
+- 自检：`python3 99-Tools/check_evidence_committed.py <repo>`，exit 0 才可宣称质量通过。
+- `quality.verdict=pass` 必须带存在的 `quality.evidence`，否则按 fail 计。
+
+**假模型 vs 真模型**
+
+- 允许 fake（`FAKE_LLM=1`）：只限链路 / 契约 / 覆盖类验证（路径能跑通、schema 对、工具可调用）——证据里必须写明 fake，且**不得**据此判 human-quality 通过。
+- 禁止 fake：任何 `human-quality conformance` 判定、任何对外交付包的验收。本标准（`scenarios/STANDARDS.md#fallbacks-never-evidence`）已明确 fallback-active 的 human-quality run 记 `invalid`。
+- 真跑缺 key ⇒ 先查环境，再**向 owner 要（优先免费额度）**，标 `blocked:no-llm-key`；不许用 fake 冒充真跑。
+
 **Standards**: `scenarios/STANDARDS.md` is the single citable bar — every step's `expect` cites `standard: STANDARDS.md#<anchor>`. Read it before judging a verdict; never invent thresholds. Full references: [docs/dev/per-repo-validation-delivery.md](docs/dev/per-repo-validation-delivery.md), [docs/dev/artifact-assertion-matrix.md](docs/dev/artifact-assertion-matrix.md).
 
 #### Validation 循环治理规范（2026-08-15）
