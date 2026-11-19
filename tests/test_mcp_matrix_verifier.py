@@ -103,3 +103,45 @@ class TestMdCsvGuardWiring:
         assert result.status == "pass"
         assert ol.calls == ["translate_md_text"]
         assert orf.calls == ["apply_md"]
+
+
+class TestCellEnvParity:
+    """MCP and CLI cells must resolve modules through the same env (suite#372).
+
+    Regression: the MCP channel's PYTHONPATH omitted the venv site-packages
+    segment that the CLI channel's _cell_env carries, so shebang-launched
+    conversion tools (md2pptx) hit ModuleNotFoundError only in MCP — an
+    environment-class false red, not a real matrix failure. These tests lock
+    the two channels to one construction with no EVA-01-specific literal.
+    """
+
+    def test_mcp_pythonpath_matches_cli_cell_env(self, tmp_path):
+        cli_env = fmv._cell_env(fmv._SUITE_ROOT)
+        mcp_env = mmv._mcp_cell_env(tmp_path)
+        assert mcp_env["PYTHONPATH"] == cli_env["PYTHONPATH"]
+
+    def test_shared_env_carries_venv_site_packages(self, tmp_path):
+        # The PYTHONPATH targets the Linux ELF at .venv_ol/bin/python, so its
+        # separator is ":" by design and its segments are POSIX paths on the
+        # target host. On a Windows test harness str(Path) yields a drive
+        # letter whose ":" would split the segment — assert path segments as
+        # substrings instead, which is platform-agnostic and avoids baking
+        # EVA-01-specific literals into the test (suite#372 contract).
+        pp = mmv._mcp_cell_env(tmp_path)["PYTHONPATH"]
+        assert ".venv_ol" in pp and "site-packages" in pp
+
+    def test_all_three_module_src_dirs_present(self, tmp_path):
+        pp = mmv._mcp_cell_env(tmp_path)["PYTHONPATH"]
+        for mod in ("Omni_Pre_Processor", "Omni_Localizer", "Omni_Re_Formatter"):
+            assert mod in pp
+
+    def test_mcp_only_settings_are_layered_on_top(self, tmp_path):
+        env = mmv._mcp_cell_env(tmp_path)
+        assert env["OPP_MCP_ALLOWED_DIRS"] == str(tmp_path.resolve())
+        assert env["OL_MCP_ALLOWED_DIRS"] == str(tmp_path.resolve())
+        assert env["ORF_MCP_ALLOWED_DIRS"] == str(tmp_path.resolve())
+        assert env["OMNI_RATE_LIMIT_RPM"] == "0"
+        assert env["OMNI_RATE_LIMIT_BURST"] == "0"
+        # shared base still present
+        assert env["OMNI_TEST_FAKE_LLM"] == "1"
+        assert env["OMNI_TEST_FAKE_PANDOC"] == "1"
