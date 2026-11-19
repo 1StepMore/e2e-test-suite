@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -329,24 +328,33 @@ async def _run_one_cell_mcp(
 # Main
 # ---------------------------------------------------------------------------
 
-async def _run_matrix(args) -> int:
-    from scripts.format_matrix_verifier import FULL_MATRIX, _resolve_fixture
+def _mcp_cell_env(out_dir: Path) -> dict[str, str]:
+    """The environment every MCP matrix cell subprocess runs under.
 
-    env = os.environ.copy()
-    env["OMNI_TEST_FAKE_LLM"] = "1"
-    env["OMNI_TEST_FAKE_PANDOC"] = "1"
-    env["PYTHONPATH"] = ":".join(filter(None, [
-        env.get("PYTHONPATH", ""),
-        str(SUITE_ROOT / "Omni_Pre_Processor" / "src"),
-        str(SUITE_ROOT / "Omni_Localizer" / "src"),
-        str(SUITE_ROOT / "Omni_Re_Formatter" / "src"),
-    ]))
-    env["OPP_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
-    env["OL_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
-    env["ORF_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
+    Built on top of the CLI channel's ``_cell_env`` as the single source of
+    truth (suite#372 / #128). ``_cell_env`` already carries the three module
+    src dirs AND the venv site-packages segment; assembling PYTHONPATH here
+    by hand had omitted site-packages, so shebang-launched tools (e.g.
+    md2pptx) could not import venv-only deps in the MCP channel while the CLI
+    cell passed — an environment-class false red. MCP-only settings are
+    layered on top of that shared base.
+    """
+    from scripts.format_matrix_verifier import _cell_env
+
+    env = _cell_env(SUITE_ROOT)
+    env["OPP_MCP_ALLOWED_DIRS"] = str(out_dir.resolve())
+    env["OL_MCP_ALLOWED_DIRS"] = str(out_dir.resolve())
+    env["ORF_MCP_ALLOWED_DIRS"] = str(out_dir.resolve())
     # 矩阵是能力普查、不是压测，harness 不得被 OPP 的生产限流拦住（e2e#147）
     env["OMNI_RATE_LIMIT_RPM"] = "0"
     env["OMNI_RATE_LIMIT_BURST"] = "0"
+    return env
+
+
+async def _run_matrix(args) -> int:
+    from scripts.format_matrix_verifier import FULL_MATRIX, _resolve_fixture
+
+    env = _mcp_cell_env(args.out_dir)
 
     out_dir = args.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
