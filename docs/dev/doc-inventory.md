@@ -13,14 +13,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 76 |
-| Total lines | 36761 |
-| Active files | 51 |
+| Total files | 79 |
+| Total lines | 36834 |
+| Active files | 54 |
 | Archived files | 25 |
 | Category — archive | 25 files / 25581 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 29 files / 3644 lines |
+| Category — docs/dev | 32 files / 3717 lines |
 | Category — docs/root | 19 files / 6194 lines |
 
 ## Inventory
@@ -81,6 +81,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/agent-era-doc-architecture.md` | 300 | docs/dev | active | instruction |
 | `dev/artifact-assertion-matrix.md` | 282 | docs/dev | active | — |
 | `dev/autonomy.md` | 126 | docs/dev | active | — |
+| `dev/cross-audit-evidence.md` | 32 | docs/dev | active | — |
 | `dev/doc-inventory-copies.md` | 53 | docs/dev | active | — |
 | `dev/goals.md` | 36 | docs/dev | active | — |
 | `dev/harness-run-facts.md` | 41 | docs/dev | active | — |
@@ -91,6 +92,8 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/quality-baseline.md` | 44 | docs/dev | active | — |
 | `dev/task-routing.md` | 42 | docs/dev | active | — |
 | `dev/validation-director-loop.md` | 295 | docs/dev | active | — |
+| `dev/validation-evidence/README.md` | 37 | docs/dev | active | — |
+| `dev/validation-evidence/manifest.json` | 4 | docs/dev | active | — |
 | `dev/validation-loop-log.md` | 427 | docs/dev | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
