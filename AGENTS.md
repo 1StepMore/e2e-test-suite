@@ -122,7 +122,8 @@ Every run persists `run_meta` (suite/opp/ol/orf versions + git SHAs). Reading re
 | **agent-user conformance** | every agent-facing tool/CLI works as an agent would use it (AGENT-SURFACE anchors: `#tool-contract`, `#json-parseable`, `#error-clarity`, `#path-security`, `#exit-codes`) |
 | **human-quality conformance** | pipeline output satisfies human end-users (HUMAN-QUALITY anchors: `#lqa-threshold`, `#para-ratio`, `#cjk-density`, `#untranslated-units`, `#punct-hygiene`, `#drawing-count`, `#opens-docx`) |
 
-**Standards**: `scenarios/STANDARDS.md` is the single citable bar — every step's `expect` cites `standard: STANDARDS.md#<anchor>`. Read it before judging a verdict; never invent thresholds. Full references: [docs/dev/per-repo-validation-delivery.md](docs/dev/per-repo-validation-delivery.md), [docs/dev/artifact-assertion-matrix.md](docs/dev/artifact-assertion-matrix.md).
+
+**Standards**: `scenarios/STANDARDS.md` is the single citable bar — every step's `expect` cites `standard: STANDARDS.md#<anchor>`. Read it before judging a verdict; never invent thresholds. **交叉审产物中转 + 真假模型**（要交叉审的产物必须入库走 git；`quality.verdict=pass` 必须带 evidence；质量判定必须真模型、fake 只准用于链路·契约·覆盖；没 key 向 owner 要）：见 [`docs/dev/cross-audit-evidence.md`](docs/dev/cross-audit-evidence.md)。 Full references: [docs/dev/per-repo-validation-delivery.md](docs/dev/per-repo-validation-delivery.md), [docs/dev/artifact-assertion-matrix.md](docs/dev/artifact-assertion-matrix.md).
 
 #### Validation 循环治理规范（2026-08-15）
 
