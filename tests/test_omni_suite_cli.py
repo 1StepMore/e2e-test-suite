@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,11 @@ SUITE_ROOT = Path(__file__).resolve().parent.parent
 CLI = sys.executable  # Current venv Python — used for `python -m omni_suite`
 OMNI_SUITE_BIN = str(SUITE_ROOT / ".venv_ol" / "bin" / "omni-suite")
 FIXTURE_DOCX = SUITE_ROOT / "tests" / "production" / "small_fixture.docx"
-PIPELINE_TMP_ROOT = Path("/tmp/omni-suite-pipeline")
+# Derive the run root exactly like the CLI does (e2e-test-suite#328, suite#341):
+# `Path(tempfile.gettempdir()) / "omni-suite-pipeline"` — a literal /tmp resolves
+# to the current drive root on native Windows (D:\tmp), where the CLI never
+# writes, so the keep-intermediate assertions could never see the artifacts.
+PIPELINE_TMP_ROOT = Path(tempfile.gettempdir()) / "omni-suite-pipeline"
 
 
 def _pipeline_env() -> dict[str, str]:
