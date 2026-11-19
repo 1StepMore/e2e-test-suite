@@ -464,8 +464,11 @@ def test_split_allowlist_is_platform_correct(monkeypatch):
         assert _split_allowlist(r"C:\work;D:\data") == [r"C:\work", r"D:\data"]
     else:
         assert _split_allowlist("/work:/data") == ["/work", "/data"]
-    # 逗号在所有平台都可用，且空白被去掉
-    assert _split_allowlist(" /a , /b ") == ["/a", "/b"]
+    # 逗号在所有平台都可用，且空白被去掉。_split_allowlist 返回
+    # ``str(Path(part))``：切分结构平台无关，字符串渲染随平台
+    # （suite#365：Windows 上 ``str(Path("/a"))`` = ``'\\a'``，
+    # 而非 POSIX 的 ``"/a"``——冻结的是切分语义，不是 POSIX 渲染）。
+    assert _split_allowlist(" /a , /b ") == [str(Path("/a")), str(Path("/b"))]
 
 
 # ---------------------------------------------------------------------------
