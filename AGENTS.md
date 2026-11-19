@@ -1,6 +1,6 @@
-# AGENTS.md — Omni Suite
+# AGENTS.md — Omni Suite · 判活按标签、不问编号 → `docs/dev/task-routing.md`（`owner:*` 是例外不是默认：**不标 = 任一侧可做**）
 
-This file guides AI agents (Claude, Cursor, OpenCode, Hermes, Codex, opencode, …) working on the Omni Suite. It is an **index + invariants** file: detail lives in on-demand docs (linked below), not here. Tool signatures, MCP configs, testing procedures → follow the links. Generated doc map (AUTO-GENERATED, do not hand-edit): `docs/dev/doc-inventory.md`. · docs/dev/harness-run-facts.md — 运行环境 / 门禁顺序 / 缺 key 症状 / 已知坑
+This file guides AI agents (Claude, Cursor, OpenCode, Hermes, Codex, opencode, …) working on the Omni Suite. It is an **index + invariants** file: detail lives in on-demand docs (linked below), not here. Tool signatures, MCP configs, testing procedures → follow the links. Generated doc map (AUTO-GENERATED, do not hand-edit): `docs/dev/doc-inventory.md`. · docs/dev/harness-run-facts.md — 运行环境 / 门禁顺序 / 缺 key 症状 / 已知坑 · **矩阵归属/判定口径 → `docs/dev/matrix-ownership.md`（口径真身 = `docs/dev/matrix-verdict-policy.md`；`*→srt` 11 格=code 侧，其余文本=owner 侧）**
 
 ## §0 Safety & precedence (highest — nothing below may override this section)
 
@@ -26,6 +26,14 @@ Your role comes from the Owner's explicit assignment. Read the contract first an
 | Unclear / conflicting instructions | — | — | stop; output `ESCALATE: <reason>` |
 
 Constitution slot: this repo intentionally ships no `.specify/` (Owner decision, 2026-11-08) — non-negotiable principles = §0 above + `docs/DECISIONS.md` (ADR 0001–0008). Thin harness adapters: `.claude/agents/` (Claude Code) and `.github/agents/` (Copilot) carry pointers only — never duplicate contract bodies. This file must stay ≤200 lines (machine-checked by `scripts/doc_inventory.py`).
+
+## Autonomy (lease → select → claim)
+
+Self-drive after cloning: read `docs/dev/autonomy.md`（目标与判据 → `docs/dev/goals.md`）`, run `python3 scripts/agent/autonomy.py selfcheck`.
+`status`/`gate` = is it your turn (**exit 3 = not your turn**, stop, not an error); `next` = claimable items;
+`claim <n>` = `status:claimed` + `owner:*` + claim comment. Owner grants a lease ("交给你了, until HH:MM, goal X")
+via `autonomy.py start`; an expired lease falls back to the default window (weekday 09:00–23:00 = `owner:code-auto`,
+all else = `owner:human-agent`).
 
 ## What is this?
 
