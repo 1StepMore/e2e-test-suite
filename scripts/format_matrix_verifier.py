@@ -703,6 +703,14 @@ FIXTURE_GFM_TABLE = (
     "| a | b |\n"
     "| c | d |"
 )
+#: NOTE: the XLSX fixture must NOT carry a literal GFM table inside a cell.
+#: ORF's xliff2xlsx splits trans-unit text on ``\s*\|\s*`` (xliff2xlsx.py:71)
+#: and fail-closes (XLSX_MAP_MISMATCH) when a single-cell unit splits into
+#: multiple segments — ANY pipe in a cell's own text trips it, spaces or not
+#: (2026-11-20 实测：compact ``|a|b|`` form still splits 13 segments). The
+#: MD path wants a separator row that only pipes can make, so the two
+#: transports have conflicting corpus requirements and the xliff round-trip
+#: wins; xlsx→csv (md) then skips honestly at the runtime guard.
 FIXTURE_SRT_CUES = (
     "1\n"
     "00:00:01,000 --> 00:00:02,000\n"
@@ -790,8 +798,10 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
             ws.title = "Data"
             ws.append(["col1", "col2"])
             ws.append(["a", "b"])
-            raw = wb.create_sheet("Raw")
-            raw["A1"] = FIXTURE_GFM_TABLE
+            # Two data rows, cells carry NO pipes (see the FIXTURE_GFM_TABLE
+            # note): a pipe anywhere in cell text fail-closes the xliff
+            # xlsx round-trip (XLSX_MAP_MISMATCH).
+            ws.append(["c", "d"])
             wb.save(str(dest))
             return
         except ImportError:
