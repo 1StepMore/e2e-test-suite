@@ -917,6 +917,17 @@ def main() -> int:
     verbose = "--verbose" in sys.argv or "-v" in sys.argv
     as_json = "--json" in sys.argv
 
+    if "--agent-ready" in sys.argv:
+        # suite#379 — the one agent-facing machine contract (agent-ready/v1):
+        # this entry only prints the JSON and exits with the contract code
+        # (0/2/3/4); the single implementation lives in scripts/agent/agent_ready.py.
+        sys.path.insert(0, str(Path(__file__).resolve().parent / "agent"))
+        from agent_ready import build_report
+
+        report, code = build_report()
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        return code
+
     r = run_checks(verbose)
 
     if as_json:
