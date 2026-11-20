@@ -35,6 +35,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -93,6 +94,78 @@ def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
 def tmp_workdir(tmp_path):
     """Per-test working directory."""
     return tmp_path
+
+
+def _icacls_deny(path: Path, rights: str) -> None:
+    """Deny ``rights`` for Everyone (``*S-1-1-0``, locale-independent SID)."""
+    subprocess.run(  # noqa: S603
+        ["icacls", str(path), "/deny", f"*S-1-1-0:{rights}"],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+
+
+def _icacls_reset(path: Path) -> None:
+    """Restore inherited ACLs.  Owner keeps WRITE_DAC (never denied), so
+    this cannot be locked out by the deny ACE it is undoing."""
+    subprocess.run(  # noqa: S603
+        ["icacls", str(path), "/reset"],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+
+
+@contextmanager
+def unreadable_file(path: Path):
+    """Platform-honest "unreadable input" precondition (#343).
+
+    - POSIX: ``chmod 0o000`` denies the owner's read via mode bits.
+    - Windows: ``chmod`` cannot deny reads there — ``0o000`` only clears
+      the write bit / sets the read-only attribute, and the owner can
+      still read the file.  A deny-ACE (``icacls /deny ...:(RD)``) is the
+      real equivalent and applies to every token holding Everyone,
+      including the CLI subprocess.
+
+    The tested contract (CLI exits non-zero on unreadable input) is the
+    same on both platforms; only the way the precondition is built is.
+    """
+    if os.name == "nt":
+        _icacls_deny(path, "(RD)")
+        try:
+            yield
+        finally:
+            _icacls_reset(path)
+    else:
+        os.chmod(path, 0o000)
+        try:
+            yield
+        finally:
+            os.chmod(path, 0o644)
+
+
+@contextmanager
+def unwritable_dir(path: Path):
+    """Platform-honest "cannot create entries in ``path``" precondition (#343).
+
+    - POSIX: ``chmod 0o555`` denies create/append for non-root.
+    - Windows: the read-only attribute is ignored for directories and
+      ``chmod`` cannot deny the owner's writes — deny-ACE on AddFile and
+      AddSubdirectory (``(WD,AD)``) is the real equivalent.  DELETE and
+      FILE_DELETE_CHILD stay untouched, so teardown (and pytest's tmp
+      cleanup) still work after the block.
+
+    Same split as :func:`unreadable_file`: one contract, per-OS mechanics.
+    """
+    if os.name == "nt":
+        _icacls_deny(path, "(WD,AD)")
+        try:
+            yield
+        finally:
+            _icacls_reset(path)
+    else:
+        os.chmod(path, 0o555)
+        try:
+            yield
+        finally:
+            os.chmod(path, 0o755)
 
 
 # ─── Scenario 1: 文件不存在 (file not found) ───────────────────────────
@@ -174,20 +247,19 @@ class TestPermissionDenied:
     def test_orf_unreadable_input(self, tmp_workdir):
         f = tmp_workdir / "noperm.md"
         f.write_text("# x\n")
-        os.chmod(f, 0o000)
         try:
-            result = _run(
-                [
-                    str(ORF_BIN),
-                    "apply-md",
-                    str(f),
-                    "--target-format", "docx",
-                    "-o", str(tmp_workdir / "out.docx"),
-                ]
-            )
+            with unreadable_file(f):
+                result = _run(
+                    [
+                        str(ORF_BIN),
+                        "apply-md",
+                        str(f),
+                        "--target-format", "docx",
+                        "-o", str(tmp_workdir / "out.docx"),
+                    ]
+                )
             assert result.returncode != 0
         finally:
-            os.chmod(f, 0o644)
             f.unlink(missing_ok=True)
 
 
@@ -312,7 +384,7 @@ class TestOLAPIKeyMissing:
         f.write_text("# x\n")
         env = dict(_BASE_ENV)
         env.pop("OMNI_TEST_FAKE_LLM", None)
-        env["PATH"] = str(_VENV_BIN) + os.pathsep + env.get("PATH", "")
+        env["PATH"] = str(SUITE_ROOT / ".venv_ol" / "bin") + ":" + env.get("PATH", "")
         result = subprocess.run(
             [str(OL_BIN), "translate-md", str(f), "-s", "en", "-t", "zh",
              "-o", str(tmp_workdir)],
@@ -411,8 +483,7 @@ class TestORFOutputUnwritable:
         f.write_text("# x\n")
         ro = tmp_workdir / "readonly"
         ro.mkdir()
-        os.chmod(ro, 0o555)
-        try:
+        with unwritable_dir(ro):
             result = _run(
                 [
                     str(ORF_BIN),
@@ -423,8 +494,6 @@ class TestORFOutputUnwritable:
                 ]
             )
             assert result.returncode != 0
-        finally:
-            os.chmod(ro, 0o755)
 
 
 # ─── Scenario 10: 磁盘空间不足 (disk full) ──────────────────────────────
@@ -438,21 +507,35 @@ class TestDiskFull:
     non-zero when the output path points at an unwritable parent.
     (Same shape as the readonly-dir test, but distinct enough to
     be its own row in the matrix.)
+
+    The write-failure proxy used to be a *missing* parent
+    (``/this/path/should/not/exist``).  That leaned on an accident:
+    ORF auto-creates missing parent directories
+    (``orf/cli.py:125`` ``output_path.parent.mkdir(parents=True)``),
+    so the test only went red because ``/`` is not writable on
+    POSIX — and on Windows the path resolved to ``<cwd-drive>:\\this\\...``,
+    where ORF was right to succeed, littering the drive root (#343).
+    An existing but write-denied parent exercises the same
+    write-failure contract through the parent-*creation* path —
+    on both platforms, without relying on where the tmpdir lands.
     """
 
-    def test_orf_unwritable_output_via_missing_parent(self, tmp_workdir):
+    def test_orf_unwritable_output_via_unwritable_parent(self, tmp_workdir):
         f = tmp_workdir / "in.md"
         f.write_text("# x\n")
-        result = _run(
-            [
-                str(ORF_BIN),
-                "apply-md",
-                str(f),
-                "--target-format", "docx",
-                "-o", "/this/path/should/not/exist/out.docx",
-            ]
-        )
-        assert result.returncode != 0
+        parent = tmp_workdir / "unwritable_parent"
+        parent.mkdir()
+        with unwritable_dir(parent):
+            result = _run(
+                [
+                    str(ORF_BIN),
+                    "apply-md",
+                    str(f),
+                    "--target-format", "docx",
+                    "-o", str(parent / "child" / "out.docx"),
+                ]
+            )
+            assert result.returncode != 0
 
 
 # ─── Scenario 11: OPP 成功但 OL 失败 — 清理 (OPP success + OL failure) ─

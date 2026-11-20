@@ -82,9 +82,96 @@
 - [ ] **`run_validation.py --scenario <不存在名>` 是 exit 0 的空跑**——"WARNING: no scenarios match" 只打一行 warning，退出码仍 0（2026-11-11 实测：AGENTS.md 示例名 `regression` 无对应场景，照抄即得 0 场景执行的"绿"）。凡脚本化调用 run_validation，先 `--list` 校验场景名存在，或判读时断言输出含 `Totals:` 且 passed ≥ 1。AGENTS.md 示例已随本条修正。
 - [ ] **Actions 普查必须按 event/workflow 过滤查询，别依赖单页时间窗**——`/actions/runs?per_page=100` 在高频仓只覆盖数小时，会把 schedule 轨误判为"从未点燃"（2026-11-11 实测：全量普查 0 条 schedule，改 `?event=schedule` 后 78 条，含 11-03..11-08 连红带与正确的警报记录）。普查口径：`event=schedule` 或按 workflow 名过滤，各自单独翻页。
 
+- [ ] **`~/.bashrc` 的交互守卫让 `bash -lc` 看不到守卫之后的 export**——`case $- in *i*) ;; *) return;; esac` 在非交互登录壳里提前 return，owner 机器的 key（SPARK/AMD/APIGOTO）export 全部只在交互 shell 可见，`wsl bash -lc` 自动化一律吃不到。修法：key export 放 `~/.profile`（登录壳必读、无守卫）或 bashrc 守卫之前。2026-11-18 实测：SPARK_KEY=MISSING 但 bashrc 确有该行。
+- [ ] **套件根 `.env` 被 litellm cwd-relative autoload——所有 OL 池进程静默继承 7 月的旧 key 集**——`import litellm`（ol_pool 导入链）触发 `load_dotenv()` 搜**当前目录**：套件根 `.env`（2026-07-03，ZHIPU/OPENAI/AGNES/MINIMAX/NVIDIA_NIM 等一把旧 key）在 cwd=套件根的任何池进程里生效。这推翻了 11-17「ZHIPU_API_KEY 本机不存在」的定性——当时只查了 `Omni_Localizer/.env` 与 `~/.hermes/.env`，漏了套件根这个 litellm 装载点。诊断口径：分阶段查 `os.environ`（stage0 fresh → stage1 `import router` → stage2 `load_config`），2026-11-18 实测 stage1 即出现。
+- [ ] **tier-2 场景的 AND 变量（OL_CONFIG_PATH 等）被 OR 满足豁免门控，但运行时仍须环境提供**——tool-ol 家族不设 `OL_CONFIG_PATH` 时进程内工具按 cwd 找 `config/default.yaml`（套件根下不存在）→ `OL_JUDGE_FAILED: Config file not found`。tier-2 跑配方：`export OL_CONFIG_PATH=<绝对路径>` + OR 组 key primed；allowlist 类 AND 变量（MCP_ALLOWED_DIRECTORIES 等）**别手动设**（引擎智能默认优先，坑清单 2026-11-06 条）。
+- [ ] **套件根 `.env` 含模板占位行（`MINIMAX_API_KEY=<your-minimax-api-key>`），litellm dotenv 容忍、bash source 语法炸**——需要值时用 `sed -n 's/^VAR=//p' ./.env | tr -d "\r"` 单变量提取，别 `set -a; . ./.env`。
+
+### 2026-11-18 夜班新增（gate exit 6 修环境 + suite#333 残余面）
+
+- [ ] **goal 判据的矩阵缓存是"双坐标"落盘：生产在 WSL /tmp，gate 读在 Windows `D:\tmp`**——`nightly_gap.py --skip-run`（gate goal-cmd）跑在 harness 的 Windows Python，`Path("/tmp/omni-nightly")` 解析为 `<当前盘>:\tmp\omni-nightly`（D:\tmp）；而矩阵本身必须 WSL 生产（`.venv_ol/bin/python`），cells 工作区放 WSL tmpfs（9p 会拖死 402 格）。修法：WSL 跑 `nightly_gap.py --out-dir /tmp/omni-nightly`，完成后**同一 WSL 会话内**把两份 `matrix.json` 拷到 `/mnt/d/tmp/omni-nightly/{cli,mcp}/`（= D:\tmp）。只做一半 ⇒ gate 永远 exit 6。2026-11-18 实测重建后 CLI/MCP 各 125/0/76、gap_units 84，与 11-17 run2 逐项一致。
+- [ ] **验证器 cells 目录数 ≠ 格子总数**——`ls cells/ | wc -l` 只数实际落盘工作区（本实测 CLI 135 个目录 vs total=201），skip/无产出的格子不落目录；判读进度/健康度一律以 `matrix.json` 的 total/passed/failed/skipped 为准，别拿目录数外推"提前退出"。
+- [ ] **allowlist 的 ADR-0007 分隔符收敛在"测试 fixture 里"仍有残余面**——`test_e2e_pipeline_full.py::patched_opp_mcp_paths` 用 POSIX `":".join(["/tmp", ...])`，Windows 上整串被解析成单个非法路径 → allowlist 等效失效全拒（suite#333 ×9）。同族排查口径：`grep -rn '":".join\|"/tmp"' tests/ --include="*.py"`；修法 = `os.pathsep` + `tempfile.gettempdir()`。
+- [ ] **MCP 通道链路测试需要真 pandoc，且这是治理设计不是缺陷**——ORF MCP 有意 scrub `OMNI_TEST_FAKE_PANDOC`（`orf/mcp/common.py MCP_SCRUB_ENV_KEYS`，防 MCP 通道静默产假产物）。Linux CI 镜像自带 pandoc 掩盖了 Windows 原生的缺位；修法 = conftest 用套件自身依赖 `pypandoc_binary` 的捆绑 pandoc 前置 PATH（**真 pandoc**，严禁绕 seam 或往 MCP subprocess 里塞 FAKE 变量）。PR #363。
+- [ ] **Windows 原生跑 `pre-commit run --all-files`：首次会带出一批 hook 卫生改动 + 一个既有红**——end-of-file-fixer / trailing-whitespace 对历史 tracked 文件逐个补换行/裁尾空格（本实测 8 个文件），属正当修复应随当轮 PR 提交（否则 worktree 永远脏）；`omni-path-policy-parity` 在 Windows 原生红是**既有的**（`test_path_policy_parity.py:468` 断言 POSIX 字面量 `"/a"`，Windows `Path("/a")`→`\a`），stash 基线复跑同样红可证。判定纪律：先 stash 基线复证"既有红"，再继续。
+- [ ] **Git Bash 传中文路径名给 `git add` 会 pathspec 不匹配**（Win32 参数编码）——中文文件名的 tracked 文件改动用 `git add -u`（按状态暂存）绕过，别跟引号/编码死磕。
+
+### 2026-11-17 夜间全能力验证轮新增（任务书驱动）
+
+- [ ] **WSL 下单次 `pgrep` 空结果 ≠ 进程已死**——/proc 枚举存在抖动，本轮连续三次把活着的 run_validation 误判为死亡（pid 实测一直在跑）。判活必须 `ps aux` 全列表 + 子进程 cmdline 交叉确认；"进程消失"结论需两次独立观测。
+- [ ] **与主长跑并行的"轻量"检查在 9p 上不轻**——coverage_audit 会 spawn 41 个 MCP server、doc_inventory/ruff 全树扫描都是 IO 大户；本轮它们与全库 run 并行，把首场景拖到 31 分钟零完成。主 run 期间禁并行任何 spawn 型检查，轻量门禁一律放在长跑间隙或收尾。
+- [ ] **跑矩阵前必须断言 `which pandoc` 命中 `.venv_ol/bin`**——验证器对 pandoc/md2pptx 的探测依赖环境 PATH；PATH 缺 venv bin 时 73×2 格报 `pandoc not installed` 假 skip（pandoc 实际在 venv 内）。`nightly_gap.py` 探活闸只查 opp/orf/ol_pool import，不查外部二进制的 PATH 可达性。修法 = 运行环境 `PATH=.venv_ol/bin:$PATH`（等价历史 activate 语义）；gate 化建议见当轮事件 G-2。
+- [ ] **pipeline 场景的 `ol translate-xliff -c Omni_Localizer/config/default.yaml`（跟踪镜像池，纯 Zhipu）要求进程环境有 ZHIPU_API_KEY**——OL#195 空键自检 fail-closed，报错清晰（"This pool expects: ZHIPU_API_KEY"）。local.yaml（AMD 主 + Zhipu 备）只被进程内 MCP 路径用到；ZHIPU_API_KEY 本机不存在（Omni_Localizer/.env 为空壳注释 + ~/.hermes/.env 已消失）⇒ 5 个 pipeline/chain 场景在本机结构性跑不通，凭证属 Owner-gated 前置。改场景 `-c` = 改判据，禁止。
+- [ ] **renanzai40 fine-grained PAT 对 1StepMore/* 缺 Issues:write 与 Contents:write**——GraphQL addComment / REST comments / git push 三路 403（协作者 API 权限 push:true 但 token 权限不足）。夜间报告的 issue 评论交付与真 bug 修复 PR 通道全部卡此前置；Owner 补权限前，报告只能落仓内文件。
+- [ ] **场景库冷启动首场景在 9p 上可慢至 ~15 分钟（ping 级场景）**，之后恢复常态节奏——不要按首场景速度外推全程判"卡死"；同理 `timeout_seconds: 1200` 的翻译步骤在 provider 瘫痪夜会吃满 20 分钟（配 `--step-timeout 600` 的强制传导是否覆盖所有 dispatch 路径待复核，见当轮事件 B-CAND-1）。
+
+### 2026-11-20 白班新增（Owner 目标轮：矩阵满格 + 真模型质量门）
+
+- [ ] **suite#372 的 cell-env PYTHONPATH 会毒化 shebang 工具（md2pptx 实证）**——矩阵 cell env 把 `.venv_ol/lib/python3.13/site-packages` 注入 PYTHONPATH；md2pptx 由 `#!/usr/bin/env python3` 起跑（WSL 系统 python3.14），lxml 的 C 扩展按 3.13 编译 → `ImportError: cannot import name 'etree'`（实测全部 →pptx 格死于此，非内容问题）。修法（机器本地，不入库）：bin 目录放 wrapper `exec .venv_ol/bin/python <md2pptx-install>/md2pptx "$@"`。凡 shebang 启动的外部工具 + 注入式 PYTHONPATH，一律用同版本解释器的 wrapper。
+- [ ] **OL FAKE 翻译逐行加 `[zh] ` 前缀 + ASCII 标点全角化，只盾"真多行 fence"**——单行 fence 被视为散文 → 前缀+全角化 → md2json `json.loads` 必炸；表头行 `| col1 | col2 |` 被打成 `[zh] | col1 | col2 |` → md2csv 的严格管道解析（行须以 `|` 开头结尾）把它跳过。连带效应：(a) 夹具携带 JSON 必须用**多行真 fence**（eml 正文/ipynb markdown 单元可保真穿透）；(b) 表格夹具必须 **≥2 数据行**——表头被跳过后只剩 1 行数据命中 md2csv header-only 分支 → **写空文件**（实测 docx/pptx→csv 空 0 字节）。
+- [ ] **ORF 内容寻址缓存（`~/.omni_cache/orf/`）跨矩阵轮次回放假产物**——旧轮缓存的无表 MD → 空 CSV 条目在新轮被 replay（`(cached)` 实锤），把"守卫已放行、转换器本可产出"的格子判成 0 字节红。矩阵/验证跑每轮设独立 `OMNI_CACHE_DIR`。
+- [ ] **run_validation 的显式 allowlist 预检 fail-closed：必须覆盖 /tmp 沙箱根**——手动设 `MCP_ALLOWED_DIRECTORIES` 少 `/tmp` 时 preflight 直接拒跑（"Refusing to run"，比跑起来 PATH_DENIED 全灭好）；修法 = allowlist 追加 `:/tmp`，或干脆不设让引擎智能默认装配。
+- [ ] **运行时守卫必须预测"转换器真实成败"而非只查结构存在**——fence 正则能匹配被 FAKE 打碎的 fence 文本但 json.loads 解析不了；守卫只查存在就会放行 → ORF 必红。守卫判定 = fence **可解析** 或 json_field kv 行存在。
+- [ ] **XLSX 夹具禁止在单元格文本里放任何管道**——ORF 的 xliff2xlsx 按 `\s*\|\s*`（xliff2xlsx.py:71）切 trans-unit 文本并 fail-closed（XLSX_MAP_MISMATCH），**空格不空格都触发**（紧凑 `|a|b|` 形式实测照样 13 段——docstring 写的 `" | "` 不是真身，regex 才是）。MD 路径要分隔行与 xliff 路径禁管道**结构性冲突**，xliff 往返优先 ⇒ xlsx→csv (md) 用冻结理由豁免 skip。教训：读源码要看 regex 真身。
+- [ ] **OL MCP translate 工具的 FAKE 池 seam 曾与 CLI 不对齐（OL#208 已修）**——MCP 侧直接构造真 ModelPool，FAKE 模式真池 `_test_mode` 返回字面 `"placeholder"`；CLI seam 切 `_FakeModelPool`（契约 = 回显 `[tgt] {source}`）。多格 xlsx 夹具首次触发：MCP xliff targets 丢 ` | ` 行结构 → xliff2xlsx fail-closed，CLI 过而 MCP 红；且 MCP xliff 产物此前一直是 placeholder（mock 证据质量低于 CLI 通道）。matrix-verdict-policy「一格 = 一次真产出」对 mock 证据同样要求通道间语义一致。
+- [ ] **md2pptx 上游 bug：文档以表格块结尾且全文无超链接时 `href` NameError**（~line 7057 `if href != "":`）——`href` 只在超链接分支赋值；表格结尾的输入（MCP 通道译文无 frontmatter、恰好以表格收尾）在 EOF slide finisher 崩溃。本机副本已打 `href = ""` 初始化补丁（99-Tools/third-party/md2pptx-install，机器本地）；上游归属 MartinPacker/md2pptx。
+
 ## 循环事件（major events，newest on top）
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
+
+### 2026-11-20（第二轮）：四仓质量标准全绿收口 + 全库 tier-1/tier-2 真模型 run
+
+- Date: 2026-11-20（11:00–16:xx +0800）；触发：Owner 指令「继续直到 OPP/OL/ORF/套件所有质量标准都通过」
+- Scope: OPP PR #138（契约测试 mock 面对齐 OL#208 FAKE seam，merged 5dfee68）；suite PR #385（质量基线刷新至 2026-11-20，merged 2e4a0d7）；无判据/阈值改动
+- Result:
+  - **四仓本仓测试全绿**（WSL .venv_ol 实跑）：OPP `1235 passed / 24 skipped`、OL `1936 passed / 43 skipped`（OL#209 后）、ORF `1165 passed / 27 skipped`、suite `…`（#384 mock 面对齐后 CI 全绿）
+  - **全库 tier-2 真模型 13/13 passed**：本轮补跑上轮未覆盖的 5 个（chain-mcp-three-modules 4/4、chain-opp-ol-xliff-orf-full 5/5、tool-ol-profile_doc 2/2、tool-ol-translate_md_text 2/2、tool-ol-translate_xliff 2/2），runs 20261120-134647…135530；加上 11-20 首轮 8 个 = 13/13。Q2 真模型 LQA：docx 4.99 / epub 5.00 / pptx 4.17（全 ≥4.0），已刷新 `quality-baseline.md`（#385）
+  - **全库 tier-1 113 场景**：112 passed / 0 failed / 0 hang / 1 known-gap 隔离（`md-msg-eml-fallback-known-gap` 位于 scenarios/pipeline/known-gaps/，按 STANDARDS 不计 pass/fail）；分批逐场景驱动 `/tmp tier1-names`（99-Tools scratch: run_tier1_batches.py），单场景超时 180s 无 hang
+  - **OPP 契约测试回归定性**：OPP 6 个跨模块契约测试曾因 OL#208 移除模块级 `ModelPool` 属性而 AttributeError——与 suite #384 同根（FAKE seam 变更的 mock 面连带），非产品缺陷、非判据改动；patch 目标迁到 `translation_pool` seam 后全绿（#138）
+- 结论：四仓质量标准全部通过；tier-3 `opp-youtube-extract` 缺 YOUTUBE_NETWORK = unconfigured（STANDARDS 口径不算 pass/fail，客观缺 env）。矩阵同日 exit 0（首轮事件行）、本轮全库 run 证据见 validation-runs/20261120-*。Mimosa 完整安全扫描持续 enobufs 未拿到结论，不宣称项目安全。
+
+### 2026-11-20：Owner 目标轮——矩阵 402 格满格达标（exit 0）+ 真模型质量门 8/8 + 4 PR 收口
+
+- Date: 2026-11-20（00:20–07:3x +0800）；触发：Owner 直接班任务（矩阵覆盖率 100% + 每格产出质量合格；质量结论必须来自真模型；fake 只准链路/契约/覆盖记 confidence=mock；达成判据 = 矩阵命令满格且 0 missing + 质量门全绿 + 证据已入库）
+- Scope: suite PR #376（suite#372 DCO 修复，merged 417fbd4）→ #380（运行时守卫 + 夹具增强，merged 5191e69）→ #381（xlsx 夹具管道冲突，merged e98d364）；OL 仓 PR #208（MCP FAKE 池 seam 对齐，merged 6266100；#207 同内容因分支与并行 agent 碰撞关闭）+ 本文件（坑 8 条 + 本事件）
+- Result:
+  - **判据①（矩阵命令满格且 0 missing）达成**：终跑 `nightly_gap.py`（bench：suite 1e80162 + OL 455b6e3，即 #381+#208 内容）——**402 格全判定 / passed 298 / failed 0 / skipped 104（豁免 42 + owner 签字移出 62 + 需清理 0）/ 逐格分叉 0 / 护栏 0 → gap_units 0，exit 0**（命令退出码自证，非自报）。对比 11-18 基线（125 pass / 76 skip / gap_units 84）：env 类 skip 清零（md2pptx 安装 + 门路径感知）、语料类 skip 34→21/通道（守卫放行真跑 20 格/通道）、结构性拒绝按 owner 2026-11-19 签字呈现为 signed_debt。证据：99-Tools/validation-scratch/omni-suite/natural-20261120/（gap-20261120-063027.json/md + 双通道 matrix json）
+  - **判据②（质量门全绿，真模型）达成**：8 个 tier-2 场景真 LLM（Zhipu glm-4-flash 通道，进程内 load_dotenv 装载，未读未印 key）全 passed——pipeline-docx-md-docx **14/14**（LQA **4.99/5** ≥ 4.0、drawings 2→2、para 1.000、CJK 0.00%、中文标点 0、无未译单元、opens-docx）+ docx-md-epub 13/13 + md-backfill-formats 11/11 + pptx-md-pptx 11/11 + xliff-backfill-docx 6/6 + judge_text/batch_translate_texts/translate_file 各 2/2。run 记录 validation-runs/20261120-021330…022951（8 份 report.md）+ 交付包 04-Output/artifacts/deliverables/omni-suite/omni-suite-validation-20261120-021330-quality-gates-real-llm.zip
+  - **判据③（证据入库）达成**：run 记录 + 交付包 + scratch 证据目录（gap/矩阵 json md、探针与调试脚本、质量取证产物 65 文件已从 tmpfs 拷出）+ LOOP-LOG 本条 + 交接 issue（label handoff）
+  - **过程中揪出的真缺陷**（全部有实证、已修）：suite#372 PYTHONPATH 段毒化 shebang 工具（机器本地 wrapper 修）；FAKE 翻译打碎单行 fence/表头行 → md2csv header-only 空文件；ORF 缓存跨轮回放；xlsx 单元管道 vs xliff2xlsx fail-closed 结构冲突（#381）；**OL MCP FAKE 池 seam 与 CLI 不对齐（MCP xliff 产物一直是 placeholder）**（OL#208）；md2pptx 上游 href NameError（机器本地补丁，上游归属 MartinPacker/md2pptx）
+- 结论: 三判据同时满足且都由命令/产物自证（nightly_gap exit 0、8 场景 Totals passed、交付包落盘）。遗留 = 语料类豁免 21 格/通道（载体格式实证无法携带结构，需 OPP 抽取器层产品活）+ signed_debt 62 格（owner 已裁定不投）+ `--max-skip` 基线 67→52 收紧建议（交 owner 裁定，未动）。
+
+### 2026-11-18：夜班——goal 判据缓存重建（exit 6 修环境）+ suite#333 残余面修复（lane=owner:human-agent）
+
+- Date: 2026-11-18（01:34–05:xx +0800）；触发：Owner 夜间任务书（AUTONOMY_LANE=owner:human-agent，gate exit 6 ⇒ 修环境，自驱到 06:00）
+- Scope: 无产品代码改动、无判据/阈值/断言改动。仓内变更 = PR #363（tests/ 测试基建 + 8 个 tracked 文件的 hook 卫生）+ 本文件（坑清单 + 本事件）
+- Result:
+  - **gate exit 6 定性**：goal 判据 `nightly_gap.py --skip-run` 取不到矩阵——WSL tmpfs `/tmp/omni-nightly/{cli,mcp}/matrix.json` 被 VM 重启清空（既有坑），而 gate 的 goal-cmd 跑在 Windows Python（读 `D:\tmp\omni-nightly`）⇒ 缓存重建必须**双坐标**落盘（见新坑清单第 1 条）
+  - **矩阵 402 格重建**（WSL .venv_ol + `PATH=.venv_ol/bin:$PATH`，cells 工作区放 WSL /tmp tmpfs）：CLI 2463s + MCP ~11min，**CLI/MCP 各 125 passed / 0 failed / 76 skipped（豁免 34 + 需清理 42），分叉 0，gap_units 84，护栏 18** —— 与 11-17 run2 读数逐项一致，零回归；`--skip-run` 判据恢复 exit 1（ACTIVE），gate 恢复 exit 0
+  - **suite#333 残余面**（next 解锁后 claim）：issue 主红面（两 ORF 文件）在 main 已绿（64 passed）；根 tests/ ×9 实测仍红，两层根因（fixture POSIX `":".join` allowlist + 被 OPP 拒绝掩盖的真 pandoc 缺失）⇒ PR #363 修复，Windows 90 passed / 0 failed + WSL 90 passed / 0 failed 双平台，反向实证贴 issue 评论；pre-commit 13/14（parity 红为既有、基线复证）
+  - make validate-diff 未跑：本轮 validation-runs 无新全库 run（矩阵跑不走 run_validation.py），无 diff 形状可比
+- 补充（04:1x，owner 提供 Spark key 后的接线与首破）:
+  - **Spark 主通道接线**（owner 直接指令）：`local.yaml`（gitignored 机器本地）四角色重排 = spark-x2.6 P1 + AMD P2 + Zhipu P3（模板 local.example.yaml 预置形态，12 档 = 3/role，恰好对齐 test_e2e_real_llm.py:44 断言）；`ol doctor` 结构全绿；PR #366 把 3 个进程内 MCP 场景（tool-ol-translate_file/judge_text/batch_translate_texts，唯一走 local.yaml 默认链的 tier-2 面）的 requires_env_any 加入 SPARK_API_KEY，明确不动 11 个钉死 default.yaml 的场景
+  - **tier-2 真实 LLM 首破（本机历史首次）**：3 场景 2/2 全绿 —— tool-ol-judge_text（run 20261118-035357）/ tool-ol-batch_translate_texts（20261118-035649）/ tool-ol-translate_file（20261118-040130）。配方 = 套件根 .env 的 ZHIPU key（litellm cwd autoload 意外发现，见新坑清单）+ `OL_CONFIG_PATH` 绝对路径；跑在 Zhipu 通道（Spark key 尚困于 bashrc 交互守卫，等 owner 移入 ~/.profile 后复测 Spark P1 优先级）
+  - **nightly real-LLM**（test_e2e_real_llm + xliff_lqa_image_placement，04:02–04:32）= **22 failed / 3 passed**，定性 **ENV/凭证族非代码回归**：同一代码路径 03:51 真实绿（judge_text 2/2）、04:41 起 401 `Invalid bearer token`（bigmodel 拒 July key——免费档配额被 30 分钟章节级翻译烧穿，正是 owner「免费档撑不起长程任务」判断的实证）；22 个失败全部死在 OL 翻译步（失败 run 只有 OPP 产物、无 OL/LQA 层）。解药 = Spark key 可见化（owner `~/.profile` 一行，P1 主通道接管）或带额度的新 key；代码零缺陷嫌疑
+- Conclusion: 环境面修复闭环（exit 6 → exit 0），矩阵读数与基线一致；#333 残余面以双平台证据交付 PR #363（draft）；tier-2 真实 LLM 面本机首次点亮（3 场景全绿）。遗留：Spark key 可见性（owner ~/.profile 一行）、md2pptx/dotnet（可装）、parity POSIX 字面量（issue #365 已修待 POSIX 复验 + PR）、11 个 default.yaml 钉死场景（owner-gated 判据池决策）、PAT 写权限（owner 前置不变）
+
+### 2026-11-17：夜间全能力验证轮（Owner 任务书驱动；身份 renanzai40）
+
+- Date: 2026-11-17（03:19–08:xx +0800）；触发：Owner 夜间任务书（全能力验证，报告原定 → issue #352）
+- Scope: 无产品代码改动、无判据/阈值/断言改动。唯一仓内变更 = 本文件（坑清单 + 本事件）。运行面：make test 三模块段 / 契约 63 / smoke 9 / 矩阵 402 格 ×2 轮 / 场景库 127 全走（tier-1 113 + tier-2 13 + tier-3 1）/ 轻量门禁 4 项 / 产物抽查
+- Result:
+  - **tier-1 全库** run `20261117-070232` = **113 场景：103 passed / 0 failed / 5 unconfigured / 4 recovered / 1 known-gap**，exit 0（unconfigured = aspose/OCR/YOUTUBE/MSG/TM 网络类客观缺省，与基线同族）
+  - **矩阵 402 格** run2 = 每通道 **125 passed / 0 failed / 76 skipped**（豁免 34 + 需清理 42），channel_divergence **0**，gap_units 84（基线 82 + 2 = md2pptx 17 格/通道 dotnet 未装），regression_gap 18 全为 skip 超额无 fail 无分叉；run1（PATH 缺 venv bin）73×2 格假 skip 已归档为反面教材
+  - **tier-2** run2 = 8 passed / 5 failed（全 ENV：ZHIPU_API_KEY 本机不存在，pipeline 场景 -c default.yaml 纯 Zhipu 池 fail-closed）；run3 = 7/6（translate_file 单步 provider 拥塞超时，波动族）。真实 LLM 质量证据（LQA/e2e）本轮未能产出，见 E 节
+  - tier-3 = 1 unconfigured（YOUTUBE_NETWORK）；契约 63/63、smoke 9/9、coverage_audit 41/41 execution-backed、doc-inventory ✓、entry-check ✓、ruff F 类 0 违规
+  - 产物抽查：orf-xliff-docx/out.docx 18 段全中文（水星机器人 — 产品概述，与 08-16 基线读数一致）；orf-xliff-epub en 方向 CJK=0 语义正确；矩阵证据 + /tmp 产物已拷回 scratch（tmpfs 防丢失）
+  - **交付受阻**：renanzai40 PAT 缺 Issues:write/Contents:write → #352 评论与 PR 通道 403；报告全文落 `99-Tools/validation-scratch/omni-suite/nightly-20261117/NIGHT-REPORT.md`
+  - make validate-diff 未跑：昨日 latest（20261116-025359）仅 1 条点检，形状不匹配，跑了只会产出误导性 diff
+- Conclusion: 机器可判面全绿（0 failed 贯穿全部已跑面）；真正的缺口 = ZHIPU_API_KEY 凭证（Owner 前置）+ PAT 写权限（Owner 前置）+ md2pptx/dotnet（可装）+ 根套件段/e2e/LQA 待 provider 与窗口补跑。本机 /mnt/d 9p 是夜间窗口的结构性瓶颈（建议 ext4 检出，见报告 G-3）
+
+
 
 ### 2026-11-11：发现模式巡检轮——全绿 + 夜跑红带核销确认 + 两处卫生
 

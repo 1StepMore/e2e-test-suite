@@ -26,6 +26,18 @@
 # 用法：
 #   bash scripts/pre_commit_python.sh scripts/doc_inventory.py --check
 #   bash scripts/pre_commit_python.sh -m pytest tests/security -q
+#
+# 退出码：2 = 没有收到任何参数（门禁没活干，必须红，不是通过）
+#         1 = 环境坏了 / 解释器或检查本身失败
+#
+# 零参数为什么必须失败（suite#350）
+# -----------------------------------------------------------------------------
+# `exec "$interpreter" "$@"` 在 $# = 0 时等价于启动一个交互式 REPL：stdin 是
+# EOF 就什么都不读、rc=0（跳过即通过 = 伪绿）；stdin 是活动管道就永久阻塞，
+# 而前台超时只杀 leader，python 子进程会变成孤儿。所以两处 exec 之前都做
+# fail-closed 守卫：零参数 = 门禁没有东西可检查 = 失败。
+# 与本文件末尾的 "skip:" 分支同一口径：跳过不是通过
+# （scenarios/STANDARDS.md#fallbacks-never-evidence）。
 set -u
 
 # 候选是否真的可执行：存在（command -v）+ 真能解释一行代码。
@@ -34,6 +46,11 @@ _omni_runnable() {
 }
 
 # 第 1 层：项目 venv（两种目录布局都列出来，Windows 上只有 Scripts/ 可执行）。
+if [ "$#" -eq 0 ]; then
+    echo "pre_commit_python.sh: no python files given (refusing to exec an interpreter with empty args)" >&2
+    exit 2
+fi
+
 for _omni_candidate in \
     .venv_ol/bin/python \
     .venv_ol/Scripts/python.exe \
@@ -54,6 +71,11 @@ if [ -d .venv_ol ] || [ -d .venv_win ] || [ -d .venv ]; then
 fi
 
 # 第 3 层：全新克隆（无 venv），退回系统解释器。
+if [ "$#" -eq 0 ]; then
+    echo "pre_commit_python.sh: no python files given (refusing to exec an interpreter with empty args)" >&2
+    exit 2
+fi
+
 for _omni_candidate in python python3 py; do
     if _omni_runnable "$_omni_candidate"; then
         exec "$_omni_candidate" "$@"

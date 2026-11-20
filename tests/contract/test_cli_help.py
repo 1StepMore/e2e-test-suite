@@ -49,21 +49,36 @@ _LOG_NOISE_PATTERNS = [
     # PyMuPDF emits a one-line fitz deprecation warning on import (version
     # dependent); strip it — it is env noise, not CLI help content.
     re.compile(r"^warning: The `fitz` API is deprecated[^\n]*\n", re.MULTILINE),
+    # Renderer-drift normalization (suite#342, e2e#58 family): typer >= 0.27
+    # renders bool-flag type annotations ("<bool>") in the options panel;
+    # the uv.lock-pinned renderer that generated the frozen fixtures does
+    # not. One golden must serve both dep universes (lock-pinned CI Suite vs
+    # latest-dep CLI contract job vs the Windows bootstrap venv), so the
+    # annotation tokens are stripped from BOTH sides — the option names and
+    # descriptions (the actual interface) stay contractual. Anchored to
+    # whitespace-delimited lowercase tokens; the fixtures contain no
+    # angle-bracket text (checked at suite#342 time), so this is a no-op on
+    # the golden side and only masks the annotation column, never prose.
+    re.compile(r"(?<=\s)<[a-z_]+>(?=\s)"),
 ]
 
 
 def _normalize(text: str) -> str:
-    """Strip log noise and per-line trailing whitespace.
+    """Strip log noise and per-line padding, then collapse whitespace runs.
 
-    CLI help panels pad lines with trailing spaces to a fixed width, so that
-    padding is rendering, not interface. Comparing it would couple the frozen
-    fixture to the terminal width and to the typer/click/rich versions that
-    draw the panel (e2e#58). Only each line's content is contractual.
+    CLI help panels pad lines with spaces to a fixed width, so that padding
+    is rendering, not interface. Comparing it would couple the frozen fixture
+    to the terminal width and to the typer/click/rich versions that draw the
+    panel (e2e#58, suite#342). Only each line's content tokens are
+    contractual, so whitespace runs are collapsed to single spaces (this
+    also reconciles the column shift left behind by the stripped <bool>
+    annotation tokens above).
     """
     for pattern in _LOG_NOISE_PATTERNS:
         text = pattern.sub("", text)
     text = text.replace("\r\n", "\n")
-    return "\n".join(line.rstrip() for line in text.splitlines()).rstrip() + "\n"
+    text = "\n".join(" ".join(line.split()) for line in text.splitlines())
+    return text.rstrip() + "\n"
 
 
 def _run_help(module: str, src_path: str, label: str) -> str:

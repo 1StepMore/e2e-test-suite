@@ -200,10 +200,21 @@ FULL_MATRIX: list[tuple[str, str, str]] = (
 # Skip rules. Two formats:
 #   ("axis", fmt, reason) where axis ∈ {"input", "output"} — skip if that
 #     axis's format is `fmt` and the corresponding tool is unavailable.
-#   ("input_fmt", "output_fmt", reason) — skip a specific input→output pair
-#     (used for ill-defined format combinations where generic MD can't carry
-#     the required structure: JSON, XLSX, SRT, etc.).
+#   ("input_fmt", "output_fmt", reason) — skip a specific input→output pair.
+#
+# History (suite corpus-enrichment round, 2026-11-20): the four corpus-blind
+# static rules ("*", "json") / ("*", "srt") / ("pptx", "xlsx") /
+# ("xlsx", "pptx") were REPLACED by the runtime guards in ``_runtime_md_skip``
+# which inspect the actual extracted MD (same frozen reason strings, so
+# nightly_gap.EXEMPT_SKIP_REASONS accounting is unchanged). Probes showed the
+# old blanket rules were also *wrong* for several inputs: OPP's JSONExtractor
+# already emits ``json_field:`` kv lines + a fenced block, and the enriched
+# minimal fixtures carry GFM tables / SRT cues / JSON fences through OPP for
+# docx, pptx, xlsx, xml, eml, ipynb.
 SKIP_RULES: list[tuple[str, str, str]] = [
+    # md2pptx gates the MD path only: MD2PPTXConverter shells out to the
+    # md2pptx CLI, while the XLIFF path's xliff2pptx is a same-container
+    # re-injector (no md2pptx dependency — xliff2pptx.py has no subprocess).
     ("output", "pptx", "md2pptx CLI not installed"),
     ("output", "docx", "pandoc not installed"),
     ("output", "pdf", "pandoc/weasyprint not installed"),
@@ -214,14 +225,6 @@ SKIP_RULES: list[tuple[str, str, str]] = [
     ("input", "msg", "extract-msg not installed"),
     ("output", "msg", "aspose-email-foss not installed"),
     ("input", "ipynb", "nbformat not installed"),
-    # MD→JSON: arbitrary MD has no JSON payload; md2json requires a code
-    # block or OPP key=value pairs.
-    ("*", "json", "MD→JSON requires JSON code block or OPP key=value source"),
-    # MD→SRT: subtitle format requires timestamped cues; generic MD has none.
-    ("*", "srt", "MD→SRT requires timestamped cues; no timestamps in fixture"),
-    # Cross-format jumps with no logical content mapping (table↔slide).
-    ("pptx", "xlsx", "PPTX→XLSX: no table content in slide fixture"),
-    ("xlsx", "pptx", "XLSX→PPTX: no slide content in table fixture"),
     # XLIFF path: OPP produces skeleton.zip only for SOME input formats.
     # EPUB DOES (OPP#39 a8d9499 — epub.py builds one with data-trans-unit-id
     # injected; ORF declares EPUB backfill at apply_xliff.py:108), and the
@@ -305,6 +308,11 @@ def _check_skip(inp: str, outp: str, path: str) -> str | None:
                 # PDF: skip only if BOTH pandoc AND weasyprint are unavailable
                 if not AVAILABILITY.get("pandoc", False) and not AVAILABILITY.get("weasyprint", False):
                     return reason
+            elif fmt == "pptx" and path != "md":
+                # md2pptx gates the MD path only (see SKIP_RULES comment):
+                # the XLIFF path backfills via xliff2pptx, a re-injector
+                # with no md2pptx dependency.
+                continue
             else:
                 avail_key = _AVAIL_MAP.get(fmt)
                 if avail_key and not AVAILABILITY.get(avail_key, False):
@@ -363,6 +371,78 @@ def _artifact_defect(path: Path, outp: str) -> str | None:
 #: static SKIP_RULES cannot see the extracted MD, so this guard runs per cell
 #: after OPP produces the intermediate Markdown — in both channels.
 MD_CSV_TABLE_SKIP_REASON = "MD→CSV requires a table; intermediate MD has none"
+
+#: Runtime-guard reason strings, frozen on purpose: nightly_gap.py's
+#: EXEMPT_SKIP_REASONS matches them by substring, so any rewording silently
+#: reclassifies exempt skips as needs-cleanup debt (and vice versa).
+MD_SRT_SKIP_REASON = "MD→SRT requires timestamped cues; no timestamps in fixture"
+MD_JSON_SKIP_REASON = "MD→JSON requires JSON code block or OPP key=value source"
+MD_PPTX_XLSX_SKIP_REASON = "PPTX→XLSX: no table content in slide fixture"
+
+#: Frozen mirrors of ORF's channel regexes (orf.channels.md2srt /
+#: orf.channels.md2json). Local copies because the verifier process itself
+#: does not carry the module-src PYTHONPATH the cells get from ``_cell_env``;
+#: tests/test_format_matrix_verifier.py::TestRuntimeGuards asserts both
+#: mirrors stay equal to the channel patterns so they cannot drift.
+SRT_BLOCK_PATTERN_MIRROR = re.compile(
+    r"(\d+)\n(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})\n(.*?)(?=\n\n|\Z)",
+    re.DOTALL,
+)
+JSON_BLOCK_PATTERN_MIRROR = re.compile(r"```json\s*(.*?)\s*(?:```|$)", re.DOTALL)
+OPP_KV_PATTERN_MIRROR = re.compile(
+    r"^json_field:([A-Za-z_\u4e00-\u9fff0-9][\w.\u3002\[\]0-9]*)\s*=\s*(.*)$"
+)
+
+
+def _has_srt_cues(md_text: str) -> bool:
+    """True when the Markdown carries real SRT cue blocks.
+
+    md2srt *passthroughs* the whole MD when no cues match, which would score
+    a prose document as a bogus subtitle artifact — so the guard pre-empts.
+    """
+    return SRT_BLOCK_PATTERN_MIRROR.search(md_text) is not None
+
+
+def _has_json_payload(md_text: str) -> bool:
+    """True when the Markdown carries what ORF's md2json accepts: a fenced
+    ```json block whose content PARSES (a mangled fence — e.g. OL's FAKE
+    translation prefixing prose lines and full-widthing punctuation — would
+    make md2json raise, so the guard treats unparseable fences as absent)
+    or OPP ``json_field:`` kv lines. Patterns are frozen local mirrors of
+    the channel's own regexes, drift-guarded by tests.
+    """
+    m = JSON_BLOCK_PATTERN_MIRROR.search(md_text)
+    if m:
+        try:
+            json.loads(m.group(1))
+            return True
+        except json.JSONDecodeError:
+            pass  # mangled fence — fall through to the kv check
+    return any(OPP_KV_PATTERN_MIRROR.match(line) for line in md_text.splitlines())
+
+
+def _runtime_md_skip(outp: str, md_text: str, inp: str = "") -> str | None:
+    """Corpus-content runtime guards for the MD path, run after OPP.
+
+    Replaces the four corpus-blind static rules ("*", "json") / ("*", "srt")
+    / ("pptx", "xlsx") / ("xlsx", "pptx"): the extracted MD is the truth
+    about whether a cell can produce real content. A cell whose intermediate
+    MD lacks the structure its target format needs still skips — with the
+    SAME frozen reason string as before — but a fixture that *does* carry
+    the structure now runs the cell end-to-end instead of being blanket-
+    skipped. The pptx→xlsx pair keeps its own guard because md2xlsx with a
+    table-less MD emits an empty-but-valid workbook (a bogus PASS that the
+    old static rule existed to prevent).
+    """
+    if outp == "csv" and not _has_markdown_table(md_text):
+        return MD_CSV_TABLE_SKIP_REASON
+    if outp == "srt" and not _has_srt_cues(md_text):
+        return MD_SRT_SKIP_REASON
+    if outp == "json" and not _has_json_payload(md_text):
+        return MD_JSON_SKIP_REASON
+    if inp == "pptx" and outp == "xlsx" and not _has_markdown_table(md_text):
+        return MD_PPTX_XLSX_SKIP_REASON
+    return None
 
 _SEPARATOR_CELL_RE = re.compile(r":?-{3,}:?")
 
@@ -475,17 +555,19 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
             return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
                               detail=f"OPP: no .md at {md_out}")
 
-        if outp == "csv":
-            try:
-                md_text = md_out.read_text(encoding="utf-8", errors="replace")
-            except OSError as exc:
-                return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
-                                  detail=f"OPP: unreadable md: {exc}")
-            if not _has_markdown_table(md_text):
-                return CellResult(
-                    inp, outp, "md", "skip", time.monotonic() - t0,
-                    skip_reason=MD_CSV_TABLE_SKIP_REASON,
-                )
+        if not md_out.exists():
+            return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
+                              detail=f"OPP: no .md at {md_out}")
+
+        try:
+            md_text = md_out.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
+                              detail=f"OPP: unreadable md: {exc}")
+        runtime_skip = _runtime_md_skip(outp, md_text, inp)
+        if runtime_skip:
+            return CellResult(inp, outp, "md", "skip", time.monotonic() - t0,
+                              skip_reason=runtime_skip)
 
         ol_dir = cell_dir / "ol"
         ol_dir.mkdir(exist_ok=True)
@@ -606,8 +688,62 @@ def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellRe
     return CellResult(inp, outp, "xliff", "pass", time.monotonic() - t0)
 
 
+# ---------------------------------------------------------------------------
+# Fixture corpus
+# ---------------------------------------------------------------------------
+
+#: Structure carriers shared by the enriched minimal fixtures. Each string is
+#: a probe-verified survivor of real OPP extraction (2026-11-20 corpus probe,
+#: 99-Tools/validation-scratch/omni-suite/nightly-20261120/): the runtime
+#: guards can only turn corpus-dependent skips into real runs if these
+#: structures actually reach the intermediate Markdown.
+FIXTURE_GFM_TABLE = (
+    "| col1 | col2 |\n"
+    "|------|------|\n"
+    "| a | b |\n"
+    "| c | d |"
+)
+#: NOTE: the XLSX fixture must NOT carry a literal GFM table inside a cell.
+#: ORF's xliff2xlsx splits trans-unit text on ``\s*\|\s*`` (xliff2xlsx.py:71)
+#: and fail-closes (XLSX_MAP_MISMATCH) when a single-cell unit splits into
+#: multiple segments — ANY pipe in a cell's own text trips it, spaces or not
+#: (2026-11-20 实测：compact ``|a|b|`` form still splits 13 segments). The
+#: MD path wants a separator row that only pipes can make, so the two
+#: transports have conflicting corpus requirements and the xliff round-trip
+#: wins; xlsx→csv (md) then skips honestly at the runtime guard.
+FIXTURE_SRT_CUES = (
+    "1\n"
+    "00:00:01,000 --> 00:00:02,000\n"
+    "Hello there.\n"
+    "\n"
+    "2\n"
+    "00:00:02,500 --> 00:00:04,000\n"
+    "Second cue line."
+)
+#: Multi-line fence form: only a REAL fenced code block survives OL's
+#: translation layer (the FAKE translator shields proper ``` fences but
+#: prefixes prose lines with "[zh] " and full-width punctuation, mangling
+#: one-line fences so json.loads would fail). Carried by the newline-
+#: preserving extractors (eml body, ipynb markdown cells); collapsing
+#: extractors (docx/pptx/xlsx/epub/html/xml) cannot hold it, and those
+#: →json cells then skip honestly at the runtime guard.
+FIXTURE_JSON_FENCE = (
+    "```json\n"
+    '{"greeting": "Hello", "items": [1, 2, 3]}\n'
+    "```"
+)
+
+
 def _write_minimal_fixture(inp: str, dest: Path) -> None:
-    """Write a minimal valid file of the given input format."""
+    """Write a minimal valid file of the given input format.
+
+    Fixtures are enriched where OPP extraction provably carries the
+    structure through: native tables (docx/pptx/xlsx), literal GFM/SRT/JSON
+    text (eml/ipynb/xml), and one-line JSON fences. Formats whose extractors
+    collapse or drop a structure (pdf; html/epub tables) simply don't carry
+    it — the runtime guards then skip those cells with their frozen corpus
+    reasons instead of scoring a bogus artifact.
+    """
     if inp == "docx":
         # Use python-docx if available
         try:
@@ -615,6 +751,18 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
             d = Document()
             d.add_heading("Test", level=1)
             d.add_paragraph("Hello, world.")
+            # Two DATA rows, not one: OL's FAKE translation prefixes the
+            # header row ("[zh] | col1 | col2 |"), which md2csv's strict
+            # pipe-boundary parser then skips as a non-row — with only one
+            # data row left the converter hits its header-only branch and
+            # writes an empty (bogus-PASS) CSV.
+            t = d.add_table(rows=3, cols=2)
+            t.cell(0, 0).text = "col1"
+            t.cell(0, 1).text = "col2"
+            t.cell(1, 0).text = "a"
+            t.cell(1, 1).text = "b"
+            t.cell(2, 0).text = "c"
+            t.cell(2, 1).text = "d"
             d.save(str(dest))
             return
         except ImportError:
@@ -622,9 +770,22 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
     if inp == "pptx":
         try:
             from pptx import Presentation
+            from pptx.util import Inches
             p = Presentation()
             slide = p.slides.add_slide(p.slide_layouts[0])
             slide.shapes.title.text = "Test"
+            table_slide = p.slides.add_slide(p.slide_layouts[5])
+            table_slide.shapes.title.text = "Data"
+            # Two DATA rows (see the docx comment): OL FAKE prefixes the
+            # header row and md2csv skips it, leaving a header-only table.
+            tbl = table_slide.shapes.add_table(
+                3, 2, Inches(1), Inches(2), Inches(4), Inches(1.5)).table
+            tbl.cell(0, 0).text = "col1"
+            tbl.cell(0, 1).text = "col2"
+            tbl.cell(1, 0).text = "a"
+            tbl.cell(1, 1).text = "b"
+            tbl.cell(2, 0).text = "c"
+            tbl.cell(2, 1).text = "d"
             p.save(str(dest))
             return
         except ImportError:
@@ -634,7 +795,13 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
             from openpyxl import Workbook
             wb = Workbook()
             ws = wb.active
-            ws["A1"] = "Hello"
+            ws.title = "Data"
+            ws.append(["col1", "col2"])
+            ws.append(["a", "b"])
+            # Two data rows, cells carry NO pipes (see the FIXTURE_GFM_TABLE
+            # note): a pipe anywhere in cell text fail-closes the xliff
+            # xlsx round-trip (XLSX_MAP_MISMATCH).
+            ws.append(["c", "d"])
             wb.save(str(dest))
             return
         except ImportError:
@@ -653,7 +820,11 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
         return
     if inp == "xml":
         dest.write_text(
-            '<?xml version="1.0"?><root><item>Hello</item></root>',
+            '<?xml version="1.0"?><root><title>Test</title>'
+            "<items><item>Hello</item></items>"
+            "<tabledata>" + FIXTURE_GFM_TABLE + "</tabledata>"
+            "<cues>" + FIXTURE_SRT_CUES + "</cues>"
+            "</root>",
             encoding="utf-8",
         )
         return
@@ -662,8 +833,11 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
             "From: test@example.com\n"
             "To: user@example.com\n"
             "Subject: Test\n"
-            "Content-Type: text/plain\n\n"
-            "Hello, world.\n",
+            "Content-Type: text/plain; charset=utf-8\n\n"
+            "Hello, world.\n\n"
+            + FIXTURE_GFM_TABLE + "\n\n"
+            + FIXTURE_SRT_CUES + "\n\n"
+            + FIXTURE_JSON_FENCE + "\n",
             encoding="utf-8",
         )
         return
@@ -671,7 +845,12 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
         try:
             import nbformat as nbf
             nb = nbf.v4.new_notebook()
-            nb.cells.append(nbf.v4.new_code_cell(source="print('Hello')"))
+            md_cell = nbf.v4.new_markdown_cell(
+                source="# Test\n\nHello, world.\n\n"
+                       + FIXTURE_GFM_TABLE + "\n\n"
+                       + FIXTURE_SRT_CUES + "\n\n"
+                       + FIXTURE_JSON_FENCE)
+            nb.cells.append(md_cell)
             nbf.write(nb, str(dest))
             return
         except ImportError:

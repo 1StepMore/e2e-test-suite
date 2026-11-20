@@ -35,16 +35,21 @@ if os.name == "nt":
     _VENV_SITE_PKGS = SUITE_ROOT / ".venv_win" / "Lib" / "site-packages"
 else:
     _VENV_SITE_PKGS = SUITE_ROOT / ".venv_ol" / "lib" / "python3.13" / "site-packages"
-ENV = dict(
-    OMNI_TEST_FAKE_LLM="1",
-    OMNI_TEST_FAKE_PANDOC="1",
-    PYTHONPATH=os.pathsep.join(filter(None, [
+ENV = {
+    # Inherit the full environment (suite#344): the previous minimal env
+    # omitted SystemRoot, so on native Windows every child CLI failed winsock
+    # initialization (OSError WinError 10106 on `import _overlapped`) — a
+    # failure POSIX CI never sees. Explicit vars below still win.
+    **os.environ,
+    "OMNI_TEST_FAKE_LLM": "1",
+    "OMNI_TEST_FAKE_PANDOC": "1",
+    "PYTHONPATH": os.pathsep.join(filter(None, [
         str(SUITE_ROOT / "src" / "Omni_Pre_Processor" / "src"),
         str(SUITE_ROOT / "src" / "Omni_Localizer" / "src"),
         str(SUITE_ROOT / "src" / "Omni_Re_Formatter" / "src"),
         str(_VENV_SITE_PKGS),
     ])),
-)
+}
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +75,16 @@ CURRENT_VERSIONS = {
 # Pipeline runner
 # ---------------------------------------------------------------------------
 
+def _tail(stream: str | None, limit: int = 500) -> str:
+    """Defensively slice a captured stream for failure messages.
+
+    Captured streams can be None when the reader thread dies mid-decode
+    (suite#344); slicing None raised a secondary TypeError that masked the
+    real decode failure. Keep the assertion message readable either way.
+    """
+    return (stream or "")[:limit]
+
+
 def _run_pipeline(tmp_path: Path, source: Path, target_format: str) -> Path:
     """Run OPP → OL → ORF pipeline and return the output file path."""
     # Step 1: OPP extract
@@ -80,10 +95,11 @@ def _run_pipeline(tmp_path: Path, source: Path, target_format: str) -> Path:
          "--target-format", "md",
          "--source-lang", "en", "--target-lang", "zh",
          "--output-dir", str(opp_out)],
-        capture_output=True, text=True, env={**ENV, "OPP_ALLOWED_DIRECTORIES": str(tmp_path)},
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env={**ENV, "OPP_ALLOWED_DIRECTORIES": str(tmp_path)},
         cwd=str(SUITE_ROOT / "Omni_Pre_Processor"), timeout=60,
     )
-    assert r1.returncode == 0, f"OPP failed:\n{r1.stderr[:500]}"
+    assert r1.returncode == 0, f"OPP failed:\n{_tail(r1.stderr)}"
 
     # find MD
     md_files = list(opp_out.glob("*.md"))
@@ -96,10 +112,10 @@ def _run_pipeline(tmp_path: Path, source: Path, target_format: str) -> Path:
     r2 = subprocess.run(
         [PYTHON, "-m", "ol_cli", "translate-md", str(md_file),
          "-s", "en", "-t", "zh", "-o", str(ol_out), "--json"],
-        capture_output=True, text=True, env=ENV,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", env=ENV,
         cwd=str(SUITE_ROOT / "Omni_Localizer"), timeout=60,
     )
-    assert r2.returncode == 0, f"OL failed:\n{r2.stderr[:500]}"
+    assert r2.returncode == 0, f"OL failed:\n{_tail(r2.stderr)}"
 
     # find translated MD
     translated_files = list(ol_out.glob("*.md"))
@@ -111,10 +127,10 @@ def _run_pipeline(tmp_path: Path, source: Path, target_format: str) -> Path:
     r3 = subprocess.run(
         [PYTHON, "-m", "orf.cli", "apply-md", str(translated),
          "--target-format", target_format, "--output", str(orf_out), "--json"],
-        capture_output=True, text=True, env=ENV,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", env=ENV,
         cwd=str(SUITE_ROOT / "Omni_Re_Formatter"), timeout=60,
     )
-    assert r3.returncode == 0, f"ORF failed:\n{r3.stderr[:500]}"
+    assert r3.returncode == 0, f"ORF failed:\n{_tail(r3.stderr)}"
     assert orf_out.exists(), f"ORF: no output at {orf_out}"
     return orf_out
 

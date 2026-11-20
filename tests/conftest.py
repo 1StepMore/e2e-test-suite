@@ -260,6 +260,27 @@ if _VENV_BIN.exists() and _VENV_BIN.is_dir():
     if _venv_bin_str not in os.environ.get("PATH", ""):
         os.environ["PATH"] = _venv_bin_str + os.pathsep + os.environ.get("PATH", "")
 
+# suite#333 (Windows-native parity): the pandoc-dependent chains assume a
+# system pandoc, which Linux CI images ship but native Windows lacks. The
+# suite already depends on ``pypandoc-binary`` (Critical Notes #2: pandoc
+# auto-installed via pypandoc-binary), which bundles a pandoc executable
+# inside the package — prepend its directory to PATH so ORF's channels
+# resolve ``pandoc`` by name. This provides a REAL pandoc; do NOT route
+# around it with the OMNI_TEST_FAKE_PANDOC seam: ORF MCP deliberately
+# scrubs that seam (orf/mcp/common.py ``MCP_SCRUB_ENV_KEYS``), so the
+# MCP-transport chains legitimately require a working pandoc.
+if not shutil.which("pandoc"):
+    try:
+        import pypandoc
+
+        _bundled_pandoc = Path(pypandoc.get_pandoc_path()).parent
+    except Exception:  # pypandoc absent or unable to locate — keep PATH as-is
+        _bundled_pandoc = None
+    if _bundled_pandoc is not None and any(
+        (_bundled_pandoc / name).exists() for name in ("pandoc", "pandoc.exe")
+    ):
+        os.environ["PATH"] = str(_bundled_pandoc) + os.pathsep + os.environ.get("PATH", "")
+
 
 # =============================================================================
 # Test artifact directory — persistent across runs, NOT in pytest's tmp
