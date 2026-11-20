@@ -269,7 +269,7 @@ def _run_xliff_mcp(
     # (ol_mcp/translate_xliff.py imports it from ol_pool.router and calls
     # ModelPool.get_instance). ol_mcp.tools only re-exports the tool wrapper
     # and never binds ModelPool, so patching it there raises AttributeError.
-    with patch("ol_mcp.translate_xliff.ModelPool") as MockPool:
+    with patch("ol_mcp.translate_xliff.translation_pool") as MockPool:
         mock_instance = pool_cls()
         MockPool.get_instance.return_value = mock_instance
         MockPool.return_value = mock_instance
@@ -416,7 +416,7 @@ def _run_md_mcp(
     pool_cls = failure_pool or _make_raising_pool_class(RuntimeError())
     # See the xliff helper above: ModelPool is looked up in the module that
     # owns the translate function, not in ol_mcp.tools.
-    with patch("ol_mcp.translate_md.ModelPool") as MockPool:
+    with patch("ol_mcp.translate_md.translation_pool") as MockPool:
         mock_instance = pool_cls()
         MockPool.get_instance.return_value = mock_instance
         MockPool.return_value = mock_instance

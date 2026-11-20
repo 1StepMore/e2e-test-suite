@@ -87,7 +87,7 @@ def _run_xliff_mcp(input_path: Path, output_dir: Path) -> PathResult:
     )
     translated_xliff = output_dir / f"{input_path.stem}_translated.xlf"
 
-    with patch("ol_mcp.translate_xliff.ModelPool") as MockPool:
+    with patch("ol_mcp.translate_xliff.translation_pool") as MockPool:
         from tests.test_e2e_pipeline_fixtures import _FakeModelPool
 
         mock_instance = _FakeModelPool()
@@ -204,7 +204,7 @@ def _run_md_mcp(input_path: Path, output_dir: Path) -> PathResult:
     if not md_path.exists():
         return PathResult(exit_code=1, stderr=f"OPP did not produce MD: {md_path}")
 
-    with patch("ol_mcp.translate_md.ModelPool") as MockPool:
+    with patch("ol_mcp.translate_md.translation_pool") as MockPool:
         from tests.test_e2e_pipeline_fixtures import _FakeModelPool
 
         mock_instance = _FakeModelPool()

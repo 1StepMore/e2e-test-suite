@@ -334,13 +334,24 @@ _OL_MODELPOOL_MODULES = (
 
 
 def _patch_ol_modelpool(*, mock_pool_get_instance):
-    """Context manager patching ``ModelPool`` in every OL tool module."""
+    """Context manager patching the pool seam in every OL tool module.
+
+    OL#208 replaced direct ModelPool construction in the translate tools
+    with the FAKE-aware ``translation_pool(cfg)`` seam (the module-level
+    ModelPool attribute was removed). Patch that seam on translate modules
+    so it returns the stub directly; ``ol_mcp.judge`` still uses ModelPool
+    and keeps the old get_instance() shape.
+    """
     from contextlib import ExitStack
 
     stack = ExitStack()
     for mod in _OL_MODELPOOL_MODULES:
-        mock_pool = stack.enter_context(patch(f"{mod}.ModelPool"))
-        mock_pool.get_instance.return_value = mock_pool_get_instance
+        if mod == "ol_mcp.judge":
+            mock_pool = stack.enter_context(patch(f"{mod}.ModelPool"))
+            mock_pool.get_instance.return_value = mock_pool_get_instance
+        else:
+            mock_seam = stack.enter_context(patch(f"{mod}.translation_pool"))
+            mock_seam.return_value = mock_pool_get_instance
     return stack
 
 
