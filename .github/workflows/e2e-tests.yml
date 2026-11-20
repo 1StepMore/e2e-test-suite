@@ -79,6 +79,10 @@ jobs:
         run: uv sync --locked
 
       - name: Install test deps (pytest + docx/pptx/pandoc + structlog/otel + psutil + pytest-timeout + weasyprint for CI-G3)
+        # suite#335: pytest-timeout and reportlab are declared in the root
+        # pyproject dev extra now — this ad hoc line stays as the CI fallback
+        # only because `uv sync --locked` does not install extras. Keep the
+        # two lists in sync; the manifest is the single truth.
         run: uv pip install --python .venv/bin/python pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout weasyprint nbformat markdownify chardet openpyxl lxml boto3 azure-storage-blob moto yake
 
       # fastmcp must come from uv.lock: a bare `fastmcp` now resolves to 4.x, which pulls
