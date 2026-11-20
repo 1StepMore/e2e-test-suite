@@ -191,6 +191,18 @@ jobs:
           OL_MCP_ALLOWED_DIRS: "/tmp,/home/runner/work/Omni_Suite"
           OMNI_RATE_LIMIT_RPM: "0"
 
+      # suite#379: the one agent-facing machine contract, judged by exit code.
+      # CI is keyless by design (no real credentials are ever injected here):
+      # venv (uv sync + editable installs) and deps (pandoc/weasyprint/nbformat)
+      # are green from the steps above, so the contract must deterministically
+      # report the single blocker blocked:no-llm-key -> exit 2.  Any other exit
+      # code means the CI environment drifted — fail the job.
+      - name: agent-ready contract entry (exit-code judged)
+        run: |
+          .venv_ol/bin/python scripts/check_readiness.py --agent-ready --compact \
+            && code=0 || code=$?
+          test "$code" -eq 2
+
       - name: Clean up test artifacts
         run: rm -rf mcp_resources/ resources/ logs/ final-out/ test_artifacts/
 
