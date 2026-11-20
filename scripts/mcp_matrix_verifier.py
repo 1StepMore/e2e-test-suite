@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -167,22 +166,19 @@ def _should_skip(inp: str, outp: str, path: str) -> str | None:
     return _check_skip(inp, outp, path)
 
 
-def _md_csv_skip(outp: str, md_text: str) -> str | None:
-    """Runtime twin of the CLI verifier's MD→CSV table guard (e2e-test-suite#234).
+def _runtime_md_skip(outp: str, md_text: str, inp: str = "") -> str | None:
+    """Runtime twin of the CLI verifier's corpus-content guards (suite#234,
+    extended 2026-11-20 to srt/json/pptx→xlsx).
 
     ``_check_skip`` only sees the static rule table — it cannot see the
-    extracted MD — so the MD→CSV no-table guard must run per cell after OPP
-    returns ``md_content``. Same trigger, same reason string as the CLI
-    channel (``MD_CSV_TABLE_SKIP_REASON``), so both transports classify the
-    cell identically.
+    extracted MD — so the corpus guards must run per cell after OPP returns
+    ``md_content``. Delegates to the CLI channel's ``_runtime_md_skip`` so
+    both transports share one guard implementation and emit the identical
+    frozen reason strings.
     """
-    if outp != "csv":
-        return None
-    from scripts.format_matrix_verifier import MD_CSV_TABLE_SKIP_REASON, _has_markdown_table
+    from scripts.format_matrix_verifier import _runtime_md_skip as cli_guard
 
-    if _has_markdown_table(md_text):
-        return None
-    return MD_CSV_TABLE_SKIP_REASON
+    return cli_guard(outp, md_text, inp)
 
 
 async def _run_one_cell_mcp(
@@ -212,10 +208,10 @@ async def _run_one_cell_mcp(
                 return MCPCellResult(inp, outp, path, "fail", time.monotonic() - t0,
                                      opp_tool=opp_tool,
                                      detail=f"OPP MCP: no md_content in response: {opp_resp}")
-            csv_skip = _md_csv_skip(outp, md_content)
-            if csv_skip:
+            runtime_skip = _runtime_md_skip(outp, md_content, inp)
+            if runtime_skip:
                 return MCPCellResult(inp, outp, path, "skip", time.monotonic() - t0,
-                                     opp_tool=opp_tool, skip_reason=csv_skip)
+                                     opp_tool=opp_tool, skip_reason=runtime_skip)
             opp_traceparent = opp_resp.get("traceparent")
 
             (cell_dir / "ol").mkdir(parents=True, exist_ok=True)
@@ -329,24 +325,33 @@ async def _run_one_cell_mcp(
 # Main
 # ---------------------------------------------------------------------------
 
-async def _run_matrix(args) -> int:
-    from scripts.format_matrix_verifier import FULL_MATRIX, _resolve_fixture
+def _mcp_cell_env(out_dir: Path) -> dict[str, str]:
+    """The environment every MCP matrix cell subprocess runs under.
 
-    env = os.environ.copy()
-    env["OMNI_TEST_FAKE_LLM"] = "1"
-    env["OMNI_TEST_FAKE_PANDOC"] = "1"
-    env["PYTHONPATH"] = ":".join(filter(None, [
-        env.get("PYTHONPATH", ""),
-        str(SUITE_ROOT / "Omni_Pre_Processor" / "src"),
-        str(SUITE_ROOT / "Omni_Localizer" / "src"),
-        str(SUITE_ROOT / "Omni_Re_Formatter" / "src"),
-    ]))
-    env["OPP_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
-    env["OL_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
-    env["ORF_MCP_ALLOWED_DIRS"] = str(args.out_dir.resolve())
+    Built on top of the CLI channel's ``_cell_env`` as the single source of
+    truth (suite#372 / #128). ``_cell_env`` already carries the three module
+    src dirs AND the venv site-packages segment; assembling PYTHONPATH here
+    by hand had omitted site-packages, so shebang-launched tools (e.g.
+    md2pptx) could not import venv-only deps in the MCP channel while the CLI
+    cell passed — an environment-class false red. MCP-only settings are
+    layered on top of that shared base.
+    """
+    from scripts.format_matrix_verifier import _cell_env
+
+    env = _cell_env(SUITE_ROOT)
+    env["OPP_MCP_ALLOWED_DIRS"] = str(out_dir.resolve())
+    env["OL_MCP_ALLOWED_DIRS"] = str(out_dir.resolve())
+    env["ORF_MCP_ALLOWED_DIRS"] = str(out_dir.resolve())
     # 矩阵是能力普查、不是压测，harness 不得被 OPP 的生产限流拦住（e2e#147）
     env["OMNI_RATE_LIMIT_RPM"] = "0"
     env["OMNI_RATE_LIMIT_BURST"] = "0"
+    return env
+
+
+async def _run_matrix(args) -> int:
+    from scripts.format_matrix_verifier import FULL_MATRIX, _resolve_fixture
+
+    env = _mcp_cell_env(args.out_dir)
 
     out_dir = args.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
