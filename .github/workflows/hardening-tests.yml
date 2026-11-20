@@ -73,6 +73,9 @@ jobs:
           # python-docx is required by tests/conftest.py (sample_docx_path fixture)
           # python-pptx is required by tests/conftest.py (sample_pptx_path fixture)
           # pytest-timeout is required by tests/test_corpus_fidelity_equivalence.py (@pytest.mark.timeout)
+          # pytest-timeout + reportlab are declared in the root pyproject dev
+          # extra since suite#335 — this line stays as the CI fallback; keep
+          # it in sync with the manifest (single truth).
           # OL is installed so test_ol_graceful_degradation's subprocess
           # (`python -m ol_cli`) can import typer + the full runtime.
           pip install pytest pyyaml python-docx python-pptx reportlab pytest-timeout typer
