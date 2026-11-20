@@ -48,8 +48,8 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 SCHEMA = "agent-ready/v1"
 SUITE_ROOT = Path(__file__).resolve().parents[2]
