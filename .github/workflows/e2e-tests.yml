@@ -79,6 +79,10 @@ jobs:
         run: uv sync --locked
 
       - name: Install test deps (pytest + docx/pptx/pandoc + structlog/otel + psutil + pytest-timeout + weasyprint for CI-G3)
+        # suite#335: pytest-timeout and reportlab are declared in the root
+        # pyproject dev extra now — this ad hoc line stays as the CI fallback
+        # only because `uv sync --locked` does not install extras. Keep the
+        # two lists in sync; the manifest is the single truth.
         run: uv pip install --python .venv/bin/python pytest pyyaml python-docx python-pptx pypandoc-binary structlog opentelemetry-api opentelemetry-sdk psutil pytest-asyncio pytest-timeout weasyprint nbformat markdownify chardet openpyxl lxml boto3 azure-storage-blob moto yake
 
       # fastmcp must come from uv.lock: a bare `fastmcp` now resolves to 4.x, which pulls
@@ -190,6 +194,18 @@ jobs:
           ORF_MCP_ALLOWED_DIRS: "/tmp:/home/runner/work/Omni_Suite"
           OL_MCP_ALLOWED_DIRS: "/tmp,/home/runner/work/Omni_Suite"
           OMNI_RATE_LIMIT_RPM: "0"
+
+      # suite#379: the one agent-facing machine contract, judged by exit code.
+      # CI is keyless by design (no real credentials are ever injected here):
+      # venv (uv sync + editable installs) and deps (pandoc/weasyprint/nbformat)
+      # are green from the steps above, so the contract must deterministically
+      # report the single blocker blocked:no-llm-key -> exit 2.  Any other exit
+      # code means the CI environment drifted — fail the job.
+      - name: agent-ready contract entry (exit-code judged)
+        run: |
+          .venv_ol/bin/python scripts/check_readiness.py --agent-ready --compact \
+            && code=0 || code=$?
+          test "$code" -eq 2
 
       - name: Clean up test artifacts
         run: rm -rf mcp_resources/ resources/ logs/ final-out/ test_artifacts/

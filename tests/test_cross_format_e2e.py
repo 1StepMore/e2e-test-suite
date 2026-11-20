@@ -40,9 +40,17 @@ os.environ["OPP_CONFIG_PATH"] = str(
     SUITE_ROOT / "Omni_Pre_Processor" / "config" / "default.yaml"
 )
 
-# CLI paths
-VENV = SUITE_ROOT / ".venv_ol"
-PYTHON_BIN = str(VENV / "bin" / "python")
+# CLI paths — platform-aware (e2e-test-suite#332, mirroring dispatch.py's
+# #321 fix): .venv_ol/bin launchers are Linux ELF on native Windows
+# (WinError 1920/193); the Windows bootstrap creates .venv_win/Scripts.
+if os.name == "nt":
+    VENV = SUITE_ROOT / ".venv_win"
+    _VENV_SUB, _EXE = "Scripts", ".exe"
+    PYTHON_BIN = str(VENV / _VENV_SUB / f"python{_EXE}")
+else:
+    VENV = SUITE_ROOT / ".venv_ol"
+    _VENV_SUB, _EXE = "bin", ""
+    PYTHON_BIN = str(VENV / _VENV_SUB / f"python{_EXE}")
 
 # Real committed fixtures (scenarios/_fixtures/, moved out of the suite root
 # on 2026-09-17 — see docs/project-health-report-2026-09-17.md §3.7)
@@ -1526,9 +1534,9 @@ class TestCrossFormat:
             "reportlab": REPORTLAB_AVAILABLE,
             "FAKE_LLM seam": "OMNI_TEST_FAKE_LLM" in os.environ,
             "OL config": Path(OL_CONFIG_PATH).exists(),
-            "OPP CLI": VENV.joinpath("bin", "opp").exists(),
-            "OL CLI": VENV.joinpath("bin", "ol").exists(),
-            "ORF CLI": VENV.joinpath("bin", "orf").exists(),
+            "OPP CLI": VENV.joinpath(_VENV_SUB, f"opp{_EXE}").exists(),
+            "OL CLI": VENV.joinpath(_VENV_SUB, f"ol{_EXE}").exists(),
+            "ORF CLI": VENV.joinpath(_VENV_SUB, f"orf{_EXE}").exists(),
         }
 
         ready = sum(1 for v in checks.values() if v)
