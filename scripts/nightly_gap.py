@@ -48,7 +48,7 @@ DoD：**201 个格子 × 2 条通道（CLI / MCP）= 402 次格子运行**全部
 2. **回归护栏（只抓退步，不参与判定）**
    `regression_gap = fail 合计 + CLI/MCP 逐格分叉数 + Σ_通道 max(0, skipped_通道 − --max-skip)`
    —— **逐格分叉**：同一格 `(inp, outp, path)` 在两通道 status 不一致
-   （或缺侧）即计 1（issue #234）；**每通道**基线（默认 67/通道）各自比、不相加。
+   （或缺侧）即计 1（issue #234）；**每通道**基线（默认 52/通道）各自比、不相加。
    护栏 0 **≠ 达标**：把 `--max-skip` 调宽只会洗掉退步告警，
    洗不掉 DoD 差距（exit 仍由 `gap_units` 定）。
 
@@ -68,7 +68,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 REQUIRED_MODULES = ("opp.cli", "orf", "ol_pool")
 EXPECTED_TOTAL = 402          # 201 格 × 2 通道
-DEFAULT_MAX_SKIP = 67         # 冻结基线（**每通道**口径，2026-10-01 裁定）：2026-09-30 实测
+DEFAULT_MAX_SKIP = 52         # 回归护栏基线（**每通道**口径，2026-10-01 裁定，2026-11-21
+                              # owner 授权收紧 67→52 —— #383 遗留项：EVA-01 全依赖环境
+                              # 2026-11-20 终跑实测 52/通道，余量 0，任何新增 skip 即超额）
 EXEMPT_SKIP_REASONS = (
     # 因**夹具内容缺失**而必然跳过的理由子串（豁免 = 夹具内容依赖，非能力缺陷；
     # 要清掉它们需要补语料，见 docs/NIGHTLY.md）。
