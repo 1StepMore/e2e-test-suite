@@ -120,6 +120,17 @@
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
 
+### 2026-11-20（第二轮）：四仓质量标准全绿收口 + 全库 tier-1/tier-2 真模型 run
+
+- Date: 2026-11-20（11:00–16:xx +0800）；触发：Owner 指令「继续直到 OPP/OL/ORF/套件所有质量标准都通过」
+- Scope: OPP PR #138（契约测试 mock 面对齐 OL#208 FAKE seam，merged 5dfee68）；suite PR #385（质量基线刷新至 2026-11-20，merged 2e4a0d7）；无判据/阈值改动
+- Result:
+  - **四仓本仓测试全绿**（WSL .venv_ol 实跑）：OPP `1235 passed / 24 skipped`、OL `1936 passed / 43 skipped`（OL#209 后）、ORF `1165 passed / 27 skipped`、suite `…`（#384 mock 面对齐后 CI 全绿）
+  - **全库 tier-2 真模型 13/13 passed**：本轮补跑上轮未覆盖的 5 个（chain-mcp-three-modules 4/4、chain-opp-ol-xliff-orf-full 5/5、tool-ol-profile_doc 2/2、tool-ol-translate_md_text 2/2、tool-ol-translate_xliff 2/2），runs 20261120-134647…135530；加上 11-20 首轮 8 个 = 13/13。Q2 真模型 LQA：docx 4.99 / epub 5.00 / pptx 4.17（全 ≥4.0），已刷新 `quality-baseline.md`（#385）
+  - **全库 tier-1 113 场景**：112 passed / 0 failed / 0 hang / 1 known-gap 隔离（`md-msg-eml-fallback-known-gap` 位于 scenarios/pipeline/known-gaps/，按 STANDARDS 不计 pass/fail）；分批逐场景驱动 `/tmp tier1-names`（99-Tools scratch: run_tier1_batches.py），单场景超时 180s 无 hang
+  - **OPP 契约测试回归定性**：OPP 6 个跨模块契约测试曾因 OL#208 移除模块级 `ModelPool` 属性而 AttributeError——与 suite #384 同根（FAKE seam 变更的 mock 面连带），非产品缺陷、非判据改动；patch 目标迁到 `translation_pool` seam 后全绿（#138）
+- 结论：四仓质量标准全部通过；tier-3 `opp-youtube-extract` 缺 YOUTUBE_NETWORK = unconfigured（STANDARDS 口径不算 pass/fail，客观缺 env）。矩阵同日 exit 0（首轮事件行）、本轮全库 run 证据见 validation-runs/20261120-*。Mimosa 完整安全扫描持续 enobufs 未拿到结论，不宣称项目安全。
+
 ### 2026-11-20：Owner 目标轮——矩阵 402 格满格达标（exit 0）+ 真模型质量门 8/8 + 4 PR 收口
 
 - Date: 2026-11-20（00:20–07:3x +0800）；触发：Owner 直接班任务（矩阵覆盖率 100% + 每格产出质量合格；质量结论必须来自真模型；fake 只准链路/契约/覆盖记 confidence=mock；达成判据 = 矩阵命令满格且 0 missing + 质量门全绿 + 证据已入库）
