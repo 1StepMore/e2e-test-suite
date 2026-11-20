@@ -58,6 +58,113 @@ class TestSkipRules:
         assert "aspose" in reason.lower()
 
 
+class TestXLIFFPPTXGateIsPathAware:
+    """md2pptx gates the MD path only.
+
+    xliff2pptx is a same-container re-injector (no md2pptx CLI dependency —
+    the channel has no subprocess), so the availability gate must not hide
+    the xliff pptx → pptx cell behind a tool it never runs. The MD path
+    keeps the gate: MD2PPTXConverter shells out to md2pptx.
+    """
+
+    def test_xliff_same_format_pptx_not_gated_by_md2pptx(self, monkeypatch):
+        monkeypatch.setitem(fmv.AVAILABILITY, "md2pptx", False)
+        monkeypatch.setitem(fmv.AVAILABILITY, "pandoc", True)
+        assert fmv._check_skip("pptx", "pptx", "xliff") is None
+
+    def test_md_path_pptx_still_gated(self, monkeypatch):
+        monkeypatch.setitem(fmv.AVAILABILITY, "md2pptx", False)
+        reason = fmv._check_skip("pptx", "pptx", "md")
+        assert reason is not None
+        assert "md2pptx" in reason
+
+
+class TestCorpusRulesAreRuntimeNow:
+    """The four corpus-blind static rules are gone; runtime guards own them.
+
+    The 2026-11-20 corpus probe showed the blanket rules were also *wrong*
+    for several inputs: OPP's JSONExtractor emits ``json_field:`` kv lines +
+    a fenced block (json → json was blanket-skipped despite being runnable),
+    and the enriched minimal fixtures carry GFM tables / SRT cues / JSON
+    fences through OPP for docx, pptx, xlsx, xml, eml, ipynb.
+    """
+
+    def test_static_rules_removed(self):
+        pairs = {(r[0], r[1]) for r in fmv.SKIP_RULES}
+        assert ("*", "json") not in pairs
+        assert ("*", "srt") not in pairs
+        assert ("pptx", "xlsx") not in pairs
+        assert ("xlsx", "pptx") not in pairs
+
+
+class TestRuntimeGuards:
+    """Runtime corpus guards: same frozen reasons, real content checks."""
+
+    def test_srt_guard_skips_prose(self):
+        assert fmv._runtime_md_skip(
+            "srt", "# Test\n\nHello, world.\n") == fmv.MD_SRT_SKIP_REASON
+
+    def test_srt_guard_passes_cues(self):
+        md = "1\n00:00:01,000 --> 00:00:02,000\nHello there.\n"
+        assert fmv._runtime_md_skip("srt", md) is None
+
+    def test_json_guard_skips_prose(self):
+        assert fmv._runtime_md_skip(
+            "json", "# Test\n\nHello, world.\n") == fmv.MD_JSON_SKIP_REASON
+
+    def test_json_guard_passes_fence(self):
+        assert fmv._runtime_md_skip("json", '```json {"a": 1}```') is None
+
+    def test_json_guard_passes_opp_kv(self):
+        assert fmv._runtime_md_skip("json", "json_field:greeting = Hello") is None
+
+    def test_json_guard_skips_mangled_fence(self):
+        """OL FAKE prefixes prose lines + full-widths punctuation, turning a
+        fence into `[zh] ```json {"greeting"： "Hello"}``` — the fence regex
+        still matches but json.loads cannot. md2json would raise on it, so
+        the guard must treat the mangled fence as absent (honest corpus
+        skip) instead of sending the cell to a guaranteed ORF red."""
+        mangled = '[zh] ```json {"greeting"： "Hello"}```'
+        assert fmv._has_json_payload(mangled) is False
+        assert fmv._runtime_md_skip("json", mangled) == fmv.MD_JSON_SKIP_REASON
+
+    def test_json_guard_parses_multiline_fence(self):
+        assert fmv._has_json_payload(fmv.FIXTURE_JSON_FENCE) is True
+        assert fmv._runtime_md_skip("json", fmv.FIXTURE_JSON_FENCE) is None
+
+    def test_pptx_to_xlsx_guard_needs_a_table(self):
+        # md2xlsx emits an empty-but-valid workbook from table-less MD —
+        # the pair guard prevents that bogus PASS (pptx fixture only).
+        assert fmv._runtime_md_skip(
+            "xlsx", "# Slide\n\nProse.\n", "pptx") == fmv.MD_PPTX_XLSX_SKIP_REASON
+        assert fmv._runtime_md_skip("xlsx", fmv.FIXTURE_GFM_TABLE, "pptx") is None
+        # Other inputs are not guarded for xlsx: md2xlsx also parses the
+        # "=== Sheet ===" OPP xlsx-marker form (xlsx → xlsx cell).
+        assert fmv._runtime_md_skip("xlsx", "Prose without tables\n") is None
+
+    def test_csv_guard_unchanged(self):
+        assert fmv._runtime_md_skip(
+            "csv", "prose, no table") == fmv.MD_CSV_TABLE_SKIP_REASON
+        assert fmv._runtime_md_skip("docx", "prose") is None
+
+    def test_exempt_reasons_still_match_nightly_gap(self):
+        """Reason strings are frozen by contract: nightly_gap classifies
+        them as exempt corpus skips by substring. Any rewording here
+        silently reclassifies the cells as needs-cleanup debt."""
+        from scripts import nightly_gap as ng
+        for reason in (fmv.MD_SRT_SKIP_REASON, fmv.MD_JSON_SKIP_REASON,
+                       fmv.MD_CSV_TABLE_SKIP_REASON, fmv.MD_PPTX_XLSX_SKIP_REASON):
+            assert ng.is_exempt(reason), reason
+
+    def test_guard_patterns_mirror_orf_channels(self):
+        """The frozen local regex mirrors must equal ORF's own patterns."""
+        from orf.channels.md2json import JSON_BLOCK_PATTERN, OPP_KV_PATTERN
+        from orf.channels.md2srt import SRT_BLOCK_PATTERN
+        assert fmv.SRT_BLOCK_PATTERN_MIRROR.pattern == SRT_BLOCK_PATTERN.pattern
+        assert fmv.JSON_BLOCK_PATTERN_MIRROR.pattern == JSON_BLOCK_PATTERN.pattern
+        assert fmv.OPP_KV_PATTERN_MIRROR.pattern == OPP_KV_PATTERN.pattern
+
+
 class TestXLIFFSameFormatRuns:
     """Same-format XLIFF cells must stay runnable.
 

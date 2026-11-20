@@ -13,11 +13,13 @@ DoD：**201 个格子 × 2 条通道（CLI / MCP）= 402 次格子运行**全部
 
 1. **跳过 ≠ 通过**。验证器对缺外部二进制的格子（pandoc / md2pptx / aspose）
    自动 skip，且 "exits 0 if all non-skipped cells pass" —— 也就是说
-   **什么都不装、全靠 skip，也能拿 exit 0**。故 skip 单独计数，并拆成两半：
+   **什么都不装、全靠 skip，也能拿 exit 0**。故 skip 单独计数，并拆成三类：
    **需清理的 skip**（环境/能力类，装上二进制或补能力才算真进展）进 `gap_units`
    —— 它是 DoD 的差距本体；**豁免的 skip**（因夹具内容缺失而必然跳过，
    `EXEMPT_SKIP_REASONS`）是夹具内容依赖、非能力缺陷，**不计入 `gap_units`**，
-   要清掉它们需要补语料。豁免项**仍原样出现在通道 skipped 总数里**，不静默吞掉。
+   要清掉它们需要补语料；**签字移出的结构性拒绝**（`signed_debt`，owner
+   2026-11-19 裁定不投，#374）同样不计入 `gap_units`，但格清单仍全量呈现。
+   豁免项与结构性格子**仍原样出现在通道 skipped 总数里**，不静默吞掉。
    另设**回归护栏** `regression_gap`（逐格比对 + 每通道 skip 不得超过 `--max-skip`），
    专门抓「跳过数变多」与「两通道对同一格判定分叉」两类退步——
    2026-10-30 实测 CLI skip 65 / MCP skip 55，总数恰差 10（CLI 多 skip 的
@@ -39,8 +41,9 @@ DoD：**201 个格子 × 2 条通道（CLI / MCP）= 402 次格子运行**全部
 两个口径，**别混用**（混用会重演「跳过就等于达标」的假绿）：
 
 1. **DoD 口径（判定与退出码只用它）**
-   `gap_units = fail 合计 + Σ_通道 (skipped_通道 − exempt_通道)`
-   ——「还需清理的跳过格子数」，夹具内容依赖的豁免项不算差距。
+   `gap_units = fail 合计 + Σ_通道 (skipped_通道 − exempt_通道 − signed_debt_通道)`
+   ——「还需清理的跳过格子数」：夹具内容依赖的豁免项不算差距，
+   2026-11-19 owner 签字移出的结构性拒绝（58 格跨格式 XLIFF）也不计入。
    `gap_units == 0` → exit 0；否则 exit 1。
 2. **回归护栏（只抓退步，不参与判定）**
    `regression_gap = fail 合计 + CLI/MCP 逐格分叉数 + Σ_通道 max(0, skipped_通道 − --max-skip)`
@@ -85,7 +88,7 @@ def is_exempt(reason: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# 结构性拒绝（suite#293）——**只做呈现口径，不改任何判定**。
+# 结构性拒绝（suite#293）——2026-11-19 owner 签字（e2e#374）后移出 gap 计数。
 #
 # 「结构性拒绝」= 按设计不可能做的格子：每一个 `xliff2*` converter 都是
 # same-container re-injector —— 读骨架、改文本节点、原容器重打包，骨架即
@@ -93,19 +96,21 @@ def is_exempt(reason: str) -> bool:
 # 「Why the cross-format bucket is structural」节（2026-10-10 nightly 的
 # 58 格 = 29×2 通道全在此桶）。
 #
-# ⚠️ 这些格子**仍全额计入 needs_cleanup / gap_units**（退出码不变）——
-# 把它们挪进 EXEMPT_SKIP_REASONS 等于用指标变化掩盖真债（ACCEPTED_GAPS.md
-# 明确拒绝）。本分类只是把「结构性拒绝」和「真债」在报告里分开呈现，
-# 回答「这缺口该不该追」；真债（如 pandoc 缺装、缺生产者）**不得**进此桶。
+# ⚠️ 2026-11-19 owner 裁定「不投」：这些格子**不再计入 needs_cleanup /
+# gap_units**（`signed_debt`，见 main()）。但格清单、reason、citation、
+# correct_path 全部保留呈现，审计仍看得见；任何**新增**格都必须重新签字
+# 才免，不能靠本常量组自动继承豁免。
 STRUCTURAL_REFUSAL_PATTERNS = (
     "XLIFF cross-format not supported by ORF converters",
 )
 STRUCTURAL_REFUSAL_CITATION = "ACCEPTED_GAPS.md「Why the cross-format bucket is structural」"
 STRUCTURAL_REFUSAL_CORRECT_PATH = "orf apply-md --target-format <fmt>（MD 通道 16 输出即中性模型/渲染阶段）"
+SIGNED_DEBT_MODE = "structural_refusal_signed_off_2026-11-19"
+SIGNED_DEBT_SIGNED_OFF = "owner 2026-11-19 (#374)"
 
 
 def is_structural_refusal(reason: str) -> bool:
-    """跳过理由是否属于「按设计不可能做」的结构性拒绝（只影响呈现，不影响判定）。"""
+    """跳过理由是否属于「按设计不可能做」的结构性拒绝（owner 已签字移出 gap）。"""
     return any(pat in reason for pat in STRUCTURAL_REFUSAL_PATTERNS)
 
 
@@ -473,15 +478,17 @@ def main(argv: list[str] | None = None) -> int:
                 _ch_names[i], _ch_names[j])
     divergence = len(divergent_cells)
 
-    # —— 结构性拒绝（suite#293）：只做呈现口径。判定算式已在上文算完，
-    #    本分类不回写任何计数 —— needs_cleanup / gap_units 原样。 ——
+    # —— 结构性拒绝（suite#293）：分类只用于「呈现 + 签字移出」。判定算式里
+    #    仅把 owner 2026-11-19 签字的 structural 格数作为 signed_debt 扣掉。 ——
     structural_by_ch = {n: collect_structural_refusals(cells)
                         for n, cells in _cells_by_ch.items()}
     structural_total = sum(len(v) for v in structural_by_ch.values())
 
     # —— 两个口径，物理分开 ——
-    # 1) DoD 口径（判定与退出码用它）：gap = fail 合计 + Σ_通道 (skipped − exempt)
-    #    即「还需清理的跳过格子数」——夹具内容依赖的豁免项不算能力差距。
+    # 1) DoD 口径（判定与退出码用它）：gap = fail 合计 +
+    #    Σ_通道 (skipped − exempt − signed_debt)
+    #    即「还需清理的跳过格子数」——夹具内容依赖的豁免项、owner 签字移出的
+    #    结构性拒绝（2026-11-19，#374）都不算能力差距。
     # 2) 回归护栏（只抓退步）：gap = fail 合计 + Σ_通道 max(0, skipped − max_skip)
     #    （老口径把两条通道的 skip 相加后比一次，134 恒超 67，永远收敛不到 0。）
     #
@@ -492,6 +499,7 @@ def main(argv: list[str] | None = None) -> int:
     excess: dict[str, int] = {}
     exempt_reasons: dict[str, dict] = {}
     exempt_skips: dict[str, int] = {}
+    signed_debt: dict[str, int] = {}
     per_channel: dict[str, dict] = {}
     for name, c in channels.items():
         ch_failed = c.get("failed") or 0
@@ -499,7 +507,9 @@ def main(argv: list[str] | None = None) -> int:
         exempt_reasons[name] = c.get("exempt_skip_reasons") or {}
         ch_exempt = sum(exempt_reasons[name].values())
         exempt_skips[name] = ch_exempt
-        ch_needs = max(0, ch_skipped - ch_exempt)
+        ch_signed = len(structural_by_ch.get(name, []))
+        signed_debt[name] = ch_signed
+        ch_needs = max(0, ch_skipped - ch_exempt - ch_signed)
         needs_cleanup[name] = ch_needs
         excess[name] = max(0, ch_skipped - args.max_skip)
         per_channel[name] = {
@@ -508,11 +518,13 @@ def main(argv: list[str] | None = None) -> int:
             "skipped": ch_skipped,
             "failed": ch_failed,
             "exempt": ch_exempt,
+            "signed_debt": ch_signed,
             "needs_cleanup": ch_needs,
             "regression_excess": excess[name],
         }
     needs_cleanup_total = sum(needs_cleanup.values())
     excess_total = sum(excess.values())
+    signed_debt_total = sum(signed_debt.values())
     gap_units = failed + needs_cleanup_total            # DoD 口径：判定与退出码
     # 回归护栏：只抓退步 —— fail 合计 + 逐格分叉（issue #234）+ 每通道 skip 超基线
     regression_gap = failed + divergence + excess_total
@@ -538,15 +550,19 @@ def main(argv: list[str] | None = None) -> int:
         "channel_divergence": divergence,
         "divergent_cells": divergent_cells,
         "needs_cleanup_total": needs_cleanup_total,
+        # —— 2026-11-19 owner 签字（#374）：结构性拒绝移出 gap 计数。
+        #    仍保留完整格清单，审计可见；新增格必须重新签字才免。 ——
+        "signed_debt_units": signed_debt_total,
+        "signed_debt_mode": SIGNED_DEBT_MODE,
         "per_channel": per_channel,
         "exempt_skips": exempt_skips,
         "exempt_skip_reasons": exempt_reasons,
-        # —— 结构性拒绝（suite#293）：呈现口径。still_counted_in_gap_units
-        #    恒为 True —— 本字段绝不参与判定/退出码，只是把「按设计不可能做」
-        #    和「真债」在报告里分开（ACCEPTED_GAPS.md 拒绝挪入豁免表）。
+        # —— 结构性拒绝（suite#293）：呈现桶 + 2026-11-19 签字移出。
+        #    格清单/reason/citation/correct_path 原样保留；判定只扣 signed_debt。 ——
         "structural_refusals": {
             "total": structural_total,
-            "still_counted_in_gap_units": True,
+            "still_counted_in_gap_units": False,
+            "signed_off": SIGNED_DEBT_SIGNED_OFF,
             "citation": STRUCTURAL_REFUSAL_CITATION,
             "correct_path": STRUCTURAL_REFUSAL_CORRECT_PATH,
             "per_channel": {n: {"count": len(v), "cells": v}
@@ -572,23 +588,27 @@ def main(argv: list[str] | None = None) -> int:
                  f"且无逐格分叉")
     split = " · ".join(f"{n} {needs_cleanup[n]} = 总 skip "
                        f"{per_channel[n]['skipped']} − 豁免 "
-                       f"{per_channel[n]['exempt']}" for n in channels)
+                       f"{per_channel[n]['exempt']} − 签字移出 "
+                       f"{per_channel[n]['signed_debt']}" for n in channels)
     if gap_units > 0:
         verdict = (f"- 判定：**仍有差距（fail {failed} + 需清理 skip "
                    f"{needs_cleanup_total}）**（{split}；{guard} → "
                    f"gap_units {gap_units}，exit 1）")
     elif skipped:
-        verdict = (f"- 判定：**仍有差距（fail {failed} + 需清理 skip "
+        verdict = (f"- 判定：**达标（fail {failed} + 需清理 skip "
                    f"{needs_cleanup_total}）**（{split}；{guard} → "
-                   f"gap_units {gap_units}，exit 1；剩下的 skip 全是豁免项，"
-                   f"不算能力差距，但要清掉它们需要补语料）")
+                   f"gap_units {gap_units}，exit 0；剩下的 skip 全是豁免项或"
+                   f"已签字移出的结构性拒绝，不算能力差距，但豁免项要清掉"
+                   f"需要补语料）")
     else:
         verdict = (f"- 判定：**两通道 {total} 格全过，无 fail、无需清理的 skip**"
                    f"（{guard} → gap_units {gap_units}，exit 0）")
     md = ["# Omni Suite 差距矩阵", "", bench_line(), verdict, "",
           "- 判定口径（DoD，决定 exit）：`gap_units` = fail 合计 + "
-          f"Σ_通道 (skipped − exempt) = {failed} + {needs_cleanup_total} = "
-          f"**{gap_units}**（= 还需清理的跳过格子数，**豁免项不算差距**）",
+          f"Σ_通道 (skipped − exempt − signed_debt) = {failed} + "
+          f"{needs_cleanup_total} = "
+          f"**{gap_units}**（= 还需清理的跳过格子数，**豁免项与 2026-11-19 "
+          f"签字移出的结构性拒绝 {signed_debt_total} 格不算差距**）",
           f"- 回归护栏（只抓退步，**不决定判定**）：`regression_gap` = fail 合计 + "
           f"逐格分叉（CLI/MCP 状态不一致的格子）+ Σ_通道 max(0, skipped − "
           f"{args.max_skip}) = {failed} + {divergence} + {excess_total} = "
@@ -598,7 +618,8 @@ def main(argv: list[str] | None = None) -> int:
           f"- 解释器：`{python}`（已探活 {', '.join(REQUIRED_MODULES)}）",
           f"- 合计：**{total}** 格（CLI + MCP）· passed **{passed}** · "
           f"failed **{failed}** · skipped **{skipped}**"
-          f"（豁免 {sum(exempt_skips.values())} + 需清理 {needs_cleanup_total}）",
+          f"（豁免 {sum(exempt_skips.values())} + 签字移出 {signed_debt_total} + "
+          f"需清理 {needs_cleanup_total}）",
           "- 运行口径（run_options）："
           f"subset={args.subset or '（空=全量）'} · corpus={args.corpus} · "
           f"fidelity={'开' if args.fidelity else '关'}",
@@ -617,7 +638,8 @@ def main(argv: list[str] | None = None) -> int:
         md.append(f"  - {name} 通道：total={c.get('total')} passed={c.get('passed')} "
                   f"failed={c.get('failed')} skipped={pc['skipped']} "
                   f"rc={c.get('returncode')}")
-        md.append(f"    - DoD 口径：skip {pc['skipped']} − 豁免 {pc['exempt']} = "
+        md.append(f"    - DoD 口径：skip {pc['skipped']} − 豁免 {pc['exempt']} − "
+                  f"签字移出 {pc['signed_debt']} = "
                   f"**需清理 {pc['needs_cleanup']}**"
                   + (f" + fail {pc['failed']} → 本通道 gap_units "
                      f"{pc['needs_cleanup'] + pc['failed']}"
@@ -625,6 +647,7 @@ def main(argv: list[str] | None = None) -> int:
         md.append(f"    - 回归护栏：skip {pc['skipped']} vs 基线 {args.max_skip} → "
                   f"超额 {pc['regression_excess']}")
         md.append(f"    - skip 拆分：豁免 {pc['exempt']}（夹具内容依赖）+ "
+                  f"签字移出 {pc['signed_debt']}（结构性拒绝，#374）+ "
                   f"需清理 {pc['needs_cleanup']}")
     if divergent_cells:
         md.append(f"- ⚠️ 逐格分叉（channel_divergence）：**{divergence} 格**两通道状态不一致"
@@ -646,23 +669,25 @@ def main(argv: list[str] | None = None) -> int:
               " —— **豁免 = 夹具内容依赖，非能力缺陷；"
               "要清掉它们需要补语料（见 docs/NIGHTLY.md）**")
     md.append("  - **豁免项不计入 `gap_units`，但仍原样出现在 skipped 总数里**"
-              "（不静默吞掉）；单列只为与「需清理的 skip」分开；pandoc / nbformat / "
-              "xliff 之类环境或能力类跳过**不豁免**，照常计入 `gap_units`。")
+              "（不静默吞掉）；单列只为与「需清理的 skip」分开；pandoc / nbformat "
+              "之类环境或能力类跳过**不豁免**，照常计入 `gap_units`；"
+              "xliff 跨格式结构性拒绝按 owner 2026-11-19 签字单独移出（见下一节）。")
     for name in channels:
         er = exempt_reasons.get(name) or {}
         if er:
             detail = "、".join(f"{k} ×{v}" for k, v in
                               sorted(er.items(), key=lambda kv: -kv[1]))
             md.append(f"  - {name} 豁免明细：{detail}")
-    # —— 结构性拒绝（suite#293）：每格附原因与正确路径；不改判定 ——
+    # —— 结构性拒绝（suite#293）：每格附原因与正确路径；2026-11-19 签字移出 ——
     if structural_total:
         md.append("- 结构性拒绝（structural_refusals）："
                   + " · ".join(f"{n} {len(structural_by_ch.get(n, []))}" for n in channels)
                   + f" = **{structural_total} 格** —— 按设计不可能做：每一个 `xliff2*` "
                   "converter 都是 same-container re-injector（骨架即目标格式，真跨格式需要"
                   f"中性模型/渲染阶段），依据 {STRUCTURAL_REFUSAL_CITATION}。"
-                  "**仍全额计入 gap_units —— 本节只是呈现口径，不改判定与退出码**"
-                  f"（把这类格子挪进豁免表等于用指标变化掩盖真债）；"
+                  "**已按 owner 2026-11-19 签字移出 gap 计数（#374）；"
+                  "本节仍全量列格，任何新增格都必须重新签字才免**"
+                  f"（`still_counted_in_gap_units=false`，`signed_debt_units={signed_debt_total}`）；"
                   f"正确路径：{STRUCTURAL_REFUSAL_CORRECT_PATH}")
         for name in channels:
             for ref in structural_by_ch.get(name, []):
