@@ -6,6 +6,11 @@
 # Usage:
 #   bash scripts/check_deps.sh
 #   OMNI_DOCTOR_SKIP_PDF=1 bash scripts/check_deps.sh   # skip WeasyPrint check
+#
+# Agent-facing contract (suite#379): python scripts/check_readiness.py
+# --agent-ready emits agent-ready/v1 JSON with exit codes 0/2/3/4.  This
+# script stays the human-facing doctor (make doctor); do not grow a second
+# machine contract here.
 # =============================================================================
 
 set -euo pipefail
