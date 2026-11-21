@@ -541,8 +541,15 @@ def patched_ol_mcp_pool(monkeypatch):
     from ol_mcp import translate_md as _ol_mcp_translate_md
     from ol_mcp import translate_xliff as _ol_mcp_translate_xliff
 
-    monkeypatch.setattr(_ol_mcp_translate_md, "ModelPool", _FakeModelPool)
-    monkeypatch.setattr(_ol_mcp_translate_xliff, "ModelPool", _FakeModelPool)
+    # OL#208: the tools now build the pool through the FAKE-aware
+    # translation_pool() seam, so patch that instead of the removed
+    # module-level ModelPool. The seam is called as translation_pool(cfg),
+    # so a plain factory returning the stub is enough (get_instance no
+    # longer needed on this path).
+    monkeypatch.setattr(
+        _ol_mcp_translate_md, "translation_pool", lambda cfg=None: _FakeModelPool(cfg))
+    monkeypatch.setattr(
+        _ol_mcp_translate_xliff, "translation_pool", lambda cfg=None: _FakeModelPool(cfg))
     return _FakeModelPool
 
 

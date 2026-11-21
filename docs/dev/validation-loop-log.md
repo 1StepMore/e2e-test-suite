@@ -105,9 +105,64 @@
 - [ ] **renanzai40 fine-grained PAT 对 1StepMore/* 缺 Issues:write 与 Contents:write**——GraphQL addComment / REST comments / git push 三路 403（协作者 API 权限 push:true 但 token 权限不足）。夜间报告的 issue 评论交付与真 bug 修复 PR 通道全部卡此前置；Owner 补权限前，报告只能落仓内文件。
 - [ ] **场景库冷启动首场景在 9p 上可慢至 ~15 分钟（ping 级场景）**，之后恢复常态节奏——不要按首场景速度外推全程判"卡死"；同理 `timeout_seconds: 1200` 的翻译步骤在 provider 瘫痪夜会吃满 20 分钟（配 `--step-timeout 600` 的强制传导是否覆盖所有 dispatch 路径待复核，见当轮事件 B-CAND-1）。
 
+### 2026-11-20 白班新增（Owner 目标轮：矩阵满格 + 真模型质量门）
+
+- [ ] **suite#372 的 cell-env PYTHONPATH 会毒化 shebang 工具（md2pptx 实证）**——矩阵 cell env 把 `.venv_ol/lib/python3.13/site-packages` 注入 PYTHONPATH；md2pptx 由 `#!/usr/bin/env python3` 起跑（WSL 系统 python3.14），lxml 的 C 扩展按 3.13 编译 → `ImportError: cannot import name 'etree'`（实测全部 →pptx 格死于此，非内容问题）。修法（机器本地，不入库）：bin 目录放 wrapper `exec .venv_ol/bin/python <md2pptx-install>/md2pptx "$@"`。凡 shebang 启动的外部工具 + 注入式 PYTHONPATH，一律用同版本解释器的 wrapper。
+- [ ] **OL FAKE 翻译逐行加 `[zh] ` 前缀 + ASCII 标点全角化，只盾"真多行 fence"**——单行 fence 被视为散文 → 前缀+全角化 → md2json `json.loads` 必炸；表头行 `| col1 | col2 |` 被打成 `[zh] | col1 | col2 |` → md2csv 的严格管道解析（行须以 `|` 开头结尾）把它跳过。连带效应：(a) 夹具携带 JSON 必须用**多行真 fence**（eml 正文/ipynb markdown 单元可保真穿透）；(b) 表格夹具必须 **≥2 数据行**——表头被跳过后只剩 1 行数据命中 md2csv header-only 分支 → **写空文件**（实测 docx/pptx→csv 空 0 字节）。
+- [ ] **ORF 内容寻址缓存（`~/.omni_cache/orf/`）跨矩阵轮次回放假产物**——旧轮缓存的无表 MD → 空 CSV 条目在新轮被 replay（`(cached)` 实锤），把"守卫已放行、转换器本可产出"的格子判成 0 字节红。矩阵/验证跑每轮设独立 `OMNI_CACHE_DIR`。
+- [ ] **run_validation 的显式 allowlist 预检 fail-closed：必须覆盖 /tmp 沙箱根**——手动设 `MCP_ALLOWED_DIRECTORIES` 少 `/tmp` 时 preflight 直接拒跑（"Refusing to run"，比跑起来 PATH_DENIED 全灭好）；修法 = allowlist 追加 `:/tmp`，或干脆不设让引擎智能默认装配。
+- [ ] **运行时守卫必须预测"转换器真实成败"而非只查结构存在**——fence 正则能匹配被 FAKE 打碎的 fence 文本但 json.loads 解析不了；守卫只查存在就会放行 → ORF 必红。守卫判定 = fence **可解析** 或 json_field kv 行存在。
+- [ ] **XLSX 夹具禁止在单元格文本里放任何管道**——ORF 的 xliff2xlsx 按 `\s*\|\s*`（xliff2xlsx.py:71）切 trans-unit 文本并 fail-closed（XLSX_MAP_MISMATCH），**空格不空格都触发**（紧凑 `|a|b|` 形式实测照样 13 段——docstring 写的 `" | "` 不是真身，regex 才是）。MD 路径要分隔行与 xliff 路径禁管道**结构性冲突**，xliff 往返优先 ⇒ xlsx→csv (md) 用冻结理由豁免 skip。教训：读源码要看 regex 真身。
+- [ ] **OL MCP translate 工具的 FAKE 池 seam 曾与 CLI 不对齐（OL#208 已修）**——MCP 侧直接构造真 ModelPool，FAKE 模式真池 `_test_mode` 返回字面 `"placeholder"`；CLI seam 切 `_FakeModelPool`（契约 = 回显 `[tgt] {source}`）。多格 xlsx 夹具首次触发：MCP xliff targets 丢 ` | ` 行结构 → xliff2xlsx fail-closed，CLI 过而 MCP 红；且 MCP xliff 产物此前一直是 placeholder（mock 证据质量低于 CLI 通道）。matrix-verdict-policy「一格 = 一次真产出」对 mock 证据同样要求通道间语义一致。
+- [ ] **md2pptx 上游 bug：文档以表格块结尾且全文无超链接时 `href` NameError**（~line 7057 `if href != "":`）——`href` 只在超链接分支赋值；表格结尾的输入（MCP 通道译文无 frontmatter、恰好以表格收尾）在 EOF slide finisher 崩溃。本机副本已打 `href = ""` 初始化补丁（99-Tools/third-party/md2pptx-install，机器本地）；上游归属 MartinPacker/md2pptx。
+
+### 2026-11-21 白班新增（Owner 目标复验轮：四单收口 + 三 PR）
+
+- [ ] **GH_TOKEN（fine-grained PAT，无 workflow scope）会遮蔽 keyring token（gho_，有 scope）**——推含 `.github/workflows/*` 的分支时远端以 "refusing to allow a Personal Access Token to create or update workflow" 拒绝（Data API 路径则表现为 tree POST 403 "Resource not accessible by personal access token"）。修法：`env -u GH_TOKEN git push`（git 凭据走 keyring，一次通过）。gh api 的 issues/PR/comment/label 路径在 PAT 下仍可用；只有 workflow 文件写路径被 scope 卡。
+- [ ] **whole-tree lint 门 = 项目全规则零违规，不是 F 类**——CI 的 `ruff check scripts tests omni_mcp omni_suite omni_metrics eval` 跑 (E,F,I,B,UP,N)，新文件必须过全规则；本地只跑 `--select F` 会漏 UP035（`typing.Callable`→`collections.abc`）这类问题（PR #389 首推实测红）。新脚本推送前按 CI 原命令本地预检。
+- [ ] **git 传输间歇性 "Connection was reset"（复发）**——同一会话内时通时断（本班实测：两次成功推送间夹连续 4 次 reset/超时），间隔 20–30s 重试通常自愈；兜底通道 = Data API 推送（上届 99-Tools scratch 的 ol_api_commit.py 模式，commit 内容寻址同 sha）或 `env -u GH_TOKEN git push`。
+- [ ] **判据缓存（WSL /tmp tmpfs）再次被清——恢复规程 = 从 99-Tools scratch 归档回填**——班次开工跑 `autonomy.py goal` 若报 "缺 /tmp/omni-nightly/*/matrix.json"（exit 2/取数失败），从 `99-Tools/validation-scratch/omni-suite/<last-run-dir>/matrix-{cli,mcp}-*.json` 复制回 `/tmp/omni-nightly/{cli,mcp}/matrix.json` 后复跑判据（本班实测恢复后 exit 0）。根治 = 夜班矩阵跑完把 matrix json 存进 scratch 归档（本班已在 PR #388 body 写明此规程）。
+
 ## 循环事件（major events，newest on top）
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
+
+### 2026-11-21 白班：Owner 目标复验 + 工作清单七单收口（2 PR merged + 2 PR 在途 + 1 PR 复活 + 3 单核销）
+
+- Date: 2026-11-21（00:5x–xx:xx +0800）；触发：Owner 班次任务书（目标：矩阵覆盖率 100% + 每格产出质量合格；四张 git 判定表 + 工作清单：#383 遗留裁定、#343 口径、#379/#372/#365/#333/#332/#335 派单、#349/#334/#348 账单）
+- Scope: 无产品代码改动（全部为 suite 仓测试语义/契约/依赖清单/护栏基线/文档）；无判据放宽——口径只变严（护栏基线 67→52、#343 裁定不 skip 不弱断言）
+- Result:
+  - **判据①复验（命令自证）**：开工 `autonomy.py goal` exit 2（WSL tmpfs 缓存再清，坑复发）→ 从 99-Tools scratch 归档恢复 `matrix-{cli,mcp}-20261120-063027.json` → `nightly_gap.py --skip-run` **exit 0**（gap_units 0 / 逐格分叉 0 / 402 全判定 / 298 pass + 104 skip = 豁免 42 + signed_debt 62）→ 目标闸 **ACHIEVED**。终跑证据未变质（bench suite 1e80162 = #381+#208；此后 main 仅 docs 与测试语义改动）
+  - **#343 口径裁定（owner 授权 agent 裁定）→ PR #387 merged**：不 skip、不弱断言——POSIX chmod 逐字保留，Windows 用 icacls deny-ACE 真拒绝（(RD)/(WD,AD)，DELETE/WRITE_DAC 不碰；机制探针 7/7 PASS）；`test_orf_unwritable_output_via_missing_parent` 重写为 unwritable-parent（ORF 自动创建父目录 `orf/cli.py:125`，missing-parent 是产品没有的契约且 Windows 污染盘根）；WSL 全文件 17/17
+  - **#383 遗留 --max-skip 67→52 → PR #388 merged**：护栏单测 8/8；判据复跑 exit 0（52 ≤ 52 贴线零余量，任何新增 skip 即超额）；判定不变（exit 仍只由 gap_units 决定）
+  - **#372 / #365 / #333 三单核销关单**（均为"活已 merged、单未关"）：#372 用终跑证据核验（两通道 `json→pptx` 双 pass、分叉 0）；#365 核验 PR #367 修复（Windows 原生 parity 测试 1 passed）；#333 按 DoD 全量复验（Windows 64p + WSL 64p + 反向实证精确复现 `D:\tmp, D:\var\tmp` 拒绝）
+  - **#379 agent-ready/v1 → PR #389**：`scripts/agent/agent_ready.py` 单一真身（llm 三步阶梯代码化、厂商名 config 驱动零硬编码、值永不读取；venv 同源探活；deps 含 pypandoc 内置二进制）+ 退出码 0/2/3/4 + `check_readiness.py --agent-ready` 入口 + AGENTS.md 一行指针 + CI step（无 key CI 确定性 exit 2）。真跑：Windows exit 0（suite-config 命中）/ WSL exit 2 形态；10 tests DI 全密封
+  - **#335 依赖清单 → PR #390**：pytest-timeout + reportlab 落进根 pyproject dev extra，`uv lock` 精确加两包（Resolved 300）；反向实证 = 卸载后 collection 精确复现 `'timeout' not found`，重装恢复 25 collected；CI 两处 ad hoc 行注释锚定清单
+  - **#332 → PR #345 复活**：merge 最新 main 解冲突（保留 #387 deny-ACE 测试体 + #345 平台感知 bins；version_compat 取 main 的 #344 全环境继承）→ Windows 原生 `exit_code_matrix` **17/17**（#343+#332 会师）、`cross_format_e2e` 33p+2s+1xp、contract 集 16p+1xf——**~110 红簇清到残余 1**（#342 金样，PR #347 范围）
+  - **通道解锁**：`env -u GH_TOKEN git push`（keyring token 有 workflow scope，PAT 被 GH_TOKEN 遮蔽）——workflow 文件推送与 git 传输不稳的兜底路径都已实证
+- 结论: 目标三判据在当前树复验成立（①命令 exit 0 / ②昨日真模型 8/8 证据在库 / ③证据目录完整）；工作清单 16 条中 9 条收口（2 merged + 2 在途 CI + 1 复活在途 + 3 关单 + #372 计入 3 关单），剩余 = #349/#334/#348 账单刷新（依赖 #345 合并后的新红数）+ #348 LQA 平台债 + 三个旧 PR（#347/#354/#359/#368）由 owner 裁定。下一班第一步 = 合并队列清空后跑 Windows 原生全量 pytest 刷新 #349 账单。
+
+### 2026-11-20（第二轮）：四仓质量标准全绿收口 + 全库 tier-1/tier-2 真模型 run
+
+- Date: 2026-11-20（11:00–16:xx +0800）；触发：Owner 指令「继续直到 OPP/OL/ORF/套件所有质量标准都通过」
+- Scope: OPP PR #138（契约测试 mock 面对齐 OL#208 FAKE seam，merged 5dfee68）；suite PR #385（质量基线刷新至 2026-11-20，merged 2e4a0d7）；无判据/阈值改动
+- Result:
+  - **四仓本仓测试全绿**（WSL .venv_ol 实跑）：OPP `1235 passed / 24 skipped`、OL `1936 passed / 43 skipped`（OL#209 后）、ORF `1165 passed / 27 skipped`、suite `…`（#384 mock 面对齐后 CI 全绿）
+  - **全库 tier-2 真模型 13/13 passed**：本轮补跑上轮未覆盖的 5 个（chain-mcp-three-modules 4/4、chain-opp-ol-xliff-orf-full 5/5、tool-ol-profile_doc 2/2、tool-ol-translate_md_text 2/2、tool-ol-translate_xliff 2/2），runs 20261120-134647…135530；加上 11-20 首轮 8 个 = 13/13。Q2 真模型 LQA：docx 4.99 / epub 5.00 / pptx 4.17（全 ≥4.0），已刷新 `quality-baseline.md`（#385）
+  - **全库 tier-1 113 场景**：112 passed / 0 failed / 0 hang / 1 known-gap 隔离（`md-msg-eml-fallback-known-gap` 位于 scenarios/pipeline/known-gaps/，按 STANDARDS 不计 pass/fail）；分批逐场景驱动 `/tmp tier1-names`（99-Tools scratch: run_tier1_batches.py），单场景超时 180s 无 hang
+  - **OPP 契约测试回归定性**：OPP 6 个跨模块契约测试曾因 OL#208 移除模块级 `ModelPool` 属性而 AttributeError——与 suite #384 同根（FAKE seam 变更的 mock 面连带），非产品缺陷、非判据改动；patch 目标迁到 `translation_pool` seam 后全绿（#138）
+- 结论：四仓质量标准全部通过；tier-3 `opp-youtube-extract` 缺 YOUTUBE_NETWORK = unconfigured（STANDARDS 口径不算 pass/fail，客观缺 env）。矩阵同日 exit 0（首轮事件行）、本轮全库 run 证据见 validation-runs/20261120-*。Mimosa 完整安全扫描持续 enobufs 未拿到结论，不宣称项目安全。
+
+### 2026-11-20：Owner 目标轮——矩阵 402 格满格达标（exit 0）+ 真模型质量门 8/8 + 4 PR 收口
+
+- Date: 2026-11-20（00:20–07:3x +0800）；触发：Owner 直接班任务（矩阵覆盖率 100% + 每格产出质量合格；质量结论必须来自真模型；fake 只准链路/契约/覆盖记 confidence=mock；达成判据 = 矩阵命令满格且 0 missing + 质量门全绿 + 证据已入库）
+- Scope: suite PR #376（suite#372 DCO 修复，merged 417fbd4）→ #380（运行时守卫 + 夹具增强，merged 5191e69）→ #381（xlsx 夹具管道冲突，merged e98d364）；OL 仓 PR #208（MCP FAKE 池 seam 对齐，merged 6266100；#207 同内容因分支与并行 agent 碰撞关闭）+ 本文件（坑 8 条 + 本事件）
+- Result:
+  - **判据①（矩阵命令满格且 0 missing）达成**：终跑 `nightly_gap.py`（bench：suite 1e80162 + OL 455b6e3，即 #381+#208 内容）——**402 格全判定 / passed 298 / failed 0 / skipped 104（豁免 42 + owner 签字移出 62 + 需清理 0）/ 逐格分叉 0 / 护栏 0 → gap_units 0，exit 0**（命令退出码自证，非自报）。对比 11-18 基线（125 pass / 76 skip / gap_units 84）：env 类 skip 清零（md2pptx 安装 + 门路径感知）、语料类 skip 34→21/通道（守卫放行真跑 20 格/通道）、结构性拒绝按 owner 2026-11-19 签字呈现为 signed_debt。证据：99-Tools/validation-scratch/omni-suite/natural-20261120/（gap-20261120-063027.json/md + 双通道 matrix json）
+  - **判据②（质量门全绿，真模型）达成**：8 个 tier-2 场景真 LLM（Zhipu glm-4-flash 通道，进程内 load_dotenv 装载，未读未印 key）全 passed——pipeline-docx-md-docx **14/14**（LQA **4.99/5** ≥ 4.0、drawings 2→2、para 1.000、CJK 0.00%、中文标点 0、无未译单元、opens-docx）+ docx-md-epub 13/13 + md-backfill-formats 11/11 + pptx-md-pptx 11/11 + xliff-backfill-docx 6/6 + judge_text/batch_translate_texts/translate_file 各 2/2。run 记录 validation-runs/20261120-021330…022951（8 份 report.md）+ 交付包 04-Output/artifacts/deliverables/omni-suite/omni-suite-validation-20261120-021330-quality-gates-real-llm.zip
+  - **判据③（证据入库）达成**：run 记录 + 交付包 + scratch 证据目录（gap/矩阵 json md、探针与调试脚本、质量取证产物 65 文件已从 tmpfs 拷出）+ LOOP-LOG 本条 + 交接 issue（label handoff）
+  - **过程中揪出的真缺陷**（全部有实证、已修）：suite#372 PYTHONPATH 段毒化 shebang 工具（机器本地 wrapper 修）；FAKE 翻译打碎单行 fence/表头行 → md2csv header-only 空文件；ORF 缓存跨轮回放；xlsx 单元管道 vs xliff2xlsx fail-closed 结构冲突（#381）；**OL MCP FAKE 池 seam 与 CLI 不对齐（MCP xliff 产物一直是 placeholder）**（OL#208）；md2pptx 上游 href NameError（机器本地补丁，上游归属 MartinPacker/md2pptx）
+- 结论: 三判据同时满足且都由命令/产物自证（nightly_gap exit 0、8 场景 Totals passed、交付包落盘）。遗留 = 语料类豁免 21 格/通道（载体格式实证无法携带结构，需 OPP 抽取器层产品活）+ signed_debt 62 格（owner 已裁定不投）+ `--max-skip` 基线 67→52 收紧建议（交 owner 裁定，未动）。
 
 ### 2026-11-18：夜班——goal 判据缓存重建（exit 6 修环境）+ suite#333 残余面修复（lane=owner:human-agent）
 

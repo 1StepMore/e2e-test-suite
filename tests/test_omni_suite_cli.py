@@ -10,7 +10,11 @@ import pytest
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent
 CLI = sys.executable  # Current venv Python — used for `python -m omni_suite`
-OMNI_SUITE_BIN = str(SUITE_ROOT / ".venv_ol" / "bin" / "omni-suite")
+# Platform-aware venv bin dir (e2e-test-suite#332, mirroring dispatch.py's
+# #321 fix): .venv_ol/bin launchers are Linux ELF on native Windows
+# (WinError 1920/193); the Windows bootstrap creates .venv_win/Scripts.
+_VENV_BIN = SUITE_ROOT / (".venv_win/Scripts" if os.name == "nt" else ".venv_ol/bin")
+OMNI_SUITE_BIN = str(_VENV_BIN / ("omni-suite.exe" if os.name == "nt" else "omni-suite"))
 FIXTURE_DOCX = SUITE_ROOT / "tests" / "production" / "small_fixture.docx"
 # Derive the run root exactly like the CLI does (e2e-test-suite#328, suite#341):
 # `Path(tempfile.gettempdir()) / "omni-suite-pipeline"` — a literal /tmp resolves
@@ -24,7 +28,7 @@ def _pipeline_env() -> dict[str, str]:
         **os.environ,
         "OMNI_TEST_FAKE_LLM": "1",
         "OL_CONFIG_PATH": str(SUITE_ROOT / "Omni_Localizer" / "config" / "test_universal.yaml"),
-        "PATH": str(SUITE_ROOT / ".venv_ol" / "bin") + ":" + os.environ.get("PATH", ""),
+        "PATH": str(_VENV_BIN) + os.pathsep + os.environ.get("PATH", ""),
     }
 
 
@@ -153,7 +157,7 @@ class TestPipeline:
             **os.environ,
             "OMNI_TEST_FAKE_LLM": "1",
             "OL_CONFIG_PATH": str(SUITE_ROOT / "Omni_Localizer" / "config" / "test_universal.yaml"),
-            "PATH": str(SUITE_ROOT / ".venv_ol" / "bin") + ":" + os.environ.get("PATH", ""),
+            "PATH": str(_VENV_BIN) + os.pathsep + os.environ.get("PATH", ""),
         }
         result = subprocess.run(
             [CLI, "-m", "omni_suite", "pipeline", str(docx),

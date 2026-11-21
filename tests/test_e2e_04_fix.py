@@ -12,9 +12,22 @@ The fix should be either:
 
 This test fails with the current code because import times out.
 """
+import os
 import subprocess
 import time
 from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _venv_python() -> Path:
+    """Platform-aware suite venv interpreter (e2e-test-suite#332, mirroring
+    dispatch.py's #321 fix): .venv_ol/bin/python is a Linux ELF that native
+    Windows cannot spawn (WinError 1920/193); the Windows bootstrap creates
+    .venv_win/Scripts/python.exe."""
+    if os.name == "nt":
+        return _REPO_ROOT / ".venv_win" / "Scripts" / "python.exe"
+    return _REPO_ROOT / ".venv_ol" / "bin" / "python"
 
 
 class TestE204ExtractorImport:
@@ -46,7 +59,7 @@ except Exception as e:
         script_file.write_text(script)
 
         repo_root = Path(__file__).resolve().parents[1]
-        venv_python = repo_root / ".venv_ol" / "bin" / "python"
+        venv_python = _venv_python()
         ol_src = repo_root / "Omni_Localizer" / "src"
 
         start = time.time()
@@ -109,7 +122,7 @@ except Exception as e:
         out_dir.mkdir()
 
         repo_root = Path(__file__).resolve().parents[1]
-        venv_python = repo_root / ".venv_ol" / "bin" / "python"
+        venv_python = _venv_python()
 
         result = subprocess.run(
             [
