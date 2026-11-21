@@ -123,7 +123,30 @@
 - [ ] **git 传输间歇性 "Connection was reset"（复发）**——同一会话内时通时断（本班实测：两次成功推送间夹连续 4 次 reset/超时），间隔 20–30s 重试通常自愈；兜底通道 = Data API 推送（上届 99-Tools scratch 的 ol_api_commit.py 模式，commit 内容寻址同 sha）或 `env -u GH_TOKEN git push`。
 - [ ] **判据缓存（WSL /tmp tmpfs）再次被清——恢复规程 = 从 99-Tools scratch 归档回填**——班次开工跑 `autonomy.py goal` 若报 "缺 /tmp/omni-nightly/*/matrix.json"（exit 2/取数失败），从 `99-Tools/validation-scratch/omni-suite/<last-run-dir>/matrix-{cli,mcp}-*.json` 复制回 `/tmp/omni-nightly/{cli,mcp}/matrix.json` 后复跑判据（本班实测恢复后 exit 0）。根治 = 夜班矩阵跑完把 matrix json 存进 scratch 归档（本班已在 PR #388 body 写明此规程）。
 
+### 2026-11-21 晚班新增（Owner 班次任务书轮：矩阵满格复跑 + 模块仓工作单）
+
+- [ ] **md2pptx 补丁存在机器内副本漂移：99-Tools/third-party 已补，PATH 真身未同步**——11-20 白班把 `href = ""` 初始化补丁打在 `99-Tools/third-party/md2pptx-install/md2pptx`，但 `~/.local/bin/md2pptx` 软链解析到 `~/.local/share/omni-suite/md2pptx/md2pptx`（install_md2pptx.sh 装的另一份），该副本未同步 → 矩阵 MCP 通道 `docx→pptx`/`csv→pptx` 两格 `NameError: href` 复发（CLI 通道同格同日绿，通道分叉实锤；11-20 两通道同格绿）。修法 = 给 PATH 真身打同款补丁（`readlink -f $(which md2pptx)`，机器本地，ast 语法验证）；上游归属 MartinPacker/md2pptx。**教训：机器本地补丁必须落在 PATH 真身上；多副本环境跑矩阵前先 diff。**
+- [ ] **WSL tmpfs 挥发比已记录的更激进：VM 空闲回收在跑完后 ~2 分钟内吞掉整个 /tmp/omni-nightly（含 matrix.json + cells 树），无需重启**——人肉轮询必然输给这个窗口。对策已实证：**长验证命令尾部内嵌"落盘即拷贝"守护**（`while [ ! -f .../matrix.json ]; do sleep 15; done; cp -r ... /mnt/d/…` 与主跑同 VM 存活），竞态窗口压到秒级；恢复规程（PR #388 body）仍是兜底。恢复缓存后判据命令双平台 exit 0（WSL python3 + Windows .venv_win —— Windows 判据通路本身就是 #394 修复后的首个完整验证）。
+- [ ] **宿主安全门（Mimosa）会因测试夹具假 key 字面量硬拦 commit/push**——OL 仓 71 个"高危"全部为夹具占位符（conftest `sk-dummy` 系列 + test_loader_security.py 的 `TEST_PLACEHOLDER_KEY_DO_NOT_USE_REAL_*`，后者是密钥检测器自身的测试语料）。agent 自身改动 PostToolUse 扫描全 clear 也救不了仓级拦截；插件契约无抑制配置，只有 owner 能校准。**教训：安全门误报不是代码问题，别改测试语料去"修"它（会废掉检测器测试）；升级 owner 并把工作以 patch/分支形态保底。**
+
 ## 循环事件（major events，newest on top）
+
+### 2026-11-21 晚班：Owner 班次任务书轮（判据三件套全新自证 + 模块仓工作单 7/9 收口 + 2 blocked）
+
+- Date: 2026-11-21（15:20–23:5x +0800）；触发：Owner 班次任务书（目标：矩阵覆盖率 100% + 每格产出质量合格；三判据不许自报；OL/OPP/ORF 九单清单）
+- Scope: suite 仓 2 PR（验证器互操作修复 + 交界书面结论，产品管线零改动）+ 模块仓 2 单本地完成被宿主门 blocked + 登记/账单/真模型链路证据；无判据放宽
+- Result:
+  - **判据①（矩阵满格 0 missing）⇒ 成立**：开工判据命令 exit 2（缓存无）→ 全新真跑两轮。run 1（16:05–19:05）：402 格全判定，296 绿 / 2 红（MCP `docx→pptx`、`csv→pptx`，md2pptx `NameError: href`）定性 **deterministic（机器副本漂移，非抖动非代码回归）** / skip 104（豁免 42 + 签字 62 / 通道，**需清理 0**）。根因 = 11-20 的 href 补丁没同步到 PATH 真身（坑已记）→ 补齐 → **run 2（19:20–22:55）：402 格 / 298 绿 / 0 红 / 104 skip，两通道逐格一致（149+52 ×2）**。恢复缓存后判据命令 **双平台 exit 0**：WSL `python3 scripts/nightly_gap.py --skip-run`（criterion-wsl.txt）+ Windows 原生 `.venv_win`（criterion-win.txt，#394 修复后的首个 Windows 判据通路完整验证）
+  - **PR #394 merged（b021545）**：format_matrix_verifier 平台感知解释器/env 选择——Windows stat WSL checkout 抛 WinError 1920 启动即崩 ⇒ 本机 CLI 通道永远出不了 matrix.json（#321 同族，验证器侧）。_safe_exists + 平台序候选 + os.pathsep + 平台 site-packages + 5 回归测试（原覆盖 0）。CI 全绿；docx 子集探针修复前崩/修复后 21 格 0 failed
+  - **PR #395 merged（bb08be2）**：CONTRACT.md 落 OPP↔ORF 交界书面结论（同格式耦合设计使然 / 三层拒绝 #64 / 跨格式结构性拒绝 owner 签字 #374 / 容差 E2E-07）
+  - **#349 账单重刷**（Windows 原生全量 21.5 min）：**59 → 24 红**（4154 passed），逐文件分布挂 issue 评论；--lf 复跑 24/24 复现（非 flaky）
+  - **OL #210（B 类）**：level-4 改锚仓根绝对路径（owner 评语最小改法逐字实现）；双验收过（config-resolution 13/13 + 仓外 FAKE 实跑 exit 0，修复前 `Config file not found` exit 1）；Windows 全量 1931 passed/0 failed；issue 描述+标题就地更新。**PR 被 Mimosa 门拦 → blocked:mimosa-gate（分支 @ 66c6da0 本机就绪）**
+  - **OL #206（agent-ready 入口）**：`scripts/agent_ready.py` 契约 1:1 对齐套件真身（阶梯/退出码 0/2/3/4/probe 形状），OL 模块集平台安全探活；8 pytest + 真入口 smoke exit 0（ladder step-2 ol-config 命中，SPARK presence-only）+ AGENTS.md 一行指针 + CI exit-2 断言步骤。**commit 被门拦 → 完整 diff 在 scratch（ol206-agent-ready.patch）**
+  - **OPP #138 真模型实跑**：231 字中文夹具，OPP 抽取 → **OL 真翻译（Spark 主通道，untranslated 0/6）** → ORF 回填 docx，三段 exit 0；CJK 残留 NONE；抖动如实记录（429 冷却重试 1 单元 pass(retry)、LQA Low_Score 警告）。证据挂 PR#138 评论 + scratch
+  - **ORF 定性**：Windows 原生全量 **1165 passed / 0 failed** → 未腐化；FAKE seam 对齐 = **不适用**（ORF 测试零 OL-seam patch）
+  - **登记台 ×3**：OL#202 / OPP#136 / ORF#94 各挂 Windows 原生侧画像（WSL 侧已有 suite#352）
+- blocked：**mimosa-gate**（宿主安全门硬拦 OL 仓 commit/push；71"高危"全为测试夹具假 key 字面量误报；密封扫描已归档 scanId scan-2026-11-21T07-58-57.471Z / seal 4af115b1…；AskUserQuestion 已问 owner 一次未复，按最严口径登记）
+- 结论: 目标三判据全部成立（①双平台判据 exit 0 + run 2 满格 / ②真模型质量门证据在库+本班 Spark 真链路 / ③证据入库：2 merged PR + 刷新账单 + 3 登记台 + LOOP-LOG + scratch 归档）。工作清单 9 单：7 收口 + 2 blocked（mimosa-gate，只有 owner 能解）。下一班第一步 = Mimosa 门解后推 OL 两分支；否则先做 #349 的 24 红定性修复轮。
 
 > 模板步骤：每轮全库 run 后必跑 `make validate-diff`（最新 run vs 上一 run 的四类回归检测，exit 1 = 有回归），结果写进当轮事件行。
 
