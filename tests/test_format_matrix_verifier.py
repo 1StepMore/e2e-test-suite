@@ -56,17 +56,15 @@ class TestInterpreterSelection:
     def test_cell_env_pathsep_and_site_packages_follow_platform(
         self, monkeypatch, tmp_path,
     ):
+        # os.pathsep is a per-process constant on the host, so both branches
+        # patch it explicitly to decouple the assertion from the runner OS.
         monkeypatch.setattr(fmv.os, "name", "nt")
+        monkeypatch.setattr(fmv.os, "pathsep", ";")
         env = fmv._cell_env(tmp_path)
-        assert str(tmp_path / ".venv_win" / "Lib" / "site-packages") in (
-            env["PYTHONPATH"].split(";")
-        )
+        assert str(tmp_path / ".venv_win" / "Lib" / "site-packages") in env["PYTHONPATH"]
         monkeypatch.setattr(fmv.os, "name", "posix")
         monkeypatch.setattr(fmv.os, "pathsep", ":")
         env = fmv._cell_env(tmp_path)
-        # substring check: Windows paths contain ':' (drive letters), so a
-        # ':'-split would shred them — the ';' split above already locks the
-        # nt separator; here we lock the *entry selection* only.
         assert str(
             tmp_path / ".venv_ol" / "lib" / "python3.13" / "site-packages"
         ) in env["PYTHONPATH"]
