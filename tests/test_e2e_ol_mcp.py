@@ -21,7 +21,7 @@ class TestOLMCP:
     @pytest.mark.requires_ol
     def test_translate_md_text_basic(self, tmp_path):
         """Test translate_md_text tool with basic markdown."""
-        with patch("ol_mcp.translate_md.ModelPool") as mock_pool:
+        with patch("ol_mcp.translate_md.translation_pool") as mock_pool:
             # Mock the translate method
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(return_value="# Hello [→zh]\n\nThis is Chinese content.")
@@ -56,7 +56,7 @@ class TestOLMCP:
         glossary_path = tmp_path / "glossary.json"
         glossary_path.write_text(_json.dumps(glossary_data), encoding="utf-8")
 
-        with patch("ol_mcp.translate_md.ModelPool") as mock_pool, \
+        with patch("ol_mcp.translate_md.translation_pool") as mock_pool, \
              patch("ol_mcp.translate_md.load_glossary_from_path") as mock_glossary:
 
             mock_glossary.return_value = glossary_data
@@ -82,7 +82,7 @@ class TestOLMCP:
     @pytest.mark.requires_ol
     def test_translate_md_text_add_frontmatter(self, tmp_path):
         """Test translate_md_text with add_frontmatter=True."""
-        with patch("ol_mcp.translate_md.ModelPool") as mock_pool:
+        with patch("ol_mcp.translate_md.translation_pool") as mock_pool:
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(return_value="# Test\n\nTranslated content.")
             mock_pool.return_value = mock_instance
@@ -105,7 +105,7 @@ class TestOLMCP:
     @pytest.mark.requires_ol
     def test_translate_md_text_error_handling(self, tmp_path):
         """Test translate_md_text handles errors gracefully."""
-        with patch("ol_mcp.translate_md.ModelPool") as mock_pool:
+        with patch("ol_mcp.translate_md.translation_pool") as mock_pool:
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(side_effect=Exception("LLM error"))
             mock_pool.return_value = mock_instance
@@ -217,7 +217,7 @@ class TestOLMCP:
     @pytest.mark.requires_ol
     def test_batch_translate_texts_basic(self, tmp_path):
         """Test batch_translate_texts tool translates multiple texts."""
-        with patch("ol_mcp.batch_translate.ModelPool") as mock_pool, \
+        with patch("ol_mcp.batch_translate.translation_pool") as mock_pool, \
              patch("ol_mcp.batch_translate.MDRepairPipeline") as mock_repair, \
              patch("ol_mcp.batch_translate.ConcurrencyLimiter", create=True) as mock_limiter:
 
@@ -256,7 +256,7 @@ class TestOLMCP:
     @pytest.mark.requires_ol
     def test_batch_translate_texts_with_concurrency(self, tmp_path):
         """Test batch_translate_texts respects concurrency limit."""
-        with patch("ol_mcp.batch_translate.ModelPool") as mock_pool, \
+        with patch("ol_mcp.batch_translate.translation_pool") as mock_pool, \
              patch("ol_mcp.batch_translate.MDRepairPipeline") as mock_repair, \
              patch("ol_mcp.batch_translate.ConcurrencyLimiter", create=True) as mock_limiter:
 
@@ -290,7 +290,7 @@ class TestOLMCP:
     @pytest.mark.requires_ol
     def test_batch_translate_texts_partial_failure(self, tmp_path):
         """Test batch_translate_texts handles partial failures."""
-        with patch("ol_mcp.batch_translate.ModelPool") as mock_pool, \
+        with patch("ol_mcp.batch_translate.translation_pool") as mock_pool, \
              patch("ol_mcp.batch_translate.MDRepairPipeline") as mock_repair, \
              patch("ol_mcp.batch_translate.ConcurrencyLimiter", create=True) as mock_limiter:
 
@@ -343,7 +343,7 @@ def hello():
 
 Another paragraph.
 """
-        with patch("ol_mcp.translate_md.ModelPool") as mock_pool:
+        with patch("ol_mcp.translate_md.translation_pool") as mock_pool:
             mock_instance = MagicMock()
             mock_instance.translate = AsyncMock(return_value=md_with_code)
             mock_pool.return_value = mock_instance

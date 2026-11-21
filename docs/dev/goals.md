@@ -12,7 +12,7 @@
 | 阶段 | 目标 | 达标判据 | 状态 |
 |:--|:--|:--|:--|
 | **P1** | 生产矩阵 100% —— 201 格 × 2 条通道（CLI / MCP）= 402 次格子运行全部通过 | `python3 scripts/nightly_gap.py --skip-run` ⇒ **exit 0**（读缓存矩阵；gap_units == 0（**不含** 2026-11-19 签字移出的 58 格结构性拒绝）。skip ≠ pass，需清理的 skip 计入 gap_units，豁免 skip 不计入但仍原样出现在通道 skip 计数里） | `ACTIVE` |
-| P2 | 待定（owner 定方向） | — | `needs-owner` |
+| P2 | 待定（owner 定方向；候选见 [goal-achieved] 交接 issue） | — | `asked-owner` |
 
 ## 达标之后做什么（顺序固定，别省步骤）
 

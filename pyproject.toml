@@ -23,6 +23,12 @@ dev = [
     # exactly why it drifted once: the probe resolved by accident, via a sibling
     # member's extra and an ungated `uv pip install` line (e2e#130).
     "nbformat>=5.0.0",
+    # suite#335: test-only deps that only lived in CI's ad hoc pip install
+    # lines — a manifest-fresh local env hit "Failed: 'timeout' not found"
+    # at collection. Declared here so the manifest is the single truth; the
+    # CI install lines stay only as annotated fallbacks.
+    "pytest-timeout>=2.1.0",
+    "reportlab>=4.2.0",
 ]
 
 [project.scripts]
