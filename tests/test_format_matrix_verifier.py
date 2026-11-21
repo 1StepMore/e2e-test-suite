@@ -9,11 +9,67 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from scripts import format_matrix_verifier as fmv  # noqa: E402  (issue #223 P2.1)
+
+
+class TestInterpreterSelection:
+    """Platform-aware, probe-safe interpreter/env selection (#321 family).
+
+    The verifier used to crash with ``OSError [WinError 1920]`` when Windows
+    stat'ed the WSL ``.venv_ol`` checkout; selection is now platform-aware
+    and ``exists()`` failures degrade to "not usable here".
+    """
+
+    @staticmethod
+    def _raise_1920(self, **_kw):
+        raise OSError(1920, "系统无法访问此文件")
+
+    def test_safe_exists_false_on_oserror(self, monkeypatch):
+        monkeypatch.setattr(Path, "exists", self._raise_1920)
+        assert fmv._safe_exists(Path("nowhere")) is False
+
+    def test_selection_falls_back_to_sys_executable_when_probes_crash(
+        self, monkeypatch, tmp_path,
+    ):
+        monkeypatch.setattr(Path, "exists", self._raise_1920)
+        assert fmv._select_interpreter(tmp_path) == Path(sys.executable)
+
+    def test_windows_prefers_venv_win(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(Path, "exists", lambda self, **kw: True)
+        monkeypatch.setattr(fmv.os, "name", "nt")
+        assert fmv._select_interpreter(tmp_path) == (
+            tmp_path / ".venv_win" / "Scripts" / "python.exe"
+        )
+
+    def test_posix_prefers_venv_ol(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(Path, "exists", lambda self, **kw: True)
+        monkeypatch.setattr(fmv.os, "name", "posix")
+        assert fmv._select_interpreter(tmp_path) == (
+            tmp_path / ".venv_ol" / "bin" / "python"
+        )
+
+    def test_cell_env_pathsep_and_site_packages_follow_platform(
+        self, monkeypatch, tmp_path,
+    ):
+        monkeypatch.setattr(fmv.os, "name", "nt")
+        env = fmv._cell_env(tmp_path)
+        assert str(tmp_path / ".venv_win" / "Lib" / "site-packages") in (
+            env["PYTHONPATH"].split(";")
+        )
+        monkeypatch.setattr(fmv.os, "name", "posix")
+        monkeypatch.setattr(fmv.os, "pathsep", ":")
+        env = fmv._cell_env(tmp_path)
+        # substring check: Windows paths contain ':' (drive letters), so a
+        # ':'-split would shred them — the ';' split above already locks the
+        # nt separator; here we lock the *entry selection* only.
+        assert str(
+            tmp_path / ".venv_ol" / "lib" / "python3.13" / "site-packages"
+        ) in env["PYTHONPATH"]
 
 
 class TestAvailability:
