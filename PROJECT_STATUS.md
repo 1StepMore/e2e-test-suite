@@ -226,3 +226,12 @@ git -C Omni_Re_Formatter log -1
 ```
 
 Suite HEAD as of 2026-09-17: `a2c8b6d` (2026-09-15, loop-log clear-out).
+
+## 2026-11-22 早班 · #349 拆单收口（严口径接手第一缺口）
+
+> Owner 本班重新下达严格目标：矩阵覆盖率 100% 且每格质量合格；质量结论必须来自真模型（fake 仅链路/契约/覆盖，记 confidence=mock）。达成三判据 = 矩阵命令满格 0 missing + 质量门全绿（真模型）+ 证据已入库，不许自报。
+
+- **差距定位**：仓库 `autonomy goal ACHIEVED` 是 `nightly_gap.py --skip-run` 读缓存的结果（402 格 / passed 298 / skip 104 = 豁免 42 + 签字移出 62 / 需清理 0；覆盖由 fake echo 产出，证据库 `manifest.cells=[]`）。严口径下不等于达标——skip≠pass、未做全量矩阵真跑、真模型质量门证据为 11-20 历史、证据库此前为空。**不采信自报达标。**
+- **第一缺口（owner 指定）= e2e#349 九簇拆单**：Windows 原生 24 个 deterministic 测试层红按簇拆为可认领子单。架构师定稿发现 owner 原 9 簇只覆盖 23 红（漏 `test_check_module_entry.py` 1 红），补第 10 簇后 24 守恒；裁定 cli_help 红独立新单（#342 已 CLOSED）、exit_code 红属测试侧 env 隔离（非产品失效）。owner 拍板：摘 #349 父账 `owner:human-agent` 标签交棒、C09 走测试侧归一（方案 B）。
+- **交付**：9 子单 #401–#409（C01/C02 合并），红数 7+6+3+2+1+1+2+1+1=24 守恒、零遗漏、标签 `bug,agent-ready`；父账 #349 已摘 owner 标签并留拆单评论。证据入库 `docs/dev/validation-evidence/cross-repo-regression/2026-11-22/issue349-split/`（confidence=mock，非质量绿）。
+- **下一步**：按子单 DoD 逐簇修复（每簇独立 PR），每修一簇全量复跑记红数从 24 递减；之后推进判据①全量矩阵真跑（去 `--skip-run`）、判据②真模型质量门本轮真跑、判据③证据自检脚本补齐后复跑（当前 checkout 该自检脚本缺失，详见 handoff issue 卡点段）。详见 handoff issue。
