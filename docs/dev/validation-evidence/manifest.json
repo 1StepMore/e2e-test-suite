@@ -1,4 +1,26 @@
 {
  "matrix": "cross-repo-regression",
- "cells": []
+ "cells": [
+  {
+   "cell": "governance/issue349-split",
+   "run_date": "2026-11-22",
+   "produced_at": "2026-11-22T11:35:00+08:00",
+   "baseline_sha": "cbbe3831c2bf0643662c6a7e8869260517254544",
+   "kind": "governance-split",
+   "confidence": "mock",
+   "quality": {
+    "verdict": "not-applicable",
+    "note": "拆单治理动作，非格子质量判定；24 红均为 deterministic 测试层红(FAKE_LLM)，未跑真模型质量门、未跑全量矩阵真跑。不得解读为质量绿。",
+    "evidence": "cross-repo-regression/2026-11-22/issue349-split/evidence.md"
+   },
+   "reproduce": "OMNI_TEST_FAKE_LLM=1 .venv_win/Scripts/python.exe -m pytest tests/ -m \"not nightly\" -q  (24 failed baseline @ 172d68f/11-21)",
+   "artifacts": [
+    "cross-repo-regression/2026-11-22/issue349-split/decomposition.md",
+    "cross-repo-regression/2026-11-22/issue349-split/spotcheck-3reds.txt",
+    "cross-repo-regression/2026-11-22/issue349-split/created-issues.txt"
+   ],
+   "children": [401, 402, 403, 404, 405, 406, 407, 408, 409],
+   "red_count_conservation": "7+6+3+2+1+1+2+1+1=24"
+  }
+ ]
 }

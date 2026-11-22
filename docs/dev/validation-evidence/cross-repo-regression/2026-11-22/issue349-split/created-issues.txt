@@ -1,0 +1,9 @@
+c01c02 | fix(tests): escape Windows paths in validation fixtures + scope run_meta collection (suite#349 cluster 1-2) | https://github.com/1StepMore/e2e-test-suite/issues/401
+c03 | fix(tests): allow Windows pytest temp in OPP MCP smoke allowed-dirs (suite#349 cluster 3) | https://github.com/1StepMore/e2e-test-suite/issues/402
+c04 | fix(tests): replace POSIX /tmp assumptions in resume and tier-dispatch tests (suite#349 cluster 4) | https://github.com/1StepMore/e2e-test-suite/issues/403
+c05 | fix(tests): POSIX-quote script path passed to bash in pre-commit noargs test (suite#349 cluster 5) | https://github.com/1StepMore/e2e-test-suite/issues/404
+c06 | fix(tests): branch SIGINT exit-code assertion on os.name (suite#349 cluster 6) | https://github.com/1StepMore/e2e-test-suite/issues/405
+c07 | fix(tests): hermetic no-credential env for OL API-key-missing exit test (suite#349 cluster 7) | https://github.com/1StepMore/e2e-test-suite/issues/406
+c08 | fix(tests): platform-aware venv and manifest exemption assertions (suite#349 cluster 8) | https://github.com/1StepMore/e2e-test-suite/issues/407
+c09 | fix(tests): normalize rich box-drawing and wrapped lines in OL help contract (suite#349 cluster 9) | https://github.com/1StepMore/e2e-test-suite/issues/408
+c10 | fix(tests): make editable .pth fixture discoverable on Windows venv layout (suite#349 cluster 10) | https://github.com/1StepMore/e2e-test-suite/issues/409

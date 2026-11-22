@@ -1,0 +1,17 @@
+# 抽样复现 e2e#349 三个代表性红（2026-11-22 早班）
+
+- 环境：Windows 原生，套件 .venv_win，OMNI_TEST_FAKE_LLM=1
+- 基线：main @ 172d68fe91a70ad62c56e5b55a605aa154aa55c1（工作树干净，仅 .mimosa/ 未跟踪=gitignored）
+- 命令：OMNI_TEST_FAKE_LLM=1 ./.venv_win/Scripts/python.exe -m pytest tests/test_mcp_matrix_verifier.py tests/error_scenarios/test_exit_code_matrix.py tests/test_ol_graceful_degradation.py -q --tb=line
+- 结果：3 failed, 34 passed, 6 warnings in 82.86s（RC=1）
+
+FAILED:
+1. tests/test_mcp_matrix_verifier.py::TestCellEnvParity::test_shared_env_carries_venv_site_packages
+   - 对应 owner 9 簇建议第 8 簇（matrix_verifier 平台感知，#394 同族残留）
+2. tests/error_scenarios/test_exit_code_matrix.py::TestOLAPIKeyMissing::test_ol_without_api_key_exits_nonzero
+   - 对应第 7 簇（机器 env 隔离：SPARK_API_KEY 泄入）
+3. tests/test_ol_graceful_degradation.py::TestOLGracefulDegradation::test_sigint_exit_code_3
+   - 对应第 6 簇（Windows 信号语义）
+
+结论：#349 的 24 红在本机当前 HEAD 真实存活，非历史账、非已修。拆单有据。
+附注：exit_code_matrix 另有 TestDiskFull 出现 UnicodeDecodeError 线程警告（GBK 子进程输出），属已知 #344 家族，未单列为新红。
