@@ -308,9 +308,30 @@ class TestDeterminismScope:
         )
 
         def _normalise(manifest: dict, run_dir: Path) -> dict:
-            """Drop the two provenance fields and the run-specific path prefix."""
+            """Drop the two provenance fields and normalise the run-path prefix.
+
+            Replace the run dir inside *string values* after load, not on the
+            ``json.dumps`` text: JSON escapes Windows backslashes (``\\\\``), so a
+            text ``.replace(str(run_dir), ...)`` never matched on native Windows
+            and left ``resources.storage_dir`` — the only run-dir-prefixed field —
+            drifting between runs. Structural replacement is byte-identical on
+            POSIX and fixes Windows, and it touches only the run-dir prefix:
+            ``resources.image_count`` and every other resource fingerprint stay
+            in the comparison.
+            """
+            run_prefix = str(run_dir)
+
+            def _scrub(value: object) -> object:
+                if isinstance(value, str):
+                    return value.replace(run_prefix, "<RUN_DIR>")
+                if isinstance(value, list):
+                    return [_scrub(item) for item in value]
+                if isinstance(value, dict):
+                    return {key: _scrub(item) for key, item in value.items()}
+                return value
+
             stable = {k: v for k, v in manifest.items() if k not in _VOLATILE_MANIFEST_KEYS}
-            return json.loads(json.dumps(stable).replace(str(run_dir), "<RUN_DIR>"))
+            return _scrub(stable)  # type: ignore[return-value]
 
         first_stable = _normalise(first_manifest, first)
         second_stable = _normalise(second_manifest, second)
