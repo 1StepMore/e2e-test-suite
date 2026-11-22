@@ -63,22 +63,85 @@ _LOG_NOISE_PATTERNS = [
 ]
 
 
-def _normalize(text: str) -> str:
-    """Strip log noise and per-line padding, then collapse whitespace runs.
+#: Box-drawing glyphs that differ between renderers/consoles but carry no
+#: interface meaning: rich draws rounded corners (POSIX golden), while the
+#: native Windows console renders the same panel with square corners. Map every
+#: corner/edge to an ASCII sentinel so both renderings compare equal. Content
+#: characters (letters, ``--option`` names) are never touched by this map.
+_BOX_GLYPHS = str.maketrans(
+    {
+        "╭": "+", "╮": "+", "╰": "+", "╯": "+",
+        "┌": "+", "┐": "+", "└": "+", "┘": "+",
+        "─": "-", "│": "|",
+    }
+)
 
-    CLI help panels pad lines with spaces to a fixed width, so that padding
-    is rendering, not interface. Comparing it would couple the frozen fixture
-    to the terminal width and to the typer/click/rich versions that draw the
-    panel (e2e#58, suite#342). Only each line's content tokens are
-    contractual, so whitespace runs are collapsed to single spaces (this
-    also reconciles the column shift left behind by the stripped <bool>
-    annotation tokens above).
+
+def _merge_wrapped_table_rows(lines: list[str]) -> list[str]:
+    """Merge a table cell's wrapped description back into one logical line.
+
+    Rich wraps a long cell description across physical lines; the wrap column
+    depends on the panel width, which differs per platform (the Windows console
+    panel is narrower, so e.g. ``search-tm``'s description gains an extra
+    line). A *continuation* line has a blank first column — after the leading
+    ``|`` it is indented past the first column (>1 leading space) — whereas a
+    real row starts immediately with its first-column entry. Only a
+    continuation is appended to the row above it; a new row is never pasted
+    onto the previous one, so distinct commands cannot be fused. Non-table
+    lines pass through unchanged.
+    """
+    merged: list[str] = []
+    for line in lines:
+        token = line.strip()
+        if len(token) >= 2 and token[0] == "|" and token[-1] == "|":
+            inner = token[1:-1]
+            leading = len(inner) - len(inner.lstrip())
+            if merged and leading >= 2 and merged[-1].startswith("|"):
+                prev = merged[-1]
+                merged[-1] = prev[:-1].rstrip() + " " + inner.strip() + " |"
+                continue
+            merged.append(token)
+            continue
+        merged.append(token)
+    return merged
+
+
+def _normalize(text: str) -> str:
+    """Normalize CLI help for cross-platform / cross-renderer comparison.
+
+    Beyond stripping log noise, CRLF and per-line padding (e2e#58, suite#342),
+    this reconciles two *rendering-only* differences that do not change the CLI
+    interface:
+
+    1. Box-drawing glyphs — rich's rounded corners vs the Windows console's
+       square ones — are mapped to ASCII (:data:`_BOX_GLYPHS`), and the
+       width-dependent horizontal rules are compared as their ``+``/label
+       skeleton only (their dash count tracks the terminal width).
+    2. A table cell description that wraps onto continuation lines on a
+       narrower panel is merged back into one logical row
+       (:func:`_merge_wrapped_table_rows`), so a different wrap column does not
+       read as different content.
+
+    The scope is deliberately narrow: content tokens (command/option names,
+    descriptions) are never altered — only glyphs, padding, and intra-row
+    wrapping — so a real interface change still fails this contract.
     """
     for pattern in _LOG_NOISE_PATTERNS:
         text = pattern.sub("", text)
     text = text.replace("\r\n", "\n")
-    text = "\n".join(" ".join(line.split()) for line in text.splitlines())
-    return text.rstrip() + "\n"
+    text = text.translate(_BOX_GLYPHS)
+    normalized: list[str] = []
+    for line in _merge_wrapped_table_rows(text.splitlines()):
+        if line.startswith("+"):
+            # Horizontal rule / section header: drop the width-dependent dash
+            # run, keep the '+' corners and any label ("Options"/"Commands").
+            line = line.replace("-", "")
+        normalized.append(" ".join(line.split()))
+    while normalized and not normalized[0]:
+        normalized.pop(0)
+    while normalized and not normalized[-1]:
+        normalized.pop()
+    return "\n".join(normalized) + "\n"
 
 
 def _run_help(module: str, src_path: str, label: str) -> str:
