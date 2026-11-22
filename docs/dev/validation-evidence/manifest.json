@@ -19,8 +19,47 @@
     "cross-repo-regression/2026-11-22/issue349-split/spotcheck-3reds.txt",
     "cross-repo-regression/2026-11-22/issue349-split/created-issues.txt"
    ],
-   "children": [401, 402, 403, 404, 405, 406, 407, 408, 409],
+   "children": [
+    401,
+    402,
+    403,
+    404,
+    405,
+    406,
+    407,
+    408,
+    409
+   ],
    "red_count_conservation": "7+6+3+2+1+1+2+1+1=24"
+  },
+  {
+   "cell": "governance/issue349-closure",
+   "run_date": "2026-11-22",
+   "produced_at": "2026-11-22T16:45:00+08:00",
+   "baseline_sha": "414b146820ee59e9deba34a64b4f1d25ff8828be",
+   "kind": "governance-closure",
+   "confidence": "mock",
+   "quality": {
+    "verdict": "not-applicable",
+    "note": "红账单收口，非质量门判定。23 格转绿 + 1 格 skip(gap)。全量另有 31 个顺序依赖假红，已另立 #421，不属本单。",
+    "evidence": "cross-repo-regression/2026-11-22/issue349-closure/evidence.md"
+   },
+   "reproduce": "OMNI_TEST_FAKE_LLM=1 .venv_win/Scripts/python.exe -m pytest tests/ -m \"not nightly\" -q --tb=no --basetemp=<fresh>",
+   "artifacts": [
+    "cross-repo-regression/2026-11-22/issue349-closure/evidence.md"
+   ],
+   "children": [
+    401,
+    402,
+    403,
+    404,
+    405,
+    406,
+    407,
+    408,
+    409
+   ],
+   "result": "24 red -> 0 red (23 green + 1 skip gap); 191 passed / 1 skipped / 1 xfailed / 0 failed on 13 affected files"
   }
  ]
 }
