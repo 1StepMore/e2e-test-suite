@@ -187,6 +187,82 @@ def test_gate_skip_goal_bypasses(monkeypatch):
     assert au.cmd_gate(a) == 0
 
 
+# ---------------------------------------------------------------- owner 授意
+def test_gate_authorized_offshift_passes_and_writes_lease(tmp_path, monkeypatch):
+    monkeypatch.setattr(au, "LEASE", tmp_path / "lease.json")
+    monkeypatch.delenv("AUTONOMY_AUTHORIZED", raising=False)
+    rc = au.main(
+        [
+            "gate",
+            "--lane",
+            au.HUMAN,
+            "--skip-goal",
+            "--authorized",
+            "接这个活",
+            "--now",
+            "2026-11-18T15:00:00",
+        ]
+    )
+    assert rc == 0
+    d = au.read_lease()
+    assert d["status"] == "active"
+    assert d["lane"] == au.HUMAN
+    assert d["evidence"] == "接这个活"
+    assert d["source"] == "gate--authorized"
+    assert _dt(d["until"]) == _dt("2026-11-18T19:00:00")  # now + 4h
+
+
+def test_gate_without_authorized_still_refuses_offshift(tmp_path, monkeypatch):
+    monkeypatch.setattr(au, "LEASE", tmp_path / "lease.json")
+    monkeypatch.delenv("AUTONOMY_AUTHORIZED", raising=False)
+    rc = au.main(
+        [
+            "gate",
+            "--lane",
+            au.HUMAN,
+            "--skip-goal",
+            "--now",
+            "2026-11-18T15:00:00",
+        ]
+    )
+    assert rc == 3
+    assert not (tmp_path / "lease.json").exists()
+
+
+def test_gate_authorized_does_not_clobber_active_lease(tmp_path, monkeypatch):
+    lease = tmp_path / "lease.json"
+    monkeypatch.setattr(au, "LEASE", lease)
+    monkeypatch.delenv("AUTONOMY_AUTHORIZED", raising=False)
+    au.write_lease(
+        {
+            "lane": au.HUMAN,
+            "goal": "原目标",
+            "started_at": "2026-11-18T12:00:00+08:00",
+            "until": "2026-11-18T20:00:00+08:00",
+            "granted_by": "owner",
+            "evidence": "chat",
+            "status": "active",
+        }
+    )
+    rc = au.main(
+        [
+            "gate",
+            "--lane",
+            au.HUMAN,
+            "--skip-goal",
+            "--authorized",
+            "接这个活",
+            "--now",
+            "2026-11-18T15:00:00",
+        ]
+    )
+    assert rc == 0
+    d = au.read_lease()
+    assert d["goal"] == "原目标"
+    assert d["until"] == "2026-11-18T20:00:00+08:00"
+    assert d["evidence"] == "chat"
+
+
 def test_goal_cmd_uses_current_interpreter():
     cmd = au.goal_cmd()
     assert cmd is not None
