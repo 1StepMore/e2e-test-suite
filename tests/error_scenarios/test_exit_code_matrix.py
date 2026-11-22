@@ -382,17 +382,59 @@ class TestOLAPIKeyMissing:
     def test_ol_without_api_key_exits_nonzero(self, tmp_workdir):
         f = tmp_workdir / "in.md"
         f.write_text("# x\n")
+        out = tmp_workdir / "out"
+        out.mkdir()
+
+        # Hermetic "no credentials" environment (suite#349 cluster 7 / #406).
+        # The CLI's precheck only fails closed when NO provider key resolves,
+        # so the "no key" premise must be airtight:
+        #   (a) drop EVERY *_API_KEY var (the old table only stripped AMD/ZHIPU,
+        #       leaving e.g. SPARK_API_KEY behind);
+        #   (b) drop OL_CONFIG_PATH and pin an explicit key-less config so a
+        #       gitignored local.yaml cannot supply real keys;
+        #   (c) seal the .env auto-loader — _load_env_for_cli() searches
+        #       ./.env then walks up from cwd, so running from the repo root
+        #       re-injected the repo-root .env's keys and the CLI made a real
+        #       request that happened to exit 0. An existing-but-empty OL_DOTENV
+        #       short-circuits that search before it can reach any .env.
         env = dict(_BASE_ENV)
         env.pop("OMNI_TEST_FAKE_LLM", None)
-        env["PATH"] = str(SUITE_ROOT / ".venv_ol" / "bin") + ":" + env.get("PATH", "")
+        env.pop("OMNI_RUN_REAL_LLM", None)
+        env.pop("OL_CONFIG_PATH", None)
+        for k in list(env):
+            if k.upper().endswith("_API_KEY"):
+                env.pop(k, None)
+        empty_dotenv = tmp_workdir / "empty.env"
+        empty_dotenv.write_text("", encoding="utf-8")
+        env["OL_DOTENV"] = str(empty_dotenv)
+        env["PATH"] = str(_VENV_BIN) + os.pathsep + env.get("PATH", "")
+
+        # Explicit key-less config: ${VAR} placeholders but no values, so the
+        # precheck fail-closes deterministically regardless of which local.yaml
+        # exists on the machine.
+        cfg = tmp_workdir / "keyless.yaml"
+        cfg.write_text(
+            textwrap.dedent(
+                """\
+                llm_pool:
+                  translation:
+                    - {provider: openai, model: gpt-4o-mini, priority: 1, role: translation, api_key: "${ZHIPU_API_KEY}", base_url: "http://localhost:1"}
+                  judging:
+                    - {provider: openai, model: gpt-4o-mini, priority: 1, role: judging, api_key: "${ZHIPU_API_KEY}", base_url: "http://localhost:1"}
+                """
+            ),
+            encoding="utf-8",
+        )
+
         result = subprocess.run(
             [str(OL_BIN), "translate-md", str(f), "-s", "en", "-t", "zh",
-             "-o", str(tmp_workdir)],
+             "-o", str(out), "-c", str(cfg)],
             capture_output=True, text=True, env=env, timeout=60,
+            cwd=str(tmp_workdir),
         )
-        # OL without a config or API key returns a config / key
-        # error. We assert non-zero and that the stderr mentions
-        # a credential or config issue.
+        # OL without a resolvable API key must fail closed: non-zero exit and a
+        # stderr that names the missing credential / config (precheck emits
+        # "no provider API key is configured ... failing (fail-closed)").
         assert result.returncode != 0
         stderr_low = result.stderr.lower()
         assert (
