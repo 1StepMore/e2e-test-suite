@@ -838,7 +838,11 @@ def _select(
 
 def _dirs_to_repo_keys(dirs: list[str | Path]) -> list[str]:
     keys: list[str] = ["suite"]
-    dir_strs = [str(Path(d)) for d in dirs]
+    # Normalize to forward slashes so the ``repo_map`` literals below (which use
+    # "/") match on every platform. ``as_posix()`` is byte-identical to
+    # ``str(Path(d))`` on POSIX, so this only changes Windows, where ``str()``
+    # yields backslashes and the substring match silently never fired.
+    dir_strs = [Path(d).as_posix() for d in dirs]
     repo_map = {
         "opp": "Omni_Pre_Processor/scenarios",
         "ol": "Omni_Localizer/scenarios",
