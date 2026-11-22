@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -219,8 +220,22 @@ def opp_mcp_server(tmp_path_factory):
     )
 
     resource_dir = tmp_path_factory.mktemp("opp_resources")
+    # Allow the platform temp root in addition to the repo root and the
+    # per-session resource dir. pytest's ``tmp_path`` lives under
+    # ``tempfile.gettempdir()`` (on Windows e.g. ``%TEMP%\pytest-of-...``) and is
+    # NOT under REPO_ROOT, so without this every tmp_path-based OPP tool call is
+    # fail-closed with ``OPP_PATH_DENIED`` (e2e#349 cluster 3 / issue #402).
+    # Only the temp root itself is added — never a drive root such as ``C:\`` —
+    # so out-of-allowlist denial (e.g. ``/etc/passwd``) still holds. The
+    # pre-existing literal ``/tmp`` is subsumed by ``gettempdir()`` on POSIX and
+    # was never the real Windows temp on native Windows (ADR 0007 same class).
+    allowed_directories = [
+        REPO_ROOT,
+        resource_dir,
+        Path(tempfile.gettempdir()),
+    ]
     config = MCPConfig(
-        allowed_directories=[REPO_ROOT, resource_dir, Path("/tmp")],
+        allowed_directories=allowed_directories,
         resource_storage_dir=resource_dir,
     )
     _init_server(config)
