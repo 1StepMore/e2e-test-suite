@@ -235,3 +235,15 @@ Suite HEAD as of 2026-09-17: `a2c8b6d` (2026-09-15, loop-log clear-out).
 - **第一缺口（owner 指定）= e2e#349 九簇拆单**：Windows 原生 24 个 deterministic 测试层红按簇拆为可认领子单。架构师定稿发现 owner 原 9 簇只覆盖 23 红（漏 `test_check_module_entry.py` 1 红），补第 10 簇后 24 守恒；裁定 cli_help 红独立新单（#342 已 CLOSED）、exit_code 红属测试侧 env 隔离（非产品失效）。owner 拍板：摘 #349 父账 `owner:human-agent` 标签交棒、C09 走测试侧归一（方案 B）。
 - **交付**：9 子单 #401–#409（C01/C02 合并），红数 7+6+3+2+1+1+2+1+1=24 守恒、零遗漏、标签 `bug,agent-ready`；父账 #349 已摘 owner 标签并留拆单评论。证据入库 `docs/dev/validation-evidence/cross-repo-regression/2026-11-22/issue349-split/`（confidence=mock，非质量绿）。
 - **下一步**：按子单 DoD 逐簇修复（每簇独立 PR），每修一簇全量复跑记红数从 24 递减；之后推进判据①全量矩阵真跑（去 `--skip-run`）、判据②真模型质量门本轮真跑、判据③证据自检脚本补齐后复跑（当前 checkout 该自检脚本缺失，详见 handoff issue 卡点段）。详见 handoff issue。
+
+
+## 2026-11-22 晚班 · e2e#349 收口（9 簇关闭）
+
+- **结果**：24 个平台债测试红 → **0 红剩余**（**23 格转绿 + 1 格带 reason skip**）。9 子单 #401–#409 全部 CLOSED；PR #412–#420 全部 squash merged；父账 #349 已关闭。
+- **验证**（Windows 原生，main `414b146` 内容态，13 个受影响文件）：`191 passed / 1 skipped / 1 xfailed / 0 failed`。
+- **已知缺口（不得读成更大结论）**：
+  - **#421**：全量 `pytest tests/ -m "not nightly"` 仍有 **31 个顺序依赖假红**（抽样 4 文件 17 红单独跑全绿、blob 与 main 一致 ⇒ 测试间污染），Windows 全量未达 0 failed。
+  - **C6**：Windows 无 POSIX SIGINT 语义，该格 skip，**覆盖率 0**，如实计 gap。
+  - **owner 三判据**（矩阵 402 格真跑 / 真模型质量门本轮真跑 / 证据自检脚本）**本轮均未做**。
+- **证据入库**：`docs/dev/validation-evidence/cross-repo-regression/2026-11-22/issue349-closure/`（`confidence=mock`，非质量绿）。
+- **环境限制**：本机 git-over-HTTPS 持续失败（代理 502/schannel），全部 PR 经 GitHub REST API 逐 blob 重建（blob SHA 与本地 commit 一致、DCO 保留）；本地 checkout 仍落后远端 main，接手者需先 `git fetch && git reset --hard origin/main`。
