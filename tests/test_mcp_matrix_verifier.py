@@ -11,6 +11,7 @@ identical skip *totals*. These tests lock in the shared guard.
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 
 from scripts import format_matrix_verifier as fmv  # noqa: E402  (issue #223 P2.1)
@@ -154,14 +155,16 @@ class TestCellEnvParity:
         assert mcp_env["PYTHONPATH"] == cli_env["PYTHONPATH"]
 
     def test_shared_env_carries_venv_site_packages(self, tmp_path):
-        # The PYTHONPATH targets the Linux ELF at .venv_ol/bin/python, so its
-        # separator is ":" by design and its segments are POSIX paths on the
-        # target host. On a Windows test harness str(Path) yields a drive
-        # letter whose ":" would split the segment — assert path segments as
-        # substrings instead, which is platform-agnostic and avoids baking
-        # EVA-01-specific literals into the test (suite#372 contract).
+        # The PYTHONPATH's site-packages segment follows the same platform split
+        # as scripts/format_matrix_verifier._venv_site_packages: .venv_win/Lib on
+        # Windows, .venv_ol/lib on POSIX. Assert the platform-correct venv name +
+        # site-packages (never one hardcoded platform name) so this stays a real
+        # check, not a "non-empty" tautology (suite#372 contract). The path
+        # separator differs per platform, so compare name/suffix as substrings
+        # rather than splitting on ":".
         pp = mmv._mcp_cell_env(tmp_path)["PYTHONPATH"]
-        assert ".venv_ol" in pp and "site-packages" in pp
+        expected_venv = ".venv_win" if os.name == "nt" else ".venv_ol"
+        assert expected_venv in pp and "site-packages" in pp
 
     def test_all_three_module_src_dirs_present(self, tmp_path):
         pp = mmv._mcp_cell_env(tmp_path)["PYTHONPATH"]
