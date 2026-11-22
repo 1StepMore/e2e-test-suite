@@ -219,9 +219,21 @@ def _default_deps_probe(interpreter: str | None = None) -> tuple[list[str], list
 
 
 def _pypandoc_pandoc(interpreter: str | None) -> str:
-    """pypandoc's bundled pandoc binary path, '' when unavailable."""
-    code = ("import pypandoc, os; p = pypandoc.get_pandoc_path(); "
-            "print(p if (p and os.path.isfile(p)) else '')")
+    """pypandoc's bundled pandoc binary path, '' when unavailable.
+
+    ``pypandoc.get_pandoc_path()`` reports the *extensionless* name even on
+    Windows, where the wheel actually ships ``pandoc.exe``. Checking only the
+    reported path is therefore always false there and made this probe report a
+    missing pandoc on every native Windows host. Try the ``.exe`` sibling too;
+    on POSIX the sibling is absent and behaviour is unchanged.
+    """
+    code = (
+        "import os, pypandoc\n"
+        "p = pypandoc.get_pandoc_path()\n"
+        "cands = (p, p + '.exe') if p else ()\n"
+        "hit = next((c for c in cands if os.path.isfile(c)), '')\n"
+        "print(hit)\n"
+    )
     try:
         if interpreter:
             r = subprocess.run(  # noqa: S603
@@ -229,7 +241,10 @@ def _pypandoc_pandoc(interpreter: str | None) -> str:
             return (r.stdout or "").strip() if r.returncode == 0 else ""
         import pypandoc
         p = pypandoc.get_pandoc_path()
-        return p if (p and os.path.isfile(p)) else ""
+        for cand in (p, p + ".exe") if p else ():
+            if os.path.isfile(cand):
+                return cand
+        return ""
     except Exception:  # noqa: BLE001 — any pypandoc/OS failure means "no bundled pandoc"
         return ""
 
