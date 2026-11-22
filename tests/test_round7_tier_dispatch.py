@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,12 @@ _SUITE_ROOT = Path(__file__).resolve().parents[1]
 _E2E_RUNNER = _SUITE_ROOT / "tests" / "e2e_runner.py"
 _OMO_LOOP = _SUITE_ROOT / "scripts" / "omo_loop.py"
 _PHASE1 = _SUITE_ROOT / "scripts" / "phase1_runner.py"
+
+# Platform-correct stand-in for a fake input docx. The old literal
+# ``Path("/tmp/fake.docx")`` became ``\\tmp\\fake.docx`` on native Windows, so
+# ``_run_tier_2`` passed a backslash argv while the assert looked for a slash
+# one. Derive both the value and the assertion from this single source.
+_FAKE_DOCX = Path(tempfile.gettempdir()) / "fake.docx"
 
 
 def _run(cmd: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
@@ -100,7 +107,7 @@ class TestOmoLoopTierDispatch:
         # Build a fake args namespace
         from argparse import Namespace
         args = Namespace(
-            input=Path("/tmp/fake.docx"),
+            input=_FAKE_DOCX,
             source_lang="en",
             target_lang="zh",
             config=None,
@@ -111,7 +118,7 @@ class TestOmoLoopTierDispatch:
         # Must include e2e_runner.py
         assert any("e2e_runner.py" in c for c in cmd), f"e2e_runner.py missing: {cmd}"
         # Must include --input + --source-lang + --target-lang
-        assert "--input" in cmd and "/tmp/fake.docx" in cmd, f"--input missing: {cmd}"
+        assert "--input" in cmd and str(_FAKE_DOCX) in cmd, f"--input missing: {cmd}"
         assert "--source-lang" in cmd and "en" in cmd, f"--source-lang missing: {cmd}"
         assert "--target-lang" in cmd and "zh" in cmd, f"--target-lang missing: {cmd}"
 
@@ -129,7 +136,7 @@ class TestOmoLoopTierDispatch:
 
         from argparse import Namespace
         args = Namespace(
-            input=Path("/tmp/fake.docx"),
+            input=_FAKE_DOCX,
             source_lang="zh",
             target_lang="en",
         )
@@ -151,7 +158,7 @@ class TestOmoLoopTierDispatch:
         monkeypatch.setattr("subprocess.run", mock_run)
 
         from argparse import Namespace
-        args = Namespace(input=Path("/tmp/fake.docx"), source_lang="zh", target_lang="en")
+        args = Namespace(input=_FAKE_DOCX, source_lang="zh", target_lang="en")
         _run_tier_4(args)
         cmd = captured["cmd"]
         assert "P2" in cmd, f"--tier P2 missing: {cmd}"
@@ -174,7 +181,7 @@ class TestOmoLoopTierDispatch:
         monkeypatch.setattr("subprocess.run", mock_run)
 
         from argparse import Namespace
-        args = Namespace(input=Path("/tmp/fake.docx"), source_lang="zh", target_lang="en")
+        args = Namespace(input=_FAKE_DOCX, source_lang="zh", target_lang="en")
         _run_tier_5(args)
         assert len(calls) == 6, f"Expected 6 pytest runs; got {len(calls)}"
         for cmd in calls:
