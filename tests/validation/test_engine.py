@@ -123,7 +123,7 @@ def test_unconfigured_steps_do_not_run(tmp_path, monkeypatch):
     marker = tmp_path / "marker.txt"
     _write(tmp_path, "gated.yaml", _scenario(
         "gated", requires_env=f"[{MISSING_VAR}]",
-        steps=f'  - name: "touch"\n    kind: cli\n    command: "touch {marker}"\n'
+        steps=f'  - name: "touch"\n    kind: cli\n    command: "touch {marker.as_posix()}"\n'
               "    expect:\n      success: true"))
     run_scenarios(tmp_path, persist=False)
     assert not marker.exists()
@@ -213,7 +213,7 @@ def test_unconfigured_or_group_unsatisfied_never_runs_steps(tmp_path):
     marker = tmp_path / "or-marker.txt"
     _write(tmp_path, "or-gated.yaml", _scenario(
         "or-gated", requires_env_any="[OMNI_OR_A, OMNI_OR_B]",
-        steps=f'  - name: "touch"\n    kind: cli\n    command: "touch {marker}"\n'
+        steps=f'  - name: "touch"\n    kind: cli\n    command: "touch {marker.as_posix()}"\n'
               "    expect:\n      success: true"))
     sc = run_scenarios(
         tmp_path, env={"PATH": os.environ.get("PATH", "")}, persist=False
@@ -378,7 +378,7 @@ def test_all_pass_ignores_policy_returns_passed(tmp_path):
 
 def test_cleanup_runs_and_does_not_affect_verdict(tmp_path):
     marker = tmp_path / "cleaned.txt"
-    cleanup = (f'  - name: "cleanup"\n    kind: cli\n    command: "touch {marker}"\n'
+    cleanup = (f'  - name: "cleanup"\n    kind: cli\n    command: "touch {marker.as_posix()}"\n'
                "    expect:\n      success: true")
     _write(tmp_path, "c.yaml", _scenario("c", steps=_cli_steps("true"), cleanup_steps=cleanup))
     sc = run_scenarios(tmp_path, persist=False).scenarios[0]
@@ -399,7 +399,7 @@ def test_cleanup_failure_does_not_fail_scenario(tmp_path):
 
 def test_cleanup_runs_after_failed_scenario(tmp_path):
     marker = tmp_path / "cleaned.txt"
-    cleanup = (f'  - name: "cleanup"\n    kind: cli\n    command: "touch {marker}"\n'
+    cleanup = (f'  - name: "cleanup"\n    kind: cli\n    command: "touch {marker.as_posix()}"\n'
                "    expect:\n      success: true")
     _write(tmp_path, "c.yaml", _scenario("c", steps=_cli_steps("false"), cleanup_steps=cleanup))
     sc = run_scenarios(tmp_path, persist=False).scenarios[0]
@@ -852,7 +852,7 @@ def test_persist_creates_runs_dir(tmp_path):
 
 def test_persist_record_content_deep(tmp_path):
     marker = tmp_path / "cleaned.txt"
-    cleanup = (f'  - name: "cleanup"\n    kind: cli\n    command: "touch {marker}"\n'
+    cleanup = (f'  - name: "cleanup"\n    kind: cli\n    command: "touch {marker.as_posix()}"\n'
                "    expect:\n      success: true")
     runs = tmp_path / "runs"
     _write(tmp_path, "gated.yaml",
