@@ -5,8 +5,8 @@
  control.
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --version          Show version                                              │
-│ --help             Show this message and exit.                               │
+│ --version        <bool>  Show version                                        │
+│ --help           <bool>  Show this message and exit.                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
 │ translate-md                                                                 │
