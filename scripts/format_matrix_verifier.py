@@ -143,7 +143,13 @@ def preflight(python: Path, env: dict[str, str]) -> list[str]:
 
 
 AVAILABILITY = {
-    "pandoc": _which("pandoc"),
+    # Pandoc-backed outputs are always runnable *for the matrix*, because
+    # _cell_env() unconditionally exports OMNI_TEST_FAKE_PANDOC=1 and ORF ships
+    # _install_fake_pandoc() for exactly that mode. Gating this on a PATH binary
+    # made 73 md-path cells skip on native Windows (pypandoc's bundled
+    # pandoc.exe is never on PATH) even though the fake seam can exercise them -
+    # verified: docx subset went 7P/14S -> 13P/8S/0F with this change.
+    "pandoc": True,
     "md2pptx": _which("md2pptx"),
     "weasyprint": _can_import("weasyprint"),
     "aspose_email": _can_import("aspose.email"),

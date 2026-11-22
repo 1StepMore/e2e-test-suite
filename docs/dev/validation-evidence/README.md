@@ -28,7 +28,8 @@ docs/dev/validation-evidence/
 
 - `quality.verdict=pass` 必须带 `quality.evidence`，且该文件存在非空 —— 否则**按 fail 计**。
 - 每格只保留最新一轮；历史靠 `manifest.json` 的 `produced_at` 追溯。
-- 自检：`python3 99-Tools/check_evidence_committed.py <repo>`（exit 0 才达标）。
+- 自检（本仓，随仓携带）：`python3 scripts/check_evidence_committed.py`（exit 0 才达标；退出码 0/1/2 = 通过 / 违规 / 清单不可判）。
+  workspace 根若有 `99-Tools/check_evidence_committed.py`（协议真身）可继续用；两者规则一致，本仓副本保证「开箱即用」。
 - 本仓矩阵：**cross-repo-regression**（跑法见 AGENTS.md 的验证段）。
 
 ## 交叉审计分工
