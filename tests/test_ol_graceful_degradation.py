@@ -166,6 +166,20 @@ class TestOLGracefulDegradation:
         - Network loss: manifests as per-unit Exceptions → fallback to source
         - Mid-pipeline crash: no recovery — partial output on disk
         """
+        if os.name == "nt":
+            # Windows has no POSIX SIGINT semantics: Popen.send_signal(SIGINT)
+            # raises "Unsupported signal: 2", and a console CTRL_C_EVENT is the
+            # only OS path to SIGINT — it cannot be delivered to a
+            # CREATE_NEW_PROCESS_GROUP child (verified empirically: the child
+            # never receives it; CTRL_BREAK_EVENT maps to SIGBREAK, which this
+            # CLI does not handle, so it would not exit 3 either). The
+            # SIGINT -> exit-code-3 contract is covered on POSIX CI; on Windows
+            # this is a documented coverage gap, not a false green.
+            pytest.skip(
+                "Windows cannot deliver POSIX SIGINT to a child process; "
+                "SIGINT->exit-3 is covered on POSIX CI. Tracked as a Windows "
+                "parity gap (suite#349 cluster 6 / #405)."
+            )
         batch_dir = tmp_path / "batch"
         batch_dir.mkdir()
         # Enough files that the FAKE_LLM batch is still mid-run when SIGINT
