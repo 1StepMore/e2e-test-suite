@@ -14,14 +14,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Metric | Value |
 |--------|-------|
 | Total files | 79 |
-| Total lines | 36870 |
+| Total lines | 36946 |
 | Active files | 54 |
 | Archived files | 25 |
 | Category — archive | 25 files / 25581 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 32 files / 3753 lines |
-| Category — docs/root | 19 files / 6194 lines |
+| Category — docs/dev | 32 files / 3819 lines |
+| Category — docs/root | 19 files / 6204 lines |
 
 ## Inventory
 
@@ -34,7 +34,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
 | `HANDOVER.md` | 620 | docs/root | active | — |
-| `NIGHTLY.md` | 280 | docs/root | active | — |
+| `NIGHTLY.md` | 290 | docs/root | active | — |
 | `PRD.md` | 61 | docs/root | active | — |
 | `RELEASE_NOTES.md` | 871 | docs/root | active | — |
 | `SECURITY.md` | 250 | security | active | — |
@@ -94,7 +94,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/validation-director-loop.md` | 295 | docs/dev | active | — |
 | `dev/validation-evidence/README.md` | 37 | docs/dev | active | — |
 | `dev/validation-evidence/manifest.json` | 4 | docs/dev | active | — |
-| `dev/validation-loop-log.md` | 460 | docs/dev | active | — |
+| `dev/validation-loop-log.md` | 526 | docs/dev | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |

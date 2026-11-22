@@ -106,6 +106,16 @@ cd <repo>
 
 ## 【活区】当前差距矩阵（真基线 2026-10-01）
 
+### 2026-11-22 夜间复跑（在最新 main `172d68fe` 上）
+
+批跑（02:00，systemd `nightly-gap.service`，网关进程树外，`.venv_ol/bin/python scripts/nightly_gap.py`）：**exit 0 —— `gap_units 0`**（`test_artifacts/nightly/gap.json`：`total_units 402` / `passing_units 298` / `failed 0` / `skipped 104` / `max_skip 52` / `channel_divergence 0`）。
+
+- per_channel：CLI `total 201 / passed 149 / skipped 52 / failed 0 / exempt 21 / signed_debt 31 / needs_cleanup 0`；MCP 同形同数。
+- skip 构成（104）：豁免 42（CLI 21 + MCP 21，全部是夹具内容依赖：MD→SRT 8 / MD→JSON 8 / MD→CSV 5）+ 2026-11-19 owner 签字移出的结构性拒绝 62（#374）= 104，**需清理 0**。
+- 回归护栏：`regression_gap 0`（≤ 基线 52/通道，且无逐格分叉）。
+- 与 2026-10-10 那次（`gap_units 58`）的差额来自 11-19 的能力债签字移出，**不是新达标**；判据本身未放宽、矩阵形状仍是 201 格 × 2 通道 = 402。
+- **最终裁决仍由 owner 保留**（见【冻结区】）——本文件只记录机器判据的结果，不代表「计划完成」。
+
 ### 2026-10-24 批跑入口与处理预算（#212）
 > 📦 **本节内容已迁出（2026-10-24 边界整改）**：跨仓批跑记录（AutoInfo / AutoMedia / Omni 三条产线 +
 > 六仓同步基点）归属 workspace 级运维，不再放在本仓。
