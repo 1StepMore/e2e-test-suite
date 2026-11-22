@@ -42,6 +42,33 @@ MODULES: tuple[tuple[str, str], ...] = (
 #: Windows bootstrap written by ``scripts/setup_dev.ps1``).
 VENV_NAMES = (".venv", ".venv_ol", ".venv_win")
 
+
+def venv_site_packages(venv: Path, *, create: bool = False) -> list[Path]:
+    """Return this platform's site-packages directories inside ``venv``.
+
+    POSIX venvs keep packages in ``lib/pythonX.Y/site-packages`` (globbed so
+    any interpreter version is found); Windows venvs use ``Lib/site-packages``.
+    This is the single source of truth for the layout, shared by the gate and
+    by fixtures that plant synthetic editable ``.pth`` files, so the two can
+    never drift apart again.
+
+    With ``create=True`` a concrete directory is materialised (using the
+    running interpreter's version on POSIX) and returned — what a fixture
+    needs before writing a ``.pth`` into it.
+    """
+    if os.name == "nt":
+        dirs: list[Path] = [venv / "Lib" / "site-packages"]
+    else:
+        dirs = sorted(venv.glob("lib/python*/site-packages"))
+        if not dirs and create:
+            version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+            dirs = [venv / "lib" / version / "site-packages"]
+    if create:
+        for path in dirs:
+            path.mkdir(parents=True, exist_ok=True)
+    return dirs
+
+
 #: Filename/path tokens that map a ``.pth`` to a module.
 _MODULE_TOKENS: dict[str, tuple[str, ...]] = {
     "Omni_Pre_Processor": ("omni_pre_processor", "pre_processor", "preprocessor"),
@@ -113,11 +140,7 @@ def _iter_pths(root: Path) -> list[Path]:
         venv = root / name
         if not venv.is_dir():
             continue
-        if os.name == "nt":
-            layouts: list[Path] = [venv / "Lib" / "site-packages"]
-        else:
-            layouts = sorted(venv.glob("lib/python*/site-packages"))
-        for site_packages in layouts:
+        for site_packages in venv_site_packages(venv):
             if site_packages.is_dir():
                 pths.extend(sorted(site_packages.glob("*.pth")))
     return pths
