@@ -57,17 +57,48 @@ def _can_import(name: str) -> bool:
 REQUIRED_MODULES = ("opp.cli", "ol_cli", "orf")
 
 
+def _safe_exists(path: Path) -> bool:
+    """``exists()`` that survives unstat-able paths.
+
+    Windows stat'ing into a WSL checkout (e.g. ``.venv_ol``) raises
+    ``OSError [WinError 1920]`` instead of returning False — the probe must
+    treat that as "not usable here", not crash the whole matrix.
+    """
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
 def _select_interpreter(suite_root: Path) -> Path:
     """The interpreter the cells will run under.
 
     Factored out so ``preflight`` probes exactly what the cells will use.
     A preflight that checked a *different* interpreter would pass while
     every cell failed.
+
+    Platform-aware (same family as validation dispatch #321, which covered
+    only ``omni_mcp/validation/dispatch.py``): POSIX prefers ``.venv_ol``,
+    Windows prefers ``.venv_win``; the other platform's venv stays a fallback
+    for WSL checkouts inspected from either side.
     """
-    py = suite_root / ".venv_ol" / "bin" / "python"
-    if py.exists():
-        return py
+    candidates = [
+        suite_root / ".venv_ol" / "bin" / "python",
+        suite_root / ".venv_win" / "Scripts" / "python.exe",
+    ]
+    if os.name == "nt":
+        candidates.reverse()
+    for candidate in candidates:
+        if _safe_exists(candidate):
+            return candidate
     return Path(sys.executable)
+
+
+def _venv_site_packages(suite_root: Path) -> Path:
+    """The platform-matching venv site-packages directory."""
+    if os.name == "nt":
+        return suite_root / ".venv_win" / "Lib" / "site-packages"
+    return suite_root / ".venv_ol" / "lib" / "python3.13" / "site-packages"
 
 
 def _cell_env(suite_root: Path) -> dict[str, str]:
@@ -80,12 +111,12 @@ def _cell_env(suite_root: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["OMNI_TEST_FAKE_LLM"] = "1"
     env["OMNI_TEST_FAKE_PANDOC"] = "1"
-    env["PYTHONPATH"] = ":".join(filter(None, [
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [
         env.get("PYTHONPATH", ""),
         str(suite_root / "Omni_Pre_Processor" / "src"),
         str(suite_root / "Omni_Localizer" / "src"),
         str(suite_root / "Omni_Re_Formatter" / "src"),
-        str(suite_root / ".venv_ol" / "lib" / "python3.13" / "site-packages"),
+        str(_venv_site_packages(suite_root)),
     ]))
     return env
 
