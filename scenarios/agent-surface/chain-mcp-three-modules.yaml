@@ -10,6 +10,7 @@ requires_env:
 requires_env_any:
   - AMD_API_KEY
   - ZHIPU_API_KEY
+  - SPARK_API_KEY
 instructions: |
   Issue e2e-test-suite#292, chain type 2: the same three-module job as the
   CLI chain, but every hop is a real MCP tool FUNCTION call with structured
