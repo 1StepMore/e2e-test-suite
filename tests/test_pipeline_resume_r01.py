@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -29,7 +30,11 @@ from omni_suite import cli
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE_DOCX = SUITE_ROOT / "tests" / "production" / "small_fixture.docx"
-PIPELINE_TMP_ROOT = Path("/tmp/omni-suite-pipeline")
+# Derive from the OS temp root so this matches where ``omni_suite.cli`` writes
+# its checkpoints (``Path(tempfile.gettempdir()) / "omni-suite-pipeline"``). The
+# old literal ``/tmp/...`` resolved to the *current drive root* on native
+# Windows (D:\tmp\...) and never matched the product's real manifest dir.
+PIPELINE_TMP_ROOT = Path(tempfile.gettempdir()) / "omni-suite-pipeline"
 
 
 # ---------------------------------------------------------------------------
