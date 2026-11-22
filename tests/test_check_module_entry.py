@@ -37,9 +37,13 @@ def _write_module(
 
 
 def _write_pth(root: Path, name: str, target: str) -> None:
-    """Write a venv editable ``.pth`` pointing at ``target``."""
-    site_packages = root / ".venv/lib/python3.13/site-packages"
-    site_packages.mkdir(parents=True, exist_ok=True)
+    """Write a venv editable ``.pth`` pointing at ``target``.
+
+    Use the gate's own venv-layout helper so the fixture and the gate agree on
+    where a ``.pth`` lives on this platform (POSIX ``lib/pythonX.Y`` vs Windows
+    ``Lib``) instead of hard-coding one layout in the test.
+    """
+    site_packages = cme.venv_site_packages(root / ".venv", create=True)[0]
     (site_packages / name).write_text(target + "\n", encoding="utf-8")
 
 
