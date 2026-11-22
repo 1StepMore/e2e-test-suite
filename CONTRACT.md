@@ -118,6 +118,34 @@ OPP produces XLIFF 1.2. Required elements:
 3. ORF MUST receive the skeleton.zip alongside the translated XLIFF.
 4. `trans-unit` IDs MUST be stable across extraction and translation.
 
+### OPP ↔ ORF boundary (written conclusion, 2026-11-21)
+
+The skeleton↔converter coupling is **same-format-only, by design**:
+
+1. **What OPP ships to ORF**: `--target-format both` produces `skeleton.zip`
+   keyed to the INPUT's container format; XLIFF is format-preserving across
+   the whole OPP → OL → ORF path.
+2. **What ORF accepts**: `apply_xliff` is a same-container re-injector — it
+   reads the skeleton, rewrites text nodes, and repacks the SAME container
+   (the skeleton IS the output format). Three refusal layers guard this
+   (extension check, ZIP content check, converter `validate_input` gate —
+   `Orf_Re_Formatter#64`); a mismatched skeleton is refused with a clear
+   error, and `--force` is accepted but inert (Critical Notes #4).
+3. **Cross-format is structurally impossible, owner-signed** (2026-11-19,
+   #374): every `xliff2*` converter has no neutral model/render stage —
+   which is exactly what the MD path is. Correct path: `orf apply-md
+   --target-format <fmt>` (16 outputs). The 31/通道 refusing cells are
+   `signed_debt` in the matrix (not gap_units); the refusal layers MUST
+   stay (relaxing them reproduces the pre-#64 behaviour of writing
+   source-format bytes under a target extension).
+4. **Tolerance on the same-format path**: `apply_xliff` to DOCX tolerates
+   small text mismatches (5-char length diff, 0.85 ratio — E2E-07) and
+   retries previously-SKIPPED units.
+
+Anchors: `ACCEPTED_GAPS.md`「Why the cross-format bucket is structural」;
+matrix policy `scripts/nightly_gap.py` STRUCTURAL_REFUSAL_*; ORF refusal
+layers `apply_xliff.py:232-245/247-271/397-405`.
+
 ### Table Cell Coordinates (`resname`)
 
 Table cell text is addressed by a positional `resname` with this grammar:
