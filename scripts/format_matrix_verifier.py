@@ -101,16 +101,38 @@ def _venv_site_packages(suite_root: Path) -> Path:
     return suite_root / ".venv_ol" / "lib" / "python3.13" / "site-packages"
 
 
-def _cell_env(suite_root: Path) -> dict[str, str]:
+def _cell_env(
+    suite_root: Path,
+    real_llm: bool = False,
+    real_pandoc: bool = False,
+) -> dict[str, str]:
     """The environment every cell subprocess runs under.
 
     The three modules are resolved through ``PYTHONPATH``, not through an
     installed distribution, so the preflight has to import them with this
     same env or it will probe a path the cells never use.
+
+    The fake seams are ON by default so the matrix runs without network access
+    or an external pandoc binary. They are **not transparent**, though:
+
+    * ``OMNI_TEST_FAKE_LLM`` echoes the source prefixed with ``[zh] ``, which
+      breaks markdown table syntax (the header row stops starting with ``|``).
+    * ``OMNI_TEST_FAKE_PANDOC`` returns a fixed template, so the artifact is
+      unrelated to the input.
+
+    A cell run under either seam proves pipeline wiring only — never content
+    quality. Pass ``real_llm`` / ``real_pandoc`` to turn them off and measure
+    what the product actually produces (needs an LLM key / a real pandoc).
     """
     env = os.environ.copy()
-    env["OMNI_TEST_FAKE_LLM"] = "1"
-    env["OMNI_TEST_FAKE_PANDOC"] = "1"
+    if not real_llm:
+        env["OMNI_TEST_FAKE_LLM"] = "1"
+    else:
+        env.pop("OMNI_TEST_FAKE_LLM", None)
+    if not real_pandoc:
+        env["OMNI_TEST_FAKE_PANDOC"] = "1"
+    else:
+        env.pop("OMNI_TEST_FAKE_PANDOC", None)
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [
         env.get("PYTHONPATH", ""),
         str(suite_root / "Omni_Pre_Processor" / "src"),
@@ -524,6 +546,7 @@ def _resolve_fixture(inp: str, dest: Path, corpus_mode: str, suite_root: Path) -
 def _run_one_cell(
     suite_root: Path, inp: str, outp: str, path: str, tmp_root: Path,
     corpus_mode: str = "minimal", fidelity_enabled: bool = False,
+    real_llm: bool = False, real_pandoc: bool = False,
 ) -> CellResult:
     """Run a single input→output cell end-to-end via the chosen path.
 
@@ -548,7 +571,7 @@ def _run_one_cell(
     if not _resolve_fixture(inp, src, corpus_mode, suite_root):
         return CellResult(inp, outp, path, "skip", 0.0, skip_reason=f"no fixture for {inp}")
 
-    env = _cell_env(suite_root)
+    env = _cell_env(suite_root, real_llm=real_llm, real_pandoc=real_pandoc)
     py = _select_interpreter(suite_root)
 
     if path == "md":
@@ -967,7 +990,20 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
 # Reporting
 # ---------------------------------------------------------------------------
 
+def _is_real_conversion(c: "CellResult") -> bool:
+    """True when the cell's output came from a real converter, not the fake-pandoc seam.
+
+    ``_cell_env()`` exports ``OMNI_TEST_FAKE_PANDOC=1`` for every cell, and ORF
+    swaps pandoc for a fixed-template stub in that mode. A fidelity score taken
+    against a stub measures nothing (e2e#429), so the report has to say which is
+    which — otherwise a reader sees 149 PASS and assumes real conversions.
+    """
+    return c.path == "xliff" or _AVAIL_MAP.get(c.outp) != "pandoc"
+
+
 def _render_markdown(result: MatrixResult) -> str:
+    real_n = sum(1 for c in result.cells if c.status == "pass" and _is_real_conversion(c))
+    stub_n = sum(1 for c in result.cells if c.status == "pass" and not _is_real_conversion(c))
     lines = [
         "# Format Matrix Verifier",
         "",
@@ -977,14 +1013,22 @@ def _render_markdown(result: MatrixResult) -> str:
         f"**Fail**: {result.failed} | "
         f"**Duration**: {result.total_duration_s:.1f}s",
         "",
-        "| Path | Input | Output | Status | Time | Detail |",
-        "|-------|-------|--------|--------|------|--------|",
+        f"> **Pandoc-backed outputs run against a fake seam** "
+        f"(`OMNI_TEST_FAKE_PANDOC=1`, see `_cell_env()`): {stub_n} passing cell(s) verify "
+        f"pipeline wiring only — their `Real` column is `no` and any fidelity score is "
+        f"meaningless (e2e#429). {real_n} passing cell(s) used a real converter (`Real` = "
+        f"`yes`) and their scores are meaningful.",
+        "",
+        "| Path | Input | Output | Status | Time | Real | Fid | Detail |",
+        "|-------|-------|--------|--------|------|------|-----|--------|",
     ]
     for c in result.cells:
         d = c.detail or c.skip_reason
+        real = "yes" if _is_real_conversion(c) else "no"
+        fid = f"{c.fidelity:.2f}" if c.fidelity else "—"
         lines.append(
             f"| {c.path} | {c.inp} | {c.outp} | {c.status.upper()} | "
-            f"{c.duration_s:.1f}s | {d[:50]} |"
+            f"{c.duration_s:.1f}s | {real} | {fid} | {d[:50]} |"
         )
     lines.append("")
     if result.failed:
@@ -1019,6 +1063,14 @@ def main() -> int:
     parser.add_argument("--corpus", choices=["minimal", "real"], default="minimal",
                         help="Fixture source: 'minimal' = hand-crafted tiny files; "
                              "'real' = test_corpus/ with tables, images, complex formatting.")
+    parser.add_argument("--real-llm", action="store_true",
+                        help="Disable the OMNI_TEST_FAKE_LLM seam: call the real LLM. "
+                             "Needed for any content-quality measurement (the fake echoes "
+                             "the source with a '[zh] ' prefix, which breaks markdown tables).")
+    parser.add_argument("--real-pandoc", action="store_true",
+                        help="Disable the OMNI_TEST_FAKE_PANDOC seam: run real pandoc. "
+                             "Without it, docx/odt/epub/rtf/icml outputs are a fixed "
+                             "template unrelated to the input (e2e#429).")
     parser.add_argument("--fidelity", action="store_true",
                         help="Compute content fidelity scores (text/table/image preservation) "
                              "after each successful cell. Requires --corpus real for meaningful scores.")
@@ -1034,7 +1086,7 @@ def main() -> int:
     # 195 cells red and sends the nightly loop to debug cells that were never
     # broken. Refuse to emit a matrix, and name the interpreter probed.
     interpreter = _select_interpreter(suite_root)
-    cell_env = _cell_env(suite_root)
+    cell_env = _cell_env(suite_root, real_llm=args.real_llm, real_pandoc=args.real_pandoc)
     missing = [] if args.skip_preflight else preflight(interpreter, cell_env)
     print(f"Interpreter: {interpreter}")
     if missing:
@@ -1071,7 +1123,8 @@ def main() -> int:
     if args.parallel <= 1:
         for inp, outp, path in cells:
             c = _run_one_cell(suite_root, inp, outp, path, tmp_root,
-                              corpus_mode=args.corpus, fidelity_enabled=args.fidelity)
+                              corpus_mode=args.corpus, fidelity_enabled=args.fidelity,
+                              real_llm=args.real_llm, real_pandoc=args.real_pandoc)
             result.cells.append(c)
             fid_str = f"  fid={c.fidelity:.2f}" if c.fidelity else ""
             print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s){fid_str}"
@@ -1083,7 +1136,8 @@ def main() -> int:
         with ThreadPoolExecutor(max_workers=args.parallel) as pool:
             futures = {
                 pool.submit(_run_one_cell, suite_root, inp, outp, path, tmp_root,
-                            args.corpus, args.fidelity): (inp, outp, path)
+                            args.corpus, args.fidelity, args.real_llm,
+                            args.real_pandoc): (inp, outp, path)
                 for inp, outp, path in cells
             }
             cell_results: dict[tuple[str, str, str], CellResult] = {}
