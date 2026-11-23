@@ -1009,6 +1009,65 @@ def _is_real_conversion(c: CellResult) -> bool:
     return c.path == "xliff" or _AVAIL_MAP.get(c.outp) != "pandoc"
 
 
+def _append_cell_jsonl(out_dir: Path, cell: CellResult) -> None:
+    """Append one finished cell to ``cells.jsonl`` (e2e#431).
+
+    The full run is ~100 minutes and routinely wrapped in ``timeout``, so a
+    kill between cells used to discard every completed cell: ``matrix.md`` is
+    only written after the whole loop. One JSON line per cell means a killed
+    run still leaves its results on disk, and they can be re-rendered without
+    re-running the cells.
+
+    Best-effort by design: a write failure must never take down a matrix run.
+    """
+    record = {
+        "inp": cell.inp,
+        "outp": cell.outp,
+        "path": cell.path,
+        "status": cell.status,
+        "duration_s": round(cell.duration_s, 2),
+        "fidelity": cell.fidelity,
+        "detail": cell.detail,
+        "skip_reason": cell.skip_reason,
+    }
+    try:
+        with open(out_dir / "cells.jsonl", "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+    except OSError:
+        pass
+
+
+def _load_cells_jsonl(path: Path) -> list[CellResult]:
+    """Rebuild CellResult objects from an interrupted run's ``cells.jsonl``.
+
+    Lets a killed run be re-rendered without paying the 100-minute cost again
+    (e2e#431). Malformed lines are skipped rather than aborting: a run killed
+    mid-write can leave a truncated final line.
+    """
+    cells: list[CellResult] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        cells.append(CellResult(
+            inp=rec.get("inp", ""),
+            outp=rec.get("outp", ""),
+            path=rec.get("path", ""),
+            status=rec.get("status", "fail"),
+            duration_s=float(rec.get("duration_s") or 0.0),
+            fidelity=float(rec.get("fidelity") or 0.0),
+            detail=rec.get("detail", "") or "",
+            skip_reason=rec.get("skip_reason", "") or "",
+        ))
+    return cells
+
+
 def _render_markdown(result: MatrixResult) -> str:
     real_n = sum(1 for c in result.cells if c.status == "pass" and _is_real_conversion(c))
     stub_n = sum(1 for c in result.cells if c.status == "pass" and not _is_real_conversion(c))
@@ -1060,6 +1119,11 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=None,
                         help="Where to write the per-cell artifacts. Default: test_artifacts/format_matrix/<timestamp>")
     parser.add_argument("--json", action="store_true", help="Output JSON instead of markdown")
+    parser.add_argument(
+        "--from-jsonl", type=Path, default=None, metavar="DIR",
+        help="Re-render matrix.md from an interrupted run's DIR/cells.jsonl "
+             "instead of running cells (e2e#431)",
+    )
     parser.add_argument("--subset", type=str, default=None,
                         help="Comma-separated input formats to test (e.g. 'docx,pptx'). "
                              "Default: full matrix.")
@@ -1087,6 +1151,24 @@ def main() -> int:
                              "deliberately want the per-cell verdicts from an incomplete "
                              "environment, e.g. to inspect which cells skip.")
     args = parser.parse_args()
+
+    # Re-render path: an interrupted run already paid the cell cost, so
+    # rebuilding the report must not re-run anything (e2e#431).
+    if args.from_jsonl is not None:
+        src_dir = args.from_jsonl.resolve()
+        jsonl = src_dir / "cells.jsonl"
+        if not jsonl.exists():
+            print(f"ERROR: {jsonl} not found", flush=True)
+            return 2
+        rebuild = MatrixResult()
+        rebuild.cells = _load_cells_jsonl(jsonl)
+        rebuild.total_duration_s = sum(c.duration_s for c in rebuild.cells)
+        md_path = src_dir / "matrix.md"
+        md_path.write_text(_render_markdown(rebuild), encoding="utf-8")
+        print(f"Re-rendered {len(rebuild.cells)} cells "
+              f"(pass={rebuild.passed} skip={rebuild.skipped} fail={rebuild.failed})")
+        print(f"Report: {md_path}")
+        return 0 if rebuild.failed == 0 else 1
 
     suite_root: Path = args.suite_root.resolve()
 
@@ -1135,6 +1217,7 @@ def main() -> int:
                               real_llm=args.real_llm, real_pandoc=args.real_pandoc,
                               cell_timeout=args.timeout)
             result.cells.append(c)
+            _append_cell_jsonl(out_dir, c)
             fid_str = f"  fid={c.fidelity:.2f}" if c.fidelity else ""
             print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s){fid_str}"
                   f"{'  ' + c.detail if c.detail else ''}"
@@ -1157,6 +1240,7 @@ def main() -> int:
                 except Exception as e:
                     c = CellResult(inp, outp, path, "fail", 0.0, detail=f"runner exception: {e}")
                 cell_results[(inp, outp, path)] = c
+                _append_cell_jsonl(out_dir, c)
                 print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s)"
                       f"{'  ' + c.detail if c.detail else ''}"
                       f"{'  [' + c.skip_reason + ']' if c.skip_reason else ''}",
