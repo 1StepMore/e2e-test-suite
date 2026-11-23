@@ -998,7 +998,7 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
 # Reporting
 # ---------------------------------------------------------------------------
 
-def _is_real_conversion(c: "CellResult") -> bool:
+def _is_real_conversion(c: CellResult) -> bool:
     """True when the cell's output came from a real converter, not the fake-pandoc seam.
 
     ``_cell_env()`` exports ``OMNI_TEST_FAKE_PANDOC=1`` for every cell, and ORF
