@@ -203,7 +203,11 @@ _AVAIL_MAP: dict[str, str] = {
     "epub": "pandoc",
     "rtf": "pandoc",
     "icml": "pandoc",
-    "pdf": "pandoc",
+    # PDF is NOT pandoc-backed: ORF renders MD→PDF with WeasyPrint (pure
+    # Python). README: "Pure Python path: MD→HTML and MD→PDF (weasyprint
+    # engine) do not depend on pandoc." Mapping it to pandoc made the report
+    # label real PDF conversions as fake-seam cells.
+    "pdf": "weasyprint",
     "pptx": "md2pptx",
     "msg": "aspose_email",
 }
@@ -546,7 +550,7 @@ def _resolve_fixture(inp: str, dest: Path, corpus_mode: str, suite_root: Path) -
 def _run_one_cell(
     suite_root: Path, inp: str, outp: str, path: str, tmp_root: Path,
     corpus_mode: str = "minimal", fidelity_enabled: bool = False,
-    real_llm: bool = False, real_pandoc: bool = False,
+    real_llm: bool = False, real_pandoc: bool = False, cell_timeout: int = 120,
 ) -> CellResult:
     """Run a single input→output cell end-to-end via the chosen path.
 
@@ -575,9 +579,11 @@ def _run_one_cell(
     py = _select_interpreter(suite_root)
 
     if path == "md":
-        result = _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
+        result = _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0,
+                              cell_timeout=cell_timeout)
     elif path == "xliff":
-        result = _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
+        result = _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0,
+                                 cell_timeout=cell_timeout)
     else:
         return CellResult(inp, outp, path, "fail", time.monotonic() - t0,
                           detail=f"unknown path: {path}")
@@ -596,7 +602,8 @@ def _run_one_cell(
     return result
 
 
-def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResult:
+def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0,
+                 cell_timeout: int = 120) -> CellResult:
     """MD intermediate path: input → MD → translated MD → output."""
     try:
         r1 = subprocess.run(
@@ -605,7 +612,7 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
              "--output-dir", str(cell_dir)],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Pre_Processor"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r1.returncode != 0:
             return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
@@ -637,7 +644,7 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
              "-c", str(suite_root / "Omni_Localizer" / "config" / "default.yaml")],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Localizer"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r2.returncode != 0:
             return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
@@ -653,7 +660,7 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
              "--target-format", outp, "--output", str(orf_out)],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Re_Formatter"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r3.returncode != 0:
             return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
@@ -675,7 +682,8 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
     return CellResult(inp, outp, "md", "pass", time.monotonic() - t0)
 
 
-def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResult:
+def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0,
+                    cell_timeout: int = 120) -> CellResult:
     """XLIFF intermediate path: input → XLIFF+skeleton → translated XLIFF → output."""
     try:
         r1 = subprocess.run(
@@ -684,7 +692,7 @@ def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellRe
              "--output-dir", str(cell_dir)],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Pre_Processor"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r1.returncode != 0:
             return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
@@ -706,7 +714,7 @@ def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellRe
              "-c", str(suite_root / "Omni_Localizer" / "config" / "default.yaml")],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Localizer"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r2.returncode != 0:
             return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
@@ -726,7 +734,7 @@ def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellRe
              "--format", outp, "--force"],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Re_Formatter"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r3.returncode != 0:
             return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
@@ -1124,7 +1132,8 @@ def main() -> int:
         for inp, outp, path in cells:
             c = _run_one_cell(suite_root, inp, outp, path, tmp_root,
                               corpus_mode=args.corpus, fidelity_enabled=args.fidelity,
-                              real_llm=args.real_llm, real_pandoc=args.real_pandoc)
+                              real_llm=args.real_llm, real_pandoc=args.real_pandoc,
+                              cell_timeout=args.timeout)
             result.cells.append(c)
             fid_str = f"  fid={c.fidelity:.2f}" if c.fidelity else ""
             print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s){fid_str}"
@@ -1137,7 +1146,7 @@ def main() -> int:
             futures = {
                 pool.submit(_run_one_cell, suite_root, inp, outp, path, tmp_root,
                             args.corpus, args.fidelity, args.real_llm,
-                            args.real_pandoc): (inp, outp, path)
+                            args.real_pandoc, args.timeout): (inp, outp, path)
                 for inp, outp, path in cells
             }
             cell_results: dict[tuple[str, str, str], CellResult] = {}
