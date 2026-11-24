@@ -101,16 +101,38 @@ def _venv_site_packages(suite_root: Path) -> Path:
     return suite_root / ".venv_ol" / "lib" / "python3.13" / "site-packages"
 
 
-def _cell_env(suite_root: Path) -> dict[str, str]:
+def _cell_env(
+    suite_root: Path,
+    real_llm: bool = False,
+    real_pandoc: bool = False,
+) -> dict[str, str]:
     """The environment every cell subprocess runs under.
 
     The three modules are resolved through ``PYTHONPATH``, not through an
     installed distribution, so the preflight has to import them with this
     same env or it will probe a path the cells never use.
+
+    The fake seams are ON by default so the matrix runs without network access
+    or an external pandoc binary. They are **not transparent**, though:
+
+    * ``OMNI_TEST_FAKE_LLM`` echoes the source prefixed with ``[zh] ``, which
+      breaks markdown table syntax (the header row stops starting with ``|``).
+    * ``OMNI_TEST_FAKE_PANDOC`` returns a fixed template, so the artifact is
+      unrelated to the input.
+
+    A cell run under either seam proves pipeline wiring only — never content
+    quality. Pass ``real_llm`` / ``real_pandoc`` to turn them off and measure
+    what the product actually produces (needs an LLM key / a real pandoc).
     """
     env = os.environ.copy()
-    env["OMNI_TEST_FAKE_LLM"] = "1"
-    env["OMNI_TEST_FAKE_PANDOC"] = "1"
+    if not real_llm:
+        env["OMNI_TEST_FAKE_LLM"] = "1"
+    else:
+        env.pop("OMNI_TEST_FAKE_LLM", None)
+    if not real_pandoc:
+        env["OMNI_TEST_FAKE_PANDOC"] = "1"
+    else:
+        env.pop("OMNI_TEST_FAKE_PANDOC", None)
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [
         env.get("PYTHONPATH", ""),
         str(suite_root / "Omni_Pre_Processor" / "src"),
@@ -181,7 +203,11 @@ _AVAIL_MAP: dict[str, str] = {
     "epub": "pandoc",
     "rtf": "pandoc",
     "icml": "pandoc",
-    "pdf": "pandoc",
+    # PDF is NOT pandoc-backed: ORF renders MD→PDF with WeasyPrint (pure
+    # Python). README: "Pure Python path: MD→HTML and MD→PDF (weasyprint
+    # engine) do not depend on pandoc." Mapping it to pandoc made the report
+    # label real PDF conversions as fake-seam cells.
+    "pdf": "weasyprint",
     "pptx": "md2pptx",
     "msg": "aspose_email",
 }
@@ -524,6 +550,7 @@ def _resolve_fixture(inp: str, dest: Path, corpus_mode: str, suite_root: Path) -
 def _run_one_cell(
     suite_root: Path, inp: str, outp: str, path: str, tmp_root: Path,
     corpus_mode: str = "minimal", fidelity_enabled: bool = False,
+    real_llm: bool = False, real_pandoc: bool = False, cell_timeout: int = 120,
 ) -> CellResult:
     """Run a single input→output cell end-to-end via the chosen path.
 
@@ -548,13 +575,15 @@ def _run_one_cell(
     if not _resolve_fixture(inp, src, corpus_mode, suite_root):
         return CellResult(inp, outp, path, "skip", 0.0, skip_reason=f"no fixture for {inp}")
 
-    env = _cell_env(suite_root)
+    env = _cell_env(suite_root, real_llm=real_llm, real_pandoc=real_pandoc)
     py = _select_interpreter(suite_root)
 
     if path == "md":
-        result = _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
+        result = _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0,
+                              cell_timeout=cell_timeout)
     elif path == "xliff":
-        result = _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0)
+        result = _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0,
+                                 cell_timeout=cell_timeout)
     else:
         return CellResult(inp, outp, path, "fail", time.monotonic() - t0,
                           detail=f"unknown path: {path}")
@@ -573,7 +602,8 @@ def _run_one_cell(
     return result
 
 
-def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResult:
+def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0,
+                 cell_timeout: int = 120) -> CellResult:
     """MD intermediate path: input → MD → translated MD → output."""
     try:
         r1 = subprocess.run(
@@ -582,7 +612,7 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
              "--output-dir", str(cell_dir)],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Pre_Processor"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r1.returncode != 0:
             return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
@@ -614,7 +644,7 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
              "-c", str(suite_root / "Omni_Localizer" / "config" / "default.yaml")],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Localizer"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r2.returncode != 0:
             return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
@@ -630,7 +660,7 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
              "--target-format", outp, "--output", str(orf_out)],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Re_Formatter"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r3.returncode != 0:
             return CellResult(inp, outp, "md", "fail", time.monotonic() - t0,
@@ -652,7 +682,8 @@ def _run_md_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResul
     return CellResult(inp, outp, "md", "pass", time.monotonic() - t0)
 
 
-def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellResult:
+def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0,
+                    cell_timeout: int = 120) -> CellResult:
     """XLIFF intermediate path: input → XLIFF+skeleton → translated XLIFF → output."""
     try:
         r1 = subprocess.run(
@@ -661,7 +692,7 @@ def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellRe
              "--output-dir", str(cell_dir)],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Pre_Processor"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r1.returncode != 0:
             return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
@@ -683,7 +714,7 @@ def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellRe
              "-c", str(suite_root / "Omni_Localizer" / "config" / "default.yaml")],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Localizer"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r2.returncode != 0:
             return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
@@ -703,7 +734,7 @@ def _run_xliff_path(py, env, suite_root, src, cell_dir, inp, outp, t0) -> CellRe
              "--format", outp, "--force"],
             capture_output=True, text=True, env=env,
             cwd=str(suite_root / "Omni_Re_Formatter"),
-            timeout=120,
+            timeout=cell_timeout,
         )
         if r3.returncode != 0:
             return CellResult(inp, outp, "xliff", "fail", time.monotonic() - t0,
@@ -967,7 +998,79 @@ def _write_minimal_fixture(inp: str, dest: Path) -> None:
 # Reporting
 # ---------------------------------------------------------------------------
 
+def _is_real_conversion(c: CellResult) -> bool:
+    """True when the cell's output came from a real converter, not the fake-pandoc seam.
+
+    ``_cell_env()`` exports ``OMNI_TEST_FAKE_PANDOC=1`` for every cell, and ORF
+    swaps pandoc for a fixed-template stub in that mode. A fidelity score taken
+    against a stub measures nothing (e2e#429), so the report has to say which is
+    which — otherwise a reader sees 149 PASS and assumes real conversions.
+    """
+    return c.path == "xliff" or _AVAIL_MAP.get(c.outp) != "pandoc"
+
+
+def _append_cell_jsonl(out_dir: Path, cell: CellResult) -> None:
+    """Append one finished cell to ``cells.jsonl`` (e2e#431).
+
+    The full run is ~100 minutes and routinely wrapped in ``timeout``, so a
+    kill between cells used to discard every completed cell: ``matrix.md`` is
+    only written after the whole loop. One JSON line per cell means a killed
+    run still leaves its results on disk, and they can be re-rendered without
+    re-running the cells.
+
+    Best-effort by design: a write failure must never take down a matrix run.
+    """
+    record = {
+        "inp": cell.inp,
+        "outp": cell.outp,
+        "path": cell.path,
+        "status": cell.status,
+        "duration_s": round(cell.duration_s, 2),
+        "fidelity": cell.fidelity,
+        "detail": cell.detail,
+        "skip_reason": cell.skip_reason,
+    }
+    try:
+        with open(out_dir / "cells.jsonl", "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+    except OSError:
+        pass
+
+
+def _load_cells_jsonl(path: Path) -> list[CellResult]:
+    """Rebuild CellResult objects from an interrupted run's ``cells.jsonl``.
+
+    Lets a killed run be re-rendered without paying the 100-minute cost again
+    (e2e#431). Malformed lines are skipped rather than aborting: a run killed
+    mid-write can leave a truncated final line.
+    """
+    cells: list[CellResult] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        cells.append(CellResult(
+            inp=rec.get("inp", ""),
+            outp=rec.get("outp", ""),
+            path=rec.get("path", ""),
+            status=rec.get("status", "fail"),
+            duration_s=float(rec.get("duration_s") or 0.0),
+            fidelity=float(rec.get("fidelity") or 0.0),
+            detail=rec.get("detail", "") or "",
+            skip_reason=rec.get("skip_reason", "") or "",
+        ))
+    return cells
+
+
 def _render_markdown(result: MatrixResult) -> str:
+    real_n = sum(1 for c in result.cells if c.status == "pass" and _is_real_conversion(c))
+    stub_n = sum(1 for c in result.cells if c.status == "pass" and not _is_real_conversion(c))
     lines = [
         "# Format Matrix Verifier",
         "",
@@ -977,14 +1080,22 @@ def _render_markdown(result: MatrixResult) -> str:
         f"**Fail**: {result.failed} | "
         f"**Duration**: {result.total_duration_s:.1f}s",
         "",
-        "| Path | Input | Output | Status | Time | Detail |",
-        "|-------|-------|--------|--------|------|--------|",
+        f"> **Pandoc-backed outputs run against a fake seam** "
+        f"(`OMNI_TEST_FAKE_PANDOC=1`, see `_cell_env()`): {stub_n} passing cell(s) verify "
+        f"pipeline wiring only — their `Real` column is `no` and any fidelity score is "
+        f"meaningless (e2e#429). {real_n} passing cell(s) used a real converter (`Real` = "
+        f"`yes`) and their scores are meaningful.",
+        "",
+        "| Path | Input | Output | Status | Time | Real | Fid | Detail |",
+        "|-------|-------|--------|--------|------|------|-----|--------|",
     ]
     for c in result.cells:
         d = c.detail or c.skip_reason
+        real = "yes" if _is_real_conversion(c) else "no"
+        fid = f"{c.fidelity:.2f}" if c.fidelity else "—"
         lines.append(
             f"| {c.path} | {c.inp} | {c.outp} | {c.status.upper()} | "
-            f"{c.duration_s:.1f}s | {d[:50]} |"
+            f"{c.duration_s:.1f}s | {real} | {fid} | {d[:50]} |"
         )
     lines.append("")
     if result.failed:
@@ -1008,6 +1119,11 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=None,
                         help="Where to write the per-cell artifacts. Default: test_artifacts/format_matrix/<timestamp>")
     parser.add_argument("--json", action="store_true", help="Output JSON instead of markdown")
+    parser.add_argument(
+        "--from-jsonl", type=Path, default=None, metavar="DIR",
+        help="Re-render matrix.md from an interrupted run's DIR/cells.jsonl "
+             "instead of running cells (e2e#431)",
+    )
     parser.add_argument("--subset", type=str, default=None,
                         help="Comma-separated input formats to test (e.g. 'docx,pptx'). "
                              "Default: full matrix.")
@@ -1019,6 +1135,14 @@ def main() -> int:
     parser.add_argument("--corpus", choices=["minimal", "real"], default="minimal",
                         help="Fixture source: 'minimal' = hand-crafted tiny files; "
                              "'real' = test_corpus/ with tables, images, complex formatting.")
+    parser.add_argument("--real-llm", action="store_true",
+                        help="Disable the OMNI_TEST_FAKE_LLM seam: call the real LLM. "
+                             "Needed for any content-quality measurement (the fake echoes "
+                             "the source with a '[zh] ' prefix, which breaks markdown tables).")
+    parser.add_argument("--real-pandoc", action="store_true",
+                        help="Disable the OMNI_TEST_FAKE_PANDOC seam: run real pandoc. "
+                             "Without it, docx/odt/epub/rtf/icml outputs are a fixed "
+                             "template unrelated to the input (e2e#429).")
     parser.add_argument("--fidelity", action="store_true",
                         help="Compute content fidelity scores (text/table/image preservation) "
                              "after each successful cell. Requires --corpus real for meaningful scores.")
@@ -1028,13 +1152,31 @@ def main() -> int:
                              "environment, e.g. to inspect which cells skip.")
     args = parser.parse_args()
 
+    # Re-render path: an interrupted run already paid the cell cost, so
+    # rebuilding the report must not re-run anything (e2e#431).
+    if args.from_jsonl is not None:
+        src_dir = args.from_jsonl.resolve()
+        jsonl = src_dir / "cells.jsonl"
+        if not jsonl.exists():
+            print(f"ERROR: {jsonl} not found", flush=True)
+            return 2
+        rebuild = MatrixResult()
+        rebuild.cells = _load_cells_jsonl(jsonl)
+        rebuild.total_duration_s = sum(c.duration_s for c in rebuild.cells)
+        md_path = src_dir / "matrix.md"
+        md_path.write_text(_render_markdown(rebuild), encoding="utf-8")
+        print(f"Re-rendered {len(rebuild.cells)} cells "
+              f"(pass={rebuild.passed} skip={rebuild.skipped} fail={rebuild.failed})")
+        print(f"Report: {md_path}")
+        return 0 if rebuild.failed == 0 else 1
+
     suite_root: Path = args.suite_root.resolve()
 
     # Environment gate (e2e#105): without it a half-installed venv turns all
     # 195 cells red and sends the nightly loop to debug cells that were never
     # broken. Refuse to emit a matrix, and name the interpreter probed.
     interpreter = _select_interpreter(suite_root)
-    cell_env = _cell_env(suite_root)
+    cell_env = _cell_env(suite_root, real_llm=args.real_llm, real_pandoc=args.real_pandoc)
     missing = [] if args.skip_preflight else preflight(interpreter, cell_env)
     print(f"Interpreter: {interpreter}")
     if missing:
@@ -1071,8 +1213,11 @@ def main() -> int:
     if args.parallel <= 1:
         for inp, outp, path in cells:
             c = _run_one_cell(suite_root, inp, outp, path, tmp_root,
-                              corpus_mode=args.corpus, fidelity_enabled=args.fidelity)
+                              corpus_mode=args.corpus, fidelity_enabled=args.fidelity,
+                              real_llm=args.real_llm, real_pandoc=args.real_pandoc,
+                              cell_timeout=args.timeout)
             result.cells.append(c)
+            _append_cell_jsonl(out_dir, c)
             fid_str = f"  fid={c.fidelity:.2f}" if c.fidelity else ""
             print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s){fid_str}"
                   f"{'  ' + c.detail if c.detail else ''}"
@@ -1083,7 +1228,8 @@ def main() -> int:
         with ThreadPoolExecutor(max_workers=args.parallel) as pool:
             futures = {
                 pool.submit(_run_one_cell, suite_root, inp, outp, path, tmp_root,
-                            args.corpus, args.fidelity): (inp, outp, path)
+                            args.corpus, args.fidelity, args.real_llm,
+                            args.real_pandoc, args.timeout): (inp, outp, path)
                 for inp, outp, path in cells
             }
             cell_results: dict[tuple[str, str, str], CellResult] = {}
@@ -1094,6 +1240,7 @@ def main() -> int:
                 except Exception as e:
                     c = CellResult(inp, outp, path, "fail", 0.0, detail=f"runner exception: {e}")
                 cell_results[(inp, outp, path)] = c
+                _append_cell_jsonl(out_dir, c)
                 print(f"  {c.inp} → {c.outp}: {c.status.upper()} ({c.duration_s:.1f}s)"
                       f"{'  ' + c.detail if c.detail else ''}"
                       f"{'  [' + c.skip_reason + ']' if c.skip_reason else ''}",
