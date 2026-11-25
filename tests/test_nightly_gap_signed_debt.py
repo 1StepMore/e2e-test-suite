@@ -84,3 +84,42 @@ class TestSignedDebt:
         assert result["per_channel"]["CLI"]["needs_cleanup"] == 1
         assert result["per_channel"]["MCP"]["needs_cleanup"] == 0
         assert result["per_channel"]["CLI"]["signed_debt"] == 2
+
+
+class TestSignedUnreachableB20:
+    """owner 2026-11-25（B20）：内容依赖但样例语料补不出来的跳过，签字移出而非留作债。
+
+    判据要点：**只有**「中间 MD 缺 JSON 代码块」这部分留在 exempt（补语料可清）；
+    SRT/CSV/PPTX-XLSX 这类补语料也补不出来的，改记 signed_debt，且 gap_units 归零。
+    """
+
+    SRT = "MD→SRT requires timestamped cues; no timestamps in fixture"
+    CSV = "MD→CSV requires a table; intermediate MD has none"
+    JSON_ = "MD→JSON requires JSON code block or OPP key=value source"
+
+    def test_reason_buckets_are_mutually_exclusive(self):
+        for reason in (self.SRT, self.CSV):
+            assert ng.is_signed_unreachable(reason) is True
+            assert ng.is_exempt(reason) is False, f"{reason} 仍在 exempt，会重复计入"
+        assert ng.is_exempt(self.JSON_) is True
+        assert ng.is_signed_unreachable(self.JSON_) is False
+
+    def test_signed_unreachable_cells_do_not_count_as_gap(self, tmp_path, no_preflight):
+        cells = [
+            _cell("docx", "srt", "md", "skip", self.SRT),
+            _cell("docx", "csv", "md", "skip", self.CSV),
+            _cell("docx", "json", "md", "skip", self.JSON_),
+            _cell("docx", "txt", "md", "pass"),
+        ]
+        _write_matrix(tmp_path, "cli", cells)
+        _write_matrix(tmp_path, "mcp", [dict(c) for c in cells])
+
+        json_out = tmp_path / "gap.json"
+        _run_skip(tmp_path, expect_total=8, json_out=json_out)
+        data = json.loads(json_out.read_text(encoding="utf-8"))
+
+        # 每通道：2 格签字移出 + 1 格 exempt（补语料可清）⇒ needs_cleanup = 0
+        assert data["signed_debt_units"] == 4, data
+        assert data["gap_units"] == 0, data
+        assert data["per_channel"]["CLI"]["exempt"] == 1
+        assert data["per_channel"]["CLI"]["signed_debt"] == 2
