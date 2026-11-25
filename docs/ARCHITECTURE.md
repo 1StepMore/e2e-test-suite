@@ -298,11 +298,11 @@ Guide"):
 
 ```bash
 # OPP
-python -m opp.mcp.server                    # or: opp mcp
+python -m opp.mcp.server                    # or: opp-mcp-server
 # OL
-python -m ol_mcp                            # or: ol mcp
+python -m ol_mcp                            # or: ol-mcp
 # ORF
-python -m orf.mcp.server                    # or: orf mcp
+python -m orf.mcp.server                    # or: orf-mcp-server
 ```
 
 ---
