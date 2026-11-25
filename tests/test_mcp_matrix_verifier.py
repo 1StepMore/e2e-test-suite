@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 from pathlib import Path
 
 from scripts import format_matrix_verifier as fmv  # noqa: E402  (issue #223 P2.1)
@@ -137,6 +138,64 @@ class TestRuntimeMdGuardWiring:
         assert result.status == "pass"
         assert ol.calls == ["translate_md_text"]
         assert orf.calls == ["apply_md"]
+
+
+class TestPandocRuntimeGate:
+    """MCP channel: pandoc-backed outputs need a REAL pandoc binary (#426).
+
+    The CLI channel fakes pandoc via OMNI_TEST_FAKE_PANDOC, but the MCP
+    channel's ORF server scrubs that seam before spawning CLI subprocesses.
+    On a machine without pandoc on PATH these cells used to run to
+    CLI_TIMEOUT / EMPTY_OUTPUT and score fail — an environment-class false
+    red. The gate must fire before any MCP call.
+    """
+
+    def _run(self, tmp_path, outp, inp="docx"):
+        opp, ol, orf = _md_path_cells(tmp_path)
+        cell_dir = tmp_path / f"cell_{inp}_{outp}"
+        cell_dir.mkdir()
+        return asyncio.run(mmv._run_one_cell_mcp(
+            inp, outp, "md", cell_dir / f"sample.{inp}", cell_dir,
+            opp, ol, orf)), opp, ol, orf
+
+    def test_missing_pandoc_skips_every_pandoc_output(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(shutil, "which", lambda name: None)
+        for outp in ("docx", "odt", "epub", "rtf", "icml"):
+            result, _opp, _ol, _orf = self._run(tmp_path, outp)
+            assert result.status == "skip"
+            assert result.skip_reason == mmv.PANDOC_SKIP_REASON
+
+    def test_skip_reason_is_frozen_exact_string(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(shutil, "which", lambda name: None)
+        result, _opp, _ol, _orf = self._run(tmp_path, "docx")
+        assert result.skip_reason == \
+            "missing: pandoc (MCP scrubs OMNI_TEST_FAKE_PANDOC; real binary required)"
+
+    def test_missing_pandoc_fires_before_any_mcp_call(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(shutil, "which", lambda name: None)
+        result, opp, ol, orf = self._run(tmp_path, "docx")
+        assert result.status == "skip"
+        assert opp.calls == [] and ol.calls == [] and orf.calls == []
+
+    def test_present_pandoc_lets_pandoc_outputs_run(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/pandoc")
+        for outp in ("docx", "odt", "epub", "rtf", "icml"):
+            result, _opp, ol, orf = self._run(tmp_path, outp)
+            assert result.status == "pass"
+            assert ol.calls == ["translate_md_text"]
+            assert orf.calls == ["apply_md"]
+
+    def test_non_pandoc_outputs_not_gated(self, monkeypatch):
+        monkeypatch.setattr(shutil, "which", lambda name: None)
+        for outp in ("md", "pdf", "txt", "html", "srt", "csv", "json"):
+            assert mmv._pandoc_runtime_skip(outp) is None
+
+    def test_gate_probes_only_pandoc_binary_name(self, monkeypatch):
+        probed: list[str] = []
+        monkeypatch.setattr(shutil, "which",
+                            lambda name: probed.append(name) or "/usr/bin/pandoc")
+        assert mmv._pandoc_runtime_skip("docx") is None
+        assert probed == ["pandoc"]
 
 
 class TestCellEnvParity:
