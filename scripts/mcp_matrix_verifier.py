@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import shutil
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -166,6 +167,33 @@ def _should_skip(inp: str, outp: str, path: str) -> str | None:
     return _check_skip(inp, outp, path)
 
 
+# Pandoc-backed OUTPUT formats (issue #426). Mirrors the CLI verifier's
+# _AVAIL_MAP pandoc entries; PDF is deliberately absent — ORF renders
+# MD→PDF with WeasyPrint (pure Python), not pandoc.
+PANDOC_OUTPUT_FORMATS = frozenset({"docx", "odt", "epub", "rtf", "icml"})
+PANDOC_SKIP_REASON = (
+    "missing: pandoc (MCP scrubs OMNI_TEST_FAKE_PANDOC; real binary required)"
+)
+
+
+def _pandoc_runtime_skip(outp: str) -> str | None:
+    """Pre-MCP gate for pandoc-backed outputs (issue #426).
+
+    The CLI channel always runs these cells because ``_cell_env()`` exports
+    ``OMNI_TEST_FAKE_PANDOC=1`` and ORF ships ``_install_fake_pandoc()`` for
+    it. The MCP channel cannot: ``orf/mcp/common.py`` scrubs that seam before
+    spawning CLI subprocesses (MCP output must never be silently faked), so
+    pandoc-backed cells here need a REAL pandoc binary on PATH. Without one
+    they would run to CLI_TIMEOUT / EMPTY_OUTPUT and score fail — mistaking a
+    missing environment dependency for a product defect. Probed with plain
+    ``shutil.which`` (no ORF internals, no fake-seam env) and checked before
+    any MCP call so servers are never started for cells that cannot run.
+    """
+    if outp in PANDOC_OUTPUT_FORMATS and shutil.which("pandoc") is None:
+        return PANDOC_SKIP_REASON
+    return None
+
+
 def _runtime_md_skip(outp: str, md_text: str, inp: str = "") -> str | None:
     """Runtime twin of the CLI verifier's corpus-content guards (suite#234,
     extended 2026-11-20 to srt/json/pptx→xlsx).
@@ -188,6 +216,9 @@ async def _run_one_cell_mcp(
 ) -> MCPCellResult:
     """Run a single cell end-to-end via MCP tool calls."""
     t0 = time.monotonic()
+    pandoc_skip = _pandoc_runtime_skip(outp)
+    if pandoc_skip:
+        return MCPCellResult(inp, outp, path, "skip", 0.0, skip_reason=pandoc_skip)
     skip = _should_skip(inp, outp, path)
     if skip:
         return MCPCellResult(inp, outp, path, "skip", 0.0, skip_reason=skip)
