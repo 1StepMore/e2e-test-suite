@@ -125,11 +125,17 @@ corpus for. The other is signed off as unreachable-by-corpus, not carried as bac
 
 | Skip reason (`EXEMPT_SKIP_REASONS` wording, frozen) | Cells | Class | Why |
 |---|---|---|---|
-| `MD→JSON requires JSON code block` | 8 (4/ch) | **keep-exempt → clearable** | Give the docx/pptx/xlsx/xml fixtures a fenced ```` ```json ```` block and the cell turns green. This is the only class where "add corpus" is a real fix. |
+| `MD→JSON requires JSON code block or OPP key=value source` | 16 (8/ch) | **keep-exempt → clearable** | Give the docx/pptx/xlsx/xml fixtures a fenced ```` ```json ```` block (or OPP `key=value` source) and the cell turns green. This is the only class where "add corpus" is a real fix. |
 | `MD→SRT requires timestamped cues` | 16 (8/ch) | **signed off** | A subtitle needs real cue timing. A sample prose MD has none, and inventing timestamps in the fixture would test our own fiction, not the converter. |
 | `MD→CSV requires a table` | 10 (5/ch) | **signed off** | Same shape: the sample MD carries no table, and a table invented purely to unlock one cell proves nothing about extraction. |
-| `XLSX→PPTX: no slide content` | 4 (2/ch) | **signed off** | The slide fixture has no body content to move; that is a fixture property, not a converter gap. |
-| `PPTX→XLSX: no table content` | 4 (2/ch) | **signed off** | Mirror of the row above. |
+
+**Counts are derived, not asserted.** They come from the executed matrix
+(`test_artifacts/nightly/omni-run/*/cells.jsonl`, one reason per skip), not from a constant:
+`62 XLIFF + 16 SRT + 10 CSV + 16 JSON = 104` skips per channel-pair, of which the JSON bucket is
+the only one that stays exempt. An earlier draft of this file listed `XLSX→PPTX: no slide content`
+and `PPTX→XLSX: no table content` (8 cells) and put JSON at 4/ch — **both wrong against the
+executed data** (those two reasons never occur; JSON is 8/ch). Corrected 2026-11-25 after
+re-counting from `cells.jsonl`; the code path was right all along, the prose was not.
 
 **Mechanism (single source of truth in code):** `scripts/nightly_gap.py` now classifies by
 reason string, not by a hard-coded count:
@@ -140,11 +146,13 @@ correct_path` in the report — signing off removes it from `gap_units`, not fro
 Any **new** skip reason must be signed off again; it cannot inherit either bucket.
 
 **Honest correction to the original plan:** B20 said "exempt 42 → 34", but the arithmetic of the
-split above is `42 − 34 = 8` — after this change the exempt bucket holds **8** cells (the JSON
-class), and `signed_debt` grows by 34. The earlier "34" figure was the number of cells *moved*,
-not the number *kept*; the code now derives both numbers from the matrix, so no count is written
-into a constant where it can drift.
+split above is `42 − 26 = 16` — after this change the exempt bucket holds **16** cells (the JSON
+class, 8 per channel), and `signed_debt` grows by 26 (16 SRT + 10 CSV). Two earlier drafts were
+wrong: the "34" figure assumed 8 cells of XLSX/PPTX skips that do not exist in the executed matrix,
+and an interim "8 exempt / 96 signed" reading assumed JSON was 4/ch. The code derives both numbers
+from the matrix, so no count lives in a constant where it can drift — the prose has to be re-read
+against the same output whenever it is quoted.
 
-**Effect on DoD:** 104 skips = 8 exempt + 96 signed (62 XLIFF + 34 content) + 0 needs-cleanup.
-The remaining work item is the 8-clearable class, tracked as its own task (fixtures need a JSON
+**Effect on DoD:** 104 skips = 16 exempt + 88 signed (62 XLIFF + 26 content) + 0 needs-cleanup.
+The remaining work item is the 16-clearable class, tracked as its own task (fixtures need a JSON
 block), and it stays visible as exempt until then.
