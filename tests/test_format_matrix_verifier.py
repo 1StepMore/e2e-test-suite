@@ -201,14 +201,21 @@ class TestRuntimeGuards:
             "csv", "prose, no table") == fmv.MD_CSV_TABLE_SKIP_REASON
         assert fmv._runtime_md_skip("docx", "prose") is None
 
-    def test_exempt_reasons_still_match_nightly_gap(self):
-        """Reason strings are frozen by contract: nightly_gap classifies
-        them as exempt corpus skips by substring. Any rewording here
-        silently reclassifies the cells as needs-cleanup debt."""
+    def test_skip_reasons_still_match_nightly_gap(self):
+        """Reason strings are frozen by contract — but the *bucket* they land in
+        changed on 2026-11-25 (B20): only the missing-JSON-code-block reason is
+        still clearable by adding corpus; subtitle cue timing, CSV tables and
+        PPTX/XLSX table content are signed off as unreachable-by-corpus.
+
+        Either way, every reason here must be recognised by nightly_gap: an
+        unrecognised reason silently becomes needs-cleanup debt.
+        """
         from scripts import nightly_gap as ng
-        for reason in (fmv.MD_SRT_SKIP_REASON, fmv.MD_JSON_SKIP_REASON,
-                       fmv.MD_CSV_TABLE_SKIP_REASON, fmv.MD_PPTX_XLSX_SKIP_REASON):
-            assert ng.is_exempt(reason), reason
+        assert ng.is_exempt(fmv.MD_JSON_SKIP_REASON), fmv.MD_JSON_SKIP_REASON
+        for reason in (fmv.MD_SRT_SKIP_REASON, fmv.MD_CSV_TABLE_SKIP_REASON,
+                       fmv.MD_PPTX_XLSX_SKIP_REASON):
+            assert not ng.is_exempt(reason), reason
+            assert ng.is_signed_unreachable(reason), reason
 
     def test_guard_patterns_mirror_orf_channels(self):
         """The frozen local regex mirrors must equal ORF's own patterns."""
