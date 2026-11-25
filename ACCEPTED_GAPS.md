@@ -116,3 +116,35 @@ Note that the information needed to *detect* a mismatch does survive the round t
 contract lint (`run_validation.py --check`) enforces the location invariant:
 `known_gap: true` scenarios live ONLY under a `known-gaps/` directory, and
 every scenario under `known-gaps/` declares the flag.
+
+## Format-matrix skip sign-off — content-dependent buckets (owner 2026-11-25, B20)
+
+**Decision (owner, via chat 2026-11-25: 「既然你已经有推荐了，我就按你的推荐来」):**
+the 42 fixture-content skips split into two classes, and only ONE of them is worth feeding
+corpus for. The other is signed off as unreachable-by-corpus, not carried as backlog debt.
+
+| Skip reason (`EXEMPT_SKIP_REASONS` wording, frozen) | Cells | Class | Why |
+|---|---|---|---|
+| `MD→JSON requires JSON code block` | 8 (4/ch) | **keep-exempt → clearable** | Give the docx/pptx/xlsx/xml fixtures a fenced ```` ```json ```` block and the cell turns green. This is the only class where "add corpus" is a real fix. |
+| `MD→SRT requires timestamped cues` | 16 (8/ch) | **signed off** | A subtitle needs real cue timing. A sample prose MD has none, and inventing timestamps in the fixture would test our own fiction, not the converter. |
+| `MD→CSV requires a table` | 10 (5/ch) | **signed off** | Same shape: the sample MD carries no table, and a table invented purely to unlock one cell proves nothing about extraction. |
+| `XLSX→PPTX: no slide content` | 4 (2/ch) | **signed off** | The slide fixture has no body content to move; that is a fixture property, not a converter gap. |
+| `PPTX→XLSX: no table content` | 4 (2/ch) | **signed off** | Mirror of the row above. |
+
+**Mechanism (single source of truth in code):** `scripts/nightly_gap.py` now classifies by
+reason string, not by a hard-coded count:
+`EXEMPT_SKIP_REASONS` keeps **only** the JSON-code-block reason;
+`SIGNED_UNREACHABLE_PATTERNS` holds the other four and feeds `signed_debt` next to the
+XLIFF `STRUCTURAL_REFUSAL_PATTERNS`. Every cell keeps its `inp/outp/path/reason/citation/
+correct_path` in the report — signing off removes it from `gap_units`, not from the audit trail.
+Any **new** skip reason must be signed off again; it cannot inherit either bucket.
+
+**Honest correction to the original plan:** B20 said "exempt 42 → 34", but the arithmetic of the
+split above is `42 − 34 = 8` — after this change the exempt bucket holds **8** cells (the JSON
+class), and `signed_debt` grows by 34. The earlier "34" figure was the number of cells *moved*,
+not the number *kept*; the code now derives both numbers from the matrix, so no count is written
+into a constant where it can drift.
+
+**Effect on DoD:** 104 skips = 8 exempt + 96 signed (62 XLIFF + 34 content) + 0 needs-cleanup.
+The remaining work item is the 8-clearable class, tracked as its own task (fixtures need a JSON
+block), and it stays visible as exempt until then.

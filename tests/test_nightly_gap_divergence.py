@@ -44,13 +44,24 @@ class TestFindDivergentCells:
         assert divergent[0]["MCP"]["status"] == "missing"
 
 
-class TestMdCsvExemption:
-    def test_md_csv_reason_is_exempt(self):
-        assert ng.is_exempt("MD→CSV requires a table; intermediate MD has none")
+class TestMdCsvClassification:
+    """suite#432（owner 2026-11-25, B20）：CSV 跳过不再算豁免，改记签字移出。
 
-    def test_capability_reasons_stay_non_exempt(self):
-        assert not ng.is_exempt("pandoc not installed")
-        assert not ng.is_exempt("XLIFF cross-format not supported by ORF converters")
+    判据：样例 MD 里没有表格，补语料也补不出来（编一张表只会测到自己的虚构），
+    所以它是「按设计不产出」而不是「欠语料」，进 signed_debt，不进 exempt。
+    """
+
+    CSV = "MD→CSV requires a table; intermediate MD has none"
+
+    def test_md_csv_reason_is_signed_out_not_exempt(self):
+        assert ng.is_signed_unreachable(self.CSV)
+        assert not ng.is_exempt(self.CSV)
+
+    def test_capability_reasons_stay_non_exempt_and_non_signed(self):
+        for reason in ("pandoc not installed",
+                       "XLIFF cross-format not supported by ORF converters"):
+            assert not ng.is_exempt(reason), reason
+            assert not ng.is_signed_unreachable(reason), reason
 
 
 def _write_matrix(out_root, channel, cells, total=None):
@@ -79,9 +90,9 @@ def no_preflight(monkeypatch):
 
 class TestMainDivergenceGuard:
     def test_skip_pass_split_is_counted_in_regression_gap(self, tmp_path, no_preflight):
-        exempt_reason = "MD→CSV requires a table; intermediate MD has none"
+        signed_reason = "MD→CSV requires a table; intermediate MD has none"
         cells = [
-            _cell("docx", "csv", "md", "skip", exempt_reason),   # divergent below
+            _cell("docx", "csv", "md", "skip", signed_reason),   # divergent below
             _cell("docx", "md", "md", "pass"),
             _cell("docx", "srt", "md", "skip", "MD→SRT requires timestamped cues; no timestamps in fixture"),
         ]
@@ -95,8 +106,8 @@ class TestMainDivergenceGuard:
         rc = _skip_run(tmp_path, expect_total=6, json_out=json_out)
 
         result = json.loads(json_out.read_text(encoding="utf-8"))
-        # DoD verdict stays clean (the split cells are exempt skips on the CLI side,
-        # passes on the MCP side) — but the guard must flag the divergence.
+        # DoD verdict stays clean (the split cell is signed off on the CLI side,
+        # a pass on the MCP side) — but the guard must flag the divergence.
         assert result["gap_units"] == 0
         assert rc == 0
         assert result["channel_divergence"] == 1

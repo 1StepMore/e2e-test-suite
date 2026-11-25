@@ -33,11 +33,20 @@ class TestStructuralRefusalsClassification:
         cli = _synthetic_channel_cells()
         mcp = _synthetic_channel_cells()
         per_ch = [ng.collect_structural_refusals(c) for c in (cli, mcp)]
-        assert [len(x) for x in per_ch] == [5, 5]
+        # 2026-11-25（B20）：collect 现在同时收「签字移出」桶，故每通道 = 5 XLIFF + 1 SRT。
+        # XLIFF 的钉子是 5 格/通道，按下标过滤后仍需成立。
+        xfmt_per_ch = [len([r for r in x if r["reason"].startswith("XLIFF cross-format")])
+                       for x in per_ch]
+        assert xfmt_per_ch == [5, 5]
+        assert [len(x) for x in per_ch] == [6, 6]
         total = sum(len(x) for x in per_ch)
-        assert total == 10  # 夹具缩小版；真实矩阵 29×2=58 同一判据
+        # 夹具缩小版：XLIFF 5×2 = 10，外加各通道 1 格签字移出（B20）= 12
+        assert total == 12
+        assert len([r for r in per_ch[0] + per_ch[1]
+                    if r["reason"].startswith("XLIFF cross-format")]) == 10
         for ref in per_ch[0]:
-            assert ref["reason"].startswith("XLIFF cross-format")
+            if not ref["reason"].startswith("XLIFF cross-format"):
+                continue  # 签字移出桶的钉子见 test_real_debt_is_not_misclassified
             assert ref["citation"], "每格必须附 ACCEPTED_GAPS 依据"
             assert "orf apply-md" in ref["correct_path"], "每格必须附正确路径指引"
         # 全量形状（29×2）走同一条判据
@@ -57,26 +66,39 @@ class TestStructuralRefusalsClassification:
         assert skips.get(xf_key) == 5, "结构性 skip 必须仍出现在 skip 计数里"
         assert xf_key not in exempt, "结构性格子不得被豁免（挪豁免=掩盖真债）"
         assert ng.is_structural_refusal(XFMT) and not ng.is_exempt(XFMT)
-        # 判定算式对它的处理与改动前完全一致：needs_cleanup = skipped − exempt
+        # 判定算式：needs_cleanup = skipped − exempt − signed_unreachable。
+        # 2026-11-25（B20）把「SRT 缺时间码」这类从 exempt 挪到 signed 桶，
+        # 结果 needs_cleanup 仍为 6（结构性 5 + 真债 1）—— 挪桶不等于放水。
         ch_skipped = sum(skips.values())
         ch_exempt = sum(exempt.values())
-        assert ch_skipped == 7          # 5 xfmt + 1 pandoc + 1 exempt
-        assert ch_exempt == 1           # 只有夹具内容类豁免
-        assert ch_skipped - ch_exempt == 6  # 结构性 5 + 真债 1 全额留在 needs_cleanup
+        ch_signed = len([r for r in ng.collect_structural_refusals(cells)
+                         if r["citation"] == ng.SIGNED_UNREACHABLE_CITATION])
+        assert ch_skipped == 7          # 5 xfmt + 1 pandoc + 1 SRT
+        assert ch_exempt == 0           # 无可清豁免格
+        assert ch_signed == 1           # SRT 进签字桶
+        assert ch_skipped - ch_exempt - ch_signed == 6  # 与改动前逐位相同
         assert fails == {}
 
     def test_real_debt_is_not_misclassified(self):
         """③真债（环境类/缺生产者）与夹具豁免类都不得进结构性桶；两表无交集。"""
+        # 真债：三桶都不该收
         for reason in ("pandoc not installed",
                        "md2pptx CLI not installed",
                        "nbformat not installed",
-                       "MD→SRT requires timestamped cues",
-                       "MD→JSON requires JSON code block",
-                       "XLSX→PPTX: no slide content",
                        "some new producer gap",
                        ""):
             assert not ng.is_structural_refusal(reason), reason
+            assert not ng.is_signed_unreachable(reason), reason
             cells = [_cell("docx", "pdf", "md", "skip", reason)]
             assert ng.collect_structural_refusals(cells) == []
+
+        # 内容依赖但补语料补不出来的：进**签字桶**，且必须与结构性桶理由互斥
+        for reason in ("MD→SRT requires timestamped cues",
+                       "XLSX→PPTX: no slide content"):
+            assert not ng.is_structural_refusal(reason), reason
+            assert ng.is_signed_unreachable(reason), reason
+            rows = ng.collect_structural_refusals(
+                [_cell("docx", "pdf", "md", "skip", reason)])
+            assert [r["citation"] for r in rows] == [ng.SIGNED_UNREACHABLE_CITATION]
         for pat in ng.EXEMPT_SKIP_REASONS:
             assert not ng.is_structural_refusal(pat), pat

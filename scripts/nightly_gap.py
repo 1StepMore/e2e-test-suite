@@ -74,14 +74,35 @@ DEFAULT_MAX_SKIP = 52         # 回归护栏基线（**每通道**口径，2026-
 EXEMPT_SKIP_REASONS = (
     # 因**夹具内容缺失**而必然跳过的理由子串（豁免 = 夹具内容依赖，非能力缺陷；
     # 要清掉它们需要补语料，见 docs/NIGHTLY.md）。
-    # ⚠️ 只收内容依赖类：pandoc / nbformat / xliff 之类环境或能力类跳过**不在此列**，
-    # 仍属「需清理的 skip」。
-    "MD→SRT requires timestamped cues",
+    # ⚠️ 只收**补语料就能清掉**的：pandoc / nbformat / xliff 之类环境或能力类跳过
+    # **不在此列**，仍属「需清理的 skip」。
+    #
+    # 2026-11-25 owner 裁定（B20）：只有「中间 MD 缺 JSON 代码块」这一类值得补语料
+    # （给 docx/pptx/xlsx/xml 四类夹具各补一段 JSON 块即可转绿）。其余内容依赖类
+    # （SRT 需要时间码、CSV 需要表格、PPTX/XLSX 需要表格内容）在**只喂样例 MD** 的
+    # 前提下补不出来 —— 它们不是「语料欠债」，是「这条通道按设计不产出」，转签字单列
+    # （见 SIGNED_UNREACHABLE_PATTERNS）。
     "MD→JSON requires JSON code block",
+)
+
+#: owner 2026-11-25 签字移出（B20）：内容依赖但**补语料也补不出来**的跳过。
+#: 与 STRUCTURAL_REFUSAL_PATTERNS（XLIFF 跨格式，按设计拒绝）并列计入 signed_debt，
+#: 同样**保留**格清单 / reason / citation，审计仍看得见。
+SIGNED_UNREACHABLE_PATTERNS = (
+    "MD→SRT requires timestamped cues",
     "MD→CSV requires a table",
     "XLSX→PPTX: no slide content",
     "PPTX→XLSX: no table content",
 )
+SIGNED_UNREACHABLE_CITATION = "ACCEPTED_GAPS.md「Why 34 content-dependent skips are signed off, not backlog」"
+SIGNED_UNREACHABLE_CORRECT_PATH = (
+    "该通道需要带时间码/表格的专用语料，样例 MD 不产出；真要清就先造语料再重签"
+)
+
+
+def is_signed_unreachable(reason: str) -> bool:
+    """跳过理由是否属于「内容依赖但样例语料补不出来」的已签字项（B20）。"""
+    return any(pat in reason for pat in SIGNED_UNREACHABLE_PATTERNS)
 
 
 def is_exempt(reason: str) -> bool:
@@ -134,6 +155,16 @@ def collect_structural_refusals(cells: list) -> list[dict]:
                 "reason": reason[:60],
                 "citation": STRUCTURAL_REFUSAL_CITATION,
                 "correct_path": STRUCTURAL_REFUSAL_CORRECT_PATH,
+            })
+        elif is_signed_unreachable(reason):
+            # owner 2026-11-25（B20）签字移出：内容依赖但样例语料补不出来
+            out.append({
+                "inp": c.get("inp"),
+                "outp": c.get("outp"),
+                "path": c.get("path"),
+                "reason": reason[:60],
+                "citation": SIGNED_UNREACHABLE_CITATION,
+                "correct_path": SIGNED_UNREACHABLE_CORRECT_PATH,
             })
     return out
 
