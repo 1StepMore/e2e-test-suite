@@ -171,8 +171,22 @@ if [ "$CHECK_ONLY" = false ]; then
     if command -v uv &>/dev/null; then
         info "Installing via uv sync (root workspace) …"
         cd "$PROJECT_ROOT"
-        uv sync
+        # Target the SAME venv the dispatcher runs steps with
+        # (omni_mcp/validation/dispatch.py -> .venv_ol/bin/python).
+        # Without this, `uv sync` ignores the activated .venv_ol, creates its
+        # own .venv and installs every dependency there — so on any host whose
+        # `python3` is not the pinned interpreter the suite runs steps in an
+        # empty venv and every python step dies with ModuleNotFoundError
+        # (e2e-test-suite#439).
+        UV_PROJECT_ENVIRONMENT="$VENV_DIR" uv sync
         ok "uv sync complete — all 3 submodules + omni_metrics installed"
+        # Fail loud instead of letting ~N scenarios fail one by one later.
+        if ! "$VENV_DIR/bin/python" -c "import mcp, opp, ol_mcp, orf" >/dev/null 2>&1; then
+            err "uv sync finished but $VENV_DIR/bin/python cannot import mcp/opp/ol_mcp/orf."
+            err "The dispatcher runs every python step with this interpreter, so the run would fail N times with ModuleNotFoundError."
+            exit 1
+        fi
+        ok "venv smoke check passed (mcp + opp / ol_mcp / orf importable)"
     else
         warn "uv not found — falling back to pip install -e for each submodule"
         warn "Install uv for the recommended workflow: https://docs.astral.sh/uv/"
