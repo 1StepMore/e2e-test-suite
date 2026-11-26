@@ -18,6 +18,7 @@
       ],
       "properties": {
         "author": {
+          "description": "Document author for output metadata (used by EPUB).",
           "type": "string"
         },
         "content": {
@@ -30,6 +31,7 @@
         },
         "embed_images": {
           "default": false,
+          "description": "Embed images into the EPUB package instead of referencing them externally.",
           "type": "boolean"
         },
         "images": {
@@ -44,9 +46,11 @@
           "type": "string"
         },
         "lang": {
+          "description": "Document language tag for EPUB metadata (e.g. 'zh', 'en'); CLI default is 'zh' when omitted.",
           "type": "string"
         },
         "max_file_size_mb": {
+          "description": "Reject input files larger than this size, in megabytes. Omit for no limit.",
           "type": "number"
         },
         "output_path": {
@@ -63,6 +67,7 @@
         },
         "separate_images": {
           "default": true,
+          "description": "Whether to extract images into images.zip + images.json alongside the output document (true, default). Set false to decode base64 data URIs inline via Pandoc instead.",
           "type": "boolean"
         },
         "target_format": {
@@ -75,9 +80,11 @@
         },
         "text_only": {
           "default": false,
+          "description": "Produce plain-text output: strip all image references and OLIMG placeholders before conversion.",
           "type": "boolean"
         },
         "title": {
+          "description": "Document title for output metadata (used by EPUB).",
           "type": "string"
         },
         "traceparent": {
@@ -114,6 +121,7 @@
           "type": "string"
         },
         "max_file_size_mb": {
+          "description": "Reject input files larger than this size, in megabytes. Omit for no limit.",
           "type": "number"
         },
         "no_cache": {
@@ -195,6 +203,7 @@
     "inputSchema": {
       "properties": {
         "auth_token": {
+          "description": "Shared-secret token; only required when the server sets MCP_SHARED_SECRET, otherwise ignored.",
           "type": "string"
         }
       },
