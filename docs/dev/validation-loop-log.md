@@ -136,7 +136,27 @@
 - [ ] **ZCode 插件 MIMOSA_* 只能走 OS 环境变量 + 客户端重启才生效**——`~/.zcode/cli/config.json` 只有 plugins 开关位，无 env 注入位；hook 进程继承客户端进程 env（启动快照）。`setx MIMOSA_GIT_GATE_MODE ask` 后必须重启 ZCode（会话可恢复）才被 hook 读到。
 - [ ] **suite 契约测试单跑会 deselect（`no tests ran`）**——`tests/contract/test_cli_help.py::test_ol_help_contract` 单文件 0.01s 零收集，全量 `-m "not nightly"` 才选中；失败取证必须带全量上下文（先查 conftest/markers），别把"单跑没跑"当修复证据。
 
+### 2026-11-28 新增（六仓审计落地轮）
+
+- [ ] **OPP 没有 markdown 提取器：MD 是输出格式不是输入**——喂 `.md` 给 `opp` → `detect_format` 判 UNKNOWN → `process_file` 静默返回 `extraction_result=None`（pipeline 层只报 "No extraction result"，不给真因）。E2E/管道入料一律用 OPP 支持的输入格式（DOCX 等）；给 pipeline 层补 "UNKNOWN format" 透传是 OPP 侧可改进项。
+- [ ] **OL 翻译缓存会吞第二次同文跑（`~/.omni_cache/` 持久）**——endpoint E2E 第一次全链路真打假端点、第二次同内容 0 HTTP 请求（缓存直出），测试侧表现为 "recorder 空"。测试必须每跑独立 `OMNI_CACHE_DIR`；取证侧警惕"缓存定格坏产物"（坑清单已有条目）的姊妹坑：**缓存也会让"真打了端点"的证据消失**。
+- [ ] **suite conftest 预置 dummy `ZHIPU_API_KEY` + `OMNI_TEST_FAKE_LLM=1` 会劫持 OL precheck/doctor 的分支选择**——写 key/gate 相关测试时，`precheck_api_keys` 在 FAKE 下直接 return、key-like 分支被 dummy 触发；必须显式 `monkeypatch.delenv` 两者才走真路径。同理 suite 端 `_clear_llm_env` 要连通用三元组一起清。
+
 ## 循环事件（major events，newest on top）
+
+### 2026-11-28 六仓审计落地轮（#447 定位+Windows 能力矩阵 / #448 通用 OpenAI 兼容端点 / #227 停止协议 + 三仓自足文档层）
+
+- Date: 2026-11-28（+0800）；触发：Owner 指令"check verify and address issue"（7 张单：suite #446/#447/#448 + OPP#150 + OL#227/#228 + ORF#106）
+- Scope: suite 仓 #447（README/AGENTS.md 三层定位 + docs/dev/windows-capability.md 能力矩阵）+ #448（gate 通用三元组 `LLM_BASE_URL/LLM_API_KEY/LLM_MODEL` + run payload 端点溯源 + 本机假端点真链路 E2E）+ OL 仓 #227/#448 使能（model 字段 ${VAR} 解析 + 四仓 generic pool 条目 + `ol init` 模板 + parity/doctor 语义扩齐）+ 三仓文档层（产品视角首段 + CONTRACT.md 指针 + 过期坑更新）+ 三仓 setup_dev.sh/.ps1 自足引导；#446 待 owner 裁，未动角色契约
+- Result:
+  - **#448 端到端实证**：`tests/test_e2e_pipeline_custom_endpoint.py` 用本机 `127.0.0.1` 假端点（无厂商 key、无 FAKE_LLM）跑通真 OPP→OL→ORF 链路，payload 记录 `mode=openai-compatible-endpoint` + `base_url_source=env:LLM_BASE_URL`，key 值零落盘；连跑两次绿（12.2s/10.9s，`OMNI_CACHE_DIR` 隔离防缓存假绿）
+  - **OL 全量回归**：1951 passed / 46 skipped / 0 failed（Windows 原生 .venv_win）；suite 电池 4185 passed / 2 failed（30m59s）——2 红定性 = 本次改动断言漂移（AGENTS.md tagline 行被我删 + check_llm_pool 断言未含三元组），修复后相关文件 18/18 绿；**全量复跑未做**（改动仅断言层，CI 复验兜底）
+  - **坑①（今天新记）**：OPP 无 markdown 提取器 —— MD 是输出格式不是输入；E2E 入料必须 DOCX（假端点测试首跑 `OPP_FAILED: No extraction result` 即此）
+  - **坑②（今天新记）**：OL 翻译缓存 `~/.omni_cache/` 会吞第二次同文跑 —— endpoint E2E 第二次 0 请求假象；测试必须每跑独立 `OMNI_CACHE_DIR`
+  - **坑③（今天新记）**：conftest 预置 dummy `ZHIPU_API_KEY` + `OMNI_TEST_FAKE_LLM=1` 会劫持 precheck/doctor 分支 —— 三元组测试需显式 delenv 两者才走真路径
+  - **文档真相**：suite + 三模块 doc_inventory 全绿（suite AGENTS.md 精确 200 行；SETUP.md 行数声明 220→260 同步 docmap skill）；AGENTS.md 版本 tagline 行已恢复（`test_docs_versions_match_code` 依赖它存在）
+- 沉淀: Windows 能力矩阵（`docs/dev/windows-capability.md`）落成 —— "不进 WSL 能做哪一半"从此有逐项可验清单；suite#349 电池基线在 2026-11-28 Windows 原生复验 = 4185 绿（XPASS×8 为 OPP#138 前遗留 xfail 转 pass，非本班产物）
+- 待办: #446 角色契约口径（A/B/C）待 owner 一句话；#150/#228/#106 的 AC 尚余"全新 clone 双平台装跑"取证与 ORF 63 红分类（#90/#106 跟）
 
 ### 2026-11-21 深夜续班：Owner 接手轮（OL#210/206 双双落库 merged + #349 24 红全量取证拆单 + Mimosa ask 模式落地）
 

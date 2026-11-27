@@ -7,6 +7,8 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**定位（e2e-test-suite#447）**：本仓是**编排层 + 交接契约持有者 + 集成验证层** —— `omni-suite` 一键链路、E2E、验证引擎，以及三个模块共享的唯一交接契约 `CONTRACT.md`（改它要三方同传）都在这里。**OPP（提取）/ OL（翻译）/ ORF（还原）是三个独立产品**，各自是独立仓库，有自己的 CLI、MCP server 与测试套件，**不依赖本仓即可运行**；本仓负责把它们串起来，不拥有它们的内部契约。
+
 OPP → OL → ORF 全链路集成测试环境，含全自动 bug 发现 → OpenCode 修复 → 验证闭环。
 
 ---

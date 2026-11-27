@@ -13,15 +13,15 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 
 | Metric | Value |
 |--------|-------|
-| Total files | 82 |
-| Total lines | 37256 |
-| Active files | 57 |
+| Total files | 83 |
+| Total lines | 37334 |
+| Active files | 58 |
 | Archived files | 25 |
 | Category — archive | 25 files / 25581 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
-| Category — docs/dev | 35 files / 4129 lines |
-| Category — docs/root | 19 files / 6204 lines |
+| Category — docs/dev | 36 files / 4195 lines |
+| Category — docs/root | 19 files / 6216 lines |
 
 ## Inventory
 
@@ -34,7 +34,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
 | `HANDOVER.md` | 620 | docs/root | active | — |
-| `NIGHTLY.md` | 290 | docs/root | active | — |
+| `NIGHTLY.md` | 302 | docs/root | active | — |
 | `PRD.md` | 61 | docs/root | active | — |
 | `RELEASE_NOTES.md` | 871 | docs/root | active | — |
 | `SECURITY.md` | 250 | security | active | — |
@@ -97,7 +97,8 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `dev/validation-evidence/cross-repo-regression/2026-11-22/issue349-split/decomposition.md` | 172 | docs/dev | active | — |
 | `dev/validation-evidence/cross-repo-regression/2026-11-22/issue349-split/evidence.md` | 33 | docs/dev | active | — |
 | `dev/validation-evidence/manifest.json` | 65 | docs/dev | active | — |
-| `dev/validation-loop-log.md` | 526 | docs/dev | active | — |
+| `dev/validation-loop-log.md` | 546 | docs/dev | active | — |
+| `dev/windows-capability.md` | 46 | docs/dev | active | — |
 | `known-issues/llm-translation-glitches.md` | 119 | docs/dev | active | — |
 | `methodology/README.md` | 44 | docs/dev | active | — |
 | `methodology/agent-oriented-design-mindset.md` | 625 | docs/dev | active | — |
