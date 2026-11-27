@@ -57,7 +57,7 @@ import re
 import subprocess
 import time
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -102,7 +102,9 @@ class ScenarioResult:
     name: str
     #: ``passed`` | ``failed`` | ``unconfigured`` | ``recovered`` |
     #: ``partial-pass`` | ``invalid`` | ``known-gap`` (T-17 — a scenario
-    #: marked ``known_gap: true``; never a pass, never a failure).
+    #: marked ``known_gap: true``; never a pass, never a failure) |
+    #: ``not-run`` (issue e2e-test-suite#442 — skipped by the run-level
+    #: ``--max-seconds`` budget; never a pass, never a failure).
     status: str
     #: Human-readable one-line summary for the director report.
     summary: str
@@ -760,7 +762,32 @@ def _sanitize_for_json(
     return str(value)
 
 
-def persist_run(run: RunResult, runs_dir: str | Path = "validation-runs") -> Path:
+def _create_run_dir(runs_dir: str | Path = "validation-runs") -> Path:
+    """Allocate an immutable, timestamped run directory (guide §3.1
+    phase 6 naming): ``<runs_dir>/<ts>`` (ts = ``%Y%m%d-%H%M%S``,
+    sortable); a same-second collision gets a short random suffix instead
+    of overwriting.  Creates *runs_dir* when missing.
+
+    Extracted from :func:`persist_run` so a long run can create its
+    directory BEFORE the first scenario executes (issue e2e-test-suite#442)
+    and ``persist_run`` then writes into the same directory — the naming
+    rule and the ``run_id`` it produces are unchanged.
+    """
+    base = Path(runs_dir)
+    base.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    run_dir = base / stamp
+    if run_dir.exists():
+        run_dir = base / f"{stamp}-{uuid.uuid4().hex[:6]}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
+
+
+def persist_run(
+    run: RunResult,
+    runs_dir: str | Path = "validation-runs",
+    run_dir: str | Path | None = None,
+) -> Path:
     """Write the run record and refresh the latest pointer (guide §3.1
     phase 6).
 
@@ -774,17 +801,20 @@ def persist_run(run: RunResult, runs_dir: str | Path = "validation-runs") -> Pat
     random suffix instead of overwriting: runs are immutable, written
     once.
 
+    When *run_dir* is given it is a directory pre-created by
+    :func:`_create_run_dir` before the scenarios ran (issue
+    e2e-test-suite#442's incremental ``progress.jsonl``); the record is
+    written there and no new directory is allocated.
+
     Returns the run directory that was written.
     """
-    base = Path(runs_dir)
-    base.mkdir(parents=True, exist_ok=True)
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    run_dir = base / stamp
-    if run_dir.exists():
-        run_dir = base / f"{stamp}-{uuid.uuid4().hex[:6]}"
-    run_dir.mkdir(parents=True, exist_ok=True)
-    run.run_id = run_dir.name
-    run.run_dir = str(run_dir)
+    if run_dir is None:
+        run_path = _create_run_dir(runs_dir)
+    else:
+        run_path = Path(run_dir)
+    run.run_id = run_path.name
+    run.run_dir = str(run_path)
+    base = run_path.parent
     payload = {
         "run_id": run.run_id,
         "timestamp": run.timestamp,
@@ -805,17 +835,17 @@ def persist_run(run: RunResult, runs_dir: str | Path = "validation-runs") -> Pat
         raise TypeError(
             f"persist_run could not serialise run record{location}: {exc}"
         ) from exc
-    (run_dir / "scenarios.json").write_text(
+    (run_path / "scenarios.json").write_text(
         text, encoding="utf-8", errors="replace"
     )
-    (base / "latest.txt").write_text(run_dir.name, encoding="utf-8")
+    (base / "latest.txt").write_text(run_path.name, encoding="utf-8")
     if run.run_meta.get("run_kind") == "full-library":
         # Full-library runs additionally refresh the full-library baseline
         # pointer. Single-scenario MCP spot checks (the majority of runs)
         # refresh latest.txt but must never overwrite this baseline
         # (plan 2026-10-30 §3.3).
-        (base / "latest-full.txt").write_text(run_dir.name, encoding="utf-8")
-    return run_dir
+        (base / "latest-full.txt").write_text(run_path.name, encoding="utf-8")
+    return run_path
 
 
 # ---------------------------------------------------------------------------
@@ -864,6 +894,62 @@ def _dirs_to_repo_keys(dirs: list[str | Path]) -> list[str]:
     return keys
 
 
+def _mmss(seconds: float) -> str:
+    """Wall-clock seconds as ``MM:SS`` (the progress line's elapsed/eta)."""
+    total = max(0, int(round(seconds)))
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def _progress_line(
+    index: int,
+    total: int,
+    name: str,
+    status: str,
+    duration: float,
+    elapsed: float,
+    eta: float,
+) -> str:
+    """One per-scenario progress line (issue e2e-test-suite#442).
+
+    Fields: 1-based index / total, scenario name (left-justified 40),
+    verdict status, this scenario's wall-clock, run elapsed, and the
+    remaining-time estimate (mean completed duration x remaining count).
+    """
+    width = max(3, len(str(total)))
+    return (
+        f"[{index:>{width}}/{total}] {name:<40} {status:<13} {duration:.1f}s"
+        f"  elapsed {_mmss(elapsed)}  eta {_mmss(eta)}"
+    )
+
+
+def _not_run_result(
+    scenario: dict[str, Any],
+    trace_id: str,
+    budget: float,
+    elapsed: float,
+) -> ScenarioResult:
+    """The placeholder verdict for a scenario the ``--max-seconds`` budget
+    skipped (issue e2e-test-suite#442): ``not-run`` — never a pass, never
+    a failure, so the caller sees exactly which scenarios the wall-clock
+    budget cut instead of mistaking the run for complete."""
+    return ScenarioResult(
+        name=scenario["name"],
+        status="not-run",
+        summary=(
+            f"not-run — wall-clock budget (--max-seconds {budget:g}s) "
+            f"exhausted after {_mmss(elapsed)}; scenario never started"
+        ),
+        missing_env=[],
+        steps=[],
+        cleanup=[],
+        trace_id=trace_id,
+        known_gap=bool(scenario.get("known_gap")),
+        level=scenario.get("level"),
+        family_override=scenario.get("family_override"),
+        family_override_reason=scenario.get("family_override_reason"),
+    )
+
+
 def run_scenarios(
     scenarios_dir: str | Path | Sequence[str | Path] = "scenarios",
     filters: list[str] | str | None = None,
@@ -874,6 +960,8 @@ def run_scenarios(
     run_meta: dict[str, Any] | None = None,
     allow_fake: bool = False,
     step_timeout: float | None = None,
+    progress: Callable[[str], None] | None = None,
+    max_seconds: float | None = None,
 ) -> RunResult:
     """Run every (filtered) scenario: load -> dispatch -> grade ->
     aggregate -> trace -> persist (guide §3.1 six phases).
@@ -896,7 +984,13 @@ def run_scenarios(
         Where persisted run directories live (phase 6).
     persist
         When True (default), persist the run record and refresh
-        ``latest.txt`` before returning.
+        ``latest.txt`` before returning.  The run directory is created
+        BEFORE the first scenario executes (issue e2e-test-suite#442) and
+        an incremental ``progress.jsonl`` (one JSON line per finished
+        scenario, flushed on every append) is maintained in it, so a run
+        killed mid-flight still shows how far it got.  The record files
+        (``scenarios.json`` etc.) are written as before when the run
+        completes.
     run_meta
         Optional explicit run metadata dict.  When None, auto-collected
         from component versions and git SHAs.
@@ -913,6 +1007,18 @@ def run_scenarios(
         effective *env*, else each step's own ``timeout_seconds``, else the
         120s default.  It only changes how long a step WAITS — never an
         assertion, threshold, known-gap or verdict.
+    progress
+        Optional sink for one progress line per finished scenario (issue
+        e2e-test-suite#442).  None (default) keeps the historical
+        behaviour byte-identical; a caller passes e.g. a flushed stderr
+        printer for long-run observability.
+    max_seconds
+        Optional run-level wall-clock budget (issue e2e-test-suite#442).
+        Once exceeded, no NEW scenario is started: the remaining scenarios
+        are recorded as ``not-run`` (never a pass, never a failure), the
+        record is persisted as usual and the run returns normally — the
+        caller sees a truncation verdict instead of an external kill with
+        nothing on disk.
 
     Returns
     -------
@@ -936,9 +1042,97 @@ def run_scenarios(
         loaded.extend(load_scenarios(d))
     selected = _select(loaded, filters)
     trace_id = str(uuid.uuid4())  # one UUID per run, threaded everywhere
-    results = [
-        _run_one(s, env, trace_id, allow_fake, step_timeout) for s in selected
-    ]
+    total = len(selected)
+    # Issue e2e-test-suite#442: create the run directory before the first
+    # scenario starts (same naming rule as persist_run) and keep an
+    # incremental progress.jsonl there, so a killed run still shows how
+    # far it got.  persist_run reuses this directory below.
+    run_dir: Path | None = None
+    progress_fh = None
+    if persist:
+        run_dir = _create_run_dir(runs_dir)
+        progress_fh = (run_dir / "progress.jsonl").open(
+            "a", encoding="utf-8"
+        )
+    results: list[ScenarioResult] = []
+    truncated = False
+    started = time.monotonic()
+    durations: list[float] = []
+    try:
+        for index, scenario in enumerate(selected, 1):
+            if max_seconds is not None and (
+                time.monotonic() - started
+            ) >= max_seconds:
+                truncated = True
+                break
+            t0 = time.monotonic()
+            result = _run_one(scenario, env, trace_id, allow_fake, step_timeout)
+            duration = time.monotonic() - t0
+            results.append(result)
+            durations.append(duration)
+            elapsed = time.monotonic() - started
+            if progress_fh is not None:
+                progress_fh.write(
+                    json.dumps(
+                        {
+                            "index": index,
+                            "total": total,
+                            "name": scenario["name"],
+                            "status": result.status,
+                            "duration_s": round(duration, 3),
+                            "ts": datetime.datetime.now().isoformat(
+                                timespec="seconds"
+                            ),
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+                progress_fh.flush()
+            if progress is not None:
+                mean = sum(durations) / len(durations)
+                eta = mean * (total - index)
+                progress(
+                    _progress_line(
+                        index, total, scenario["name"], result.status,
+                        duration, elapsed, eta,
+                    )
+                )
+        if truncated:
+            elapsed = time.monotonic() - started
+            budget = float(max_seconds) if max_seconds is not None else 0.0
+            for index in range(len(results) + 1, total + 1):
+                scenario = selected[index - 1]
+                result = _not_run_result(scenario, trace_id, budget, elapsed)
+                results.append(result)
+                if progress_fh is not None:
+                    progress_fh.write(
+                        json.dumps(
+                            {
+                                "index": index,
+                                "total": total,
+                                "name": scenario["name"],
+                                "status": result.status,
+                                "duration_s": 0.0,
+                                "ts": datetime.datetime.now().isoformat(
+                                    timespec="seconds"
+                                ),
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
+                    progress_fh.flush()
+                if progress is not None:
+                    progress(
+                        _progress_line(
+                            index, total, scenario["name"], result.status,
+                            0.0, elapsed, 0.0,
+                        )
+                    )
+    finally:
+        if progress_fh is not None:
+            progress_fh.close()
     run = RunResult(
         trace_id=trace_id,
         timestamp=datetime.datetime.now().isoformat(timespec="seconds"),
@@ -953,5 +1147,5 @@ def run_scenarios(
         except Exception:
             run.run_meta = {}
     if persist:
-        persist_run(run, runs_dir)
+        persist_run(run, runs_dir, run_dir=run_dir)
     return run
