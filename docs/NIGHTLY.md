@@ -106,6 +106,18 @@ cd <repo>
 
 ## 【活区】当前差距矩阵（真基线 2026-10-01）
 
+### 2026-11-27 夜间复跑（本仓 `bbce4fb`；OPP/OL 子库仍停在特性分支）
+
+批跑（02:00，systemd `nightly-gap.service`，网关进程树外，`.venv_ol/bin/python scripts/nightly_gap.py`）：**exit 0 —— `gap_units 0`**（`test_artifacts/nightly/gap.json`：`total_units 402` / `passed 298` / `failed 0` / `skipped 104` / `channel_divergence 0` / `regression_gap 0`）。
+
+- per_channel：CLI 与 MCP 同形同数（`total 201` / `passed 149` / `skipped 52` / `failed 0` / `exempt 8` / `signed_debt 44` / `needs_cleanup 0` / `regression_excess 0`）；`gap_units 0 = failed 0 + Σ(skipped 52 − exempt 8 − signed 44)`。
+- skip 104 = 豁免 16（夹具内容依赖，每通道 8）+ 签字移出 88（`#374` 结构性拒绝，每通道 44）+ 需清理 0。
+- **运行时点（口径注意）**：本仓 `bbce4fb`；`Omni_Pre_Processor=docs/141-opp-mcp-entrypoint@469033b`、`Omni_Localizer=fix/217-md-repair-shape@0db0b2c`（**均非 main**，批跑标 `DIRTY_SKIPPED`）、`Omni_Re_Formatter=main@12aec78`。本机 fetch 后本仓 main 已到 **`ae749b7`**，本轮**未重跑 omni**（单轮约 2.4h，超出本轮窗口）⇒ 上述读数是 `bbce4fb` 上的结果，不是 `ae749b7` 的。
+- **台账新鲜度**：`test_artifacts/nightly/base.json` 仍是旧快照，bench 行的 AutoInfo / AutoMedia sha 分别写 `c1bf6e2a` / `0926d4c`（当晚各仓 `FETCH_FAILED`），**不是**现读 HEAD（现为 `efb84b6f` / `386c4ff5`）。
+- 本仓文档门禁：`scripts/doc_inventory.py --check` **exit 0**（source truth `OPP=9 OL=21 ORF=7 module=37 suite=4 all=41`；`scenarios 127 yaml`；governance-drift D-A…D-F 全 ok）。
+- 与 2026-11-23 对照：同为 `gap_units 0`（402 / 298 / 0 / 104），per_channel 分解一致（exempt 8 + signed 44）⇒ **无退步、无新增缺口**。
+- **最终裁决仍由 owner 保留**（见【冻结区】）——本文件只记录机器判据的结果，不代表「计划完成」。
+
 ### 2026-11-23 夜间复跑（在最新 main `0e1c77b` 上）
 
 批跑（02:00，systemd `nightly-gap.service`，网关进程树外，`.venv_ol/bin/python scripts/nightly_gap.py`）：**exit 0 —— `gap_units 0`**（`test_artifacts/nightly/gap.json`：`total_units 402` / `passed 298` / `failed 0` / `skipped 104` / `channel_divergence 0`）。
