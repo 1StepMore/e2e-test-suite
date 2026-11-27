@@ -15,8 +15,13 @@
 > - **AMD Radeon** (`AMD_API_KEY`, DeepSeek-V4.1-Flash) — https://developer.amd.com.cn/radeon/api/v1
 > - **Zhipu BigModel** (`ZHIPU_API_KEY`) — https://open.bigmodel.cn/
 >
-> If you don't have either, get one first. Tests will be skipped (not failed)
-> without a key.
+> **No provider key?** You do not need to buy one: any OpenAI-compatible
+> endpoint you already have works (company gateway, local Ollama, third-party
+> compatible host). Set `LLM_BASE_URL` + `LLM_API_KEY` + `LLM_MODEL` (all
+> three) — see "Using any OpenAI-compatible endpoint" in Step 2.
+>
+> If you have neither, tests will be skipped (not failed)
+> without a usable LLM configuration.
 >
 > The pool is **two providers**. The 13 OL-driven validation scenarios gate on
 > `requires_env_any` (an OR group over the two keys), so **one working provider
@@ -121,6 +126,37 @@ cd "${OMNI_ROOT:-/mnt/d/贯维/Omni_Suite}"
 .venv_ol/bin/ol doctor -c Omni_Localizer/config/local.yaml
 # (or -c Omni_Localizer/config/default.yaml)
 ```
+
+### Using any OpenAI-compatible endpoint (no provider key needed)
+
+The shipped pool carries a **generic OpenAI-compatible endpoint entry per
+role at the lowest priority** (suite#448), so you can reuse an existing
+endpoint — company gateway, local Ollama, any third-party OpenAI-compatible
+host — without buying a provider key. Set **all three** variables (a partial
+triple is treated as unconfigured, not as a fallback):
+
+```bash
+export LLM_BASE_URL=http://127.0.0.1:11434/v1   # your endpoint's OpenAI-compatible base URL
+export LLM_API_KEY=<key-or-dummy-for-local-ollama>
+export LLM_MODEL=<model-name-your-endpoint-serves>
+```
+
+Semantics:
+- Provider keys **still win when both are configured**: the generic entries
+  are the lowest-priority tier, so `AMD_API_KEY`/`ZHIPU_API_KEY` entries are
+  dialed first and the endpoint is the fallback.
+- The `omni-suite pipeline` gate accepts a complete triple as a valid
+  configuration on its own; a partial triple fails with the missing variable
+  names. The pipeline's machine payload records the endpoint provenance
+  (`base_url_source`, model) and never records the key value.
+- Under `omni-suite pipeline`, OL runs the suite-pinned
+  `Omni_Localizer/config/test_universal.yaml` — its generic entries read the
+  same triple. Running `ol` standalone uses your `config/local.yaml` (or the
+  shipped default); add the same triple entry there or rely on the shipped
+  default.
+- Verified end-to-end by `tests/test_e2e_pipeline_custom_endpoint.py`, which
+  drives the real OPP→OL→ORF chain over a localhost OpenAI-compatible
+  endpoint with no provider key and no FAKE_LLM.
 
 ---
 
