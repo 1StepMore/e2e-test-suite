@@ -498,6 +498,19 @@ ci:
   status: active
   supersedes: ''
   note: compiled artifact scaffold — edit sources, not locks
+- id: lock-check
+  title: 套件根 uv.lock 漂移检测（成员仓 dev 依赖变动）
+  group: lock-refresh.yml
+  command: uv lock; git diff -- uv.lock → 有漂移则开/更新 lock-drift issue 并让 job 变红
+  files_scope: schedule (daily 04:30 CST) / dispatch
+  evidence: execution
+  windows: 'no'
+  wsl: 'no'
+  authoritative_executor: GitHub Actions (ubuntu runner)
+  status: active
+  supersedes: ''
+  note: 'suite#453 方案 B：只检测+报；不自动提交 lock（GITHUB_TOKEN 推的分支不触发
+    pull_request 事件，自动 PR 会永远合不了）'
 readiness:
 - id: '1.1'
   title: Suite `VERSION` file matches the "Suite" column in `COMPATIBILITY.md` table
