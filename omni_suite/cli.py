@@ -61,6 +61,20 @@ _LLM_API_KEYS = [
     "ZHIPU_API_KEY",
 ]
 
+# Generic OpenAI-compatible endpoint triple (e2e-test-suite#448) — the
+# alternative to a provider key: any OpenAI-compatible service (company
+# gateway, local Ollama, third-party compatible host) reachable with
+# base_url + key + model. All three must be set to count as configured:
+# OL's pool skips its generic entries while any one of them is unresolved
+# (router.partition_usable_models), so a partial triple is a
+# misconfiguration, not a fallback. Lowest pool priority: provider keys
+# still win when both are configured.
+_LLM_ENDPOINT_VARS = [
+    "LLM_BASE_URL",
+    "LLM_API_KEY",
+    "LLM_MODEL",
+]
+
 # Optional but commonly expected env vars
 _OPTIONAL_VARS = [
     "OL_CONFIG_PATH",
@@ -87,10 +101,14 @@ def _validate_env(require_llm: bool = False) -> None:
     """Warn or error on missing environment variables.
 
     Args:
-        require_llm: If True, exit with error when NO LLM provider key is
-                     found (used for 'pipeline' and real translation
-                     commands). One canonical key is enough — the remaining
-                     entries are fallbacks the router skips.
+        require_llm: If True, exit with error when NO usable LLM
+                     configuration is found (used for 'pipeline' and real
+                     translation commands). One canonical provider key is
+                     enough — the remaining entries are fallbacks the router
+                     skips. A complete generic OpenAI-compatible endpoint
+                     triple (``LLM_BASE_URL`` + ``LLM_API_KEY`` +
+                     ``LLM_MODEL``) satisfies the gate too
+                     (e2e-test-suite#448).
     """
     # A var set to "" is absent: os.environ.get mirrors how OL resolves the
     # model pool, so one configured provider satisfies the gate and the rest
@@ -99,12 +117,53 @@ def _validate_env(require_llm: bool = False) -> None:
     present_keys = [k for k in _LLM_API_KEYS if os.environ.get(k)]
     missing_keys = [k for k in _LLM_API_KEYS if not os.environ.get(k)]
 
-    if not present_keys:
+    # Generic OpenAI-compatible endpoint triple (e2e-test-suite#448): an
+    # alternative to provider keys. All three must be set — OL's pool skips
+    # its generic entries while any one of them is unresolved, so a partial
+    # triple is a misconfiguration, not a fallback.
+    endpoint_missing = [v for v in _LLM_ENDPOINT_VARS if not os.environ.get(v)]
+    endpoint_ready = not endpoint_missing
+    endpoint_touched = any(os.environ.get(v) for v in _LLM_ENDPOINT_VARS)
+
+    if present_keys or endpoint_ready:
+        if endpoint_ready:
+            msg = (
+                "ℹ️  Using generic OpenAI-compatible endpoint "
+                "(LLM_BASE_URL/LLM_API_KEY/LLM_MODEL)."
+            )
+            if present_keys:
+                msg += (
+                    f" Provider key(s) {', '.join(present_keys)} also set — "
+                    "pool priority still prefers them; the endpoint entries "
+                    "are the lowest-priority fallback."
+                )
+            elif missing_keys:
+                msg += (
+                    f" {', '.join(missing_keys)} unset "
+                    "(fallbacks, will be skipped)."
+                )
+            # T-05: agents parse stdout — the note belongs on stderr.
+            print(msg, file=sys.stderr)
+        elif missing_keys:
+            # At least one provider is configured; the unset entries are
+            # fallbacks the router skips, not a misconfiguration. Names only —
+            # never echo resolved key values.
+            msg = (
+                f"ℹ️  Using {', '.join(present_keys)}; "
+                f"{', '.join(missing_keys)} unset (fallbacks, will be skipped)."
+            )
+            # T-05: agents parse stdout — the note belongs on stderr.
+            print(msg, file=sys.stderr)
+        return
+
+    if endpoint_touched:
+        # Partial triple: name exactly what is still missing (actionable),
+        # instead of a generic "no keys" complaint.
         msg = (
-            "⚠️  No LLM provider keys found. Set at least one of:\n"
-            f"       {', '.join(_LLM_API_KEYS)}\n"
-            "   Copy .env.example → .env and fill in your keys.\n"
-            "   For testing, set OMNI_TEST_FAKE_LLM=1 to bypass LLM calls."
+            "⚠️  Incomplete OpenAI-compatible endpoint configuration. "
+            f"Missing: {', '.join(endpoint_missing)}\n"
+            f"   Set all three of: {', '.join(_LLM_ENDPOINT_VARS)}\n"
+            "   See SETUP.md → 'Using any OpenAI-compatible endpoint'."
         )
         # T-05: agents parse stdout — the warning belongs on stderr.
         print(msg, file=sys.stderr)
@@ -112,19 +171,31 @@ def _validate_env(require_llm: bool = False) -> None:
             _JSON.failure(
                 1,
                 "OMNI_MISSING_LLM_KEYS",
-                "No LLM provider keys found — set at least one of: "
-                + ", ".join(_LLM_API_KEYS),
+                "Incomplete OpenAI-compatible endpoint configuration — "
+                f"missing: {', '.join(endpoint_missing)} (all of "
+                f"{', '.join(_LLM_ENDPOINT_VARS)} are required; see SETUP.md)",
             )
-    elif missing_keys:
-        # At least one provider is configured; the unset entries are fallbacks
-        # the router skips, not a misconfiguration. Names only — never echo
-        # resolved key values.
-        msg = (
-            f"ℹ️  Using {', '.join(present_keys)}; "
-            f"{', '.join(missing_keys)} unset (fallbacks, will be skipped)."
+        return
+
+    msg = (
+        "⚠️  No usable LLM configuration found. Either set a provider key:\n"
+        f"       {', '.join(_LLM_API_KEYS)}\n"
+        "   or point at any OpenAI-compatible endpoint with all three of:\n"
+        f"       {', '.join(_LLM_ENDPOINT_VARS)}\n"
+        "   Copy .env.example → .env and fill in your keys.\n"
+        "   For testing, set OMNI_TEST_FAKE_LLM=1 to bypass LLM calls."
+    )
+    # T-05: agents parse stdout — the warning belongs on stderr.
+    print(msg, file=sys.stderr)
+    if require_llm:
+        _JSON.failure(
+            1,
+            "OMNI_MISSING_LLM_KEYS",
+            "No usable LLM configuration found — set a provider key ("
+            + ", ".join(_LLM_API_KEYS)
+            + ") or a complete OpenAI-compatible endpoint triple ("
+            + ", ".join(_LLM_ENDPOINT_VARS) + ")",
         )
-        # T-05: agents parse stdout — the note belongs on stderr.
-        print(msg, file=sys.stderr)
 
     missing_optional = [k for k in _OPTIONAL_VARS if not os.environ.get(k)]
     if missing_optional and not os.environ.get("OMNI_TEST_FAKE_LLM"):
@@ -440,6 +511,35 @@ def _run_pipeline(args: list[str]) -> dict[str, Any]:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def _llm_config_summary() -> dict[str, Any]:
+    """LLM configuration provenance for pipeline run records (#448).
+
+    Records WHICH configuration source a run used — the fake seam, a
+    provider key, or the generic OpenAI-compatible endpoint triple — and,
+    for the endpoint path, where its base_url came from and which model it
+    names. Variable NAMES only: no key values are ever recorded, and the
+    base_url value itself is omitted too (free-form URLs can embed
+    credentials in query strings).
+    """
+    if os.environ.get("OMNI_TEST_FAKE_LLM") == "1":
+        return {"mode": "fake", "provider_keys_present": []}
+    present_keys = [k for k in _LLM_API_KEYS if os.environ.get(k)]
+    endpoint_missing = [v for v in _LLM_ENDPOINT_VARS if not os.environ.get(v)]
+    if not endpoint_missing:
+        return {
+            "mode": "openai-compatible-endpoint",
+            "base_url_source": "env:LLM_BASE_URL",
+            "model": os.environ["LLM_MODEL"],
+            "provider_keys_present": present_keys,
+        }
+    return {
+        "mode": "provider-keys" if present_keys else "none",
+        "base_url_source": None,
+        "model": None,
+        "provider_keys_present": present_keys,
+    }
+
+
 def _manifest_payload(
     manifest: run_manifest.RunManifest, **extra: Any
 ) -> dict[str, Any]:
@@ -449,6 +549,7 @@ def _manifest_payload(
         "input": manifest.input_file,
         "output": manifest.output,
         "stages": {s: st.to_dict() for s, st in manifest.stages.items()},
+        "llm": _llm_config_summary(),
         **extra,
     }
 

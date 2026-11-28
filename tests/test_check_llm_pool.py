@@ -168,7 +168,10 @@ class TestDiagnosis:
         _rc, out = _run(guard, monkeypatch, {}, "--min-per-role", "2")
         assert out["skipped"], "expected the ZHIPU-backed models to be reported as skipped"
         missing = {name for entry in out["skipped"] for name in entry["missing_env"]}
-        assert missing == {"ZHIPU_API_KEY"}
+        # suite#448: the pool also carries the generic OpenAI-compatible
+        # endpoint triple at the lowest tier, so a clean env reports those
+        # refs as skipped alongside the provider key.
+        assert missing == {"ZHIPU_API_KEY", "LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"}
 
     def test_skipped_entries_name_role_model_and_provider(self, guard, monkeypatch):
         _rc, out = _run(guard, monkeypatch, {"ZHIPU_API_KEY": "z"})

@@ -25,7 +25,7 @@ SUITE_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = SUITE_ROOT / "tests" / "production" / "small_fixture.docx"
 VERSION_FILE = SUITE_ROOT / "VERSION"
 
-_LLM_KEYS = ("AMD_API_KEY", "ZHIPU_API_KEY")
+_LLM_KEYS = ("AMD_API_KEY", "ZHIPU_API_KEY", "LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL")
 
 _MODULE_PYPROJECTS = {
     "opp": "Omni_Pre_Processor/pyproject.toml",
@@ -116,5 +116,5 @@ class TestWarningGoesToStderr:
 
     def test_help_warning_is_on_stderr_not_stdout(self):
         result = _run("--help", env=_env_without_llm_keys())
-        assert "No LLM provider keys found" in result.stderr, result.stderr
-        assert "No LLM provider keys found" not in result.stdout, result.stdout
+        assert "No usable LLM configuration found" in result.stderr, result.stderr
+        assert "No usable LLM configuration found" not in result.stdout, result.stdout

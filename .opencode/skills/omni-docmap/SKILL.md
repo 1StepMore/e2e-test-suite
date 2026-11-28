@@ -33,7 +33,7 @@ All paths are relative to the project root `/mnt/d/贯维/Omni_Suite`. Each entr
 | `CHANGELOG.md` | ~272 | All devs | Suite-level changelog (Unreleased + released versions) | Every change — always add an entry |
 | `COMPATIBILITY.md` | ~31 | All devs | Suite↔submodule version compatibility matrix | Version bumps of any module |
 | `CONTRIBUTING.md` | ~172 | Contributors | PR workflow, branch naming, test expectations, doc update requirements | Process changes, CI changes |
-| `SETUP.md` | ~220 | Developers | Phase 1 setup guide for real LLM integration tests (API keys, config) | API key changes, env var changes, setup process changes |
+| `SETUP.md` | ~260 | Developers | Phase 1 setup guide for real LLM integration tests (API keys, config, OpenAI-compatible endpoint triple) | API key changes, env var changes, setup process changes |
 | `PROJECT_STATUS.md` | ~228 | First file to read | Project snapshot: versions, test matrix health, recent fixes, platform notes, canonical-doc pointer table | Version bumps, test health changes, architecture changes |
 | `PRODUCTION_READINESS.md` | ~10 | Maintainers | Root stub: points at the `GATES.yaml` readiness layer and the archived V1-V11 checklist (`docs/archive/PRODUCTION_READINESS.md`) | Gate-registry topology changes |
 | `ACCEPTED_GAPS.md` | ~150 | All devs | Known limitations and tradeoffs (PDF→XLIFF blocked, MSG requires commercial, validation known gaps, etc.) | New gap discovered, existing gap resolved |

@@ -79,9 +79,12 @@ def _clear_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove every known provider key so the gate sees a clean slate.
 
     ``tests/conftest.py`` installs dummy provider keys at import time; wipe
-    both canonical and retired names so each test controls the full set.
+    both canonical and retired names plus the generic endpoint triple so
+    each test controls the full set.
     """
-    for key in (*CANONICAL_KEYS, *RETIRED_KEYS):
+    from omni_suite import cli as suite_cli
+
+    for key in (*CANONICAL_KEYS, *RETIRED_KEYS, *suite_cli._LLM_ENDPOINT_VARS):
         monkeypatch.delenv(key, raising=False)
 
 
@@ -154,6 +157,83 @@ class TestSuiteCliKeyDetector:
         with pytest.raises(SystemExit) as excinfo:
             cli._validate_env(require_llm=True)
         assert excinfo.value.code == 1
+
+
+class TestSuiteCliEndpointTriple:
+    """The generic OpenAI-compatible endpoint triple (#448).
+
+    ``LLM_BASE_URL`` + ``LLM_API_KEY`` + ``LLM_MODEL`` together are an
+    alternative to a provider key: any OpenAI-compatible service (company
+    gateway, local Ollama, third-party compatible host). The triple is
+    all-or-nothing at the gate — OL's pool skips its generic entries while
+    any one var is unresolved, so a partial triple must fail closed with
+    the missing names called out (actionable, per #448's acceptance
+    criteria), never silently pass.
+    """
+
+    ENDPOINT_VARS = ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL")
+
+    def test_full_triple_satisfies_the_real_llm_gate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        from omni_suite import cli
+
+        _clear_llm_env(monkeypatch)
+        for var in self.ENDPOINT_VARS:
+            monkeypatch.setenv(var, "http://127.0.0.1:8899/v1" if var == "LLM_BASE_URL" else "stub")
+
+        cli._validate_env(require_llm=True)  # must not raise SystemExit
+
+    def test_full_triple_alone_opens_the_gate_without_provider_keys(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The triple must be sufficient ON ITS OWN — no provider key needed.
+
+        This is the #448 headline: reusing an existing OpenAI-compatible
+        endpoint must not require buying a provider account.
+        """
+        from omni_suite import cli
+
+        _clear_llm_env(monkeypatch)
+        monkeypatch.setenv("LLM_BASE_URL", "http://127.0.0.1:8899/v1")
+        monkeypatch.setenv("LLM_API_KEY", "sk-endpoint")
+        monkeypatch.setenv("LLM_MODEL", "qwen3")
+
+        cli._validate_env(require_llm=True)  # must not raise SystemExit
+
+    @pytest.mark.parametrize("absent_var", ENDPOINT_VARS)
+    def test_partial_triple_fails_closed_and_names_the_missing_var(
+        self, monkeypatch: pytest.MonkeyPatch, absent_var: str, capsys
+    ):
+        """A partial triple fails closed and names what is missing."""
+        from omni_suite import cli
+
+        _clear_llm_env(monkeypatch)
+        for var in self.ENDPOINT_VARS:
+            if var != absent_var:
+                monkeypatch.setenv(var, "stub")
+
+        with pytest.raises(SystemExit) as excinfo:
+            cli._validate_env(require_llm=True)
+        assert excinfo.value.code == 1
+        captured = capsys.readouterr()
+        # Actionable: the missing var is named on stderr, never on stdout.
+        assert absent_var in captured.err
+        assert absent_var not in captured.out
+
+    def test_no_config_fails_closed_and_lists_both_paths(
+        self, monkeypatch: pytest.MonkeyPatch, capsys
+    ):
+        """Clean slate: the error names provider keys AND the triple."""
+        from omni_suite import cli
+
+        _clear_llm_env(monkeypatch)
+        with pytest.raises(SystemExit) as excinfo:
+            cli._validate_env(require_llm=True)
+        assert excinfo.value.code == 1
+        captured = capsys.readouterr()
+        for var in self.ENDPOINT_VARS:
+            assert var in captured.err, captured.err
 
 
 class TestRealLlmWorkflowEnvContract:

@@ -15,7 +15,7 @@ This file guides AI agents (Claude, Cursor, OpenCode, Hermes, Codex, opencode, �
 
 ## Role routing (determine role before work; never self-guess)
 
-Your role comes from the Owner's explicit assignment. Read the contract first and work inside its boundaries; each contract defines Done, return format, and Stop & Escalate.
+Your role comes from the Owner's explicit assignment. Read the contract first and work inside its boundaries; each contract defines Done, return format, and Stop & Escalate. `.agents/roles/` here is the **master copy** — the three module repos carry byte-identical copies, hash-pinned by their `doc_inventory.py` (`ROLES_SHA256`, suite#446 option B); a contract edit = edit here + three-repo sync + pin bump.
 
 | Assigned role | Contract | Also read | Never touch (summary) |
 |---|---|---|---|
@@ -37,7 +37,7 @@ all else = `owner:human-agent`).
 
 ## What is this?
 
-A 3-stage document localization pipeline: **OPP** (extract) → **OL** (translate) → **ORF** (backfill). Each module is a standalone sub-repo with its own CLI, MCP server, and test suite.
+Three-layer positioning: **OPP** (extract) → **OL** (translate) → **ORF** (backfill) are three independent products, each a standalone sub-repo with its own CLI, MCP server, and test suite. This repo is the **orchestration + integration-verification layer** that chains them (`omni-suite`, E2E, validation) and the **holder of the one shared artifact**, `CONTRACT.md` (the OPP→OL→ORF handoff contract — changing it requires a three-repo sync; the module repos do not own it). The modules do not depend on this repo to run.
 
 ## Current Versions
 
@@ -55,12 +55,12 @@ Changelog: `CHANGELOG.md`; compatibility matrix: `COMPATIBILITY.md`.
 > **Prerequisite:** Python >= 3.13. Verify with `python3 --version`.
 >
 > **Windows hosts:** `.venv_ol/` is a Linux venv created under WSL — `source .venv_ol/bin/activate` does not work from PowerShell/Git Bash. Either work inside WSL, or route interpreter-dependent commands through `bash scripts/pre_commit_python.sh` (resolves to `.venv_win/`). Execution-backed validation evidence requires WSL (see `docs/dev/validation-loop-log.md`; background in `docs/venv-migration.md`).
+> **Without WSL, this still works natively** (per-item verify commands: [`docs/dev/windows-capability.md`](docs/dev/windows-capability.md)): install via `scripts/setup_dev.ps1`, per-module CLI smoke (FAKE_LLM), per-module pytest, `omni-suite pipeline` (endpoint triple or `--fake-llm`), pre-commit, doc truth, and the nightly-matrix criterion readback (`#394`). Only execution-backed validation evidence (the `.venv_ol`-pinned dispatcher) needs WSL.
 
 ## Quick Start
 
 ```bash
-bash scripts/setup_dev.sh                 # install (one command)
-bash scripts/setup_dev.sh --check-only    # verify without installing
+bash scripts/setup_dev.sh                 # install (one command); add --check-only to verify without installing
 omni-suite --version                      # check version
 ```
 
@@ -99,7 +99,7 @@ orf apply-md /tmp/ol/document.md --target-format docx -o result.docx
 
 ### Run the suite pipeline in one shot
 
-`omni-suite pipeline <file>` chains the 3 steps behind a single CLI; it really executes the OPP→OL→ORF subprocesses (only `--dry-run` prints without executing). A real run needs at least one LLM provider key (`AMD_API_KEY` or `ZHIPU_API_KEY`). Flags: `--dry-run` / `--gates-only` (OPP + OL 8 quality gates, skip ORF) / `--keep-intermediate` / `--json`. See `omni-suite pipeline --help`.
+`omni-suite pipeline <file>` chains the 3 steps behind a single CLI; it really executes the OPP→OL→ORF subprocesses (only `--dry-run` prints without executing). A real run needs one usable LLM configuration: a provider key (`AMD_API_KEY` or `ZHIPU_API_KEY`) **or** any OpenAI-compatible endpoint via all three of `LLM_BASE_URL` + `LLM_API_KEY` + `LLM_MODEL` (see `SETUP.md` → "Using any OpenAI-compatible endpoint"). Flags: `--dry-run` / `--gates-only` (OPP + OL 8 quality gates, skip ORF) / `--keep-intermediate` / `--json`. See `omni-suite pipeline --help`.
 
 ## Validation (agent-agnostic; citable bar = `scenarios/STANDARDS.md`)
 
