@@ -1,0 +1,87 @@
+name: Lock drift refresh
+
+# 定时检测「套件根 uv.lock 与成员仓最新 pyproject 是否一致」。
+# 背景（e2e-test-suite#453）：模块仓往 dev 组加依赖会让套件根 lock 过期，
+# 而模块仓改不了套件仓的文件 ⇒ 之后所有模块 PR 的 validate 全红，
+# 报错还指向一个在本仓不存在的实例。本 job 负责把漂移变成一条可见的 issue。
+#
+# 只检测、只开 issue，不自动提交 lock：
+# 仓的 ruleset 要求 CI 全绿才能合 main，而用 GITHUB_TOKEN 推的分支不会触发
+# pull_request 事件 ⇒ 自动开会是「永远红、永远合不了」的 PR，反而制造噪声。
+
+on:
+  schedule:
+    - cron: "30 20 * * *"   # 04:30 CST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  lock-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.11.8"
+
+      - name: Clone module repos into the workspace
+        run: bash scripts/clone_subrepos.sh
+
+      - name: Check whether uv.lock is current
+        id: check
+        run: |
+          uv lock
+          if git diff --quiet -- uv.lock; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "uv.lock is current."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "drift=true"
+              echo "stat<<EOF"
+              git diff --stat -- uv.lock
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            git diff --stat -- uv.lock
+          fi
+
+      - name: Open or update the drift issue
+        if: steps.check.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create lock-drift --color ededed \
+            --description "套件根 uv.lock 与成员仓 pyproject 不一致" 2>/dev/null || true
+          body=$(cat <<EOF
+          定时检测（$(date -u +%FT%TZ)）发现套件根 \`uv.lock\` 与成员仓最新 \`pyproject.toml\` 不一致：
+
+          \`\`\`
+          ${{ steps.check.outputs.stat }}
+          \`\`\`
+
+          **影响**：所有模块仓 PR 的 \`validate\`（\`cd suite && uv sync --locked\`）会红，而报错指向本仓不存在的文件。
+
+          **修法**：在本机 e2e-test-suite 检出里跑 \`UV_NO_CONFIG=1 uv lock\`（本机 \`~/.config/uv/uv.toml\` 配了国内镜像，不带 \`UV_NO_CONFIG\` 会把整份 lock 的 URL 全改写），然后开 PR 合入。
+
+          机制与备选方案见 #453。
+          EOF
+          )
+          n=$(gh issue list --label lock-drift --state open --json number --jq '.[0].number' || true)
+          if [ -n "$n" ]; then
+            gh issue comment "$n" --body "$body"
+          else
+            gh issue create --title "lock-drift: 套件根 uv.lock 需要刷新" --label lock-drift --body "$body"
+          fi
+
+      - name: Fail so the drift is visible
+        if: steps.check.outputs.drift == 'true'
+        run: |
+          echo "::error::套件根 uv.lock 已漂移 —— 见 lock-drift issue（机制见 #453）。"
+          exit 1
