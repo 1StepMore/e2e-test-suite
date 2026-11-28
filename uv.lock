@@ -2904,6 +2904,7 @@ audio = [
 ]
 dev = [
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "pytest-cov" },
 ]
 email = [
@@ -2935,6 +2936,7 @@ dev = [
     { name = "fastmcp" },
     { name = "mcp" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pyyaml" },
 ]
@@ -2964,6 +2966,7 @@ requires-dist = [
     { name = "pydub", marker = "extra == 'audio'", specifier = ">=0.23.0" },
     { name = "pymupdf", specifier = ">=1.27.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "python-docx", specifier = ">=1.0.0" },
     { name = "python-json-logger", specifier = ">=2.0.0" },
@@ -2982,6 +2985,7 @@ dev = [
     { name = "fastmcp", specifier = ">=1.0.0" },
     { name = "mcp", specifier = ">=1.0.0,<2" },
     { name = "pytest", specifier = ">=9.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "pyyaml", specifier = ">=5.0.0" },
 ]
