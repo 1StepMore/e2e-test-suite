@@ -14,14 +14,14 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | Metric | Value |
 |--------|-------|
 | Total files | 83 |
-| Total lines | 37334 |
+| Total lines | 37346 |
 | Active files | 58 |
 | Archived files | 25 |
 | Category — archive | 25 files / 25581 lines |
 | Category — security | 2 files / 1204 lines |
 | Category — docs/observability | 1 files / 138 lines |
 | Category — docs/dev | 36 files / 4195 lines |
-| Category — docs/root | 19 files / 6216 lines |
+| Category — docs/root | 19 files / 6228 lines |
 
 ## Inventory
 
@@ -34,7 +34,7 @@ python3 scripts/doc_inventory.py --check  # source-truth consistency (exit 0 = c
 | `ERROR_CODES.md` | 273 | docs/root | active | — |
 | `FINAL_VERDICT.md` | 114 | docs/root | active | — |
 | `HANDOVER.md` | 620 | docs/root | active | — |
-| `NIGHTLY.md` | 302 | docs/root | active | — |
+| `NIGHTLY.md` | 314 | docs/root | active | — |
 | `PRD.md` | 61 | docs/root | active | — |
 | `RELEASE_NOTES.md` | 871 | docs/root | active | — |
 | `SECURITY.md` | 250 | security | active | — |
